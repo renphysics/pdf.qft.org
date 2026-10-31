@@ -51,7 +51,7 @@ async function inspectIndependent(bytes) {
     const content = await page.getTextContent();
     result.push({ width: viewport.width, height: viewport.height, text: content.items.map(item => item.str || '').join(' ') });
   }
-  await pdf.destroy();
+  await pdf.loadingTask.destroy();
   return result;
 }
 

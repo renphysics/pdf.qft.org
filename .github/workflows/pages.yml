@@ -24,10 +24,13 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
-      - name: Restore verified font assets
-        run: node scripts/prepare-assets.mjs
-      - name: Verify the static site
-        run: node tests/site-integrity.test.mjs
+          cache: npm
+      - name: Install test dependencies
+        run: npm ci --ignore-scripts
+      # Restores the verified CJK font into dist/, checks the static site, then
+      # runs the PDF engine and workflow suites. A failure blocks deployment.
+      - name: Restore font assets and run all tests
+        run: npm test
       - name: Configure GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Upload the website

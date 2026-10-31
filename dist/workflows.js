@@ -1,5 +1,5 @@
 /** Reusable, browser-local PDF workflows. No document data is persisted here. */
-import { inspectPdf, buildPdf, parsePageRange } from './pdf-engine.js';
+import { inspectPdf, buildPdf, parsePageRange, loadPdfLib } from './pdf-engine.js';
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -149,9 +149,9 @@ function cancelled(shouldCancel) {
 /** Copy already-edited page contents. Printed page numbers are not regenerated. */
 export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCancel = () => false } = {}) {
   cancelled(shouldCancel);
-  if (!globalThis.PDFLib) throw new Error('The PDF tools did not load. Refresh this page and try again.');
+  const PDFLib = await loadPdfLib();
   let source;
-  try { source = await globalThis.PDFLib.PDFDocument.load(pdfBytes(bytes), { updateMetadata: false }); }
+  try { source = await PDFLib.PDFDocument.load(pdfBytes(bytes), { updateMetadata: false }); }
   catch (error) {
     if (/encrypt|password/i.test(error?.message || '')) throw new Error('This PDF is password-protected. Save an unlocked copy before splitting it.');
     throw new Error('This file could not be opened as a PDF. Try saving a new copy from your PDF reader.');
@@ -168,7 +168,7 @@ export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCan
   onProgress(0);
   for (let index = 0; index < groups.length; index++) {
     cancelled(shouldCancel);
-    const output = await globalThis.PDFLib.PDFDocument.create();
+    const output = await PDFLib.PDFDocument.create();
     output.setProducer('QFT PDF');
     if (source.getTitle()) output.setTitle(`${source.getTitle()} — part ${index + 1}`);
     if (source.getAuthor()) output.setAuthor(source.getAuthor());

@@ -28,7 +28,7 @@ fontkit-dependencies/. Machine-readable audit: fontkit-dependencies/provenance.j
 Audit method and upstream historical limitations: fontkit-dependencies/README.md
 These dependencies retain their MIT, BSD-3-Clause, ISC, Zlib and Apache-2.0 terms.
 
-PDF.js (pdfjs-dist) 5.6.205
+PDF.js (pdfjs-dist) 6.4.299, legacy browser build
 Mozilla and contributors. Apache License 2.0.
 Source: https://github.com/mozilla/pdf.js
 Full license: pdfjs-Apache-2.0.txt

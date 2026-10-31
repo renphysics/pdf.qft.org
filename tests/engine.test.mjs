@@ -49,7 +49,7 @@ async function extract(data) {
       items: text.items.filter((item) => item.str).map((item) => ({ text: item.str, transform: pdfjs.Util.transform(viewport.transform, item.transform) })),
     });
   }
-  await doc.destroy();
+  await doc.loadingTask.destroy();
   return result;
 }
 

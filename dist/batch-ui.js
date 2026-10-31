@@ -1,4 +1,5 @@
 import { normalizePreset, applyPreset, createZip, uniqueFilename, safeBaseName } from './workflows.js';
+import { loadPdfLib } from './pdf-engine.js';
 
 const STORAGE_KEY = 'qft-pdf.presets.v1';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -35,7 +36,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
   root.innerHTML = `
     <div class="batch-shell">
       <div class="batch-topline"><button type="button" class="button subtle compact" data-batch-action="back">${icon('back')}All tools</button><span>${icon('shield')}Processed on your device</span></div>
-      <header class="batch-heading"><div><div class="eyebrow">A WORKFLOW WORTH REPEATING</div><h1>One setup. <em>Every PDF.</em></h1><p>Apply a saved combination of edits to separate files, then download them together.</p></div><span class="batch-tag">BATCH &amp; PRESETS</span></header>
+      <header class="batch-heading"><div><div class="eyebrow">A WORKFLOW WORTH REPEATING</div><h1 id="batch-title" tabindex="-1">One setup. <em>Every PDF.</em></h1><p>Apply a saved combination of edits to separate files, then download them together.</p></div><span class="batch-tag">BATCH &amp; PRESETS</span></header>
       <div class="batch-layout">
         <aside class="batch-settings" aria-label="Batch preset settings">
           <div class="batch-section-title"><span class="batch-step">1</span><div><h2>Set up your edits</h2><p>Start with a preset, then make it yours.</p></div></div>
@@ -211,6 +212,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     if (processing) { inform('Wait for this batch to finish, or stop after the current file, before adding PDFs.', true); return; }
     const list = [...files];
     const accepted = list.filter(file => file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf');
+    if (accepted.length) loadPdfLib().catch(() => {});
     queue.push(...accepted.map(file => ({ id: id(), file, status: 'waiting', bytes: null, error: '', outputName: '', downloaded: false })));
     if (accepted.length) { renderQueue(); $('#batch-status').textContent = `${accepted.length} PDF${accepted.length === 1 ? '' : 's'} added. Choose your settings, then process the batch.`; }
     if (accepted.length < list.length) inform('Only PDF files were added. Choose PNG/JPG images in the single-document editor.', true);
@@ -277,7 +279,11 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     const target = event.target.closest('[data-batch-action]'); if (!target || target.disabled) return;
     const action = target.dataset.batchAction;
     if (action === 'back') { if (close()) onBack(); }
-    if (action === 'choose-files') $('#batch-file-input').click();
+    if (action === 'choose-files') {
+      // Start loading the PDF engine while the file picker is open.
+      loadPdfLib().catch(() => {});
+      $('#batch-file-input').click();
+    }
     if (action === 'save-preset') savePreset();
     if (action === 'delete-preset') deletePreset();
     if (action === 'remove-file' && !processing) { queue = queue.filter(entry => entry.id !== target.dataset.fileId); if (!queue.length) { hadRun = false; settingsChanged = false; $('#batch-status').textContent = 'Add PDFs to get started.'; } renderQueue(); }
@@ -307,6 +313,8 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
   function open(preset) {
     if (preset && !processing) { try { setPreset(preset); } catch (error) { inform(error.message || 'This preset could not be opened.', true); } }
     root.hidden = false; document.body.classList.add('batching'); onShow(); window.scrollTo(0, 0);
+    // Move keyboard and screen-reader focus to the new view.
+    $('#batch-title').focus({ preventScroll: true });
   }
   function close() {
     if (processing) { inform('Finish this batch, or stop after the current file, before switching workspaces.', true); return false; }

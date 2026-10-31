@@ -1,9 +1,784 @@
-.batch-workspace{background:#f8f9f5;min-height:calc(100dvh - 56px);padding:0 28px 56px}.batch-shell{max-width:1240px;margin:0 auto}.batch-topline{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 0 22px}.batch-topline>.button{padding-left:0}.batch-topline>span{display:flex;align-items:center;gap:7px;font-size:11px;color:#60705c}.batch-topline>span .icon{width:16px;height:16px}.batch-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:0 0 30px}.batch-heading .eyebrow{font-size:11px;color:#60705c;letter-spacing:1.5px}.batch-heading h1{font-family:Georgia,"Times New Roman",serif;font-size:43px;line-height:1.12;font-weight:400;letter-spacing:-1.4px;margin:11px 0 12px}.batch-heading h1 em{font-weight:400;color:#60705c}.batch-heading p{font-size:13px;line-height:1.7;color:#60705c;max-width:570px}.batch-tag{font-size:11px;letter-spacing:1.2px;font-weight:650;color:#60705c;border:1px solid #d7e1cf;padding:10px 12px;border-radius:999px;white-space:nowrap}.batch-layout{display:grid;grid-template-columns:minmax(300px,390px) minmax(0,1fr);gap:25px;align-items:start}.batch-settings,.batch-file-card,.batch-run-card{border:1px solid #dfe6da;background:#fff;border-radius:15px;padding:24px}.batch-settings{min-width:0}.batch-main{display:flex;flex-direction:column;gap:20px;min-width:0}.batch-section-title{display:flex;align-items:flex-start;gap:12px;margin-bottom:22px}.batch-step{display:flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:50%;background:#eaf0e4;color:#55734c;font-size:12px;flex-shrink:0;font-weight:600}.batch-section-title h2{font-size:16px;font-weight:600;letter-spacing:-.2px;line-height:1.5}.batch-section-title p{font-size:12px;line-height:1.6;color:#60705c;margin-top:4px}.batch-workspace fieldset{padding:0;border:0;min-width:0;margin:0}.batch-field{display:flex;flex-direction:column;gap:7px;min-width:0;margin-bottom:14px}.batch-field>span{font-size:12px;font-weight:550;color:#586c50;line-height:1.5}.batch-field input:not([type=color]),.batch-field select{min-height:40px;width:100%;background:#fff;color:#2d4435;border:1px solid #d7e0d0;border-radius:7px;padding:9px 10px;font-size:13px;line-height:1.5}.batch-field input::placeholder{color:#60705c}.batch-field input[type=color]{height:40px;width:100%;padding:4px;border:1px solid #d7e0d0;border-radius:7px;background:#fff}.batch-save-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:9px}.batch-save-row .batch-field{margin:0}.batch-save-row>.button{min-height:40px;font-size:12px;padding:9px 11px;white-space:nowrap}.batch-preset-note{padding:10px 0 18px;display:flex;gap:8px;align-items:flex-start;flex-direction:column}.batch-preset-note p{font-size:11px;line-height:1.6;color:#60705c}.batch-preset-note>.text-button{font-size:11px;color:#8a513f;text-decoration:underline;text-underline-offset:2px}.batch-operation{border:1px solid #e1e7db;border-radius:9px;overflow:hidden;margin-top:10px;background:#fbfcf8}.batch-operation.enabled{border-color:#c8d8bf;background:#fff}.batch-operation-toggle{display:flex;gap:11px;align-items:flex-start;padding:14px;cursor:pointer}.batch-operation-toggle input{width:16px;height:16px;accent-color:#244e41;margin:2px 0 0;flex-shrink:0}.batch-operation-toggle strong{display:block;font-size:13px;line-height:1.6;font-weight:600;color:#3b5435}.batch-operation-toggle small{display:block;font-size:12px;line-height:1.6;color:#60705c;margin-top:3px}.batch-workspace .batch-operation-fields{padding:1px 14px 3px}.batch-fields-2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.batch-fields-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 9px}.batch-field-note{font-size:11px;line-height:1.65;color:#60705c;margin-bottom:14px}.batch-subheading{font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#4d6744;font-weight:600;border-top:1px solid #e8ede2;padding-top:13px;margin:5px 0 12px}.batch-drop-zone{width:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;border:1px dashed #b7c8ae;border-radius:11px;background:#f6f9f1;padding:29px 20px;transition:background .15s,border-color .15s}.batch-drop-zone:hover:not(:disabled),.batch-drop-zone.drag-over{background:#eaf2e3;border-color:#66805b}.batch-upload-icon{width:42px;height:42px;border-radius:11px;background:#e8efdf;display:flex;align-items:center;justify-content:center;color:#60705c}.batch-drop-zone strong{font-size:13px;font-weight:550;color:#3e5c33}.batch-drop-zone>span:last-child{font-size:11px;color:#60705c}.batch-drop-zone.has-files{padding:17px 20px;display:grid;grid-template-columns:32px minmax(0,1fr);text-align:left;justify-content:start;column-gap:12px;row-gap:4px}.batch-drop-zone.has-files .batch-upload-icon{grid-row:1/3;width:32px;height:32px;border-radius:8px}.batch-drop-zone.has-files .batch-upload-icon .icon{width:18px;height:18px}.batch-drop-zone.has-files strong{font-size:13px}.batch-queue-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:22px 0 12px}.batch-queue-toolbar strong{font-size:12px;font-weight:550;color:#5e7154}.batch-queue-toolbar .text-button{font-size:11px;color:#60705c;text-decoration:underline;text-underline-offset:2px}.batch-file-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:9px;max-height:460px;overflow:auto}.batch-file-row{display:flex;gap:12px;align-items:center;border:1px solid #e4e9df;border-radius:9px;padding:12px;background:#fff;min-width:0}.batch-file-row.processing{background:#f4f8ee;border-color:#b6cba9}.batch-file-row.done{background:#f9fbf6}.batch-file-row.error{background:#fffaf7;border-color:#e6ccc0}.batch-file-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:34px;height:40px;border-radius:6px;background:#eef2e8;color:#60705c}.batch-file-icon .icon{width:20px;height:20px}.batch-file-row.done .batch-file-icon{background:#e5efdf;color:#537449}.batch-file-row.error .batch-file-icon{background:#f5e7de;color:#60705c}.batch-file-copy{min-width:0;flex:1}.batch-file-copy>strong{display:block;font-size:13px;line-height:1.5;font-weight:550;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#3d5234}.batch-file-copy>span{display:block;font-size:11px;color:#60705c;line-height:1.6;margin-top:4px}.batch-file-copy>small{display:block;font-size:11px;line-height:1.5;color:#60705c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}.batch-file-error{font-size:11px;line-height:1.65;color:#95573e;margin-top:6px;overflow-wrap:anywhere}.batch-file-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}.batch-file-actions>.button{font-size:12px;min-height:40px;padding:7px 9px;gap:5px;min-width:40px}.batch-file-actions>.button .icon{width:14px;height:14px}.batch-file-actions>.icon-button{height:40px;width:40px;color:#60705c;padding:6px}.batch-file-actions>.icon-button .icon{width:16px;height:16px}.batch-device-note{font-size:11px;line-height:1.7;color:#60705c;margin-top:14px}.batch-run-card .batch-section-title{margin-bottom:18px}.batch-run-actions{display:flex;flex-wrap:wrap;gap:9px}.batch-run-actions .button{font-size:12px;min-height:42px;gap:7px;padding:10px 14px}.batch-run-actions .icon{width:17px;height:17px}.batch-status{font-size:13px;line-height:1.7;color:#5c7051;margin-bottom:16px;overflow-wrap:anywhere}.batch-inline-note{font-size:11px;line-height:1.7;color:#80673c;border:1px solid #e8dec5;background:#fcf9ef;border-radius:7px;padding:10px 12px;margin-bottom:16px}.batch-result-note{font-size:11px;line-height:1.7;color:#60705c;margin-top:13px}.batch-progress-label{display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.6;color:#60705c;margin-bottom:7px}.batch-progress-label>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.batch-progress-label>span:last-child{font-variant-numeric:tabular-nums;flex-shrink:0}.batch-workspace progress{display:block;width:100%;height:6px;border:0;border-radius:99px;accent-color:#4f7950;overflow:hidden;background:#eaf0e4;margin-bottom:16px}.batch-workspace progress::-webkit-progress-bar{background:#eaf0e4;border-radius:99px}.batch-workspace progress::-webkit-progress-value{background:#4f7950;border-radius:99px}.batch-workspace progress::-moz-progress-bar{background:#4f7950;border-radius:99px}.batch-workspace fieldset:disabled .batch-operation-toggle{cursor:default}.batch-workspace fieldset:disabled input,.batch-workspace fieldset:disabled select{opacity:.65}
-@media(min-width:1500px){.batch-workspace{padding-top:4px}.batch-heading{margin-top:8px;margin-bottom:34px}.batch-heading h1{font-size:48px}.batch-layout{grid-template-columns:410px minmax(0,1fr);gap:30px}}
-@media(max-width:1000px){.batch-workspace{padding:0 20px 40px}.batch-layout{grid-template-columns:minmax(280px,350px) minmax(0,1fr);gap:18px}.batch-settings,.batch-file-card,.batch-run-card{padding:19px}.batch-heading h1{font-size:38px}.batch-file-row{gap:8px;padding:10px}.batch-file-actions>.button span{display:none}.batch-file-actions>.button{padding:7px;min-height:40px;font-size:12px;min-width:40px}.batch-tag{display:none}}
-@media(max-width:760px){.batch-layout{grid-template-columns:1fr}.batch-workspace{padding:0 16px 32px}.batch-topline{padding:12px 0 17px}.batch-topline>span{font-size:11px}.batch-topline .button{font-size:11px}.batch-heading{margin-bottom:22px}.batch-heading .eyebrow{font-size:11px;letter-spacing:1.2px}.batch-heading h1{font-size:34px;letter-spacing:-1px;margin-top:10px}.batch-heading p{font-size:12px}.batch-settings,.batch-file-card,.batch-run-card{padding:18px;border-radius:12px}.batch-section-title{margin-bottom:18px}.batch-section-title h2{font-size:15px}.batch-section-title p{font-size:12px}.batch-field input:not([type=color]),.batch-field select{font-size:16px;min-height:42px;padding:8px 10px}.batch-save-row{grid-template-columns:minmax(0,1fr) auto}.batch-save-row .button{min-height:42px}.batch-operation-toggle{padding:13px}.batch-operation-toggle strong{font-size:13px}.batch-operation-toggle small{font-size:12px}.batch-operation-toggle input{height:18px;width:18px}.batch-field-note,.batch-preset-note p{font-size:11px}.batch-operation-fields .batch-field>span{font-size:12px}.batch-fields-3{grid-template-columns:1fr 1fr}.batch-fields-3>.batch-field:last-child{grid-column:1/-1}.batch-file-actions>.button span{display:inline}.batch-file-list{max-height:420px}.batch-progress-label{font-size:11px}.batch-run-actions .button{min-height:44px}.batch-run-actions>[data-batch-action=process]{flex:1}.batch-device-note,.batch-result-note{font-size:11px}}
-@media(max-width:400px){.batch-workspace{padding:0 12px 28px}.batch-settings,.batch-file-card,.batch-run-card{padding:15px}.batch-heading h1{font-size:30px}.batch-topline>span{font-size:11px;gap:4px}.batch-save-row{grid-template-columns:1fr}.batch-save-row>.button{width:100%;margin-top:0;font-size:12px}.batch-file-actions>.button span{display:none}.batch-run-actions .button{width:100%}.batch-file-row{gap:8px}.batch-file-icon{width:28px;height:36px}}
+.batch-workspace {
+  background: var(--color-surface-subtle);
+  min-height: calc(100dvh - 56px);
+  padding: 0 28px 56px;
+}
+.batch-shell {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.batch-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 0 22px;
+}
+.batch-topline > .button {
+  padding-left: 0;
+}
+.batch-topline > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.batch-topline > span .icon {
+  width: 16px;
+  height: 16px;
+}
+.batch-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin: 0 0 30px;
+}
+.batch-heading .eyebrow {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: 1.5px;
+}
+.batch-heading h1 {
+  font-family: var(--font-serif);
+  font-size: var(--text-h1);
+  line-height: 1.12;
+  font-weight: 400;
+  letter-spacing: -1.4px;
+  margin: 11px 0 12px;
+}
+.batch-heading h1 em {
+  font-weight: 400;
+  color: var(--color-accent-display);
+}
+.batch-heading p {
+  font-size: var(--text-md);
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  max-width: 570px;
+}
+.batch-tag {
+  font-size: var(--text-xs);
+  letter-spacing: 1.2px;
+  font-weight: 650;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-strong);
+  padding: 10px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.batch-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  gap: 25px;
+  align-items: start;
+}
+.batch-settings,
+.batch-file-card,
+.batch-run-card {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 15px;
+  padding: 24px;
+}
+.batch-settings {
+  min-width: 0;
+}
+.batch-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.batch-section-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.batch-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.batch-section-title h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  line-height: 1.5;
+}
+.batch-section-title p {
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+.batch-workspace fieldset {
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  margin: 0;
+}
+.batch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  margin-bottom: 14px;
+}
+.batch-field > span {
+  font-size: var(--text-base);
+  font-weight: 550;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+.batch-field input:not([type='color']),
+.batch-field select {
+  min-height: 40px;
+  width: 100%;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-input);
+  border-radius: 7px;
+  padding: 9px 10px;
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+.batch-field input::placeholder {
+  color: var(--color-text-subtle);
+}
+.batch-field input[type='color'] {
+  height: 40px;
+  width: 100%;
+  padding: 4px;
+  border: 1px solid var(--color-border-input);
+  border-radius: 7px;
+  background: var(--color-surface);
+}
+.batch-save-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+}
+.batch-save-row .batch-field {
+  margin: 0;
+}
+.batch-save-row > .button {
+  min-height: 40px;
+  font-size: var(--text-base);
+  padding: 9px 11px;
+  white-space: nowrap;
+}
+.batch-preset-note {
+  padding: 10px 0 18px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-direction: column;
+}
+.batch-preset-note p {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+.batch-preset-note > .text-button {
+  font-size: var(--text-base);
+  color: var(--color-danger);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.batch-operation {
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  overflow: hidden;
+  margin-top: 10px;
+  background: var(--color-surface);
+}
+.batch-operation.enabled {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+}
+.batch-operation-toggle {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 14px;
+  cursor: pointer;
+}
+.batch-operation-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+  margin: 2px 0 0;
+  flex-shrink: 0;
+}
+.batch-operation-toggle strong {
+  display: block;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.batch-operation-toggle small {
+  display: block;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin-top: 3px;
+}
+.batch-workspace .batch-operation-fields {
+  padding: 1px 14px 3px;
+}
+.batch-fields-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+.batch-fields-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0 9px;
+}
+.batch-field-note {
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--color-text-muted);
+  margin-bottom: 14px;
+}
+.batch-subheading {
+  font-size: var(--text-xs);
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  font-weight: 600;
+  border-top: 1px solid var(--color-border);
+  padding-top: 13px;
+  margin: 5px 0 12px;
+}
+.batch-drop-zone {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 11px;
+  background: var(--color-surface-subtle);
+  padding: 29px 20px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.batch-drop-zone:hover:not(:disabled),
+.batch-drop-zone.drag-over {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+.batch-upload-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: var(--color-accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+.batch-drop-zone strong {
+  font-size: var(--text-base);
+  font-weight: 550;
+  color: var(--color-accent);
+}
+.batch-drop-zone > span:last-child {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.batch-drop-zone.has-files {
+  padding: 17px 20px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  text-align: left;
+  justify-content: start;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+.batch-drop-zone.has-files .batch-upload-icon {
+  grid-row: 1/3;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.batch-drop-zone.has-files .batch-upload-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+.batch-drop-zone.has-files strong {
+  font-size: var(--text-base);
+}
+.batch-queue-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 12px;
+}
+.batch-queue-toolbar strong {
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--color-text-muted);
+}
+.batch-queue-toolbar .text-button {
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.batch-file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  max-height: 460px;
+  overflow: auto;
+}
+.batch-file-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 12px;
+  background: var(--color-surface);
+  min-width: 0;
+}
+.batch-file-row.processing {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border-strong);
+}
+.batch-file-row.done {
+  background: var(--color-surface-subtle);
+}
+.batch-file-row.error {
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger-border);
+}
+.batch-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+.batch-file-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+.batch-file-row.done .batch-file-icon {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.batch-file-row.error .batch-file-icon {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.batch-file-copy {
+  min-width: 0;
+  flex: 1;
+}
+.batch-file-copy > strong {
+  display: block;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  font-weight: 550;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+}
+.batch-file-copy > span {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.batch-file-copy > small {
+  display: block;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 3px;
+}
+.batch-file-error {
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--color-danger);
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.batch-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.batch-file-actions > .button {
+  font-size: var(--text-base);
+  min-height: 40px;
+  padding: 7px 9px;
+  gap: 5px;
+  min-width: 40px;
+}
+.batch-file-actions > .button .icon {
+  width: 14px;
+  height: 14px;
+}
+.batch-file-actions > .icon-button {
+  height: 40px;
+  width: 40px;
+  color: var(--color-text-muted);
+  padding: 6px;
+}
+.batch-file-actions > .icon-button .icon {
+  width: 16px;
+  height: 16px;
+}
+.batch-device-note {
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  margin-top: 14px;
+}
+.batch-run-card .batch-section-title {
+  margin-bottom: 18px;
+}
+.batch-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.batch-run-actions .button {
+  font-size: var(--text-base);
+  min-height: 42px;
+  gap: 7px;
+  padding: 10px 14px;
+}
+.batch-run-actions .icon {
+  width: 17px;
+  height: 17px;
+}
+.batch-status {
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+.batch-inline-note {
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+  background: var(--color-warning-soft);
+  border-radius: 7px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+.batch-result-note {
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  margin-top: 13px;
+}
+.batch-progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin-bottom: 7px;
+}
+.batch-progress-label > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.batch-progress-label > span:last-child {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.batch-workspace progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 99px;
+  accent-color: var(--color-accent);
+  overflow: hidden;
+  background: var(--color-accent-soft);
+  margin-bottom: 16px;
+}
+.batch-workspace progress::-webkit-progress-bar {
+  background: var(--color-accent-soft);
+  border-radius: 99px;
+}
+.batch-workspace progress::-webkit-progress-value {
+  background: var(--color-accent);
+  border-radius: 99px;
+}
+.batch-workspace progress::-moz-progress-bar {
+  background: var(--color-accent);
+  border-radius: 99px;
+}
+.batch-workspace fieldset:disabled .batch-operation-toggle {
+  cursor: default;
+}
+.batch-workspace fieldset:disabled input,
+.batch-workspace fieldset:disabled select {
+  opacity: 0.65;
+}
+@media (min-width: 1500px) {
+  .batch-workspace {
+    padding-top: 4px;
+  }
+  .batch-heading {
+    margin-top: 8px;
+    margin-bottom: 34px;
+  }
+  .batch-heading h1 {
+    font-size: var(--text-h1);
+  }
+  .batch-layout {
+    grid-template-columns: 410px minmax(0, 1fr);
+    gap: 30px;
+  }
+}
+@media (max-width: 1000px) {
+  .batch-workspace {
+    padding: 0 20px 40px;
+  }
+  .batch-layout {
+    grid-template-columns: minmax(280px, 350px) minmax(0, 1fr);
+    gap: 18px;
+  }
+  .batch-settings,
+  .batch-file-card,
+  .batch-run-card {
+    padding: 19px;
+  }
+  .batch-heading h1 {
+    font-size: var(--text-h1);
+  }
+  .batch-file-row {
+    gap: 8px;
+    padding: 10px;
+  }
+  .batch-file-actions > .button span {
+    display: none;
+  }
+  .batch-file-actions > .button {
+    padding: 7px;
+    min-height: 40px;
+    font-size: var(--text-base);
+    min-width: 40px;
+  }
+  .batch-tag {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .batch-layout {
+    grid-template-columns: 1fr;
+  }
+  .batch-workspace {
+    padding: 0 16px 32px;
+  }
+  .batch-topline {
+    padding: 12px 0 17px;
+  }
+  .batch-topline > span {
+    font-size: var(--text-sm);
+  }
+  .batch-topline .button {
+    font-size: var(--text-base);
+  }
+  .batch-heading {
+    margin-bottom: 22px;
+  }
+  .batch-heading .eyebrow {
+    font-size: var(--text-xs);
+    letter-spacing: 1.2px;
+  }
+  .batch-heading h1 {
+    font-size: var(--text-h1);
+    letter-spacing: -1px;
+    margin-top: 10px;
+  }
+  .batch-heading p {
+    font-size: var(--text-md);
+  }
+  .batch-settings,
+  .batch-file-card,
+  .batch-run-card {
+    padding: 18px;
+    border-radius: 12px;
+  }
+  .batch-section-title {
+    margin-bottom: 18px;
+  }
+  .batch-section-title h2 {
+    font-size: var(--text-lg);
+  }
+  .batch-section-title p {
+    font-size: var(--text-base);
+  }
+  .batch-field input:not([type='color']),
+  .batch-field select {
+    font-size: var(--text-md);
+    min-height: 42px;
+    padding: 8px 10px;
+  }
+  .batch-save-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .batch-save-row .button {
+    min-height: 42px;
+  }
+  .batch-operation-toggle {
+    padding: 13px;
+  }
+  .batch-operation-toggle strong {
+    font-size: var(--text-base);
+  }
+  .batch-operation-toggle small {
+    font-size: var(--text-sm);
+  }
+  .batch-operation-toggle input {
+    height: 18px;
+    width: 18px;
+  }
+  .batch-field-note,
+  .batch-preset-note p {
+    font-size: var(--text-sm);
+  }
+  .batch-operation-fields .batch-field > span {
+    font-size: var(--text-base);
+  }
+  .batch-fields-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .batch-fields-3 > .batch-field:last-child {
+    grid-column: 1/-1;
+  }
+  .batch-file-actions > .button span {
+    display: inline;
+  }
+  .batch-file-list {
+    max-height: 420px;
+  }
+  .batch-progress-label {
+    font-size: var(--text-sm);
+  }
+  .batch-run-actions .button {
+    min-height: 44px;
+  }
+  .batch-run-actions > [data-batch-action='process'] {
+    flex: 1;
+  }
+  .batch-device-note,
+  .batch-result-note {
+    font-size: var(--text-sm);
+  }
+}
+@media (max-width: 400px) {
+  .batch-workspace {
+    padding: 0 12px 28px;
+  }
+  .batch-settings,
+  .batch-file-card,
+  .batch-run-card {
+    padding: 15px;
+  }
+  .batch-heading h1 {
+    font-size: var(--text-h1);
+  }
+  .batch-topline > span {
+    font-size: var(--text-sm);
+    gap: 4px;
+  }
+  .batch-save-row {
+    grid-template-columns: 1fr;
+  }
+  .batch-save-row > .button {
+    width: 100%;
+    margin-top: 0;
+    font-size: var(--text-base);
+  }
+  .batch-file-actions > .button span {
+    display: none;
+  }
+  .batch-run-actions .button {
+    width: 100%;
+  }
+  .batch-file-row {
+    gap: 8px;
+  }
+  .batch-file-icon {
+    width: 28px;
+    height: 36px;
+  }
+}
 
 /* Comfortable file controls remain within the existing compact card rhythm. */
-.batch-file-actions>.button,.batch-file-actions>.icon-button{min-width:40px;min-height:40px}.batch-topline>span{text-align:right}
-@media(max-width:760px){.batch-file-actions>.button,.batch-file-actions>.icon-button{min-width:44px;min-height:44px}.batch-file-actions>.icon-button{width:44px;height:44px}.batch-save-row .button{min-height:44px}.batch-field input:not([type=color]),.batch-field select,.batch-field input[type=color]{min-height:44px}.batch-operation-fields .batch-field>span{font-size:12px}}
+.batch-file-actions > .button,
+.batch-file-actions > .icon-button {
+  min-width: 40px;
+  min-height: 40px;
+}
+.batch-topline > span {
+  text-align: right;
+}
+@media (max-width: 760px) {
+  .batch-file-actions > .button,
+  .batch-file-actions > .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .batch-file-actions > .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+  .batch-save-row .button {
+    min-height: 44px;
+  }
+  .batch-field input:not([type='color']),
+  .batch-field select,
+  .batch-field input[type='color'] {
+    min-height: 44px;
+  }
+  .batch-operation-fields .batch-field > span {
+    font-size: var(--text-base);
+  }
+}

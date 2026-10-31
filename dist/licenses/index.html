@@ -13,12 +13,41 @@
   <link rel="stylesheet" href="../studio.css">
   <title>Licenses &amp; credits — QFT PDF</title>
   <style>
-    .license-wrap{max-width:1000px;width:calc(100% - 48px);margin:0 auto;padding:48px 0 32px}
-    .license-intro{max-width:760px;margin-bottom:32px}.license-intro h1{font:400 44px/1.12 Georgia,serif;letter-spacing:-1.3px;margin:16px 0 20px}.license-intro p{font-size:16px;line-height:1.8;color:#526858}
-    .license-wrap h2{font-size:18px;line-height:1.4;margin:0 0 12px;letter-spacing:-.2px}.license-wrap h3{font-size:14px;line-height:1.5;margin:0 0 9px}.license-wrap p{line-height:1.8}.license-wrap a{color:#244e41;text-underline-offset:4px;text-decoration:underline}.license-wrap a:hover{color:#53754e}.license-wrap a:focus-visible{outline:3px solid #719c82;outline-offset:4px}
-    .license-primary{border:1px solid #cdddc9;background:#edf3e8;border-radius:13px;padding:25px 28px;margin-bottom:32px}.license-primary p{font-size:14px;color:#526858;margin-bottom:12px}.license-primary>a{font-size:14px;font-weight:600}.license-primary small{display:block;font-size:12px;line-height:1.7;color:#61705b;margin-top:12px}
-    .license-overview{font-size:14px;color:#60705c;margin-bottom:20px}.license-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.license-card{border:1px solid #e1e5de;border-radius:12px;background:#fff;padding:24px;min-width:0}.license-card p{font-size:13px;color:#60705c;margin:0 0 14px}.license-card ul{padding-left:18px;margin:0;display:grid;gap:10px}.license-card li{font-size:13px;line-height:1.7;color:#60705c}.license-card a{overflow-wrap:anywhere}.license-wide{grid-column:1/-1}.license-assets{display:grid;grid-template-columns:1fr 1fr;gap:22px}.license-assets>div>p{margin-bottom:7px}.license-footer{margin-top:30px;padding-top:22px;border-top:1px solid #e1e5de;font-size:12px;color:#60705c;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
-    @media(max-width:640px){.license-wrap{width:calc(100% - 32px);padding-top:30px}.license-intro h1{font-size:35px}.license-intro p{font-size:14px}.license-grid,.license-assets{grid-template-columns:1fr}.license-primary{padding:22px}.license-card{padding:21px}.license-card li{font-size:13px}.license-wide{grid-column:auto}.license-footer{display:block}.license-footer>a{display:inline-block;margin-top:12px}}
+    /* Uses the design tokens defined in ../style.css. */
+    .license-wrap { max-width: 1000px; width: calc(100% - 48px); margin: 0 auto; padding: 48px 0 32px; }
+    .license-intro { max-width: 760px; margin-bottom: 32px; }
+    .license-intro h1 { font-family: var(--font-serif); font-weight: 400; font-size: var(--text-h1); line-height: 1.12; letter-spacing: -1.3px; margin: 16px 0 20px; }
+    .license-intro p { font-size: var(--text-md); line-height: 1.8; color: var(--color-text-muted); }
+    .license-wrap h2 { font-size: var(--text-lg); line-height: 1.4; margin: 0 0 12px; letter-spacing: -0.2px; }
+    .license-wrap h3 { font-size: var(--text-base); line-height: 1.5; margin: 0 0 9px; }
+    .license-wrap p { line-height: 1.8; }
+    .license-wrap a { color: var(--color-brand); text-underline-offset: 4px; text-decoration: underline; }
+    .license-wrap a:hover { color: var(--color-accent); }
+    .license-wrap a:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
+    .license-primary { border: 1px solid var(--color-border-strong); background: var(--color-surface-muted); border-radius: 13px; padding: 25px 28px; margin-bottom: 32px; }
+    .license-primary p { font-size: var(--text-base); color: var(--color-text-muted); margin-bottom: 12px; }
+    .license-primary > a { font-size: var(--text-base); font-weight: 600; }
+    .license-primary small { display: block; font-size: var(--text-sm); line-height: 1.7; color: var(--color-text-muted); margin-top: 12px; }
+    .license-overview { font-size: var(--text-base); color: var(--color-text-muted); margin-bottom: 20px; }
+    .license-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .license-card { border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); padding: 24px; min-width: 0; }
+    .license-card p { font-size: var(--text-base); color: var(--color-text-muted); margin: 0 0 14px; }
+    .license-card ul { padding-left: 18px; margin: 0; display: grid; gap: 10px; }
+    .license-card li { font-size: var(--text-base); line-height: 1.7; color: var(--color-text-muted); }
+    .license-card a { overflow-wrap: anywhere; }
+    .license-wide { grid-column: 1 / -1; }
+    .license-assets { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .license-assets > div > p { margin-bottom: 7px; }
+    .license-footer { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--color-border); font-size: var(--text-sm); color: var(--color-text-muted); display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+    @media (max-width: 640px) {
+      .license-wrap { width: calc(100% - 32px); padding-top: 30px; }
+      .license-grid, .license-assets { grid-template-columns: 1fr; }
+      .license-primary { padding: 22px; }
+      .license-card { padding: 21px; }
+      .license-wide { grid-column: auto; }
+      .license-footer { display: block; }
+      .license-footer > a { display: inline-block; margin-top: 12px; }
+    }
   </style>
 </head>
 <body>

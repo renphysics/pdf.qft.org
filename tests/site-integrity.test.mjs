@@ -47,6 +47,33 @@ assert.match(html, /<title>QFT PDF/);
 assert.match(html, /http-equiv="Content-Security-Policy"/);
 assert.match(html, /<meta name="referrer" content="strict-origin-when-cross-origin">/);
 assert.match(html, /href="\.\/licenses\/index\.html"[^>]*>Open-source credits<\/a>/);
+// Sharing and search metadata: absolute URLs on the canonical origin that exist in dist/.
+const canonical = 'https://pdf.qft.org/';
+const meta = (attribute, name) => html.match(new RegExp(`<meta ${attribute}="${name}" content="([^"]*)"`))?.[1];
+const siteFile = (url) => {
+  assert(url.startsWith(canonical), `${url} must use the canonical origin`);
+  const relative = decodeURIComponent(new URL(url).pathname.slice(1));
+  return path.join(site, relative.endsWith('/') || !relative ? relative + 'index.html' : relative);
+};
+assert.equal(meta('property', 'og:url'), canonical);
+for (const key of ['og:title', 'og:description', 'og:image:alt']) assert(meta('property', key)?.length > 20, `Missing ${key}`);
+assert(meta('name', 'description')?.length <= 160, 'Meta description should fit in search results (160 characters)');
+assert.equal(meta('name', 'twitter:card'), 'summary_large_image');
+const card = await readFile(siteFile(meta('property', 'og:image')));
+assert.equal(card.toString('latin1', 1, 4), 'PNG', 'og:image must be a PNG');
+assert.deepEqual([card.readUInt32BE(16), card.readUInt32BE(20)], [1200, 630], 'og:image must be 1200x630');
+assert.deepEqual([meta('property', 'og:image:width'), meta('property', 'og:image:height')], ['1200', '630']);
+const structured = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+assert.equal(structured['@type'], 'WebApplication');
+assert.equal(structured.url, canonical);
+const robots = await readFile(path.join(site, 'robots.txt'), 'utf8');
+assert.match(robots, /^Sitemap: https:\/\/pdf\.qft\.org\/sitemap\.xml$/m);
+const sitemap = await readFile(path.join(site, 'sitemap.xml'), 'utf8');
+const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+assert(locations.includes(canonical), 'Sitemap must list the home page');
+for (const location of locations) await stat(siteFile(location));
+// Keep the landing page light: pdf-lib, fontkit and PDF.js load on demand.
+assert(!/pdf-lib\.min\.js|fontkit\.umd\.min\.js|vendor\/pdf\.mjs/.test(html), 'index.html must not load the PDF engines eagerly');
 assert.equal(await readFile(path.join(root, 'LICENSE'), 'utf8'), await readFile(path.join(site, 'licenses/QFT-PDF-MIT.txt'), 'utf8'), 'Served MIT license must match the repository license');
 assert.equal((await readFile(path.join(site, 'CNAME'), 'utf8')).trim(), 'pdf.qft.org');
 await stat(path.join(site, '.nojekyll'));

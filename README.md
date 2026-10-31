@@ -18,9 +18,11 @@ package hashes and source comparisons in `scripts/*license-provenance.json`.
 ## GitHub Pages
 
 The included `.github/workflows/pages.yml` publishes `dist/` on pushes to `main`
-and can also be run manually. It uses pinned action revisions, restores the
-verified font asset, checks local resource paths and notices, and uploads only
-the static website. No server, API keys, or external document-processing service
+and can also be run manually. It uses pinned action revisions, installs the test
+dependencies, and runs `npm test` (restoring the verified font asset, checking
+local resource paths, notices and metadata, then the PDF engine and workflow
+suites) before uploading only the static website; a failing test blocks the
+deployment. `.github/workflows/test.yml` runs the same checks on pull requests. No server, API keys, or external document-processing service
 is needed.
 
 1. Open repository **Settings → Pages**.
@@ -76,7 +78,11 @@ Pages workflow performs this step automatically.
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned
-in `dist/assets/vendor/versions.json`. The package manifest and lockfile provide
+in `dist/assets/vendor/versions.json`. The landing page loads no PDF engine:
+`pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
+non-ASCII text), and `app.js` imports PDF.js when a document opens. Both start
+downloading as soon as a visitor opens the file picker, drags a file in, or
+opens the sample. The package manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license.
@@ -123,6 +129,12 @@ and test fixtures. It requires Python `reportlab` and `pypdf`, plus
 `QFT_SAMPLE_FONT_DIR` pointing to a directory with NotoSans-Regular.ttf,
 NotoSans-Bold.ttf, and NotoSerif-Regular.ttf. The ready-to-use sample and fixtures
 are included. Disposable PDF/PNG test output is excluded from Git.
+
+`scripts/social-card/render.mjs` regenerates the link-preview image
+(`dist/assets/social-card.png`, referenced by the Open Graph tags) and
+`dist/apple-touch-icon.png` from the HTML templates beside it. It needs
+Playwright with Chromium and Python's Pillow. Keep the card's wording in step
+with the page title, description and hero headline.
 
 Browser acceptance journeys and review notes are under tests/.
 

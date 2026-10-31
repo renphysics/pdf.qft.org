@@ -1,0 +1,3 @@
+# Mechanical reformat of app.js and the stylesheets with Prettier (no behaviour change).
+# GitHub and `git blame --ignore-revs-file .git-blame-ignore-revs` skip it.
+f73756e67b4e6d0c7bdc50f5d815292f37aad7bd
