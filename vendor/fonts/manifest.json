@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "description": "Lossless storage of the original bundled Noto Sans CJK SC font; join bytes in order. No font data is modified.",
+  "output": "dist/assets/fonts/NotoSansCJKsc-Regular.otf",
+  "size": 16437364,
+  "sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+  "license": "OFL-1.1",
+  "license_file": "dist/licenses/NotoSansCJK-OFL.txt",
+  "parts": [
+    {
+      "path": "vendor/fonts/NotoSansCJKsc-Regular.otf.part-01",
+      "size": 8388608,
+      "sha256": "a94a657c9321ad2a42698ee62e872423be3cd06e9b86288866f6ccb3d4dabe7c"
+    },
+    {
+      "path": "vendor/fonts/NotoSansCJKsc-Regular.otf.part-02",
+      "size": 8048756,
+      "sha256": "c86d969b080aebbde52de3a59d58d480cc5fabc65d147c11b9920c4d5e747280"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+tests/output/
+*.tar.gz
+
+# Reconstructed from the checked-in lossless font chunks.
+/dist/assets/fonts/NotoSansCJKsc-Regular.otf
+/tmp/
+__pycache__/
+*.pyc

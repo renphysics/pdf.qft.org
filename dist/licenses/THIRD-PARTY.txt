@@ -1,0 +1,71 @@
+QFT PDF — APPLICATION LICENSE AND THIRD-PARTY NOTICES
+
+QFT PDF application code is MIT licensed, copyright (c) 2026 Jie Ren.
+Application license: QFT-PDF-MIT.txt (identical to the repository LICENSE).
+The application license does not replace the third-party licenses below.
+A browsable index of these notices is provided in index.html.
+
+pdf-lib 1.17.1
+Copyright (c) 2019 Andrew Dillon. MIT License.
+Source: https://github.com/Hopding/pdf-lib
+Full license: pdf-lib-MIT.txt
+Bundled dependencies and Adobe font-metric data: pdf-lib-dependencies.txt
+Original license/copyright files: pdf-lib-dependencies/
+These include MIT, Zlib, Apache-2.0 and Adobe AFM redistribution terms.
+
+@pdf-lib/fontkit 1.1.1
+MIT declared by the exact upstream package. Author metadata: Andrew Dillon;
+contributor metadata: Devon Govett. No upstream package-level copyright
+statement is invented here. See fontkit-MIT.txt for the declaration and terms.
+Source: https://github.com/Hopding/fontkit
+Exact package: https://registry.npmjs.org/@pdf-lib/fontkit/-/fontkit-1.1.1.tgz
+Original README: fontkit-README.md
+Original unminified distribution: fontkit-bundled-source.js
+Full notices for its 32 embedded dependency/version records:
+fontkit-dependencies/NOTICES.txt
+Original package metadata, license files and source notices are preserved in
+fontkit-dependencies/. Machine-readable audit: fontkit-dependencies/provenance.json
+Audit method and upstream historical limitations: fontkit-dependencies/README.md
+These dependencies retain their MIT, BSD-3-Clause, ISC, Zlib and Apache-2.0 terms.
+
+PDF.js (pdfjs-dist) 5.6.205
+Mozilla and contributors. Apache License 2.0.
+Source: https://github.com/mozilla/pdf.js
+Full license: pdfjs-Apache-2.0.txt
+Original copyright notices remain in the runtime files.
+The following separate asset notices are retained beside their assets:
+  ../assets/vendor/cmaps/LICENSE — Adobe CMaps, BSD-style terms
+  ../assets/vendor/standard_fonts/LICENSE_FOXIT — Foxit fonts, BSD-style terms
+  ../assets/vendor/standard_fonts/LICENSE_LIBERATION — Liberation fonts, OFL-1.1
+  ../assets/vendor/iccs/LICENSE — ICC profile, CC0-1.0
+  ../assets/vendor/wasm/LICENSE_JBIG2
+  ../assets/vendor/wasm/LICENSE_OPENJPEG
+  ../assets/vendor/wasm/LICENSE_QCMS
+  ../assets/vendor/wasm/LICENSE_PDFJS_JBIG2
+  ../assets/vendor/wasm/LICENSE_PDFJS_OPENJPEG
+  ../assets/vendor/wasm/LICENSE_PDFJS_QCMS
+The codec notices include Apache-2.0, BSD and MIT terms.
+
+Noto Sans Regular
+SIL Open Font License 1.1. Exact font copyright/version metadata and terms:
+NotoSans-OFL.txt
+Source: https://github.com/notofonts/noto-fonts
+
+Noto Sans CJK SC Regular
+SIL Open Font License 1.1. Copyright 2014–2021 Adobe.
+Exact font metadata and full license: NotoSansCJK-OFL.txt
+Source: https://github.com/notofonts/noto-cjk
+The repository stores this original font losslessly in two binary chunks.
+Preparation reconstructs and verifies the identical font; its license is unchanged.
+
+QFT PDF sample PDF
+The original sample text/layout and application illustrations were created for
+QFT PDF and are covered by the application MIT license. The sample embeds Noto
+Sans and Noto Serif subsets, which retain OFL-1.1; font notices are included in
+NotoSans-OFL.txt. Using these fonts does not put generated documents under OFL.
+
+Verification records and reproducible notice-audit scripts are included in the
+source repository at https://github.com/renphysics/pdf.qft.org.
+Runtime packages were verified against their exact official release artifacts.
+This notice index distinguishes application licensing from third-party terms;
+it does not relicense third-party code, fonts, metrics or profiles under MIT.

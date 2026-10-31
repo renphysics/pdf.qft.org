@@ -1,0 +1,14 @@
+{
+  "name": "pako",
+  "version": "1.0.11",
+  "license": "(MIT AND Zlib)",
+  "contributors": [
+    "Andrei Tuputcyn (https://github.com/andr83)",
+    "Vitaly Puzrin (https://github.com/puzrin)",
+    "Friedel Ziegelmayer (https://github.com/dignifiedquire)",
+    "Kirill Efimov (https://github.com/Kirill89)",
+    "Jean-loup Gailly",
+    "Mark Adler"
+  ],
+  "repository": "nodeca/pako"
+}

@@ -1,0 +1,24 @@
+pdf-lib 1.17.1 — bundled dependency notices
+
+The application’s MIT license does not replace the licenses below.
+The shipped pdf-lib.min.js is identical to the official 1.17.1 npm UMD build.
+Its source map identifies the bundled dependencies; the release yarn.lock
+and exact package source comparisons establish their versions.
+
+Full preserved notices and package metadata are in pdf-lib-dependencies/:
+
+- @pdf-lib/standard-fonts 1.0.0 — MIT; original Christopher Brown project
+  attribution retained. Adobe Core 14 font metric data retain their APAFML
+  redistribution notice and copyright/trademark notices.
+  Directory: pdf-lib-standard-fonts-1.0.0/
+- @pdf-lib/upng 1.0.1 — MIT, Copyright (c) 2017 Photopea.
+  Directory: pdf-lib-upng-1.0.1/
+- pako 1.0.10 and 1.0.11 — MIT AND Zlib. The MIT package licenses and
+  the source headers containing the Zlib grants are both preserved.
+  Directories: pako-1.0.10/ and pako-1.0.11/
+- tslib 1.11.1 — Apache-2.0; Microsoft copyright notice retained.
+  Directory: tslib-1.11.1/
+
+Package download URLs, SHA-256 hashes, source-map verification paths, and
+PDF.js asset checks are recorded in scripts/vendor-license-provenance.json
+in the source repository. The main pdf-lib MIT license is pdf-lib-MIT.txt.

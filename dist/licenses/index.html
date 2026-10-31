@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="theme-color" content="#244e41">
+  <meta name="description" content="Application license and third-party library, font, and asset notices for QFT PDF.">
+  <link rel="canonical" href="https://pdf.qft.org/licenses/">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../studio.css">
+  <title>Licenses &amp; credits — QFT PDF</title>
+  <style>
+    .license-wrap{max-width:1000px;width:calc(100% - 48px);margin:0 auto;padding:48px 0 32px}
+    .license-intro{max-width:760px;margin-bottom:32px}.license-intro h1{font:400 44px/1.12 Georgia,serif;letter-spacing:-1.3px;margin:16px 0 20px}.license-intro p{font-size:16px;line-height:1.8;color:#526858}
+    .license-wrap h2{font-size:18px;line-height:1.4;margin:0 0 12px;letter-spacing:-.2px}.license-wrap h3{font-size:14px;line-height:1.5;margin:0 0 9px}.license-wrap p{line-height:1.8}.license-wrap a{color:#244e41;text-underline-offset:4px;text-decoration:underline}.license-wrap a:hover{color:#53754e}.license-wrap a:focus-visible{outline:3px solid #719c82;outline-offset:4px}
+    .license-primary{border:1px solid #cdddc9;background:#edf3e8;border-radius:13px;padding:25px 28px;margin-bottom:32px}.license-primary p{font-size:14px;color:#526858;margin-bottom:12px}.license-primary>a{font-size:14px;font-weight:600}.license-primary small{display:block;font-size:12px;line-height:1.7;color:#61705b;margin-top:12px}
+    .license-overview{font-size:14px;color:#60705c;margin-bottom:20px}.license-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.license-card{border:1px solid #e1e5de;border-radius:12px;background:#fff;padding:24px;min-width:0}.license-card p{font-size:13px;color:#60705c;margin:0 0 14px}.license-card ul{padding-left:18px;margin:0;display:grid;gap:10px}.license-card li{font-size:13px;line-height:1.7;color:#60705c}.license-card a{overflow-wrap:anywhere}.license-wide{grid-column:1/-1}.license-assets{display:grid;grid-template-columns:1fr 1fr;gap:22px}.license-assets>div>p{margin-bottom:7px}.license-footer{margin-top:30px;padding-top:22px;border-top:1px solid #e1e5de;font-size:12px;color:#60705c;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+    @media(max-width:640px){.license-wrap{width:calc(100% - 32px);padding-top:30px}.license-intro h1{font-size:35px}.license-intro p{font-size:14px}.license-grid,.license-assets{grid-template-columns:1fr}.license-primary{padding:22px}.license-card{padding:21px}.license-card li{font-size:13px}.license-wide{grid-column:auto}.license-footer{display:block}.license-footer>a{display:inline-block;margin-top:12px}}
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a href="../" class="brand" aria-label="QFT PDF home"><img class="brand-mark" src="../favicon.svg" width="28" height="28" alt=""><span>QFT <span class="brand-pdf">PDF</span></span></a>
+    <a href="../" class="text-button">Back to PDF tools <span aria-hidden="true">↗</span></a>
+  </header>
+  <main id="main" class="license-wrap">
+    <div class="license-intro">
+      <div class="eyebrow">OPEN SOURCE, CLEARLY CREDITED</div>
+      <h1>Licenses &amp; credits.</h1>
+      <p>QFT PDF application code is MIT licensed. Third-party libraries, fonts, and assets retain their respective licenses.</p>
+    </div>
+    <section class="license-primary" aria-labelledby="application-license">
+      <h2 id="application-license">QFT PDF application</h2>
+      <p>The original application code is available under the MIT License. The linked license contains the permissions, conditions, and warranty disclaimer.</p>
+      <a href="./QFT-PDF-MIT.txt">Read the QFT PDF MIT License</a>
+      <small>Copyright © 2026 Jie Ren. This application license does not replace any third-party license listed below.</small>
+    </section>
+    <section aria-labelledby="third-party">
+      <h2 id="third-party">The projects behind the tools</h2>
+      <p class="license-overview">The site includes these libraries, fonts, and supporting assets. <a href="./THIRD-PARTY.txt">Read the third-party notice index</a>.</p>
+      <div class="license-grid">
+        <section class="license-card" aria-labelledby="pdf-lib-license">
+          <h3 id="pdf-lib-license">pdf-lib</h3>
+          <p>Creates and edits PDF documents. Its bundled components and font metric data have additional notices.</p>
+          <ul><li><a href="./pdf-lib-MIT.txt">pdf-lib MIT License</a></li><li><a href="./pdf-lib-dependencies.txt">Bundled dependency and font metric notices</a></li></ul>
+        </section>
+        <section class="license-card" aria-labelledby="fontkit-license">
+          <h3 id="fontkit-license">@pdf-lib/fontkit</h3>
+          <p>Reads and embeds fonts. The notice collection preserves the licenses and attribution of its bundled dependencies.</p>
+          <ul><li><a href="./fontkit-MIT.txt">Fontkit license declaration and attribution</a></li><li><a href="./fontkit-dependencies/NOTICES.txt">Complete collected dependency notices</a></li><li><a href="./fontkit-dependencies/README.md">Source and version verification notes</a></li></ul>
+        </section>
+        <section class="license-card" aria-labelledby="noto-license">
+          <h3 id="noto-license">Noto fonts</h3>
+          <p>Used for document text and the sample PDF. These fonts remain under the SIL Open Font License 1.1.</p>
+          <ul><li><a href="./NotoSans-OFL.txt">Noto Sans and sample font notices</a></li><li><a href="./NotoSansCJK-OFL.txt">Noto Sans CJK SC license</a></li></ul>
+        </section>
+        <section class="license-card" aria-labelledby="pdfjs-license">
+          <h3 id="pdfjs-license">PDF.js</h3>
+          <p>Renders the document preview and page thumbnails. Its supporting assets retain the separate notices below.</p>
+          <ul><li><a href="./pdfjs-Apache-2.0.txt">PDF.js Apache License 2.0</a></li><li><a href="../assets/vendor/cmaps/LICENSE">Adobe character maps</a></li><li><a href="../assets/vendor/standard_fonts/LICENSE_FOXIT">Foxit standard fonts</a></li><li><a href="../assets/vendor/standard_fonts/LICENSE_LIBERATION">Liberation fonts</a></li><li><a href="../assets/vendor/iccs/LICENSE">ICC profile — CC0</a></li></ul>
+        </section>
+        <section class="license-card license-wide" aria-labelledby="codec-license">
+          <h3 id="codec-license">PDF.js image and color components</h3>
+          <p>Codec and integration notices are included alongside the shipped assets.</p>
+          <div class="license-assets">
+            <div><ul><li><a href="../assets/vendor/wasm/LICENSE_OPENJPEG">OpenJPEG</a> · <a href="../assets/vendor/wasm/LICENSE_PDFJS_OPENJPEG">PDF.js integration</a></li><li><a href="../assets/vendor/wasm/LICENSE_JBIG2">JBIG2</a> · <a href="../assets/vendor/wasm/LICENSE_PDFJS_JBIG2">PDF.js integration</a></li></ul></div>
+            <div><ul><li><a href="../assets/vendor/wasm/LICENSE_QCMS">qcms color management</a> · <a href="../assets/vendor/wasm/LICENSE_PDFJS_QCMS">PDF.js integration</a></li></ul></div>
+          </div>
+        </section>
+      </div>
+    </section>
+    <footer class="license-footer"><span>License texts and attribution are distributed with the website.</span><a href="../">Return to QFT PDF</a></footer>
+  </main>
+</body>
+</html>
