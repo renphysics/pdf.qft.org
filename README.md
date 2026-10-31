@@ -18,9 +18,11 @@ package hashes and source comparisons in `scripts/*license-provenance.json`.
 ## GitHub Pages
 
 The included `.github/workflows/pages.yml` publishes `dist/` on pushes to `main`
-and can also be run manually. It uses pinned action revisions, restores the
-verified font asset, checks local resource paths and notices, and uploads only
-the static website. No server, API keys, or external document-processing service
+and can also be run manually. It uses pinned action revisions, installs the test
+dependencies, and runs `npm test` (restoring the verified font asset, checking
+local resource paths, notices and metadata, then the PDF engine and workflow
+suites) before uploading only the static website; a failing test blocks the
+deployment. `.github/workflows/test.yml` runs the same checks on pull requests. No server, API keys, or external document-processing service
 is needed.
 
 1. Open repository **Settings → Pages**.
