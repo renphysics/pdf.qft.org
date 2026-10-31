@@ -47,6 +47,8 @@ const ui = {
   image: null,
   dragId: null,
   toastTimer: null,
+  toastReturnFocus: null,
+  focusKey: null,
   splitResults: null,
   cancelOperation: false,
   lastCropPreset: null,
@@ -154,6 +156,9 @@ function snapshot(current = state) {
   };
 }
 function busy(value, message = 'Working on your PDF…') {
+  // Making #main inert drops keyboard focus. Remember the control and return to
+  // its re-rendered equivalent afterwards (callers may set ui.focusKey instead).
+  if (value && !ui.busy) ui.focusKey = focusKey();
   ui.busy = value;
   if (!value) $('#busy-cancel').hidden = true;
   $('#busy-overlay').hidden = !value;
@@ -162,19 +167,113 @@ function busy(value, message = 'Working on your PDF…') {
   $('#main').setAttribute('aria-busy', String(value));
   $('#main').inert = value;
   $('.site-header').inert = value;
+  if (!value) {
+    const key = ui.focusKey;
+    ui.focusKey = null;
+    restoreFocus(key);
+  }
 }
-function toast(message, error = false) {
-  clearTimeout(ui.toastTimer);
+/** Describe the focused control so its replacement can be found after a re-render. */
+function focusKey(element = document.activeElement) {
+  if (!element || element === document.body || !element.isConnected) return null;
+  const esc = (value) => CSS.escape(String(value));
+  const pageId = element.closest('[data-page-id]')?.dataset.pageId;
+  const pageFallback = pageId ? '[data-page-open="' + esc(pageId) + '"]' : null;
+  if (element.dataset.movePage)
+    return [
+      '[data-move-page="' +
+        esc(element.dataset.movePage) +
+        '"][data-direction="' +
+        esc(element.dataset.direction) +
+        '"]',
+      pageFallback,
+    ];
+  if (element.dataset.pageOpen) return [pageFallback];
+  if (element.dataset.pageSelect) return ['[data-page-select="' + esc(pageId) + '"]', pageFallback];
+  const panelFallback = element.closest('#tool-panel') ? '#tool-panel h2' : null;
+  if (panelFallback && element.name) return ['#tool-form [name="' + esc(element.name) + '"]', panelFallback];
+  if (panelFallback && element.type === 'submit') return ['#tool-form [type="submit"]', panelFallback];
+  if (element.dataset.action) return ['[data-action="' + esc(element.dataset.action) + '"]', panelFallback];
+  if (element.id) return ['#' + esc(element.id), panelFallback];
+  return panelFallback ? [panelFallback] : null;
+}
+/** Focus the first visible, enabled match of a focusKey() description. */
+function restoreFocus(key) {
+  for (const selector of [].concat(key || [])) {
+    if (!selector) continue;
+    const target = $$(selector).find((element) => !element.disabled && element.getClientRects().length);
+    if (target) {
+      target.focus({ preventScroll: true });
+      return true;
+    }
+  }
+  return false;
+}
+/**
+ * Show a notice. Errors stay until dismissed; other notices hide after a few
+ * seconds unless the pointer or keyboard focus is on them. Screen readers hear
+ * the message through persistent live regions (pass announce: false when the
+ * caller already updates its own status region).
+ */
+function toast(message, error = false, { announce = true } = {}) {
   const node = $('#toast');
-  node.textContent = message;
+  $('#toast-message').textContent = message;
   node.classList.toggle('error', error);
   node.hidden = false;
-  ui.toastTimer = setTimeout(
-    () => {
-      node.hidden = true;
-    },
-    error ? 8500 : 4500,
-  );
+  positionToast();
+  if (announce) announceMessage(message, error);
+  scheduleToastHide();
+}
+/** In the editor, centre the notice between page navigation and zoom controls. */
+function positionToast() {
+  const node = $('#toast');
+  if (!document.body.classList.contains('editing') || window.innerWidth <= 720) return;
+  const bar = $('.preview-toolbar').getBoundingClientRect(),
+    nav = $('.page-navigation').getBoundingClientRect(),
+    zoom = $('.zoom-controls').getBoundingClientRect(),
+    center = bar.left + bar.width / 2,
+    room = 2 * (Math.min(center - nav.right, zoom.left - center) - 12);
+  node.style.setProperty('--toast-left', center + 'px');
+  node.style.setProperty('--toast-top', bar.top + 4 + 'px');
+  node.style.setProperty('--toast-width', Math.max(240, Math.min(460, room)) + 'px');
+}
+function scheduleToastHide() {
+  clearTimeout(ui.toastTimer);
+  if ($('#toast').hidden || $('#toast').classList.contains('error')) return;
+  ui.toastTimer = setTimeout(hideToast, 5000);
+}
+function hideToast() {
+  clearTimeout(ui.toastTimer);
+  const node = $('#toast'),
+    hadFocus = node.contains(document.activeElement);
+  node.hidden = true;
+  if (hadFocus && ui.toastReturnFocus?.isConnected) ui.toastReturnFocus.focus({ preventScroll: true });
+  ui.toastReturnFocus = null;
+}
+function announceMessage(message, assertive = false) {
+  const region = $(assertive ? '#announce-alert' : '#announce-status');
+  region.textContent = '';
+  // Inserting fresh text into an existing live region is announced, even for a repeated message.
+  setTimeout(() => {
+    region.textContent = message;
+  }, 60);
+}
+/**
+ * Ask before a destructive step. Resolves true only for the confirm button;
+ * Escape, Cancel and clicking the backdrop all resolve false. Focus starts on
+ * Cancel and returns to the triggering control when the dialog closes.
+ */
+function confirmDialog({ eyebrow = '', title, body, confirmLabel }) {
+  const dialog = $('#confirm-dialog');
+  $('#confirm-eyebrow').textContent = eyebrow;
+  $('#confirm-title').textContent = title;
+  $('#confirm-body').textContent = body;
+  $('#confirm-accept').textContent = confirmLabel;
+  dialog.returnValue = '';
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), { once: true });
+    dialog.showModal();
+  });
 }
 function friendly(error) {
   console.error(error);
@@ -294,12 +393,9 @@ function appliedDraft(tool) {
   return { ...defaults[tool] };
 }
 function renderTool() {
+  // The panel is rebuilt below; remember which control had keyboard focus.
+  const restoreKey = !ui.busy && $('#tool-panel').contains(document.activeElement) ? focusKey() : null;
   if (!ui.drafts[ui.tool]) ui.drafts[ui.tool] = appliedDraft(ui.tool);
-  $$('.editor-tools button').forEach((button) => {
-    const active = button.dataset.tool === ui.tool;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
   $('#tool-select').value = ui.tool;
   const p = currentPage(),
     index = activeIndex();
@@ -500,7 +596,7 @@ function renderTool() {
         : 'Use these settings in batch') +
       '</button><p>Apply this tool to every page in separate PDFs, and save it as a preset.</p></div>';
   $('#tool-panel').innerHTML =
-    '<h2>' +
+    '<h2 tabindex="-1">' +
     names[ui.tool] +
     '</h2><p class="panel-description">' +
     descriptions[ui.tool] +
@@ -545,6 +641,7 @@ function renderTool() {
   updateDeletionMarks();
   if (ui.tool === 'split') updateSplitSummary();
   if (p) $('#selection-caption').textContent = 'Page ' + (index + 1) + ' · ' + ui.selected.size + ' selected';
+  if (restoreKey) restoreFocus(restoreKey);
 }
 function updateOutputs() {
   $$('input[type=range]', $('#tool-form')).forEach((input) => {
@@ -916,6 +1013,9 @@ async function commit(mutation, message) {
 async function openFiles(files, append = false) {
   if (ui.busy || batch.isBusy() || !files.length) return;
   const list = [...files];
+  // Clear the picker now so choosing the same file again (for example after
+  // cancelling the replace prompt) still triggers a change event.
+  $('#file-input').value = '';
   if (list.some((file) => !file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf')) {
     toast('Please choose PDF files. You can add PNG or JPG images with the Image tool.', true);
     return;
@@ -923,9 +1023,12 @@ async function openFiles(files, append = false) {
   if (
     !append &&
     (ui.dirty || ui.pending.size || ui.splitResults?.some((file) => !file.downloaded)) &&
-    !confirm(
-      'Start a new document? Your current edits and unapplied settings will be cleared. Download your edits first if you want to keep them.',
-    )
+    !(await confirmDialog({
+      eyebrow: 'START A NEW DOCUMENT',
+      title: 'Replace your current document?',
+      body: 'Your edits and unapplied settings will be cleared. Download your edited PDF first if you want to keep it.',
+      confirmLabel: 'Open new PDF',
+    }))
   )
     return;
   busy(true, 'Opening your PDF' + (list.length > 1 ? 's' : '') + '…');
@@ -974,7 +1077,10 @@ async function openFiles(files, append = false) {
       toast(
         pages.length + ' page' + (pages.length === 1 ? '' : 's') + ' added. Arrange them, then download.',
       );
-    else toast('Your PDF is ready. Everything happens on your device.');
+    else {
+      ui.focusKey = '#document-name';
+      toast('Your PDF is ready. Everything happens on your device.');
+    }
   } catch (error) {
     state = previous;
     ui.activeId = previousActive;
@@ -1302,15 +1408,46 @@ function showInfo(kind) {
   const content = $('#dialog-content');
   if (kind === 'privacy')
     content.innerHTML =
-      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2>Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
+      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
   if (kind === 'help')
     content.innerHTML =
-      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2>Make yourself at home.</h2><p>Open a PDF, choose a tool, and apply your changes. The preview shows the actual edited document. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Supported files</h3><p>Unencrypted PDFs with no fixed file-size or page-count limit. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts and page positions</h3><p>Latin and Chinese text are supported. Chinese text embeds a full font for reliable reading, which adds about 14 MB to the downloaded file. Other scripts depend on the bundled font coverage.</p><p>Click a page to position text or images, or use the position sliders. Repeated content can apply to every page, the current page, or selected pages. Page numbers follow your final page order.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p><h3>Undo and reset</h3><p>Undo reverses your recent edits. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p>';
+      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and apply your changes. The preview shows the actual edited document. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Supported files</h3><p>Unencrypted PDFs with no fixed file-size or page-count limit. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts and page positions</h3><p>Latin and Chinese text are supported. Chinese text embeds a full font for reliable reading, which adds about 14 MB to the downloaded file. Other scripts depend on the bundled font coverage.</p><p>Click a page to position text or images, or use the position sliders. Repeated content can apply to every page, the current page, or selected pages. Page numbers follow your final page order.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p><h3>Undo and reset</h3><p>Undo reverses your recent edits. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p>';
   $('#info-dialog').showModal();
 }
+async function resetDocument() {
+  if (!ui.initial) return;
+  busy(true, 'Restoring the original document…');
+  const previous = snapshot(),
+    previousActive = ui.activeId,
+    previousSelected = new Set(ui.selected);
+  try {
+    state = snapshot(ui.initial);
+    ui.activeId = state.pages[0].id;
+    ui.selected = new Set([ui.activeId]);
+    await rebuild();
+    ui.history = [];
+    ui.drafts = {};
+    ui.lastCropPreset = null;
+    ui.pending.clear();
+    ui.image = null;
+    ui.dirty = false;
+    renderTool();
+    updateDocumentInfo();
+    toast('Back to your original document.');
+  } catch (error) {
+    state = previous;
+    ui.activeId = previousActive;
+    ui.selected = previousSelected;
+    renderRestoredState();
+    toast(friendly(error), true);
+  } finally {
+    busy(false);
+  }
+}
 async function action(name, element) {
-  if (ui.busy && !['privacy', 'help', 'close-dialog', 'cancel-operation'].includes(name)) return;
-  if (batch.isBusy() && !['privacy', 'help', 'close-dialog', 'batch'].includes(name)) {
+  if (ui.busy && !['privacy', 'help', 'close-dialog', 'cancel-operation', 'dismiss-toast'].includes(name))
+    return;
+  if (batch.isBusy() && !['privacy', 'help', 'close-dialog', 'batch', 'dismiss-toast'].includes(name)) {
     toast('Stop the batch or wait for it to finish before switching workspaces.');
     return;
   }
@@ -1373,13 +1510,20 @@ async function action(name, element) {
   }
   if (name === 'home' || name === 'back' || name === 'tools-home') {
     showLanding();
-    if (name === 'tools-home') setTimeout(() => $('#tools').scrollIntoView({ behavior: 'smooth' }), 0);
-    else window.scrollTo(0, 0);
+    if (name === 'tools-home') {
+      $('#tools-title').focus({ preventScroll: true });
+      setTimeout(() => $('#tools').scrollIntoView({ behavior: 'smooth' }), 0);
+    } else {
+      $('#landing-title').focus({ preventScroll: true });
+      window.scrollTo(0, 0);
+    }
   }
   if (name === 'resume') {
     showWorkspace();
     renderCurrent();
+    $('#document-name').focus({ preventScroll: true });
   }
+  if (name === 'dismiss-toast') hideToast();
   if (name === 'privacy' || name === 'help') showInfo(name);
   if (name === 'close-dialog') $('#info-dialog').close();
   if (name === 'organize') chooseTool('pages');
@@ -1423,40 +1567,13 @@ async function action(name, element) {
     }
   }
   if (name === 'reset') {
-    $('#dialog-content').innerHTML =
-      '<div class="eyebrow">START FRESH</div><h2>Reset this document?</h2><p>This clears your edits and added PDFs and returns to the document you first opened. Your original files are unchanged.</p><button class="button danger" data-action="confirm-reset" style="margin-top:20px">Reset document</button>';
-    $('#info-dialog').showModal();
-  }
-  if (name === 'confirm-reset') {
-    $('#info-dialog').close();
-    if (!ui.initial) return;
-    busy(true, 'Restoring the original document…');
-    const previous = snapshot(),
-      previousActive = ui.activeId,
-      previousSelected = new Set(ui.selected);
-    try {
-      state = snapshot(ui.initial);
-      ui.activeId = state.pages[0].id;
-      ui.selected = new Set([ui.activeId]);
-      await rebuild();
-      ui.history = [];
-      ui.drafts = {};
-      ui.lastCropPreset = null;
-      ui.pending.clear();
-      ui.image = null;
-      ui.dirty = false;
-      renderTool();
-      updateDocumentInfo();
-      toast('Back to your original document.');
-    } catch (error) {
-      state = previous;
-      ui.activeId = previousActive;
-      ui.selected = previousSelected;
-      renderRestoredState();
-      toast(friendly(error), true);
-    } finally {
-      busy(false);
-    }
+    const confirmed = await confirmDialog({
+      eyebrow: 'START FRESH',
+      title: 'Reset this document?',
+      body: 'This clears your edits and added PDFs and returns to the document you first opened. Your original files are unchanged.',
+      confirmLabel: 'Reset document',
+    });
+    if (confirmed) await resetDocument();
   }
   if (name === 'download') {
     if (ui.pending.size) {
@@ -1755,8 +1872,9 @@ const batch = initBatch({
   onBack: () => {
     document.body.classList.remove('batching');
     showLanding();
+    $('#landing-title').focus({ preventScroll: true });
   },
-  notify: toast,
+  notify: (message, error) => toast(message, error, { announce: false }),
 });
 $('#tool-select').addEventListener('change', (event) => chooseTool(event.target.value));
 $('#page-jump').addEventListener('change', jumpToPage);
@@ -1809,6 +1927,7 @@ document.addEventListener('click', (event) => {
       chooseTool(target.dataset.startTool);
       showWorkspace();
       renderCurrent();
+      $('#tool-panel h2').focus({ preventScroll: true });
     } else {
       ui.tool = target.dataset.startTool;
       ui.append = false;
@@ -1975,8 +2094,25 @@ document.addEventListener('drop', (event) => {
 $('#info-dialog').addEventListener('click', (event) => {
   if (event.target === $('#info-dialog')) $('#info-dialog').close();
 });
+$('#confirm-dialog').addEventListener('click', (event) => {
+  const dialog = $('#confirm-dialog'),
+    choice = event.target.closest('[data-confirm]')?.dataset.confirm;
+  if (choice) dialog.close(choice);
+  else if (event.target === dialog) dialog.close('cancel');
+});
+const toastNode = $('#toast');
+toastNode.addEventListener('mouseenter', () => clearTimeout(ui.toastTimer));
+toastNode.addEventListener('mouseleave', scheduleToastHide);
+toastNode.addEventListener('focusin', (event) => {
+  clearTimeout(ui.toastTimer);
+  if (!toastNode.contains(event.relatedTarget)) ui.toastReturnFocus = event.relatedTarget;
+});
+toastNode.addEventListener('focusout', (event) => {
+  if (!toastNode.contains(event.relatedTarget)) scheduleToastHide();
+});
 let resizeTimer;
 window.addEventListener('resize', () => {
+  if (!$('#toast').hidden) positionToast();
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     renderCurrent();
@@ -1995,6 +2131,7 @@ window.addEventListener('beforeunload', (event) => {
   }
 });
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('#toast').hidden && !document.querySelector('dialog[open]')) hideToast();
   if (
     (event.ctrlKey || event.metaKey) &&
     event.key.toLowerCase() === 'z' &&

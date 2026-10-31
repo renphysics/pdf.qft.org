@@ -308,7 +308,7 @@ textarea:focus-visible {
 .document-identity {
   min-width: 0;
 }
-.document-identity strong {
+.document-identity .document-name {
   font-size: var(--text-base);
 }
 .document-identity > span {
@@ -821,7 +821,7 @@ textarea:focus-visible {
     padding: 9px 12px;
     gap: 8px;
   }
-  .document-identity strong {
+  .document-identity .document-name {
     font-size: var(--text-base);
   }
   .document-identity > span {
@@ -1023,4 +1023,10 @@ textarea:focus-visible {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
+}
+
+/* The keyboard-scrollable page preview shows its focus inside its own edge. */
+.canvas-scroll:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: -3px;
 }

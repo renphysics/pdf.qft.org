@@ -35,6 +35,7 @@
   --color-brand-strong: #183b30;
   --color-focus: #3a7d5c;
   --color-danger: #9a4433;
+  --color-danger-strong: #833a2b;
   --color-danger-soft: #fcf0eb;
   --color-danger-border: #e6c8bd;
   --color-warning: #80591d;
@@ -163,6 +164,21 @@ h3 {
 p,
 .tool-card-copy > span {
   text-wrap: pretty;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* Headings that receive focus on a view change are not controls: no ring. */
+[tabindex='-1']:focus {
+  outline: none;
 }
 .icon-defs {
   position: absolute;
@@ -505,6 +521,15 @@ p,
   font-size: var(--text-sm);
   padding: 4px;
 }
+.sample-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sample-row button .icon {
+  width: 14px;
+  height: 14px;
+}
 .sample-row button:hover {
   text-decoration: underline;
 }
@@ -760,7 +785,7 @@ body.editing {
   min-width: 0;
   max-width: 36%;
 }
-.document-identity strong {
+.document-identity .document-name {
   font-size: var(--text-base);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1318,8 +1343,12 @@ body.editing {
   bottom: 25px;
   left: 50%;
   transform: translateX(-50%);
-  max-width: min(540px, calc(100% - 30px));
-  padding: 14px 19px;
+  width: max-content;
+  max-width: min(540px, calc(100% - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 8px 10px 18px;
   border-radius: 10px;
   background: var(--color-brand-strong);
   color: var(--color-on-brand);
@@ -1330,6 +1359,30 @@ body.editing {
 }
 .toast.error {
   background: var(--color-danger);
+}
+.toast p {
+  flex: 1;
+  padding: 4px 0;
+}
+.toast-close {
+  color: inherit;
+}
+.toast .toast-close:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.14);
+}
+.toast .toast-close:focus-visible {
+  outline-color: var(--color-on-brand);
+  outline-offset: 1px;
+}
+/* In the editor, notices sit in the empty middle of the preview toolbar, so they
+   cover neither the page nor the tool controls (positioned by positionToast()). */
+@media (min-width: 721px) {
+  body.editing .toast {
+    top: var(--toast-top, 112px);
+    bottom: auto;
+    left: var(--toast-left, 50%);
+    max-width: var(--toast-width, 420px);
+  }
 }
 .busy-overlay {
   position: fixed;
@@ -1424,6 +1477,28 @@ body.editing {
 .info-dialog > .button {
   margin-top: 25px;
   min-width: 110px;
+}
+.confirm-dialog {
+  max-width: 460px;
+}
+.confirm-dialog p {
+  margin-top: -6px;
+}
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+}
+.button.danger-solid {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-on-brand);
+}
+.button.danger-solid:hover:not(:disabled) {
+  background: var(--color-danger-strong);
+  border-color: var(--color-danger-strong);
 }
 .info-dialog .eyebrow {
   color: var(--color-text-muted);
@@ -1748,7 +1823,7 @@ body.editing {
     max-width: calc(100% - 55px);
     flex: 1;
   }
-  .document-identity strong {
+  .document-identity .document-name {
     font-size: var(--text-base);
   }
   .document-identity > span {
