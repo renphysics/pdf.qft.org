@@ -6,7 +6,8 @@
   "description": "Browser-local PDF editing and organization",
   "scripts": {
     "prepare-assets": "node scripts/prepare-assets.mjs",
-    "check": "node scripts/prepare-assets.mjs && node tests/site-integrity.test.mjs",
+    "pages": "node scripts/build-pages.mjs",
+    "check": "node scripts/prepare-assets.mjs && node scripts/build-pages.mjs --check && node tests/site-integrity.test.mjs",
     "test": "npm run check && node tests/engine.test.mjs && node tests/workflows.test.mjs && node tests/release-stamp.test.mjs"
   },
   "dependencies": {

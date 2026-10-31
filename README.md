@@ -85,6 +85,30 @@ font at `dist/assets/fonts/NotoSansCJKsc-Regular.otf`. It needs no network acces
 or package installation. The font's bytes and OFL license are unchanged; the
 Pages workflow performs this step automatically.
 
+## Tool pages and addresses
+
+Every tool has its own address, such as `/merge-pdf/` or `/crop-pdf/`, listed in
+`dist/routes.js`. Each tool page is a complete copy of the app with its own
+title, description, heading, how-to, FAQ and structured data, so search engines
+and link previews see real content, and visitors land straight in that tool.
+
+The pages are generated, not edited by hand. `dist/index.html` is the template:
+`<!-- page:name -->` comments mark the regions a tool page replaces, and
+`scripts/pages/content.mjs` holds each page's copy. After changing either, run:
+
+```sh
+npm run pages
+```
+
+This rewrites `dist/<slug>/index.html` and `dist/sitemap.xml`. `npm test` fails if
+they are out of date, and checks every page's canonical address, metadata and
+FAQ data.
+
+Inside a page, the editor and the batch workspace are browser history entries,
+so Back and Forward move between views, the address names the tool in use, and
+a reload opens that tool's page (documents stay in memory only, so a reload
+starts again from the page's landing view).
+
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned

@@ -20,6 +20,7 @@
   --text-h2: clamp(1.75rem, 1.4rem + 0.8vw, 2rem); /* 28-32px section headings */
   --text-h1: clamp(2rem, 1.25rem + 2.2vw, 3rem); /* 32-48px page headings */
   --text-display: clamp(3rem, 5vw, 4.375rem); /* 48-70px hero headline */
+  --text-display-tool: clamp(2.5rem, 1.6rem + 2.4vw, 3.5rem); /* 40-56px tool page headline */
 
   /* Text */
   --color-text: #22352b;

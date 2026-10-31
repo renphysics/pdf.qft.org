@@ -6,6 +6,8 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="theme-color" content="#244e41">
+  <!-- page:meta -->
+  <title>QFT PDF — Free PDF tools that run in your browser</title>
   <meta name="description" content="Every PDF, a little simpler. Edit, merge, split, crop and number PDFs for free, right in your browser. Your files stay on your device: no uploads, no sign-up.">
   <link rel="canonical" href="https://pdf.qft.org/">
   <meta property="og:type" content="website">
@@ -22,10 +24,10 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "QFT PDF", "url": "https://pdf.qft.org/", "description": "Every PDF, a little simpler. Edit, merge, split, crop and number PDFs for free, right in your browser. Your files stay on your device: no uploads, no sign-up.", "image": "https://pdf.qft.org/assets/social-card.png", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any", "browserRequirements": "Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "featureList": ["Add text, images and highlights", "Watermarks", "Headers and footers", "Page numbers", "Merge PDFs", "Split PDFs", "Crop pages", "Delete, reorder, rotate and extract pages", "Batch processing with saved presets"]}</script>
+  <!-- /page:meta -->
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./studio.css">
   <link rel="stylesheet" href="./batch.css">
-  <title>QFT PDF — Free PDF tools that run in your browser</title>
   <script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -68,7 +70,7 @@
     </a>
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#tools" data-action="tools-home">All tools</a>
-      <button class="text-button" data-action="batch">Batch &amp; presets</button>
+      <a class="text-button" href="./batch-edit-pdf/" data-action="batch">Batch &amp; presets</a>
       <button class="text-button" data-action="privacy">Your privacy</button>
     </nav>
     <span class="header-note"><span class="status-dot"></span> Private. Practical. PDF.</span>
@@ -77,42 +79,55 @@
     <section id="landing">
       <div class="hero section-wrap">
         <div class="hero-copy">
+          <!-- page:hero -->
           <div class="eyebrow"><span class="status-dot"></span> YOUR PDF WORKSPACE</div>
           <h1 id="landing-title" tabindex="-1">Every PDF.<br><em>A little simpler.</em></h1>
           <p>Edit one document. Prepare a whole stack. Useful PDF tools, with your files kept on your device.</p>
           <div class="hero-benefits"><span><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> Free to use</span><span><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> No sign-up</span><span><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg> Stays on your device</span></div>
+          <!-- /page:hero -->
         </div>
         <div id="drop-zone" class="upload-card">
           <div class="paper-stack" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><span class="paper-fold"></span><span class="paper-badge">PDF</span><i></i><i></i><i></i></div><span class="floating-plus">+</span></div>
+          <!-- page:upload -->
           <h2>Start with your PDF.</h2>
           <p>Drop a file here to open your workspace.</p>
           <button class="button primary upload-button" data-action="open"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> Choose a PDF <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
           <span class="upload-meta">PDF files · no fixed size or page limit</span>
+          <!-- /page:upload -->
+          <!-- page:upload-extras -->
           <button class="text-button batch-shortcut" data-action="batch"><svg class="icon" aria-hidden="true"><use href="#i-batch"/></svg>Working with several files? Open batch tools</button><div class="sample-row">Just exploring? <button data-action="sample">Try a sample <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+          <!-- /page:upload-extras -->
         </div>
       </div>
+      <!-- page:before-tools -->
+      <!-- /page:before-tools -->
       <section class="tools-section section-wrap" id="tools">
-        <div class="section-heading"><div><div class="eyebrow">THE TOOLKIT</div><h2 id="tools-title" tabindex="-1">The right tool. Right here.</h2></div><p>Choose a task to get started.</p></div><div class="tool-discovery"><div class="tool-filters" role="group" aria-label="Filter tools"><button type="button" data-tool-filter="all" class="active" aria-pressed="true">All tools</button><button type="button" data-tool-filter="edit" aria-pressed="false">Edit &amp; annotate</button><button type="button" data-tool-filter="organize" aria-pressed="false">Organize</button><button type="button" data-tool-filter="automate" aria-pressed="false">Automate</button></div><label class="tool-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="tool-search" type="search" placeholder="Find a tool" aria-label="Find a tool"></label></div>
+        <!-- page:tools-heading -->
+        <div class="section-heading"><div><div class="eyebrow">THE TOOLKIT</div><h2 id="tools-title" tabindex="-1">The right tool. Right here.</h2></div><p>Choose a task to get started.</p></div>
+        <!-- /page:tools-heading -->
+        <div class="tool-discovery"><div class="tool-filters" role="group" aria-label="Filter tools"><button type="button" data-tool-filter="all" class="active" aria-pressed="true">All tools</button><button type="button" data-tool-filter="edit" aria-pressed="false">Edit &amp; annotate</button><button type="button" data-tool-filter="organize" aria-pressed="false">Organize</button><button type="button" data-tool-filter="automate" aria-pressed="false">Automate</button></div><label class="tool-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="tool-search" type="search" placeholder="Find a tool" aria-label="Find a tool"></label></div>
         <div class="tool-grid">
-          <button class="tool-card featured-tool" data-action="batch" data-category="automate"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-batch"/></svg></span><span class="tool-card-copy"><strong>Batch &amp; presets <small>NEW</small></strong><span>One setup, many PDFs. Save your settings and process files together.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card featured-tool" data-start-tool="split" data-category="organize"><span class="tool-icon blue"><svg class="icon" aria-hidden="true"><use href="#i-split"/></svg></span><span class="tool-card-copy"><strong>Split PDF <small>NEW</small></strong><span>Separate pages, chapters, or custom ranges. Download together as a ZIP.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="text" data-category="edit"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-text"/></svg></span><span class="tool-card-copy"><strong>Add text &amp; images</strong><span>A note, a logo, a final thought.<br> Make your mark on the page.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="watermark" data-category="automate"><span class="tool-icon lavender"><svg class="icon" aria-hidden="true"><use href="#i-watermark"/></svg></span><span class="tool-card-copy"><strong>Add a watermark</strong><span>Give every page a subtle stamp<br> with text, color, and transparency.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="footer" data-category="automate"><span class="tool-icon peach"><svg class="icon" aria-hidden="true"><use href="#i-footer"/></svg></span><span class="tool-card-copy"><strong>Headers &amp; footers</strong><span>Your name, your project, your details.<br> In the same place on every page.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="pages" data-category="organize"><span class="tool-icon sand"><svg class="icon" aria-hidden="true"><use href="#i-pages"/></svg></span><span class="tool-card-copy"><strong>Organize &amp; extract</strong><span>Reorder, rotate, remove, or keep<br> just the pages you need.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="delete" data-category="organize"><span class="tool-icon peach"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></span><span class="tool-card-copy"><strong>Delete Pages</strong><span>Leave out what you don’t need.<br> Select pages, delete, and save.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="crop" data-category="edit"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-crop"/></svg></span><span class="tool-card-copy"><strong>Crop PDF</strong><span>A little less around the edges.<br> Trim margins with a live preview.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="merge" data-category="organize"><span class="tool-icon blue"><svg class="icon" aria-hidden="true"><use href="#i-merge"/></svg></span><span class="tool-card-copy"><strong>Merge PDFs</strong><span>Bring a few things together.<br> One document, all in order.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <button class="tool-card" data-start-tool="numbers" data-category="automate"><span class="tool-icon pink"><svg class="icon" aria-hidden="true"><use href="#i-number"/></svg></span><span class="tool-card-copy"><strong>Number pages</strong><span>A little order goes a long way.<br> Custom numbers from start to finish.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+          <a class="tool-card featured-tool" data-action="batch" data-category="automate" href="./batch-edit-pdf/" data-card="batch"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-batch"/></svg></span><span class="tool-card-copy"><strong>Batch &amp; presets <small>NEW</small></strong><span>One setup, many PDFs. Save your settings and process files together.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card featured-tool" data-start-tool="split" data-category="organize" href="./split-pdf/" data-card="split"><span class="tool-icon blue"><svg class="icon" aria-hidden="true"><use href="#i-split"/></svg></span><span class="tool-card-copy"><strong>Split PDF <small>NEW</small></strong><span>Separate pages, chapters, or custom ranges. Download together as a ZIP.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="text" data-category="edit" href="./add-text-to-pdf/" data-card="text"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-text"/></svg></span><span class="tool-card-copy"><strong>Add text &amp; images</strong><span>A note, a logo, a final thought.<br> Make your mark on the page.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="watermark" data-category="automate" href="./add-watermark-to-pdf/" data-card="watermark"><span class="tool-icon lavender"><svg class="icon" aria-hidden="true"><use href="#i-watermark"/></svg></span><span class="tool-card-copy"><strong>Add a watermark</strong><span>Give every page a subtle stamp<br> with text, color, and transparency.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="footer" data-category="automate" href="./add-header-and-footer-to-pdf/" data-card="footer"><span class="tool-icon peach"><svg class="icon" aria-hidden="true"><use href="#i-footer"/></svg></span><span class="tool-card-copy"><strong>Headers &amp; footers</strong><span>Your name, your project, your details.<br> In the same place on every page.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="pages" data-category="organize" href="./organize-pdf/" data-card="pages"><span class="tool-icon sand"><svg class="icon" aria-hidden="true"><use href="#i-pages"/></svg></span><span class="tool-card-copy"><strong>Organize &amp; extract</strong><span>Reorder, rotate, remove, or keep<br> just the pages you need.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="delete" data-category="organize" href="./delete-pages-from-pdf/" data-card="delete"><span class="tool-icon peach"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></span><span class="tool-card-copy"><strong>Delete Pages</strong><span>Leave out what you don’t need.<br> Select pages, delete, and save.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="crop" data-category="edit" href="./crop-pdf/" data-card="crop"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-crop"/></svg></span><span class="tool-card-copy"><strong>Crop PDF</strong><span>A little less around the edges.<br> Trim margins with a live preview.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="merge" data-category="organize" href="./merge-pdf/" data-card="merge"><span class="tool-icon blue"><svg class="icon" aria-hidden="true"><use href="#i-merge"/></svg></span><span class="tool-card-copy"><strong>Merge PDFs</strong><span>Bring a few things together.<br> One document, all in order.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="numbers" data-category="automate" href="./add-page-numbers-to-pdf/" data-card="numbers"><span class="tool-icon pink"><svg class="icon" aria-hidden="true"><use href="#i-number"/></svg></span><span class="tool-card-copy"><strong>Number pages</strong><span>A little order goes a long way.<br> Custom numbers from start to finish.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </div>
         <p id="no-tools" class="empty-tools" hidden>No tools match. Try “split”, “crop”, or “footer”.</p>
       </section>
+      <!-- page:sections -->
       <section id="how-it-works" class="how-section section-wrap">
         <div class="how-title"><div class="eyebrow">LESS FRICTION. MORE FINISHED.</div><h2>From open<br> to <em>all done.</em></h2></div>
         <div class="how-step"><span>01</span><h3>Bring your PDF.</h3><p>Choose a file from your device. It stays in your browser.</p></div>
         <div class="how-step"><span>02</span><h3>Make it yours.</h3><p>Add your finishing touches and check the live document preview.</p></div>
         <div class="how-step"><span>03</span><h3>Take it with you.</h3><p>Download your edited copy. Your original file stays untouched.</p></div>
       </section>
+      <!-- /page:sections -->
       <section class="privacy-strip section-wrap"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><div><h3>Your documents stay with you.</h3><p>PDF processing happens on your device. No document uploads, no account to create.</p></div><button class="text-button" data-action="privacy">How we handle files <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></section>
       <footer class="site-footer section-wrap"><a href="./" class="footer-brand" data-action="home">QFT PDF</a><span>PDF tools that respect your time and your privacy.</span><div><button data-action="help">Help &amp; supported files</button><a href="./licenses/index.html" target="_blank" rel="noopener">Open-source credits</a></div></footer>
     </section>
