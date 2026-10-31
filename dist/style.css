@@ -1058,40 +1058,6 @@ body.editing {
   display: block;
   max-width: none;
 }
-.page-surface.placing {
-  cursor: crosshair;
-}
-.placement-marker {
-  position: absolute;
-  pointer-events: none;
-  width: 18px;
-  height: 18px;
-  margin-left: -9px;
-  margin-top: -9px;
-  border: 1px solid var(--color-accent);
-  background: #edf6e6b3;
-  border-radius: 50%;
-  z-index: 2;
-  box-shadow: 0 0 0 4px #5b98602b;
-}
-.placement-marker:before,
-.placement-marker:after {
-  content: '';
-  position: absolute;
-  background: var(--color-accent);
-}
-.placement-marker:before {
-  height: 1px;
-  width: 24px;
-  top: 8px;
-  left: -4px;
-}
-.placement-marker:after {
-  width: 1px;
-  height: 24px;
-  left: 8px;
-  top: -4px;
-}
 .stage-caption {
   display: flex;
   justify-content: space-between;

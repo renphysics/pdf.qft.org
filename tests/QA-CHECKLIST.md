@@ -13,13 +13,15 @@ source review does not replace the owner’s browser verification.
    PDFs and encrypted PDFs show readable errors. PDFs above the former 50 MB
    per-file and 100 MB combined caps are not rejected solely for byte size;
    there is no fixed page-count cap. Capacity depends on browser memory.
-3. **Add text:** Add a visible text note, place it on the page, edit its text and
-   size, then export. Reopen the export and confirm the text is selectable and
-   correctly positioned. The feature makes no promise to change original text.
-4. **Watermark:** Apply a rotated, translucent watermark to all pages. Check the
-   first and last pages of the downloaded PDF and verify that content remains
-   legible. Confirm a selected-page operation does not affect other pages.
-5. **Repeated footer:** Apply the same footer on every page. Check that the visible
+3. **Add text:** Click the page and type a note; drag it, narrow it with its edge
+   handle, and change its text, size and alignment from the panel. Undo and redo
+   each step. Export, reopen the export and confirm the text is selectable and
+   where the preview showed it. The feature makes no promise to change original text.
+4. **Watermark:** Turn on a rotated, translucent watermark; it appears on every
+   page as you adjust it. Check the first and last pages of the downloaded PDF and
+   verify that content remains legible. Limit it to some pages and confirm the
+   other pages stay clear.
+5. **Repeated footer:** Type the same footer for every page. Check that the visible
    result agrees with the download. Verify left, center, and right alignment and
    `{page}` / `{total}` substitution.
 6. **Page numbers:** Start numbering at a value other than one, reorder pages,
@@ -33,12 +35,14 @@ source review does not replace the owner’s browser verification.
    order. Repeated filenames do not collide.
 9. **Extract:** Select nonconsecutive pages and download only those pages. Verify
    exact order and count rather than checking only that a PDF file is produced.
-10. **Undo/reset:** Undo after a change and after a page deletion. Reset restores
-    the documented state. Loading another file must not inherit stale annotations
-    or a stale active page.
-11. **Image/highlight:** Place an image and a translucent highlight. Preview and
-    export agree on dimensions, opacity, and location. Highlighting is described
-    as annotation, never as secure redaction.
+10. **Undo/redo/reset:** Undo and redo after typing, dragging, a setting change and
+    a page deletion. Reset restores the first document and can itself be undone.
+    Loading another file must not inherit stale annotations or a stale active page.
+11. **Image/highlight:** Place an image and drag a highlight; move and resize both.
+    Preview and export agree on dimensions, opacity, and location. Highlighting
+    is described as annotation, never as secure redaction.
+12. **Keyboard:** Add text with the panel button, finish with Escape, then move
+    it with the arrow keys, edit it with Enter and delete it with Delete.
 
 ## Geometry and input cases
 
@@ -60,6 +64,8 @@ source review does not replace the owner’s browser verification.
   region; disabled actions explain what is required when that is not evident.
 - Reorder works without dragging. Pointer placement does not block normal page
   scrolling on mobile outside the editing canvas.
+- On a phone the page is the first thing under the document bar; tools are in the
+  bottom bar and their settings sheet folds away. Tap targets are at least 44 px.
 - At a narrow viewport, controls do not cover the page or the download action;
   there is no accidental document-wide horizontal overflow.
 - Range sliders have text values or equivalent numeric controls. Color is not
@@ -160,3 +166,31 @@ source review does not replace the owner’s browser verification.
   the sample. After the reload, every versioned file was fetched fresh.
 - Manual check after each deploy: in a tab opened before the deploy, reload
   normally (not a hard refresh) and open a PDF.
+
+## Live editing and phone layout — 2026-10-31
+
+- Edits apply at once: the preview renders source pages with PDF.js and draws
+  edits as SVG with the export's layout code; the PDF is built only to download,
+  extract or split, in a module worker. The Apply buttons, the "Unapplied
+  settings" badge and Discard are gone.
+- Fidelity: the downloaded PDF rendered by PDF.js matched the editor preview
+  pixel for pixel (at most 0.07% of pixels differing, at image edges) on the
+  sample and on `tests/fixtures/rotated-cropped.pdf` after notes, highlights, a
+  watermark, headers/footers, turning pages before and after placing notes, and
+  cropping. `tests/preview.test.mjs` now checks text positions automatically.
+- Browser journeys passed in Chromium: click-to-type text, drag and resize text,
+  images and highlights, keyboard add/nudge/edit/delete, undo/redo for typing,
+  moves, settings, crops, merges and reset, page scope by number, unsupported
+  characters and too-long headers reported on the page (and an export error
+  jumps to the page), merge/split/extract/crop, back/forward, settings to batch,
+  and form PDFs refusing page removal up front.
+- A 400-page PDF opened in 0.8 s; a settings change or keystroke reached the
+  screen in the next frame (about 33 ms to two painted frames); turning all 400
+  pages, moving or deleting one, undo and redo each took about 0.1 s; export took
+  1.2 s with no long main-thread tasks.
+- axe: no violations in 30 editor states on desktop and iPhone 13 sizes.
+  Lighthouse: 100 in every category for the home page and a tool page, mobile
+  and desktop. No horizontal overflow from 320 px to 1280 px.
+- Phone (iPhone 13): the page starts 113 px from the top, below the document bar
+  and page controls; every tap target in the editor is at least 44 px (page
+  checkboxes through their 44 px labels).

@@ -23,10 +23,11 @@ export const PAGES = [
     how: ['How to add text', 'to a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Place your text.', 'Type it, choose a size and colour, and click the page where it belongs. Images and highlights work the same way.'],
+      ['Place your text.', 'Click the page where it belongs and type. Drag it into place and choose its size and colour. Images and highlights work the same way.'],
       ['Download your copy.', 'Save the edited PDF. The text you added stays selectable.'],
     ],
     faqs: [
+      ['Can I change text after adding it?', 'Yes. Drag it to move it, drag its edge to change where lines wrap, or select it to change the words, size, colour or alignment. Undo and Redo cover every change.'],
       ['Can I edit the text that is already in my PDF?', 'No. QFT PDF adds new text, images and highlights on top of the page; it does not rewrite existing paragraphs.'],
       ['Which languages can I type?', 'Latin-script languages and Chinese. Chinese text embeds a complete font, which adds about 14 MB to the downloaded file.'],
       ['What images can I add?', 'PNG or JPG files up to 15 MB and 30 megapixels. They keep their original proportions.'],
@@ -46,11 +47,11 @@ export const PAGES = [
     how: ['How to watermark', 'a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Design the watermark.', 'Enter the text, then set its size, colour, opacity, angle and position on the page.'],
-      ['Apply and download.', 'Apply it to every page, the current page or selected pages, then save your copy.'],
+      ['Design the watermark.', 'Turn it on and type your text. Its size, colour, opacity, angle and position change on the page as you set them.'],
+      ['Download.', 'Show it on every page or only the pages you choose, then save your copy.'],
     ],
     faqs: [
-      ['Can I watermark only some pages?', 'Yes. Apply it to every page, the current page, or the pages you select in the page strip.'],
+      ['Can I watermark only some pages?', 'Yes. Type the pages it belongs on, such as 1-3, 5, or use the pages you select in the page strip.'],
       ['Can I watermark many PDFs at once?', 'Yes. [Batch & presets](tool:batch) applies the same watermark to several PDFs and downloads them together.'],
       ['Is my PDF uploaded?', 'No. The watermark is added in your browser and the file never leaves your device.'],
       ['Can someone remove the watermark?', 'It becomes part of the page, but like any visible watermark it is a label, not copy protection.'],
@@ -71,7 +72,7 @@ export const PAGES = [
     steps: [
       OPEN_STEP,
       ['Fill in the six positions.', 'Type text for the left, centre or right of the header and footer, then choose the size, colour and margin.'],
-      ['Apply and download.', 'Apply to every page, the current page or selected pages, then save your copy.'],
+      ['Check and download.', 'Your text appears on the pages as you type. Show it on every page or only some, then save your copy.'],
     ],
     faqs: [
       ['Can I include page numbers?', 'Yes. Type {page} and {total} anywhere, for example Page {page} of {total}.'],
@@ -94,7 +95,7 @@ export const PAGES = [
     steps: [
       OPEN_STEP,
       ['Choose the format.', 'Use {page} and {total}, for example Page {page} of {total}, then pick the starting number and position.'],
-      ['Apply and download.', 'Numbers follow the final page order, even if you rearrange pages afterwards.'],
+      ['Download.', 'Numbers update as you work and follow the final page order, even if you rearrange pages afterwards.'],
     ],
     faqs: [
       ['Can I start from a number other than 1?', 'Yes. Set any starting number, for example 5 for a document that continues an earlier one.'],
@@ -117,12 +118,12 @@ export const PAGES = [
     how: ['How to organize', 'PDF pages.'],
     steps: [
       OPEN_STEP,
-      ['Arrange the pages.', 'Drag pages in the page strip or use the arrow buttons. Select pages to rotate or remove them.'],
+      ['Arrange the pages.', 'Drag pages in the page strip or use the Move buttons. Select pages to rotate or remove them.'],
       ['Download.', 'Save the whole document, or only the selected pages as a new PDF.'],
     ],
     faqs: [
       ['Can I extract pages into a new PDF?', 'Yes. Select the pages, or type a range such as 1-3, 5, and choose Download selected pages.'],
-      ['Can I reorder pages without dragging?', 'Yes. Each page has Move earlier and Move later buttons, which also work with the keyboard.'],
+      ['Can I reorder pages without dragging?', 'Yes. Move earlier and Move later buttons work with the keyboard and on touch screens.'],
       ['Can I combine pages from several PDFs?', 'Yes. Use Add PDF to bring in more files and arrange all the pages together, or start with [Merge PDF](tool:merge).'],
       ['Is my PDF uploaded?', 'No. Pages are rearranged in your browser and the file never leaves your device.'],
     ],
@@ -157,13 +158,13 @@ export const PAGES = [
       'Trim PDF margins by drawing the area to keep or entering percentages, on one page or all of them. Text stays selectable. Free and private, in your browser.',
     eyebrow: 'CROP PDF',
     heading: ['Crop PDF pages.', 'A little less around the edges.'],
-    intro: 'Draw the area to keep, or set exact margins, and apply it to one page or the whole document.',
+    intro: 'Draw the area to keep, or set exact margins, and crop one page or the whole document.',
     upload: { text: 'Drop a PDF here to crop its pages.' },
     how: ['How to crop', 'a PDF.'],
     steps: [
       OPEN_STEP,
       ['Choose the area.', 'Drag a rectangle on the preview, or enter top, bottom, left and right margins in percent.'],
-      ['Apply and download.', 'Crop the current page, selected pages or every page, then save your copy.'],
+      ['Crop and download.', 'Crop the current page, selected pages or every page, then save your copy.'],
     ],
     faqs: [
       ['Does cropping delete the hidden content?', 'No. Cropping changes the visible page area; content outside it is hidden, not removed, so it is not a secure way to redact.'],
@@ -191,7 +192,7 @@ export const PAGES = [
     how: ['How to merge', 'PDF files.'],
     steps: [
       ['Choose your PDFs.', 'Select two or more files at once. You can add more later with Add PDF.'],
-      ['Put pages in order.', 'Drag pages in the page strip or use the arrows. Rotate or remove any page.'],
+      ['Put pages in order.', 'Drag pages in the page strip or use the Move buttons. Rotate or remove any page.'],
       ['Download one PDF.', 'Save the combined document. Your original files stay untouched.'],
     ],
     faqs: [
@@ -218,7 +219,7 @@ export const PAGES = [
       ['Download the parts.', 'Save each PDF on its own, or all of them in one ZIP.'],
     ],
     faqs: [
-      ['Do my other edits carry over?', 'Yes. Text, page numbers, crops and other edits you have applied appear in every part, exactly as previewed.'],
+      ['Do my other edits carry over?', 'Yes. Text, page numbers, crops and other edits appear in every part, exactly as previewed.'],
       ['Can I split a PDF that has fillable form fields?', 'Not yet. Rather than silently losing the fields, QFT PDF asks you to save a flattened copy in your PDF reader first.'],
       ['Is there a page limit?', 'No fixed limit. Very large documents depend on your device’s memory.'],
       ['Is my PDF uploaded?', 'No. The parts are created in your browser and never leave your device.'],

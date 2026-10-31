@@ -2,6 +2,19 @@ import { inspectPdf, buildPdf, parsePageRange, cropMarginsForRotation, loadPdfLi
 import { planSplit, splitPdf, createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
 import { TOOL_PAGES } from './routes.js';
+import { applyMatrix, fontKind, hexColor, invert, number, TEXT_LINE_HEIGHT, textValue } from './layout.js';
+import {
+  closeDocuments,
+  FONT_FAMILIES,
+  geometryOf,
+  loadPdfjs,
+  onFontsReady,
+  pageOverlay,
+  previewFont,
+  renderKey,
+  renderPage,
+  warmFont,
+} from './preview.js';
 
 // Resolve assets beside this module, including GitHub Pages project subpaths.
 const assetUrl = (path) => new URL(path, import.meta.url).href;
@@ -15,6 +28,28 @@ const safe = (value) =>
   );
 const uid = () =>
   'f-' + [...crypto.getRandomValues(new Uint32Array(4))].map((value) => value.toString(36)).join('-');
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const phone = () => window.innerWidth <= 720;
+const touch = () => matchMedia('(pointer: coarse)').matches;
+/** Guidance says "Tap" on touch screens. */
+const tapOrClick = (text) =>
+  touch() ? text.replace(/\bClick\b/g, 'Tap').replace(/\bclick\b/g, 'tap') : text;
+
+// Tools that place items on a page; their items can be selected, dragged and resized.
+const ANNOTATION_TOOLS = ['text', 'image', 'highlight'];
+// Tools that show a repeated setting on pages, and the state key each one edits.
+const SETTINGS = { watermark: 'watermark', footer: 'headerFooter', numbers: 'pageNumbers' };
+const SETTING_TOOL = { watermark: 'watermark', headerFooter: 'footer', pageNumbers: 'numbers' };
+// Resize handles for each kind of item, named by compass direction.
+const HANDLES = {
+  text: ['e'],
+  image: ['nw', 'ne', 'sw', 'se'],
+  highlight: ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'],
+};
+const THUMB_WIDTH = 172; // canvas pixels: sharp at 86 CSS pixels on high-density screens
+const THUMB_CACHE = 60;
+
 const emptyState = () => ({
   sources: [],
   pages: [],
@@ -28,33 +63,40 @@ const ui = {
   tool: 'text',
   activeId: null,
   selected: new Set(),
+  item: null, // the selected item on the current page
+  editing: null, // the text item being typed into on the page
   zoom: 1,
-  history: [],
+  past: [],
+  future: [],
+  lastChange: null,
+  pendingRecord: null,
+  version: 0,
+  savedVersion: 0,
+  exported: null,
   initial: null,
-  pdf: null,
-  pdfjs: null,
-  bytes: null,
-  renderToken: 0,
-  thumbToken: 0,
-  previewPageId: null,
-  thumbObserver: null,
-  thumbRenderTask: null,
-  thumbCleanup: null,
   busy: false,
-  dirty: false,
   append: false,
-  pending: new Set(),
-  drafts: {},
   image: null,
+  styles: { text: { size: 18, color: '#244e41' }, highlight: { color: '#f6ce53', opacity: 0.35 } },
   dragId: null,
+  gesture: null,
   toastTimer: null,
   toastReturnFocus: null,
   focusKey: null,
   splitResults: null,
+  splitDraft: { mode: 'each', size: 2, ranges: '' },
+  rangeDraft: '',
+  cropDraft: { left: 0, top: 0, right: 0, bottom: 0, scope: 'current' },
+  scopeErrors: {},
   cancelOperation: false,
+  cancelExport: null,
   lastCropPreset: null,
   shownDepth: 0,
   landingFocus: null,
+  stage: { key: null, pageKey: null, task: null, scale: 1, geometry: null, overlay: null },
+  thumbs: { observer: null, token: 0, task: null, cache: new Map() },
+  frame: 0,
+  sheetOpen: true,
 };
 // Tool pages (routes.js) name their tool on <body data-tool>; it opens first.
 const pageTool = TOOL_PAGES[document.body.dataset.tool] ? document.body.dataset.tool : null;
@@ -72,20 +114,33 @@ const names = {
   crop: 'Crop PDF',
   split: 'Split PDF',
 };
-const defaults = {
-  text: { text: '', size: 18, color: '#244e41', x: 10, y: 15 },
-  image: { width: 25, x: 10, y: 15 },
-  highlight: { color: '#f6ce53', opacity: 35, x: 10, y: 20, width: 60, height: 4 },
-  watermark: {
+const descriptions = {
+  text: 'Click the page where your text should start, then type. Drag text to move it.',
+  image: 'Add a PNG or JPG to this page, then drag it into place. Drag a corner to resize it.',
+  highlight: 'Drag across the page to highlight an area. Drag a highlight to move it.',
+  watermark:
+    'A text mark across your pages, as bold or as subtle as you like. Changes show as you make them.',
+  footer: 'Put the same details in a consistent place on your pages. Type in any position to add it.',
+  numbers: 'Give your document an easy-to-follow sequence. Changes show as you make them.',
+  pages: 'Choose pages in the strip. Drag to reorder, or use the buttons below.',
+  merge: 'Add PDF files, then arrange their pages in the strip.',
+  delete: 'Select the pages to remove using their checkboxes or a page range. Undo brings them back.',
+  crop: 'Drag across the page to choose the area to keep, or set the margins below.',
+  split: 'Create separate PDFs from this document, including your edits.',
+};
+const settingDefaults = {
+  watermark: () => ({
+    enabled: true,
     text: 'DRAFT',
     size: 48,
     color: '#7c8c76',
-    opacity: 18,
+    opacity: 0.18,
     angle: -35,
     position: 'center',
-    scope: 'all',
-  },
-  footer: {
+    pages: 'all',
+  }),
+  headerFooter: () => ({
+    enabled: true,
     headerLeft: '',
     headerCenter: '',
     headerRight: '',
@@ -95,38 +150,25 @@ const defaults = {
     size: 10,
     color: '#53635d',
     margin: 28,
-    scope: 'all',
-  },
-  numbers: {
+    pages: 'all',
+  }),
+  pageNumbers: () => ({
+    enabled: true,
     format: 'Page {page} of {total}',
     start: 1,
     size: 10,
     color: '#53635d',
     margin: 28,
     position: 'bottom-right',
-    scope: 'all',
-  },
-  pages: { range: '' },
-  merge: {},
-  delete: { range: '' },
-  crop: { left: 0, top: 0, right: 0, bottom: 0, scope: 'current' },
-  split: { mode: 'each', size: 2, ranges: '' },
-};
-const descriptions = {
-  text: 'Add a note or label. Click the page to choose a position, or use the position sliders.',
-  image: 'Place a PNG or JPG on the current page. Your image keeps its original proportions.',
-  highlight: 'Add a translucent highlight. Click the page to choose its top-left corner.',
-  watermark: 'A repeated text mark, as bold or as subtle as you like.',
-  footer: 'Put the same details in a consistent place on your pages.',
-  numbers: 'Give your document an easy-to-follow sequence.',
-  pages: 'Choose pages in the strip. Drag to reorder, or use the arrow buttons.',
-  merge: 'Add PDF files, then arrange their pages in the strip.',
-  delete: 'Select the pages to remove using their checkboxes or enter a page range. Undo brings them back.',
-  crop: 'Drag a rectangle on the preview to keep that area, or set the margins below.',
-  split:
-    'Create separate PDFs from this document. Applied edits and printed page numbers stay exactly as previewed.',
+    pages: 'all',
+  }),
 };
 
+function copySetting(setting) {
+  return setting
+    ? { ...setting, pages: Array.isArray(setting.pages) ? [...setting.pages] : setting.pages }
+    : null;
+}
 function snapshot(current = state) {
   return {
     sources: [...current.sources],
@@ -135,30 +177,9 @@ function snapshot(current = state) {
       ...a,
       pageCrop: a.pageCrop ? { ...a.pageCrop } : undefined,
     })),
-    watermark: current.watermark
-      ? {
-          ...current.watermark,
-          pages: Array.isArray(current.watermark.pages)
-            ? [...current.watermark.pages]
-            : current.watermark.pages,
-        }
-      : null,
-    headerFooter: current.headerFooter
-      ? {
-          ...current.headerFooter,
-          pages: Array.isArray(current.headerFooter.pages)
-            ? [...current.headerFooter.pages]
-            : current.headerFooter.pages,
-        }
-      : null,
-    pageNumbers: current.pageNumbers
-      ? {
-          ...current.pageNumbers,
-          pages: Array.isArray(current.pageNumbers.pages)
-            ? [...current.pageNumbers.pages]
-            : current.pageNumbers.pages,
-        }
-      : null,
+    watermark: copySetting(current.watermark),
+    headerFooter: copySetting(current.headerFooter),
+    pageNumbers: copySetting(current.pageNumbers),
   };
 }
 function busy(value, message = 'Working on your PDF…') {
@@ -179,6 +200,14 @@ function busy(value, message = 'Working on your PDF…') {
     restoreFocus(key);
   }
 }
+/** Offer a Cancel button on the busy overlay. */
+function cancellable(label, onCancel) {
+  const button = $('#busy-cancel');
+  button.textContent = label;
+  button.disabled = false;
+  button.hidden = false;
+  ui.cancelExport = onCancel;
+}
 /** Describe the focused control so its replacement can be found after a re-render. */
 function focusKey(element = document.activeElement) {
   if (!element || element === document.body || !element.isConnected) return null;
@@ -196,10 +225,18 @@ function focusKey(element = document.activeElement) {
     ];
   if (element.dataset.pageOpen) return [pageFallback];
   if (element.dataset.pageSelect) return ['[data-page-select="' + esc(pageId) + '"]', pageFallback];
+  if (element.dataset.itemId)
+    return ['[data-item-id="' + esc(element.dataset.itemId) + '"]', '#canvas-scroll'];
+  if (element.id === 'inline-editor') return ['#canvas-scroll'];
   const panelFallback = element.closest('#tool-panel') ? '#tool-panel h2' : null;
+  if (panelFallback && element.name && element.type === 'radio')
+    return ['#tool-form [name="' + esc(element.name) + '"]:checked', panelFallback];
   if (panelFallback && element.name) return ['#tool-form [name="' + esc(element.name) + '"]', panelFallback];
-  if (panelFallback && element.type === 'submit') return ['#tool-form [type="submit"]', panelFallback];
+  if (element.dataset.selectItem)
+    return ['[data-select-item="' + esc(element.dataset.selectItem) + '"]', panelFallback];
   if (element.dataset.action) return ['[data-action="' + esc(element.dataset.action) + '"]', panelFallback];
+  if (element.dataset.tool)
+    return ['.tool-tabs [data-tool="' + esc(element.dataset.tool) + '"]', panelFallback];
   if (element.id) return ['#' + esc(element.id), panelFallback];
   return panelFallback ? [panelFallback] : null;
 }
@@ -233,7 +270,7 @@ function toast(message, error = false, { announce = true } = {}) {
 /** In the editor, centre the notice between page navigation and zoom controls. */
 function positionToast() {
   const node = $('#toast');
-  if (!document.body.classList.contains('editing') || window.innerWidth <= 720) return;
+  if (!document.body.classList.contains('editing') || phone()) return;
   const bar = $('.preview-toolbar').getBoundingClientRect(),
     nav = $('.page-navigation').getBoundingClientRect(),
     zoom = $('.zoom-controls').getBoundingClientRect(),
@@ -292,18 +329,815 @@ function activeIndex() {
 function currentPage() {
   return state.pages[activeIndex()];
 }
+function pageIndexOf(id) {
+  return state.pages.findIndex((page) => page.id === id);
+}
+function annotationById(id) {
+  return id ? state.annotations.find((annotation) => annotation.id === id) || null : null;
+}
+/** The selected item, if it is on the current page. */
+function selectedItem() {
+  const annotation = annotationById(ui.item);
+  return annotation && annotation.pageId === ui.activeId ? annotation : null;
+}
 function formatSize(bytes) {
   return bytes >= 1048576
     ? (bytes / 1048576).toFixed(1) + ' MB'
     : Math.max(1, Math.round(bytes / 1024)) + ' KB';
 }
+/** "1-3, 5" from zero-based page indexes. */
+function rangeText(indexes) {
+  const sorted = [...new Set(indexes)].sort((a, b) => a - b),
+    parts = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let end = i;
+    while (sorted[end + 1] === sorted[end] + 1) end++;
+    parts.push(end > i ? sorted[i] + 1 + '-' + (sorted[end] + 1) : String(sorted[i] + 1));
+    i = end;
+  }
+  return parts.join(', ');
+}
+
+// ---- Edit history --------------------------------------------------------------
+// Edits apply at once. Each change() is one undo step, except that changes with
+// the same key in quick succession (typing, dragging, a slider) merge into one.
+
+function record() {
+  return { state: snapshot(), active: ui.activeId, selected: new Set(ui.selected), item: ui.item };
+}
+function change(mutate, { key = null, layout = false, before = null } = {}) {
+  const now = performance.now();
+  const merge = key && ui.lastChange?.key === key && now - ui.lastChange.time < 1500;
+  if (!merge) {
+    ui.past.push(before || record());
+    if (ui.past.length > 100) ui.past.shift();
+  }
+  ui.future = [];
+  ui.lastChange = key ? { key, time: now } : null;
+  mutate();
+  ui.version++;
+  if (ui.splitResults) {
+    ui.splitResults = null;
+    $('#split-results')?.replaceChildren();
+  }
+  documentChanged(layout);
+}
+/** Bring the editor up to date with the document. `layout`: pages were added, removed, moved, turned or cropped. */
+function documentChanged(layout) {
+  if (!state.pages.some((p) => p.id === ui.activeId)) ui.activeId = state.pages[0]?.id;
+  ui.selected = new Set([...ui.selected].filter((id) => state.pages.some((p) => p.id === id)));
+  if (ui.item && !selectedItem()) ui.item = null;
+  if (ui.editing && !annotationById(ui.editing)) stopEditing();
+  updateHistoryButtons();
+  updateDocumentInfo();
+  if (layout) {
+    renderPages();
+    renderThumbnails();
+    renderStage();
+  } else scheduleOverlays();
+}
+function updateHistoryButtons() {
+  $('#undo-button').disabled = !ui.past.length;
+  $('#redo-button').disabled = !ui.future.length;
+}
+function travel(from, to, message) {
+  if (ui.busy || !from.length) return;
+  stopEditing();
+  endGesture();
+  to.push(record());
+  const entry = from.pop();
+  state = entry.state;
+  ui.activeId = entry.active;
+  ui.selected = entry.selected;
+  ui.item = entry.item;
+  ui.lastChange = null;
+  ui.pendingRecord = null;
+  ui.version++;
+  ui.splitResults = null;
+  documentChanged(true);
+  renderTool();
+  announceMessage(message);
+}
+const undo = () => travel(ui.past, ui.future, 'Undone.');
+const redo = () => travel(ui.future, ui.past, 'Redone.');
+
+// ---- The page preview ----------------------------------------------------------
+// The current page is rendered from its source PDF; edits are drawn on top as
+// SVG (preview.js), and items can be selected and moved on the edit layer.
+
+function stageScale(geometry) {
+  const scroll = $('#canvas-scroll');
+  const width = Math.max(120, scroll.clientWidth - (phone() ? 24 : 60));
+  let fit = Math.min(width / geometry.width, 1.35);
+  // On phones the whole page fits the stage; zoom in to work on details.
+  if (phone()) fit = Math.min(fit, Math.max(120, scroll.clientHeight - 24) / geometry.height);
+  return fit * ui.zoom;
+}
+function renderStage() {
+  if (!state.pages.length || $('#workspace').hidden) return;
+  const index = activeIndex(),
+    descriptor = state.pages[index],
+    geometry = geometryOf(state, descriptor),
+    stage = ui.stage,
+    surface = $('#page-surface'),
+    canvas = $('#pdf-canvas'),
+    scroll = $('#canvas-scroll');
+  // Whole CSS pixels for the page's size and position keep its rendering sharp.
+  const width = Math.max(1, Math.round(geometry.width * stageScale(geometry))),
+    scale = width / geometry.width,
+    padding =
+      parseFloat(getComputedStyle(scroll).paddingLeft) + parseFloat(getComputedStyle(scroll).paddingRight),
+    room = scroll.clientWidth - padding;
+  stage.geometry = geometry;
+  stage.scale = scale;
+  surface.style.width = width + 'px';
+  surface.style.height = Math.max(1, Math.round(geometry.height * scale)) + 'px';
+  surface.style.marginLeft = width < room ? Math.floor((room - width) / 2) + 'px' : '0px';
+  const pageKey = renderKey(descriptor),
+    dpr = Math.min(devicePixelRatio || 1, 2),
+    key = pageKey + '@' + (scale * dpr).toFixed(3);
+  if (stage.key !== key) {
+    stage.task?.cancel();
+    stage.key = key;
+    if (stage.pageKey !== pageKey) {
+      // A different page: clear the old image rather than show it under new edits.
+      canvas.width = 1;
+      canvas.height = 1;
+      surface.classList.add('render-pending');
+    }
+    stage.pageKey = pageKey;
+    const task = renderPage(state, descriptor, scale * dpr);
+    stage.task = task;
+    task.promise.then(
+      (rendered) => {
+        if (stage.task !== task) return;
+        stage.task = null;
+        canvas.width = rendered.width;
+        canvas.height = rendered.height;
+        canvas.getContext('2d').drawImage(rendered, 0, 0);
+        rendered.width = 0;
+        rendered.height = 0;
+        surface.classList.remove('render-pending');
+      },
+      (error) => {
+        if (stage.task !== task) return;
+        stage.task = null;
+        surface.classList.remove('render-pending');
+        if (error?.name !== 'RenderingCancelledException')
+          toast('Could not preview this page. ' + friendly(error), true);
+      },
+    );
+  }
+  canvas.setAttribute('aria-label', 'Page ' + (index + 1) + ' of ' + state.pages.length);
+  syncPageNavigation();
+  $('#zoom-label').textContent = ui.zoom === 1 ? 'Fit' : Math.round(ui.zoom * 100) + '%';
+  $('[data-action=previous]').disabled = index === 0;
+  $('[data-action=next]').disabled = index === state.pages.length - 1;
+  updateSelectionCaption();
+  surface.classList.toggle('placing', ['text', 'highlight'].includes(ui.tool));
+  surface.dataset.tool = ui.tool;
+  renderOverlay();
+  updateCropOverlay();
+}
+function scheduleOverlays() {
+  if (ui.frame) return;
+  ui.frame = requestAnimationFrame(() => {
+    ui.frame = 0;
+    if ($('#workspace').hidden || !state.pages.length) return;
+    renderOverlay();
+    refreshThumbOverlays();
+  });
+}
+function renderOverlay() {
+  const index = activeIndex();
+  if (!state.pages[index] || !ui.stage.geometry) return;
+  const overlay = pageOverlay(state, index, { hide: ui.editing ? new Set([ui.editing]) : null });
+  ui.stage.overlay = overlay;
+  const svg = $('#page-overlay');
+  svg.setAttribute('viewBox', '0 0 ' + overlay.geometry.width + ' ' + overlay.geometry.height);
+  svg.innerHTML = overlay.markup;
+  renderEditLayer();
+  positionInlineEditor();
+  updateProblems(overlay.problems);
+  updateStageHint();
+}
+function overlayItem(id) {
+  return ui.stage.overlay?.items.find((item) => item.id === id) || null;
+}
+/** CSS transform placing an element over a frame given in an item's placement view. */
+function frameTransform(item, frame, scale, extra = '') {
+  const [a, b, c, d, e, f] = item.matrix;
+  const tx = (a * frame.x + c * frame.y + e) * scale,
+    ty = (b * frame.x + d * frame.y + f) * scale;
+  return (
+    'matrix(' + [a, b, c, d, tx, ty].map((value) => Math.round(value * 1000) / 1000).join(',') + ')' + extra
+  );
+}
+function itemLabel(annotation) {
+  if (annotation.type === 'text') {
+    const text = textValue(annotation.text).trim().replace(/\s+/g, ' ');
+    return 'Text: ' + (text ? '“' + (text.length > 40 ? text.slice(0, 40) + '…' : text) + '”' : 'empty');
+  }
+  return annotation.type === 'image' ? 'Image' : 'Highlight';
+}
+function renderEditLayer() {
+  const layer = $('#edit-layer'),
+    interactive = ANNOTATION_TOOLS.includes(ui.tool),
+    scale = ui.stage.scale;
+  layer.classList.toggle('interactive', interactive);
+  const items = interactive ? (ui.stage.overlay?.items || []).filter((item) => item.frame) : [];
+  const existing = new Map($$('[data-item-id]', layer).map((node) => [node.dataset.itemId, node]));
+  for (const item of items) {
+    let node = existing.get(item.id);
+    existing.delete(item.id);
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'item-box';
+      node.tabIndex = 0;
+      node.dataset.itemId = item.id;
+      node.setAttribute('role', 'button');
+      node.setAttribute('aria-describedby', 'item-help');
+      layer.append(node);
+    }
+    const selected = item.id === ui.item;
+    node.classList.toggle('selected', selected);
+    node.classList.toggle('editing', item.id === ui.editing);
+    node.classList.toggle('problem', Boolean(item.problem));
+    node.dataset.type = item.type;
+    node.title = item.problem || '';
+    node.setAttribute('aria-label', itemLabel(item.annotation) + (item.problem ? '. ' + item.problem : ''));
+    node.style.width = Math.max(1, item.frame.width * scale) + 'px';
+    node.style.height = Math.max(1, item.frame.height * scale) + 'px';
+    node.style.transform = frameTransform(item, item.frame, scale);
+    const handles = selected && item.id !== ui.editing ? HANDLES[item.type] : [];
+    if (node.dataset.handles !== handles.join()) {
+      node.dataset.handles = handles.join();
+      node.replaceChildren(
+        ...handles.map((name) => {
+          const handle = document.createElement('span');
+          handle.className = 'handle handle-' + name;
+          handle.dataset.handle = name;
+          return handle;
+        }),
+      );
+    }
+  }
+  for (const node of existing.values()) node.remove();
+}
+function focusItem(id) {
+  const node = $('[data-item-id="' + CSS.escape(id) + '"]');
+  if (node) node.focus({ preventScroll: true });
+  else $('#canvas-scroll').focus({ preventScroll: true });
+}
+function updateProblems(problems) {
+  const node = $('#panel-problems');
+  if (!node) return;
+  const messages = [...new Set(problems.map((problem) => problem.message))];
+  const text = messages.join(' ');
+  if (node.dataset.text === text) return;
+  node.dataset.text = text;
+  node.hidden = !messages.length;
+  node.innerHTML = messages.map((message) => '<p>' + icon('help') + safe(message) + '</p>').join('');
+}
+function updateStageHint() {
+  const status = $('#preview-status');
+  const problems = ui.stage.overlay?.problems || [];
+  let hint = 'Your edits show here as you make them.';
+  if (ui.tool === 'text')
+    hint = ui.editing
+      ? 'Type your text. Click outside it when you are done.'
+      : 'Click the page where your text should start.';
+  if (ui.tool === 'image')
+    hint = selectedItem()
+      ? 'Drag the image to move it. Drag a corner to resize it.'
+      : 'Choose an image to add it to this page.';
+  if (ui.tool === 'highlight') hint = 'Drag across the page to highlight an area.';
+  if (ui.tool === 'crop') hint = 'Drag across the page to choose the area to keep.';
+  if (ui.tool === 'pages' || ui.tool === 'delete')
+    hint = 'Choose pages with the checkboxes in the page strip.';
+  if (problems.length) hint = 'Check this page: ' + problems[0].message;
+  status.classList.toggle('warning', problems.length > 0);
+  status.innerHTML = icon(problems.length ? 'help' : 'check') + safe(tapOrClick(hint));
+}
+function updateSelectionCaption() {
+  if (!state.pages.length) return;
+  $('#selection-caption').textContent =
+    'Page ' + (activeIndex() + 1) + ' · ' + ui.selected.size + ' selected';
+}
+
+// ---- Typing on the page ---------------------------------------------------------
+
+const baselines = new Map();
+/** Where a CSS line box puts the first baseline, as a fraction of the font size. */
+function cssBaseline(kind) {
+  if (!baselines.has(kind)) {
+    if (!document.fonts.check('16px "' + FONT_FAMILIES[kind] + '"')) return null;
+    const context = document.createElement('canvas').getContext('2d');
+    context.font = '100px "' + FONT_FAMILIES[kind] + '"';
+    const metrics = context.measureText('Hg');
+    const ascent = metrics.fontBoundingBoxAscent,
+      descent = metrics.fontBoundingBoxDescent;
+    if (!Number.isFinite(ascent) || !Number.isFinite(descent)) return null;
+    baselines.set(kind, ((TEXT_LINE_HEIGHT * 100 - ascent - descent) / 2 + ascent) / 100);
+  }
+  return baselines.get(kind);
+}
+function startEditing(id) {
+  const annotation = annotationById(id);
+  if (!annotation || annotation.type !== 'text') return;
+  if (ui.editing && ui.editing !== id) stopEditing();
+  ui.item = id;
+  ui.editing = id;
+  // Phones: fold the tool sheet away so the page stays visible above the keyboard.
+  if (phone()) setSheet(false);
+  const editor = $('#inline-editor');
+  editor.value = textValue(annotation.text);
+  editor.hidden = false;
+  renderOverlay();
+  renderTool();
+  editor.focus({ preventScroll: true });
+  editor.setSelectionRange(editor.value.length, editor.value.length);
+}
+function positionInlineEditor() {
+  const editor = $('#inline-editor');
+  const item = ui.editing ? overlayItem(ui.editing) : null;
+  if (!item?.frame) {
+    if (!ui.editing) editor.hidden = true;
+    return;
+  }
+  const annotation = item.annotation,
+    scale = ui.stage.scale,
+    size = number(annotation.fontSize, 16, 4, 200),
+    kind = fontKind(editor.value),
+    frame = item.frame,
+    room = item.placement.width - frame.x;
+  // Left-aligned text grows to the right as you type, so the box may reach the page edge.
+  const width = annotation.autoWidth && (annotation.align || 'left') === 'left' ? room : frame.width + 2;
+  editor.style.fontFamily = '"' + FONT_FAMILIES[kind] + '", sans-serif';
+  editor.style.fontSize = size * scale + 'px';
+  editor.style.lineHeight = size * TEXT_LINE_HEIGHT * scale + 'px';
+  editor.style.color = hexColor(annotation.color);
+  editor.style.opacity = number(annotation.opacity, 1, 0, 1);
+  editor.style.textAlign = annotation.align || 'left';
+  editor.style.width = Math.max(8, width * scale) + 'px';
+  editor.style.height = Math.max(frame.height, size * TEXT_LINE_HEIGHT) * scale + 'px';
+  // Line the typed text up with the exported text's first baseline.
+  const baseline = cssBaseline(kind),
+    ascent = item.layout ? item.layout.ascent / size : null;
+  const shift = baseline !== null && ascent !== null ? (ascent - baseline) * size * scale : 0;
+  editor.style.transform = frameTransform(item, frame, scale, ' translateY(' + shift.toFixed(2) + 'px)');
+}
+function stopEditing() {
+  const id = ui.editing;
+  if (!id) return;
+  ui.editing = null;
+  const editor = $('#inline-editor'),
+    hadFocus = document.activeElement === editor;
+  editor.hidden = true;
+  const annotation = annotationById(id);
+  let removed = false;
+  if (annotation && !textValue(annotation.text).trim()) {
+    removed = true;
+    if (ui.pendingRecord) {
+      // Nothing was typed: the new text box leaves no trace in the history.
+      state.annotations = state.annotations.filter((item) => item.id !== id);
+    } else
+      change(
+        () => {
+          state.annotations = state.annotations.filter((item) => item.id !== id);
+        },
+        { key: 'text:' + id },
+      );
+    if (ui.item === id) ui.item = null;
+  }
+  ui.pendingRecord = null;
+  renderOverlay();
+  refreshThumbOverlays();
+  if (removed) renderTool();
+  if (hadFocus) focusItem(id);
+}
+/** Add a text box at a point in the current view and start typing in it. */
+function createText(point) {
+  const page = currentPage(),
+    geometry = ui.stage.geometry,
+    size = ui.styles.text.size;
+  stopEditing();
+  const lineHeight = (size * TEXT_LINE_HEIGHT) / geometry.height;
+  const annotation = {
+    id: uid(),
+    pageId: page.id,
+    pageRotation: page.rotation,
+    pageCrop: page.crop ? { ...page.crop } : undefined,
+    type: 'text',
+    text: '',
+    fontSize: size,
+    color: ui.styles.text.color,
+    x: clamp(point.x / geometry.width, 0, 0.95),
+    y: clamp(point.y / geometry.height, 0, Math.max(0, 1 - lineHeight)),
+    opacity: 1,
+    align: 'left',
+    autoWidth: true,
+  };
+  // The box joins the history with its first character (see the editor's input handler).
+  ui.pendingRecord = record();
+  state.annotations.push(annotation);
+  startEditing(annotation.id);
+}
+
+// ---- Moving and resizing items --------------------------------------------------
+
+/** A pointer position in the current page view, in points from the top-left. */
+function surfacePoint(event) {
+  const rect = $('#page-surface').getBoundingClientRect(),
+    scale = ui.stage.scale;
+  return { x: (event.clientX - rect.left) / scale, y: (event.clientY - rect.top) / scale };
+}
+function setFrame(annotation, item, frame) {
+  const { placement } = item;
+  annotation.x = frame.x / placement.width;
+  annotation.y = frame.y / placement.height;
+  if (annotation.type !== 'text') {
+    annotation.width = frame.width / placement.width;
+    annotation.height = frame.height / placement.height;
+  }
+}
+function moveItem(gesture, point) {
+  const annotation = annotationById(gesture.id),
+    item = gesture.item;
+  if (!annotation) return;
+  const inverse = invert(item.matrix),
+    start = applyMatrix(inverse, gesture.start.x, gesture.start.y),
+    now = applyMatrix(inverse, point.x, point.y),
+    { placement, frame } = item;
+  const moved = {
+    ...frame,
+    x: clamp(frame.x + now.x - start.x, 0, Math.max(0, placement.width - frame.width)),
+    y: clamp(frame.y + now.y - start.y, 0, Math.max(0, placement.height - frame.height)),
+  };
+  change(() => setFrame(annotation, item, moved), { key: gesture.key });
+}
+function resizeItem(gesture, point) {
+  const annotation = annotationById(gesture.id),
+    item = gesture.item;
+  if (!annotation) return;
+  const { placement, frame } = item,
+    handle = gesture.handle,
+    p = applyMatrix(invert(item.matrix), point.x, point.y),
+    W = placement.width,
+    H = placement.height;
+  if (annotation.type === 'text') {
+    const width = clamp(p.x, frame.x + 12, W) - frame.x;
+    change(
+      () => {
+        annotation.width = width / W;
+        annotation.autoWidth = false;
+      },
+      { key: gesture.key },
+    );
+    return;
+  }
+  let left = frame.x,
+    top = frame.y,
+    right = frame.x + frame.width,
+    bottom = frame.y + frame.height;
+  if (annotation.type === 'image') {
+    // Keep the image's proportions, anchored at the opposite corner.
+    const anchorX = handle.includes('w') ? right : left,
+      anchorY = handle.includes('n') ? bottom : top;
+    const roomX = handle.includes('w') ? anchorX : W - anchorX,
+      roomY = handle.includes('n') ? anchorY : H - anchorY;
+    let factor = Math.max(Math.abs(p.x - anchorX) / frame.width, Math.abs(p.y - anchorY) / frame.height);
+    factor = clamp(
+      factor,
+      8 / Math.min(frame.width, frame.height),
+      Math.min(roomX / frame.width, roomY / frame.height),
+    );
+    const width = frame.width * factor,
+      height = frame.height * factor;
+    left = handle.includes('w') ? anchorX - width : anchorX;
+    top = handle.includes('n') ? anchorY - height : anchorY;
+    right = left + width;
+    bottom = top + height;
+  } else {
+    const minimum = 3;
+    if (handle.includes('w')) left = clamp(p.x, 0, right - minimum);
+    if (handle.includes('e')) right = clamp(p.x, left + minimum, W);
+    if (handle.includes('n')) top = clamp(p.y, 0, bottom - minimum);
+    if (handle.includes('s')) bottom = clamp(p.y, top + minimum, H);
+  }
+  change(() => setFrame(annotation, item, { x: left, y: top, width: right - left, height: bottom - top }), {
+    key: gesture.key,
+  });
+}
+function drawHighlight(gesture, point) {
+  const geometry = ui.stage.geometry,
+    page = currentPage();
+  const x1 = clamp(Math.min(gesture.start.x, point.x), 0, geometry.width),
+    x2 = clamp(Math.max(gesture.start.x, point.x), 0, geometry.width),
+    y1 = clamp(Math.min(gesture.start.y, point.y), 0, geometry.height),
+    y2 = clamp(Math.max(gesture.start.y, point.y), 0, geometry.height);
+  const box = {
+    x: x1 / geometry.width,
+    y: y1 / geometry.height,
+    width: Math.max(1, x2 - x1) / geometry.width,
+    height: Math.max(1, y2 - y1) / geometry.height,
+  };
+  if (!gesture.id) {
+    gesture.id = uid();
+    const annotation = {
+      id: gesture.id,
+      pageId: page.id,
+      pageRotation: page.rotation,
+      pageCrop: page.crop ? { ...page.crop } : undefined,
+      type: 'highlight',
+      color: ui.styles.highlight.color,
+      opacity: ui.styles.highlight.opacity,
+      ...box,
+    };
+    change(() => state.annotations.push(annotation), { key: gesture.key });
+    ui.item = gesture.id;
+    return;
+  }
+  const annotation = annotationById(gesture.id);
+  if (annotation) change(() => Object.assign(annotation, box), { key: gesture.key });
+}
+/** Add an item at a default spot (keyboard and touch alternative to drawing). */
+function addHighlight(point) {
+  const geometry = ui.stage.geometry,
+    page = currentPage();
+  const width = Math.min(0.4, 1 - point.x / geometry.width),
+    height = Math.min(18 / geometry.height, 1 - point.y / geometry.height);
+  const annotation = {
+    id: uid(),
+    pageId: page.id,
+    pageRotation: page.rotation,
+    pageCrop: page.crop ? { ...page.crop } : undefined,
+    type: 'highlight',
+    color: ui.styles.highlight.color,
+    opacity: ui.styles.highlight.opacity,
+    x: clamp(point.x / geometry.width, 0, 0.99),
+    y: clamp(point.y / geometry.height, 0, 0.99),
+    width: Math.max(0.01, width),
+    height: Math.max(0.005, height),
+  };
+  change(() => state.annotations.push(annotation));
+  selectItem(annotation.id);
+}
+function placeImage(image, point = null) {
+  const page = currentPage(),
+    geometry = ui.stage.geometry || geometryOf(state, page);
+  // A quarter of the page wide (less for tall images), centred unless placed at a point.
+  let width = geometry.width * 0.3,
+    height = width / image.ratio;
+  if (height > geometry.height * 0.4) {
+    height = geometry.height * 0.4;
+    width = height * image.ratio;
+  }
+  const x = point ? clamp(point.x - width / 2, 0, geometry.width - width) : (geometry.width - width) / 2,
+    y = point ? clamp(point.y - height / 2, 0, geometry.height - height) : (geometry.height - height) / 2;
+  const annotation = {
+    id: uid(),
+    pageId: page.id,
+    pageRotation: page.rotation,
+    pageCrop: page.crop ? { ...page.crop } : undefined,
+    type: 'image',
+    x: x / geometry.width,
+    y: y / geometry.height,
+    width: width / geometry.width,
+    height: height / geometry.height,
+    opacity: 1,
+    imageBytes: image.bytes,
+    imageType: image.type,
+  };
+  change(() => state.annotations.push(annotation));
+  selectItem(annotation.id);
+}
+function nudge(id, dx, dy) {
+  const annotation = annotationById(id),
+    item = overlayItem(id);
+  if (!annotation || !item?.frame) return;
+  const inverse = invert(item.matrix),
+    origin = applyMatrix(inverse, 0, 0),
+    delta = applyMatrix(inverse, dx, dy);
+  const { placement, frame } = item;
+  const moved = {
+    ...frame,
+    x: clamp(frame.x + delta.x - origin.x, 0, Math.max(0, placement.width - frame.width)),
+    y: clamp(frame.y + delta.y - origin.y, 0, Math.max(0, placement.height - frame.height)),
+  };
+  change(() => setFrame(annotation, item, moved), { key: 'nudge:' + id });
+}
+function deleteItem(id) {
+  const annotation = annotationById(id);
+  if (!annotation) return;
+  const label = itemLabel(annotation).split(':')[0];
+  if (ui.editing === id) {
+    ui.editing = null;
+    $('#inline-editor').hidden = true;
+  }
+  if (ui.pendingRecord) {
+    // A new, still empty text box leaves no trace in the history.
+    ui.pendingRecord = null;
+    state.annotations = state.annotations.filter((item) => item.id !== id);
+    documentChanged(false);
+  } else
+    change(() => {
+      state.annotations = state.annotations.filter((item) => item.id !== id);
+    });
+  ui.item = null;
+  renderTool();
+  $('#canvas-scroll').focus({ preventScroll: true });
+  announceMessage(label + ' deleted.');
+}
+function selectItem(id, { focus = true } = {}) {
+  const annotation = annotationById(id);
+  if (!annotation) return;
+  if (ui.editing && ui.editing !== id) stopEditing();
+  const changedTool = ui.tool !== annotation.type;
+  ui.item = id;
+  if (changedTool) {
+    ui.tool = annotation.type;
+    recordView('editor');
+  }
+  renderTool();
+  renderEditLayer();
+  updateStageHint();
+  if (changedTool) $('#page-surface').classList.toggle('placing', ['text', 'highlight'].includes(ui.tool));
+  if (focus) focusItem(id);
+}
+function deselect() {
+  stopEditing();
+  if (!ui.item) return;
+  ui.item = null;
+  renderTool();
+  renderEditLayer();
+  updateStageHint();
+}
+function endGesture() {
+  const gesture = ui.gesture;
+  ui.gesture = null;
+  const surface = $('#page-surface');
+  if (gesture && surface.hasPointerCapture(gesture.pointerId))
+    surface.releasePointerCapture(gesture.pointerId);
+  surface.classList.remove('dragging');
+}
+
+const surface = $('#page-surface');
+surface.addEventListener('pointerdown', (event) => {
+  if (ui.busy || event.button !== 0 || !ui.stage.geometry) return;
+  if (ui.tool === 'crop') {
+    startCropDrag(event);
+    return;
+  }
+  if (!ANNOTATION_TOOLS.includes(ui.tool) || event.target.closest('#inline-editor')) return;
+  const box = event.target.closest('[data-item-id]'),
+    handle = event.target.closest('[data-handle]'),
+    point = surfacePoint(event);
+  const wasEditing = Boolean(ui.editing),
+    wasSelected = box && box.dataset.itemId === ui.item;
+  if (ui.editing && box?.dataset.itemId !== ui.editing) stopEditing();
+  if (box) {
+    selectItem(box.dataset.itemId, { focus: true });
+    ui.gesture = {
+      type: handle ? 'resize' : 'move',
+      handle: handle?.dataset.handle,
+      id: box.dataset.itemId,
+      item: overlayItem(box.dataset.itemId),
+      wasSelected,
+    };
+  } else {
+    ui.gesture = {
+      type: ui.tool === 'highlight' ? 'draw' : 'tap',
+      wasEditing,
+      hadSelection: Boolean(ui.item),
+    };
+  }
+  Object.assign(ui.gesture, {
+    pointerId: event.pointerId,
+    start: point,
+    key: 'gesture:' + uid(),
+    moved: false,
+  });
+  surface.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+surface.addEventListener('pointermove', (event) => {
+  const gesture = ui.gesture;
+  if (!gesture || event.pointerId !== gesture.pointerId || gesture.type === 'crop') return;
+  const point = surfacePoint(event);
+  if (!gesture.moved) {
+    const distance = Math.hypot(point.x - gesture.start.x, point.y - gesture.start.y) * ui.stage.scale;
+    if (distance < 4) return;
+    gesture.moved = true;
+    surface.classList.add('dragging');
+  }
+  if (gesture.type === 'move' && gesture.item?.frame) moveItem(gesture, point);
+  if (gesture.type === 'resize' && gesture.item?.frame) resizeItem(gesture, point);
+  if (gesture.type === 'draw') drawHighlight(gesture, point);
+});
+surface.addEventListener('pointerup', (event) => {
+  const gesture = ui.gesture;
+  if (!gesture || event.pointerId !== gesture.pointerId || gesture.type === 'crop') return;
+  endGesture();
+  if (gesture.moved) {
+    if (gesture.type === 'draw' && gesture.id) selectItem(gesture.id);
+    else if (gesture.id) focusItem(gesture.id);
+    renderTool();
+    return;
+  }
+  if (gesture.type === 'move' || gesture.type === 'resize') {
+    // A second click on selected text starts typing in it.
+    if (gesture.wasSelected && annotationById(gesture.id)?.type === 'text') startEditing(gesture.id);
+    return;
+  }
+  // A click on the page: the first one after editing or selecting just deselects.
+  if (gesture.wasEditing || gesture.hadSelection) {
+    deselect();
+    $('#canvas-scroll').focus({ preventScroll: true });
+    return;
+  }
+  if (ui.tool === 'text') createText(gesture.start);
+  if (ui.tool === 'highlight') addHighlight(gesture.start);
+});
+surface.addEventListener('pointercancel', (event) => {
+  if (ui.gesture?.pointerId === event.pointerId && ui.gesture.type !== 'crop') endGesture();
+});
+surface.addEventListener('dblclick', (event) => {
+  const box = event.target.closest('[data-item-id]');
+  if (box && annotationById(box.dataset.itemId)?.type === 'text') startEditing(box.dataset.itemId);
+});
+$('#edit-layer').addEventListener('focusin', (event) => {
+  const box = event.target.closest('[data-item-id]');
+  if (box && box.dataset.itemId !== ui.item) selectItem(box.dataset.itemId, { focus: false });
+});
+$('#edit-layer').addEventListener('keydown', (event) => {
+  const box = event.target.closest('[data-item-id]');
+  if (!box || ui.busy) return;
+  const id = box.dataset.itemId,
+    step = event.shiftKey ? 10 : 1;
+  const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  if (moves[event.key]) {
+    event.preventDefault();
+    nudge(id, ...moves[event.key]);
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    deleteItem(id);
+  } else if ((event.key === 'Enter' || event.key === 'F2') && annotationById(id)?.type === 'text') {
+    event.preventDefault();
+    startEditing(id);
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    deselect();
+    $('#canvas-scroll').focus({ preventScroll: true });
+  }
+});
+const inlineEditor = $('#inline-editor');
+inlineEditor.addEventListener('input', () => {
+  const id = ui.editing,
+    annotation = annotationById(id);
+  if (!annotation) return;
+  const before = ui.pendingRecord;
+  ui.pendingRecord = null;
+  change(
+    () => {
+      annotation.text = inlineEditor.value;
+    },
+    { key: 'text:' + id, before },
+  );
+  warmFont(inlineEditor.value);
+  const field = $('#tool-form [name="text"]');
+  if (field) field.value = inlineEditor.value;
+  renderOverlay();
+});
+inlineEditor.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' || (event.key === 'Enter' && (event.ctrlKey || event.metaKey))) {
+    event.preventDefault();
+    const id = ui.editing;
+    stopEditing();
+    if (annotationById(id)) focusItem(id);
+    else $('#canvas-scroll').focus({ preventScroll: true });
+  }
+});
+inlineEditor.addEventListener('blur', () => {
+  // Let focus settle first: a click in the panel keeps working on the same text.
+  setTimeout(() => {
+    if (ui.editing && document.activeElement !== inlineEditor) stopEditing();
+  }, 0);
+});
+
+// ---- The tool panel ---------------------------------------------------------------
+
 function makeField(label, input, wide = false) {
   return '<label class="field' + (wide ? ' wide' : '') + '"><span>' + label + '</span>' + input + '</label>';
 }
 function textField(label, name, placeholder = '', wide = false) {
   return makeField(
     label,
-    '<input name="' + name + '" type="text" maxlength="300" placeholder="' + placeholder + '">',
+    '<input name="' +
+      name +
+      '" type="text" maxlength="300" placeholder="' +
+      placeholder +
+      '" autocomplete="off">',
     wide,
   );
 }
@@ -312,7 +1146,7 @@ function numberField(label, name, min, max, step = 1) {
     label,
     '<input name="' +
       name +
-      '" type="number" min="' +
+      '" type="number" inputmode="decimal" min="' +
       min +
       '" max="' +
       max +
@@ -322,7 +1156,7 @@ function numberField(label, name, min, max, step = 1) {
   );
 }
 function colorField(name = 'color') {
-  return makeField('Color', '<input name="' + name + '" type="color" aria-label="Choose color">');
+  return makeField('Color', '<input name="' + name + '" type="color">');
 }
 function rangeField(label, name, min, max, unit = '%') {
   return makeField(
@@ -349,340 +1183,603 @@ function selectField(label, name, options, wide = false) {
     wide,
   );
 }
-function scopeField() {
-  const options = [
-    ['all', 'Every page'],
-    ['current', 'Current page'],
-    ['selected', 'Selected pages'],
-  ];
-  if (draft().savedPages?.length) options.push(['saved', 'Previously applied pages']);
-  return selectField('Apply to', 'scope', options, true);
-}
-function positionFields() {
+function alignField() {
   return (
-    '<div class="field-section">POSITION ON THIS PAGE</div>' +
-    rangeField('From left', 'x', 0, 90) +
-    rangeField('From top', 'y', 0, 90)
+    '<fieldset class="segmented wide"><legend>Alignment</legend><div>' +
+    [
+      ['left', 'Left'],
+      ['center', 'Center'],
+      ['right', 'Right'],
+    ]
+      .map(
+        ([value, text]) =>
+          '<label><input type="radio" name="align" value="' + value + '"><span>' + text + '</span></label>',
+      )
+      .join('') +
+    '</div></fieldset>'
   );
 }
-function applyButton(label) {
-  return '<button class="button primary" type="submit">' + icon('check') + label + '</button>';
+function switchField(key, label) {
+  const on = Boolean(state[key]) && state[key].enabled !== false;
+  return (
+    '<button type="button" class="switch wide" role="switch" aria-checked="' +
+    on +
+    '" data-action="toggle-setting">' +
+    '<span class="switch-track" aria-hidden="true"><span></span></span>' +
+    label +
+    '</button>'
+  );
 }
-function readDraft() {
+function scopeFields() {
+  return (
+    selectField(
+      'Show on',
+      'scope',
+      [
+        ['all', 'Every page'],
+        ['pages', 'Only some pages'],
+      ],
+      true,
+    ) +
+    '<div class="scope-pages wide" id="scope-pages">' +
+    makeField(
+      'Page numbers',
+      '<input name="scopePages" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1-3, 5" aria-describedby="scope-hint">',
+      true,
+    ) +
+    '<p id="scope-hint" class="field-hint">Numbers follow the current page order.</p>' +
+    '<button type="button" class="button secondary" data-action="scope-selected">Use the selected pages</button></div>'
+  );
+}
+function batchLink() {
+  return (
+    '<div class="reuse-settings wide"><button type="button" class="text-button" data-action="batch-from-editor">' +
+    icon('batch') +
+    (ui.tool === 'crop' && ui.lastCropPreset && !cropDraftActive()
+      ? 'Reuse last applied crop in batch'
+      : 'Use these settings in batch') +
+    '</button><p>Apply this tool to every page in separate PDFs, and save it as a preset.</p></div>'
+  );
+}
+function annotationList() {
+  if (!ANNOTATION_TOOLS.includes(ui.tool)) return '';
+  const annotations = state.annotations.filter((a) => a.pageId === ui.activeId);
+  if (!annotations.length) return '';
+  return (
+    '<div class="annotation-list"><strong id="annotation-list-title">ON THIS PAGE</strong><ul aria-labelledby="annotation-list-title">' +
+    annotations
+      .map(
+        (a) =>
+          '<li class="annotation-item' +
+          (a.id === ui.item ? ' current' : '') +
+          '"><button type="button" class="annotation-select" data-select-item="' +
+          a.id +
+          '"' +
+          (a.id === ui.item ? ' aria-current="true"' : '') +
+          '>' +
+          icon(a.type === 'text' ? 'text' : a.type === 'image' ? 'image' : 'highlight') +
+          '<span>' +
+          safe(itemLabel(a)) +
+          '</span></button><button type="button" class="icon-button" data-remove-annotation="' +
+          a.id +
+          '" aria-label="Delete ' +
+          safe(itemLabel(a)) +
+          '">' +
+          icon('trash') +
+          '</button></li>',
+      )
+      .join('') +
+    '</ul></div>'
+  );
+}
+function panelTitle() {
+  const item = selectedItem();
+  if (item?.type === 'text') return 'Edit text';
+  if (item?.type === 'image') return 'Edit image';
+  if (item?.type === 'highlight') return 'Edit highlight';
+  return names[ui.tool];
+}
+function panelFields() {
+  const item = selectedItem(),
+    index = activeIndex();
+  switch (ui.tool) {
+    case 'text':
+      if (item?.type === 'text')
+        return (
+          makeField('Text', '<textarea name="text" maxlength="1000" rows="3"></textarea>', true) +
+          '<div class="field-row">' +
+          numberField('Size (pt)', 'size', 4, 200) +
+          colorField() +
+          '</div>' +
+          alignField() +
+          '<p class="field-hint wide">Drag the text to move it, or its right edge to set where lines wrap. With the text selected, arrow keys nudge it.</p>' +
+          '<button type="button" class="button danger" data-action="delete-item">' +
+          icon('trash') +
+          'Delete text</button>'
+        );
+      return (
+        '<div class="field-row">' +
+        numberField('Size (pt)', 'size', 4, 200) +
+        colorField() +
+        '</div>' +
+        '<button type="button" class="button secondary" data-action="add-text">' +
+        icon('plus') +
+        'Add text to page ' +
+        (index + 1) +
+        '</button>'
+      );
+    case 'image':
+      if (item?.type === 'image')
+        return (
+          rangeField('Width', 'width', 2, 100) +
+          rangeField('Opacity', 'opacity', 10, 100) +
+          '<p class="field-hint wide">Drag the image to move it, or a corner to resize it. Arrow keys nudge it.</p>' +
+          '<button type="button" class="button danger" data-action="delete-item">' +
+          icon('trash') +
+          'Delete image</button>'
+        );
+      return (
+        '<div class="file-chosen wide">' +
+        (ui.image ? safe(ui.image.name) : 'PNG or JPG · up to 15 MB') +
+        '</div>' +
+        '<button type="button" class="button primary" data-action="choose-image">' +
+        icon('image') +
+        (ui.image ? 'Choose another image' : 'Choose an image') +
+        '</button>' +
+        (ui.image
+          ? '<button type="button" class="button secondary" data-action="place-image">' +
+            icon('plus') +
+            'Add it to page ' +
+            (index + 1) +
+            '</button>'
+          : '')
+      );
+    case 'highlight':
+      return (
+        '<div class="field-row">' +
+        colorField() +
+        rangeField('Opacity', 'opacity', 5, 80) +
+        '</div>' +
+        (item?.type === 'highlight'
+          ? '<p class="field-hint wide">Drag the highlight to move it, or a handle to resize it. Arrow keys nudge it.</p>' +
+            '<button type="button" class="button danger" data-action="delete-item">' +
+            icon('trash') +
+            'Delete highlight</button>'
+          : '<button type="button" class="button secondary" data-action="add-highlight">' +
+            icon('plus') +
+            'Add a highlight to page ' +
+            (index + 1) +
+            '</button>')
+      );
+    case 'watermark':
+      return (
+        switchField('watermark', 'Show the watermark') +
+        textField('Watermark text', 'text', 'e.g. DRAFT', true) +
+        '<div class="field-row">' +
+        numberField('Text size (pt)', 'size', 8, 150) +
+        colorField() +
+        '</div>' +
+        rangeField('Opacity', 'opacity', 3, 100) +
+        rangeField('Angle', 'angle', -90, 90, '°') +
+        selectField('Position', 'position', [
+          ['center', 'Center of page'],
+          ['top', 'Top of page'],
+          ['bottom', 'Bottom of page'],
+        ]) +
+        scopeFields() +
+        batchLink()
+      );
+    case 'footer':
+      return (
+        switchField('headerFooter', 'Show headers & footers') +
+        '<div class="scope-note wide">Use <strong>{page}</strong> and <strong>{total}</strong> for automatic page numbering.</div><div class="field-section wide">HEADER</div>' +
+        textField('Left', 'headerLeft', 'e.g. Project name') +
+        textField('Center', 'headerCenter') +
+        textField('Right', 'headerRight') +
+        '<div class="field-section wide">FOOTER</div>' +
+        textField('Left', 'footerLeft', 'e.g. Your name') +
+        textField('Center', 'footerCenter', 'e.g. © Your organization') +
+        textField('Right', 'footerRight', 'e.g. Page {page}') +
+        '<div class="field-row">' +
+        numberField('Text size (pt)', 'size', 6, 24) +
+        colorField() +
+        '</div>' +
+        numberField('Edge margin (pt)', 'margin', 12, 100) +
+        scopeFields() +
+        batchLink()
+      );
+    case 'numbers':
+      return (
+        switchField('pageNumbers', 'Show page numbers') +
+        textField('Number format', 'format', 'Page {page} of {total}', true) +
+        '<div class="scope-note wide"><strong>{page}</strong> is the page number. <strong>{total}</strong> is the document page count.</div>' +
+        selectField(
+          'Position',
+          'position',
+          [
+            ['bottom-right', 'Bottom right'],
+            ['bottom-center', 'Bottom center'],
+            ['bottom-left', 'Bottom left'],
+          ],
+          true,
+        ) +
+        '<div class="field-row">' +
+        numberField('Start numbering at', 'start', 1, 100000) +
+        numberField('Text size (pt)', 'size', 6, 24) +
+        '</div>' +
+        '<div class="field-row">' +
+        colorField() +
+        numberField('Edge margin (pt)', 'margin', 12, 100) +
+        '</div>' +
+        scopeFields() +
+        batchLink()
+      );
+    case 'pages':
+      return (
+        '<div class="scope-note wide"><strong>' +
+        ui.selected.size +
+        ' of ' +
+        state.pages.length +
+        ' pages selected.</strong> Select pages with the checkboxes beneath each thumbnail.</div><div class="selection-buttons wide"><button type="button" data-action="select-all">Select all</button><button type="button" data-action="select-none">Clear selection</button></div>' +
+        textField('Select page numbers', 'range', 'e.g. 1-3, 5', true) +
+        '<button type="button" class="button secondary" data-action="select-range">Select range</button><div class="field-section wide">SELECTED PAGES</div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="rotate">' +
+        icon('rotate') +
+        'Rotate 90°</button><button type="button" class="button danger" data-action="delete-pages">' +
+        icon('trash') +
+        'Remove</button></div><button type="button" class="button secondary" data-action="extract">' +
+        icon('download') +
+        'Download selected pages</button><div class="field-section wide">CURRENT PAGE · ' +
+        (index + 1) +
+        '</div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="move-earlier"' +
+        (index === 0 ? ' disabled' : '') +
+        '>' +
+        icon('up') +
+        'Move earlier</button><button type="button" class="button secondary" data-action="move-later"' +
+        (index === state.pages.length - 1 ? ' disabled' : '') +
+        '>' +
+        icon('down') +
+        'Move later</button></div>'
+      );
+    case 'delete':
+      return (
+        '<div class="scope-note wide"><strong>' +
+        ui.selected.size +
+        ' of ' +
+        state.pages.length +
+        ' pages selected for deletion.</strong><br>' +
+        (state.pages.length - ui.selected.size) +
+        ' pages will remain.</div><div class="selection-buttons wide"><button type="button" data-action="select-all">Select all</button><button type="button" data-action="select-none">Clear selection</button></div>' +
+        textField('Page numbers to delete', 'range', 'e.g. 2, 4-6', true) +
+        '<button type="button" class="button secondary" data-action="select-range">Select range</button><p class="field-hint wide">Numbers follow the current page order. Checked thumbnails are the pages to delete.</p><button type="button" class="button danger" data-action="delete-pages"' +
+        (!ui.selected.size || ui.selected.size === state.pages.length ? ' disabled' : '') +
+        '>' +
+        icon('trash') +
+        'Delete ' +
+        ui.selected.size +
+        ' selected page' +
+        (ui.selected.size === 1 ? '' : 's') +
+        '</button><p class="field-hint wide">' +
+        (ui.selected.size === state.pages.length
+          ? 'Keep at least one page. Deselect a page to continue.'
+          : 'Deleted pages leave at once. Undo brings them back.') +
+        '</p>'
+      );
+    case 'crop':
+      return (
+        '<div class="scope-note wide">Margins are percentages of each page’s <strong>current visible area</strong>. The outlined area is kept.</div><div class="field-row">' +
+        numberField('Top (%)', 'top', 0, 99, 0.1) +
+        numberField('Bottom (%)', 'bottom', 0, 99, 0.1) +
+        '</div><div class="field-row">' +
+        numberField('Left (%)', 'left', 0, 99, 0.1) +
+        numberField('Right (%)', 'right', 0, 99, 0.1) +
+        '</div>' +
+        selectField(
+          'Apply to',
+          'scope',
+          [
+            ['current', 'Current page'],
+            ['all', 'Every page'],
+            ['selected', 'Selected pages'],
+          ],
+          true,
+        ) +
+        '<p id="crop-summary" class="field-hint wide" aria-live="polite"></p>' +
+        '<button type="submit" class="button primary">' +
+        icon('crop') +
+        'Crop to the outlined area</button>' +
+        '<button type="button" class="button secondary" data-action="clear-crop-margins">Clear margins</button><button type="button" class="button subtle" data-action="restore-crop">Restore original crop for scope</button><p class="field-hint wide">Cropping hides content outside the boundary; it does not securely remove it. Text and graphics keep their original quality.</p>' +
+        batchLink()
+      );
+    case 'merge':
+      return (
+        '<div class="file-list wide">' +
+        state.sources
+          .filter((source) => state.pages.some((page) => page.sourceId === source.id))
+          .map(
+            (source) =>
+              '<div class="file-list-item"><strong>' +
+              safe(source.name) +
+              '</strong>' +
+              source.pageCount +
+              ' pages · ' +
+              formatSize(source.bytes.length) +
+              '</div>',
+          )
+          .join('') +
+        '</div><button type="button" class="button primary" data-action="add-files">' +
+        icon('plus') +
+        'Add another PDF</button><div class="scope-note wide">New pages are added at the end. Use <strong>Organize pages</strong> to change their order, then download the combined PDF.</div><button type="button" class="button secondary" data-action="organize">' +
+        icon('pages') +
+        'Organize pages</button>'
+      );
+    case 'split':
+      return splitFields();
+  }
+  return '';
+}
+/** Values the panel's fields show for the current tool and selection. */
+function panelValues() {
+  const item = selectedItem();
+  switch (ui.tool) {
+    case 'text':
+      return item?.type === 'text'
+        ? { text: item.text, size: item.fontSize, color: hexColor(item.color), align: item.align || 'left' }
+        : { size: ui.styles.text.size, color: ui.styles.text.color };
+    case 'image': {
+      if (item?.type !== 'image') return {};
+      const frame = overlayItem(item.id)?.frame,
+        placement = overlayItem(item.id)?.placement;
+      return {
+        width: frame
+          ? Math.round((frame.width / placement.width) * 100)
+          : Math.round(number(item.width, 0.25) * 100),
+        opacity: Math.round(number(item.opacity, 1, 0, 1) * 100),
+      };
+    }
+    case 'highlight': {
+      const source = item?.type === 'highlight' ? item : ui.styles.highlight;
+      return {
+        color: hexColor(source.color, '#f5d85c'),
+        opacity: Math.round(number(source.opacity, 0.3, 0, 1) * 100),
+      };
+    }
+    case 'watermark':
+    case 'footer':
+    case 'numbers': {
+      const key = SETTINGS[ui.tool],
+        setting = state[key] || settingDefaults[key]();
+      const values = { ...setting, scope: setting.pages === 'all' || !setting.pages ? 'all' : 'pages' };
+      if (key === 'watermark') values.opacity = Math.round(number(setting.opacity, 0.18, 0, 1) * 100);
+      if (Array.isArray(setting.pages))
+        values.scopePages = rangeText(setting.pages.map(pageIndexOf).filter((index) => index >= 0));
+      return values;
+    }
+    case 'crop': {
+      const draft = ui.cropDraft;
+      return {
+        ...Object.fromEntries(
+          ['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.round(draft[edge] * 1000) / 10]),
+        ),
+        scope: draft.scope,
+      };
+    }
+    case 'pages':
+    case 'delete':
+      return { range: ui.rangeDraft };
+    case 'split':
+      return ui.splitDraft;
+  }
+  return {};
+}
+/** Show current values in the panel without rebuilding it (the focused field keeps what is typed). */
+function fillForm({ all = false } = {}) {
   const form = $('#tool-form');
   if (!form) return;
-  ui.drafts[ui.tool] = { ...ui.drafts[ui.tool], ...Object.fromEntries(new FormData(form).entries()) };
-}
-function draft() {
-  return { ...defaults[ui.tool], ...(ui.drafts[ui.tool] || {}) };
-}
-function appliedDraft(tool) {
-  if (tool === 'watermark' && state.watermark)
-    return {
-      ...state.watermark,
-      opacity: state.watermark.opacity * 100,
-      scope: state.watermark.pages === 'all' ? 'all' : 'saved',
-      savedPages: Array.isArray(state.watermark.pages) ? [...state.watermark.pages] : null,
-    };
-  if (tool === 'footer' && state.headerFooter)
-    return {
-      ...state.headerFooter,
-      scope: state.headerFooter.pages === 'all' ? 'all' : 'saved',
-      savedPages: Array.isArray(state.headerFooter.pages) ? [...state.headerFooter.pages] : null,
-    };
-  if (tool === 'numbers' && state.pageNumbers)
-    return {
-      ...state.pageNumbers,
-      scope: state.pageNumbers.pages === 'all' ? 'all' : 'saved',
-      savedPages: Array.isArray(state.pageNumbers.pages) ? [...state.pageNumbers.pages] : null,
-    };
-  return { ...defaults[tool] };
+  const values = panelValues();
+  for (const input of $$('[name]', form)) {
+    if (!(input.name in values) || (!all && input === document.activeElement)) continue;
+    const value = values[input.name] ?? '';
+    if (input.type === 'radio') input.checked = input.value === String(value);
+    else if (input.value !== String(value)) input.value = value;
+    input.removeAttribute('aria-invalid');
+  }
+  updateOutputs();
+  const scopePages = $('#scope-pages');
+  if (scopePages) {
+    scopePages.hidden = values.scope !== 'pages';
+    const button = $('[data-action="scope-selected"]', scopePages);
+    button.disabled = !ui.selected.size;
+    button.textContent = ui.selected.size
+      ? 'Use the ' + ui.selected.size + ' selected page' + (ui.selected.size === 1 ? '' : 's')
+      : 'Select pages in the strip to use them';
+    const error = ui.scopeErrors[SETTINGS[ui.tool]];
+    const field = $('[name="scopePages"]', scopePages);
+    field.setAttribute('aria-invalid', String(Boolean(error)));
+    $('#scope-hint').textContent = error || 'Numbers follow the current page order.';
+    $('#scope-hint').classList.toggle('invalid', Boolean(error));
+  }
+  const toggle = $('[role="switch"]', form);
+  if (toggle) {
+    const key = SETTINGS[ui.tool];
+    toggle.setAttribute('aria-checked', String(Boolean(state[key]) && state[key].enabled !== false));
+  }
 }
 function renderTool() {
   // The panel is rebuilt below; remember which control had keyboard focus.
   const restoreKey = !ui.busy && $('#tool-panel').contains(document.activeElement) ? focusKey() : null;
-  if (!ui.drafts[ui.tool]) ui.drafts[ui.tool] = appliedDraft(ui.tool);
   $('#tool-select').value = ui.tool;
-  const p = currentPage(),
-    index = activeIndex();
-  let fields = '';
-  if (ui.tool === 'text')
-    fields =
-      makeField(
-        'Your text',
-        '<textarea name="text" maxlength="1000" placeholder="A note, a name, a little context…" required></textarea>',
-        true,
-      ) +
-      '<div class="field-row">' +
-      numberField('Text size (pt)', 'size', 6, 96) +
-      colorField() +
-      '</div>' +
-      positionFields() +
-      applyButton('Add text to page ' + (index + 1));
-  if (ui.tool === 'image')
-    fields =
-      '<div class="file-chosen">' +
-      (ui.image ? safe(ui.image.name) : 'PNG or JPG · up to 15 MB') +
-      '</div><button type="button" class="button secondary" data-action="choose-image">' +
-      icon('image') +
-      (ui.image ? 'Choose another image' : 'Choose an image') +
-      '</button>' +
-      rangeField('Image width', 'width', 5, 90) +
-      positionFields() +
-      applyButton('Add image to page ' + (index + 1));
-  if (ui.tool === 'highlight')
-    fields =
-      '<div class="field-row">' +
-      colorField() +
-      rangeField('Opacity', 'opacity', 5, 80) +
-      '</div>' +
-      rangeField('Width', 'width', 2, 95) +
-      rangeField('Height', 'height', 1, 30) +
-      positionFields() +
-      applyButton('Highlight page ' + (index + 1));
-  if (ui.tool === 'watermark')
-    fields =
-      textField('Watermark text', 'text', 'e.g. DRAFT', true) +
-      '<div class="field-row">' +
-      numberField('Text size (pt)', 'size', 8, 150) +
-      colorField() +
-      '</div>' +
-      rangeField('Opacity', 'opacity', 3, 100) +
-      rangeField('Angle', 'angle', -90, 90, '°') +
-      selectField('Position', 'position', [
-        ['center', 'Center of page'],
-        ['top', 'Top of page'],
-        ['bottom', 'Bottom of page'],
-      ]) +
-      scopeField() +
-      applyButton('Apply watermark') +
-      (state.watermark
-        ? '<button type="button" class="button subtle" data-action="remove-watermark">Remove watermark</button>'
-        : '');
-  if (ui.tool === 'footer')
-    fields =
-      '<div class="scope-note">Use <strong>{page}</strong> and <strong>{total}</strong> for automatic page numbering.</div><div class="field-section">HEADER</div>' +
-      textField('Left', 'headerLeft', 'e.g. Project name') +
-      textField('Center', 'headerCenter') +
-      textField('Right', 'headerRight') +
-      '<div class="field-section">FOOTER</div>' +
-      textField('Left', 'footerLeft', 'e.g. Your name') +
-      textField('Center', 'footerCenter', 'e.g. © Your organization') +
-      textField('Right', 'footerRight', 'e.g. Page {page}') +
-      '<div class="field-row">' +
-      numberField('Text size (pt)', 'size', 6, 24) +
-      colorField() +
-      '</div>' +
-      numberField('Edge margin (pt)', 'margin', 12, 100) +
-      scopeField() +
-      applyButton('Apply headers & footers') +
-      (state.headerFooter
-        ? '<button type="button" class="button subtle" data-action="remove-footer">Remove headers & footers</button>'
-        : '');
-  if (ui.tool === 'numbers')
-    fields =
-      textField('Number format', 'format', 'Page {page} of {total}', true) +
-      '<div class="scope-note"><strong>{page}</strong> is the page number. <strong>{total}</strong> is the document page count.</div>' +
-      selectField(
-        'Position',
-        'position',
-        [
-          ['bottom-right', 'Bottom right'],
-          ['bottom-center', 'Bottom center'],
-          ['bottom-left', 'Bottom left'],
-        ],
-        true,
-      ) +
-      '<div class="field-row">' +
-      numberField('Start numbering at', 'start', 1, 100000) +
-      numberField('Text size (pt)', 'size', 6, 24) +
-      '</div><div class="field-row">' +
-      colorField() +
-      numberField('Edge margin (pt)', 'margin', 12, 100) +
-      '</div>' +
-      scopeField() +
-      applyButton('Apply page numbers') +
-      (state.pageNumbers
-        ? '<button type="button" class="button subtle" data-action="remove-numbers">Remove page numbers</button>'
-        : '');
-  if (ui.tool === 'pages')
-    fields =
-      '<div class="scope-note"><strong>' +
-      ui.selected.size +
-      ' of ' +
-      state.pages.length +
-      ' pages selected.</strong> Select pages with the checkboxes beneath each thumbnail.</div><div class="selection-buttons"><button type="button" data-action="select-all">Select all</button><button type="button" data-action="select-none">Clear selection</button></div>' +
-      textField('Select page numbers', 'range', 'e.g. 1-3, 5', true) +
-      '<button type="button" class="button secondary" data-action="select-range">Select range</button><div class="field-section">SELECTED PAGES</div><div class="mini-actions"><button type="button" class="button secondary" data-action="rotate">' +
-      icon('rotate') +
-      'Rotate 90°</button><button type="button" class="button danger" data-action="delete-pages">' +
-      icon('trash') +
-      'Remove</button></div><button type="button" class="button secondary" data-action="extract">' +
-      icon('download') +
-      'Download selected pages</button><div class="field-section">CURRENT PAGE · ' +
-      (index + 1) +
-      '</div><div class="mini-actions"><button type="button" class="button secondary" data-action="move-earlier">' +
-      icon('up') +
-      'Move earlier</button><button type="button" class="button secondary" data-action="move-later">' +
-      icon('down') +
-      'Move later</button></div>';
-  if (ui.tool === 'delete')
-    fields =
-      '<div class="scope-note"><strong>' +
-      ui.selected.size +
-      ' of ' +
-      state.pages.length +
-      ' pages selected for deletion.</strong><br>' +
-      (state.pages.length - ui.selected.size) +
-      ' pages will remain.</div><div class="selection-buttons"><button type="button" data-action="select-all">Select all</button><button type="button" data-action="select-none">Clear selection</button></div>' +
-      textField('Page numbers to delete', 'range', 'e.g. 2, 4-6', true) +
-      '<button type="button" class="button secondary" data-action="select-range">Select range</button><p class="field-hint wide">Numbers follow the current page order. Checked thumbnails are the pages to delete.</p><button type="button" class="button danger" data-action="delete-pages"' +
-      (!ui.selected.size || ui.selected.size === state.pages.length ? ' disabled' : '') +
-      '>' +
-      icon('trash') +
-      'Delete ' +
-      ui.selected.size +
-      ' selected page' +
-      (ui.selected.size === 1 ? '' : 's') +
-      '</button><p class="field-hint wide">' +
-      (ui.selected.size === state.pages.length
-        ? 'Keep at least one page. Deselect a page to continue.'
-        : 'After deleting, choose Download PDF to save your copy.') +
-      '</p>';
-  if (ui.tool === 'crop')
-    fields =
-      '<div class="scope-note">Margins are percentages of each page’s <strong>current visible area</strong>. The outlined area is kept.</div><div class="field-row">' +
-      numberField('Top (%)', 'top', 0, 99, 0.1) +
-      numberField('Bottom (%)', 'bottom', 0, 99, 0.1) +
-      '</div><div class="field-row">' +
-      numberField('Left (%)', 'left', 0, 99, 0.1) +
-      numberField('Right (%)', 'right', 0, 99, 0.1) +
-      '</div>' +
-      selectField(
-        'Apply to',
-        'scope',
-        [
-          ['current', 'Current page'],
-          ['all', 'Every page'],
-          ['selected', 'Selected pages'],
-        ],
-        true,
-      ) +
-      '<p id="crop-summary" class="field-hint wide" aria-live="polite"></p>' +
-      applyButton('Apply crop') +
-      '<button type="button" class="button secondary" data-action="clear-crop-margins">Clear margins</button><button type="button" class="button subtle" data-action="restore-crop">Restore original crop for scope</button><p class="field-hint wide">Cropping hides content outside the boundary; it does not securely remove it. Text and graphics keep their original quality.</p>';
-  if (ui.tool === 'merge')
-    fields =
-      '<div class="file-list">' +
-      state.sources
-        .filter((source) => state.pages.some((page) => page.sourceId === source.id))
-        .map(
-          (source) =>
-            '<div class="file-list-item"><strong>' +
-            safe(source.name) +
-            '</strong>' +
-            source.pageCount +
-            ' pages · ' +
-            formatSize(source.bytes.length) +
-            '</div>',
-        )
-        .join('') +
-      '</div><button type="button" class="button primary" data-action="add-files">' +
-      icon('plus') +
-      'Add another PDF</button><div class="scope-note">New pages are added at the end. Use <strong>Organize pages</strong> to change their order, then download the combined PDF.</div><button type="button" class="button secondary" data-action="organize">' +
-      icon('pages') +
-      'Organize pages</button>';
-  if (ui.tool === 'split') fields = splitFields();
-  if (['watermark', 'footer', 'numbers', 'crop'].includes(ui.tool))
-    fields +=
-      '<div class="reuse-settings wide"><button type="button" class="text-button" data-action="batch-from-editor">' +
-      icon('batch') +
-      (ui.tool === 'crop' && !ui.pending.has('crop') && ui.lastCropPreset
-        ? 'Reuse last applied crop in batch'
-        : 'Use these settings in batch') +
-      '</button><p>Apply this tool to every page in separate PDFs, and save it as a preset.</p></div>';
+  $$('.tool-tabs [data-tool]').forEach((button) =>
+    button.setAttribute('aria-pressed', String(button.dataset.tool === ui.tool)),
+  );
+  $('#workspace').dataset.tool = ui.tool;
+  $('#sheet-title').textContent = names[ui.tool];
   $('#tool-panel').innerHTML =
     '<h2 tabindex="-1">' +
-    names[ui.tool] +
+    panelTitle() +
     '</h2><p class="panel-description">' +
-    descriptions[ui.tool] +
-    '</p><form id="tool-form">' +
-    fields +
-    '</form><div id="pending-actions" class="field-hint" hidden>Settings not applied. <button class="text-button" type="button" data-action="discard-draft">Discard changes</button></div><div id="annotation-list"></div>';
-  const values = draft();
-  $$('[name]', $('#tool-form')).forEach((input) => {
-    if (values[input.name] !== undefined) input.value = values[input.name];
-  });
-  $('#tool-form').addEventListener('submit', (event) => {
+    tapOrClick(descriptions[ui.tool]) +
+    '</p><div id="panel-problems" class="panel-problems" role="status" hidden></div><form id="tool-form" novalidate>' +
+    panelFields() +
+    '</form>' +
+    annotationList();
+  const form = $('#tool-form');
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (['delete', 'pages'].includes(ui.tool)) action('select-range');
     else if (ui.tool === 'split') generateSplit();
-    else applyCurrent();
+    else if (ui.tool === 'crop') applyCrop();
   });
-  $('#tool-form').addEventListener('input', (event) => {
-    readDraft();
-    updateOutputs();
-    if (ui.tool === 'split') {
-      ui.splitResults = null;
-      $('#split-results')?.replaceChildren();
-      updateSplitSummary();
-    }
-    if (!['pages', 'merge', 'delete', 'split'].includes(ui.tool)) {
-      ui.pending.add(ui.tool);
-      updatePending();
-    }
-    if (['x', 'y', 'width', 'height'].includes(event.target.name)) updateMarker();
-    if (ui.tool === 'crop') updateCropOverlay();
+  form.addEventListener('input', onPanelInput);
+  form.addEventListener('change', (event) => {
+    // A number left empty or out of range goes back to the value in use.
+    if (event.target.type === 'number' && !event.target.checkValidity()) fillForm({ all: true });
   });
-  $('#tool-form').addEventListener('change', () => {
-    readDraft();
-    updateOutputs();
-    if (ui.tool === 'split') updateSplitSummary();
-  });
-  updateOutputs();
-  updateMarker();
-  updatePending();
-  renderAnnotations();
+  fillForm({ all: true });
+  if (ui.stage.overlay) updateProblems(ui.stage.overlay.problems);
   updateCropOverlay();
   updateDeletionMarks();
   if (ui.tool === 'split') updateSplitSummary();
-  if (p) $('#selection-caption').textContent = 'Page ' + (index + 1) + ' · ' + ui.selected.size + ' selected';
+  updateSelectionCaption();
+  updateStageHint();
   if (restoreKey) restoreFocus(restoreKey);
 }
 function updateOutputs() {
-  $$('input[type=range]', $('#tool-form')).forEach((input) => {
+  $$('input[type=range]', $('#tool-form') || document.createElement('form')).forEach((input) => {
     const output = $('output[data-for="' + input.name + '"]', $('#tool-form'));
     if (output) output.textContent = input.value + (input.dataset.unit || '');
   });
 }
-function updatePending() {
-  $('#pending-badge').hidden = ui.pending.size === 0;
-  const pending = $('#pending-actions');
-  if (pending) pending.hidden = !ui.pending.has(ui.tool);
-  const status = $('#preview-status');
-  if (ui.pending.has(ui.tool)) status.textContent = 'Choose Apply / Add to update the document preview.';
-  else
-    status.innerHTML =
-      icon('check') +
-      (ui.dirty
-        ? 'Preview matches your applied edits.'
-        : 'Your document, ready for a little finishing touch.');
+function validNumber(field) {
+  return field.type !== 'number' || (field.value !== '' && field.checkValidity());
 }
-function updateMarker() {
-  const placing = ['text', 'image', 'highlight'].includes(ui.tool) && state.pages.length > 0;
-  $('#page-surface').classList.toggle('placing', placing);
-  const marker = $('#placement-marker');
-  marker.hidden = !placing;
-  if (placing) {
-    const values = draft();
-    marker.style.left = Number(values.x) + '%';
-    marker.style.top = Number(values.y) + '%';
+function onPanelInput(event) {
+  const field = event.target,
+    name = field.name;
+  if (!name) return;
+  updateOutputs();
+  if (!validNumber(field)) {
+    field.setAttribute('aria-invalid', 'true');
+    return;
   }
+  field.removeAttribute('aria-invalid');
+  const value = field.value,
+    item = selectedItem();
+  if (ui.tool === 'text') {
+    if (name === 'size' || name === 'color') ui.styles.text[name] = name === 'size' ? Number(value) : value;
+    if (item?.type !== 'text') return;
+    const keys = { text: 'text', size: 'fontSize', color: 'color', align: 'align' };
+    change(
+      () => {
+        item[keys[name]] = name === 'size' ? Number(value) : value;
+      },
+      { key: name + ':' + item.id },
+    );
+    if (name === 'text') warmFont(value);
+    if (ui.editing === item.id && name === 'text') inlineEditor.value = value;
+    return;
+  }
+  if (ui.tool === 'highlight') {
+    const parsed = name === 'opacity' ? Number(value) / 100 : value;
+    ui.styles.highlight[name] = parsed;
+    if (item?.type === 'highlight') change(() => (item[name] = parsed), { key: name + ':' + item.id });
+    return;
+  }
+  if (ui.tool === 'image' && item?.type === 'image') {
+    if (name === 'opacity') change(() => (item.opacity = Number(value) / 100), { key: 'opacity:' + item.id });
+    if (name === 'width') resizeImageTo(item, Number(value) / 100);
+    return;
+  }
+  if (SETTINGS[ui.tool]) {
+    updateSetting(SETTINGS[ui.tool], name, value);
+    return;
+  }
+  if (ui.tool === 'crop') {
+    if (name === 'scope') ui.cropDraft.scope = value;
+    else ui.cropDraft[name] = clamp(Number(value) / 100, 0, 0.99);
+    updateCropOverlay();
+    return;
+  }
+  if (ui.tool === 'split') {
+    ui.splitDraft[name] = value;
+    ui.splitResults = null;
+    $('#split-results')?.replaceChildren();
+    updateSplitSummary();
+    return;
+  }
+  if (name === 'range') ui.rangeDraft = value;
+}
+function resizeImageTo(annotation, fraction) {
+  const item = overlayItem(annotation.id);
+  if (!item?.frame) return;
+  const { placement, frame } = item,
+    ratio = frame.width / frame.height;
+  let width = Math.min(
+    fraction * placement.width,
+    placement.width - frame.x,
+    (placement.height - frame.y) * ratio,
+  );
+  width = Math.max(4, width);
+  change(() => setFrame(annotation, item, { ...frame, width, height: width / ratio }), {
+    key: 'width:' + annotation.id,
+  });
+}
+/** Edit a watermark, header/footer or page-number setting. Any edit also shows it. */
+function updateSetting(key, name, value) {
+  if (name === 'scopePages') {
+    try {
+      const ids = parsePageRange(value, state.pages.length).map((index) => state.pages[index].id);
+      if (!value.trim()) throw new Error('Enter the page numbers to show this on, for example 1-3, 5.');
+      delete ui.scopeErrors[key];
+      change(
+        () => {
+          state[key] ||= settingDefaults[key]();
+          state[key].enabled = true;
+          state[key].pages = ids;
+        },
+        { key: key + ':scope' },
+      );
+    } catch (error) {
+      ui.scopeErrors[key] = error.message;
+    }
+    fillForm();
+    return;
+  }
+  const numeric = ['size', 'opacity', 'angle', 'start', 'margin'];
+  change(
+    () => {
+      state[key] ||= settingDefaults[key]();
+      const setting = state[key];
+      setting.enabled = true;
+      if (name === 'scope') {
+        delete ui.scopeErrors[key];
+        setting.pages = value === 'all' ? 'all' : [ui.activeId];
+      } else if (name === 'opacity') setting.opacity = Number(value) / 100;
+      else setting[name] = numeric.includes(name) ? Number(value) : value;
+    },
+    { key: key + ':' + name },
+  );
+  if (name === 'scope') fillForm({ all: true });
+  else fillForm();
+  if (typeof value === 'string' && name !== 'color') warmFont(value);
+}
+function toggleSetting() {
+  const key = SETTINGS[ui.tool];
+  if (!key) return;
+  change(() => {
+    if (!state[key]) state[key] = settingDefaults[key]();
+    else state[key].enabled = state[key].enabled === false;
+  });
+  fillForm();
+  const on = state[key].enabled !== false;
+  announceMessage(names[ui.tool] + (on ? ' shown.' : ' hidden.'));
+}
+function cropDraftActive() {
+  const draft = ui.cropDraft;
+  return ['left', 'top', 'right', 'bottom'].some((edge) => draft[edge] > 0);
 }
 function cropValues() {
-  const values = draft();
   const margins = Object.fromEntries(
-    ['left', 'top', 'right', 'bottom'].map((edge) => [edge, Number(values[edge]) / 100]),
+    ['left', 'top', 'right', 'bottom'].map((edge) => [edge, ui.cropDraft[edge]]),
   );
   if (
     Object.values(margins).some((value) => !Number.isFinite(value) || value < 0 || value >= 1) ||
@@ -724,127 +1821,32 @@ function updateDeletionMarks() {
     if (badge) badge.hidden = !deleting;
   });
 }
-function renderAnnotations() {
-  const annotations = state.annotations.filter((a) => a.pageId === ui.activeId);
-  const node = $('#annotation-list');
-  if (!node) return;
-  if (!annotations.length) {
-    node.innerHTML = '';
-    return;
-  }
-  node.innerHTML =
-    '<div class="annotation-list"><strong>ADDED ON THIS PAGE</strong>' +
-    annotations
-      .map(
-        (a) =>
-          '<div class="annotation-item"><span>' +
-          safe(a.type === 'text' ? a.text : a.type === 'image' ? 'Image' : 'Highlight') +
-          '</span><button type="button" class="icon-button" data-remove-annotation="' +
-          a.id +
-          '" aria-label="Remove ' +
-          safe(a.type) +
-          ' annotation">' +
-          icon('trash') +
-          '</button></div>',
-      )
-      .join('') +
-    '</div>';
-}
 function scopedPages(value) {
   if (value === 'all') return 'all';
-  if (value === 'saved') {
-    const ids = (draft().savedPages || []).filter((id) => state.pages.some((p) => p.id === id));
-    if (!ids.length) throw new Error('The previously targeted pages were removed. Choose a new page scope.');
-    return ids;
-  }
   if (value === 'current') return [ui.activeId];
   const ids = state.pages.filter((p) => ui.selected.has(p.id)).map((p) => p.id);
   if (!ids.length) throw new Error('Select at least one page in the page strip, or choose Every page.');
   return ids;
 }
-async function applyCurrent() {
-  if (ui.busy) return;
-  readDraft();
-  const values = draft(),
-    tool = ui.tool,
-    page = currentPage();
-  if (!page) return;
-  if (!$('#tool-form').reportValidity()) return;
+function applyCrop() {
   try {
-    let update;
-    if (tool === 'text') {
-      if (!values.text.trim()) throw new Error('Enter the text you would like to add.');
-      const annotation = {
-        id: uid(),
-        pageId: page.id,
-        pageRotation: page.rotation,
-        pageCrop: page.crop ? { ...page.crop } : undefined,
-        type: 'text',
-        text: values.text,
-        fontSize: Number(values.size),
-        color: values.color,
-        x: Number(values.x) / 100,
-        y: Number(values.y) / 100,
-        opacity: 1,
-        align: 'left',
-      };
-      update = () => {
-        state.annotations.push(annotation);
-      };
-    } else if (tool === 'highlight') {
-      const annotation = {
-        id: uid(),
-        pageId: page.id,
-        pageRotation: page.rotation,
-        pageCrop: page.crop ? { ...page.crop } : undefined,
-        type: 'highlight',
-        x: Number(values.x) / 100,
-        y: Number(values.y) / 100,
-        width: Math.min(Number(values.width) / 100, 1 - Number(values.x) / 100),
-        height: Math.min(Number(values.height) / 100, 1 - Number(values.y) / 100),
-        opacity: Number(values.opacity) / 100,
-        color: values.color,
-      };
-      update = () => {
-        state.annotations.push(annotation);
-      };
-    } else if (tool === 'image') {
-      if (!ui.image) throw new Error('Choose a PNG or JPG first.');
-      const pdfPage = await ui.pdf.getPage(activeIndex() + 1),
-        viewport = pdfPage.getViewport({ scale: 1 });
-      let width = Math.min(Number(values.width) / 100, 1 - Number(values.x) / 100),
-        height = (width * viewport.width) / (ui.image.ratio * viewport.height);
-      if (height > 1 - Number(values.y) / 100) {
-        height = 1 - Number(values.y) / 100;
-        width = (height * viewport.height * ui.image.ratio) / viewport.width;
-      }
-      const annotation = {
-        id: uid(),
-        pageId: page.id,
-        pageRotation: page.rotation,
-        pageCrop: page.crop ? { ...page.crop } : undefined,
-        type: 'image',
-        x: Number(values.x) / 100,
-        y: Number(values.y) / 100,
-        width,
-        height,
-        opacity: 1,
-        imageBytes: ui.image.bytes,
-        imageType: ui.image.type,
-      };
-      update = () => {
-        state.annotations.push(annotation);
-      };
-    } else if (tool === 'crop') {
-      if (ui.previewPageId !== ui.activeId)
-        throw new Error('Wait for this page preview to finish loading before cropping.');
-      const margins = cropValues(),
-        scope = scopedPages(values.scope);
-      if (!Object.values(margins).some((value) => value > 0))
-        throw new Error('Set a margin or drag an area to keep before applying the crop.');
-      update = () => {
-        state.pages.forEach((p) => {
-          if (scope !== 'all' && !scope.includes(p.id)) return;
+    const margins = cropValues(),
+      scope = scopedPages(ui.cropDraft.scope);
+    if (!Object.values(margins).some((value) => value > 0))
+      throw new Error('Set a margin or drag an area to keep before cropping.');
+    const targets = state.pages.filter((p) => scope === 'all' || scope.includes(p.id));
+    // Check every new boundary before changing anything.
+    for (const page of targets) {
+      const geometry = geometryOf(state, page);
+      if (
+        (1 - margins.left - margins.right) * geometry.width < 1 ||
+        (1 - margins.top - margins.bottom) * geometry.height < 1
+      )
+        throw new Error('The cropped page must be at least 1 PDF point wide and high.');
+    }
+    change(
+      () => {
+        for (const p of targets) {
           const old = cropMarginsForRotation(p.crop, p.rotation),
             width = 1 - old.left - old.right,
             height = 1 - old.top - old.bottom;
@@ -855,166 +1857,496 @@ async function applyCurrent() {
             bottom: old.bottom + margins.bottom * height,
             rotation: p.rotation,
           };
-        });
-      };
-    } else if (tool === 'watermark') {
-      if (!values.text.trim()) throw new Error('Enter your watermark text.');
-      const watermark = {
-        text: values.text,
-        size: Number(values.size),
-        color: values.color,
-        opacity: Number(values.opacity) / 100,
-        angle: Number(values.angle),
-        position: values.position,
-        pages: scopedPages(values.scope),
-      };
-      update = () => {
-        state.watermark = watermark;
-      };
-    } else if (tool === 'footer') {
-      const keys = ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'];
-      if (!keys.some((key) => values[key]?.trim()))
-        throw new Error('Enter text in at least one header or footer position.');
-      const headerFooter = {
-        ...Object.fromEntries(keys.map((key) => [key, values[key] || ''])),
-        size: Number(values.size),
-        color: values.color,
-        margin: Number(values.margin),
-        pages: scopedPages(values.scope),
-      };
-      update = () => {
-        state.headerFooter = headerFooter;
-      };
-    } else if (tool === 'numbers') {
-      if (!values.format?.trim()) throw new Error('Enter a page-number format, for example Page {page}.');
-      const pageNumbers = {
-        format: values.format,
-        start: Number(values.start),
-        size: Number(values.size),
-        color: values.color,
-        margin: Number(values.margin),
-        position: values.position,
-        pages: scopedPages(values.scope),
-      };
-      update = () => {
-        state.pageNumbers = pageNumbers;
-      };
-    } else return;
-    const success = await commit(update, names[tool] + ' applied.');
-    if (success) {
-      ui.pending.delete(tool);
-      if (tool === 'crop') {
-        ui.lastCropPreset = Object.fromEntries(
-          ['left', 'top', 'right', 'bottom'].map((edge) => [edge, Number(values[edge]) / 100]),
-        );
-        ui.drafts.crop = { ...defaults.crop, scope: values.scope };
-      }
-      if (tool === 'text') {
-        ui.drafts.text = { ...values, text: '' };
-      }
-      renderTool();
-    }
+        }
+      },
+      { layout: true },
+    );
+    ui.lastCropPreset = margins;
+    ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
+    renderTool();
+    toast(targets.length === 1 ? 'Page cropped.' : targets.length + ' pages cropped.');
   } catch (error) {
     toast(friendly(error), true);
   }
 }
-async function pdfjs() {
-  if (!ui.pdfjs) {
-    ui.pdfjs = await import('./assets/vendor/pdf.mjs');
-    ui.pdfjs.GlobalWorkerOptions.workerSrc = assetUrl('./assets/vendor/pdf.worker.mjs');
+
+// ---- Crop drag ---------------------------------------------------------------------
+
+function cropPoint(event, rect) {
+  return {
+    x: clamp((event.clientX - rect.left) / rect.width, 0, 1),
+    y: clamp((event.clientY - rect.top) / rect.height, 0, 1),
+  };
+}
+function startCropDrag(event) {
+  const rect = surface.getBoundingClientRect();
+  ui.gesture = { type: 'crop', start: cropPoint(event, rect), rect, pointerId: event.pointerId };
+  surface.setPointerCapture(event.pointerId);
+  event.preventDefault();
+}
+surface.addEventListener('pointermove', (event) => {
+  const gesture = ui.gesture;
+  if (gesture?.type !== 'crop' || event.pointerId !== gesture.pointerId) return;
+  const end = cropPoint(event, gesture.rect),
+    start = gesture.start;
+  const margins = {
+    left: Math.min(start.x, end.x),
+    top: Math.min(start.y, end.y),
+    right: 1 - Math.max(start.x, end.x),
+    bottom: 1 - Math.max(start.y, end.y),
+  };
+  if (1 - margins.left - margins.right <= 0.01 || 1 - margins.top - margins.bottom <= 0.01) return;
+  for (const [edge, value] of Object.entries(margins)) ui.cropDraft[edge] = Math.round(value * 1000) / 1000;
+  fillForm({ all: true });
+  updateCropOverlay();
+});
+function endCropDrag(event) {
+  if (ui.gesture?.type === 'crop' && event.pointerId === ui.gesture.pointerId) endGesture();
+}
+surface.addEventListener('pointerup', endCropDrag);
+surface.addEventListener('pointercancel', endCropDrag);
+
+// ---- Pages -------------------------------------------------------------------------
+
+/** Merging or removing pages of a PDF with form fields cannot be exported; say so before doing it. */
+function formProblem(pages) {
+  const used = [...new Set(pages.map((page) => page.sourceId))].map((id) =>
+    state.sources.find((source) => source.id === id),
+  );
+  if (!used.some((source) => source?.hasForm)) return null;
+  const complete =
+    used.length === 1 &&
+    pages.length === used[0].pageCount &&
+    new Set(pages.map((page) => page.index)).size === pages.length;
+  return complete
+    ? null
+    : 'This PDF has interactive form fields, so its pages can’t be removed, extracted or combined with other files. Save a flattened copy in your PDF reader, then open that copy.';
+}
+function movePage(id, offset, targetId = null) {
+  if (ui.busy) return;
+  const from = pageIndexOf(id),
+    to = targetId ? pageIndexOf(targetId) : from + offset;
+  if (from < 0 || to < 0 || to >= state.pages.length || from === to) return;
+  stopEditing();
+  change(
+    () => {
+      const [page] = state.pages.splice(from, 1);
+      state.pages.splice(to, 0, page);
+    },
+    { layout: true },
+  );
+  renderTool();
+  announceMessage('Page moved to position ' + (to + 1) + '.');
+}
+function selectedIds() {
+  if (!ui.selected.size) throw new Error('Select one or more pages using the checkboxes in the page strip.');
+  return new Set(ui.selected);
+}
+function rotateSelected() {
+  const ids = selectedIds();
+  stopEditing();
+  change(
+    () => {
+      state.pages.forEach((p) => {
+        if (ids.has(p.id)) p.rotation = (p.rotation + 90) % 360;
+      });
+    },
+    { layout: true },
+  );
+  toast(ids.size === 1 ? 'Page rotated.' : ids.size + ' pages rotated.');
+}
+function deletePages() {
+  const ids = selectedIds();
+  if (ids.size === state.pages.length)
+    throw new Error('Keep at least one page. Deselect a page before removing the others.');
+  const remaining = state.pages.filter((p) => !ids.has(p.id));
+  const problem = formProblem(remaining);
+  if (problem) throw new Error(problem);
+  stopEditing();
+  change(
+    () => {
+      state.pages = remaining;
+      state.annotations = state.annotations.filter((a) => !ids.has(a.pageId));
+    },
+    { layout: true },
+  );
+  renderTool();
+  toast(
+    ids.size === 1 ? 'Page deleted. You can undo this.' : ids.size + ' pages deleted. You can undo this.',
+  );
+}
+function renderPages() {
+  const list = $('#page-list');
+  list.innerHTML = state.pages
+    .map(
+      (page, index) =>
+        '<div class="page-item' +
+        (page.id === ui.activeId ? ' active' : '') +
+        '" data-page-id="' +
+        page.id +
+        '" draggable="true"><div class="page-thumb-frame"><button class="page-thumb" type="button" data-page-open="' +
+        page.id +
+        '" aria-label="View page ' +
+        (index + 1) +
+        '"' +
+        (page.id === ui.activeId ? ' aria-current="page"' : '') +
+        '><span class="thumb-loading">' +
+        (index + 1) +
+        '</span></button></div><div class="page-item-foot"><label><input type="checkbox" data-page-select="' +
+        page.id +
+        '" aria-label="Select page ' +
+        (index + 1) +
+        '"' +
+        (ui.selected.has(page.id) ? ' checked' : '') +
+        '><span>' +
+        (index + 1) +
+        '</span></label></div><span class="delete-badge" hidden>Delete</span><div class="page-move"><button class="icon-button" data-move-page="' +
+        page.id +
+        '" data-direction="-1" aria-label="Move page ' +
+        (index + 1) +
+        ' earlier"' +
+        (index === 0 ? ' disabled' : '') +
+        '>' +
+        icon('up') +
+        '</button><button class="icon-button" data-move-page="' +
+        page.id +
+        '" data-direction="1" aria-label="Move page ' +
+        (index + 1) +
+        ' later"' +
+        (index === state.pages.length - 1 ? ' disabled' : '') +
+        '>' +
+        icon('down') +
+        '</button></div></div>',
+    )
+    .join('');
+  updateDeletionMarks();
+}
+function rememberThumb(key, canvas) {
+  const cache = ui.thumbs.cache;
+  cache.delete(key);
+  cache.set(key, canvas);
+  while (cache.size > THUMB_CACHE) {
+    const [oldest, old] = cache.entries().next().value;
+    cache.delete(oldest);
+    if (!old.isConnected) {
+      old.width = 0;
+      old.height = 0;
+    }
   }
-  return ui.pdfjs;
 }
-// The landing page loads no PDF engine. Start fetching both engines as soon as
-// someone signals they are about to open a file (file picker, drag, sample), so
-// the download overlaps with choosing the file. Errors surface when they are used.
-function warmPdfTools() {
-  loadPdfLib().catch(() => {});
-  pdfjs().catch(() => {});
+// A thumbnail's edits are drawn over its button, not inside it: the button's
+// name ("View page 3") stays its only text.
+function thumbOverlay(node, index) {
+  const svg = node.parentElement?.querySelector('svg.thumb-overlay');
+  if (!svg) return;
+  const overlay = pageOverlay(state, index);
+  svg.setAttribute('viewBox', '0 0 ' + overlay.geometry.width + ' ' + overlay.geometry.height);
+  svg.innerHTML = overlay.markup;
 }
-async function makePreview(bytes) {
-  const lib = await pdfjs();
-  const loading = lib.getDocument({
-    data: bytes.slice(),
-    cMapUrl: assetUrl('./assets/vendor/cmaps/'),
-    cMapPacked: true,
-    standardFontDataUrl: assetUrl('./assets/vendor/standard_fonts/'),
-    wasmUrl: assetUrl('./assets/vendor/wasm/'),
-    iccUrl: assetUrl('./assets/vendor/iccs/'),
-  });
-  return loading.promise;
-}
-async function rebuild() {
-  const output = await buildPdf(state, (progress) => {
-    $('#busy-message').textContent = 'Preparing your document… ' + Math.round(progress * 100) + '%';
-  });
-  const doc = await makePreview(output);
-  ui.splitResults = null;
-  ui.renderToken++;
-  ui.thumbToken++;
-  const old = ui.pdf,
-    oldBytes = ui.bytes;
-  ui.pdf = doc;
-  ui.bytes = output;
-  try {
-    if (!state.pages.some((p) => p.id === ui.activeId)) ui.activeId = state.pages[0]?.id;
-    ui.selected = new Set([...ui.selected].filter((id) => state.pages.some((p) => p.id === id)));
-    updateDocumentInfo();
-    renderPages();
-    await renderCurrent();
-    renderThumbnails();
-  } catch (error) {
-    ui.renderToken++;
-    ui.thumbToken++;
-    ui.pdf = old;
-    ui.bytes = oldBytes;
-    doc.loadingTask.destroy().catch(() => {});
-    throw error;
+function refreshThumbOverlays() {
+  for (const node of $$('#page-list [data-page-open]')) {
+    if (!node.querySelector('canvas')) continue;
+    const index = pageIndexOf(node.dataset.pageOpen);
+    if (index >= 0) thumbOverlay(node, index);
   }
-  if (old) old.loadingTask.destroy().catch(() => {});
 }
-function renderRestoredState() {
-  // Cancel results from any render started against the rejected document state.
-  ui.renderToken++;
-  ui.thumbToken++;
-  if (!state.pages.length) {
-    showLanding();
+function showThumb(node, canvas, geometry, index) {
+  canvas.setAttribute('aria-hidden', 'true');
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.classList.add('thumb-overlay');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  node.style.aspectRatio = geometry.width + ' / ' + geometry.height;
+  node.classList.add('thumb-sized');
+  node.replaceChildren(canvas);
+  node.parentElement.querySelector('svg.thumb-overlay')?.remove();
+  node.after(svg);
+  thumbOverlay(node, index);
+}
+function renderThumbnails() {
+  const thumbs = ui.thumbs,
+    token = ++thumbs.token;
+  thumbs.observer?.disconnect();
+  thumbs.observer = null;
+  thumbs.task?.cancel();
+  thumbs.task = null;
+  if (!state.pages.length) return;
+  const nodes = $$('#page-list [data-page-open]');
+  const visible = new Set(),
+    queued = new Set();
+  let running = false;
+  const placeholder = (node) => {
+    const span = document.createElement('span');
+    span.className = 'thumb-loading';
+    span.textContent = pageIndexOf(node.dataset.pageOpen) + 1;
+    node.replaceChildren(span);
+    node.parentElement.querySelector('svg.thumb-overlay')?.remove();
+  };
+  async function pump() {
+    if (running) return;
+    running = true;
+    try {
+      while (queued.size && token === thumbs.token) {
+        const node = queued.values().next().value;
+        queued.delete(node);
+        if (!visible.has(node) || node.querySelector('canvas')) continue;
+        const index = pageIndexOf(node.dataset.pageOpen),
+          descriptor = state.pages[index];
+        if (!descriptor) continue;
+        const geometry = geometryOf(state, descriptor),
+          key = renderKey(descriptor);
+        let canvas = thumbs.cache.get(key);
+        if (!canvas || canvas.isConnected) {
+          const task = renderPage(state, descriptor, THUMB_WIDTH / geometry.width);
+          thumbs.task = task;
+          try {
+            canvas = await task.promise;
+          } catch (error) {
+            if (error?.name !== 'RenderingCancelledException')
+              console.warn('Thumbnail unavailable', index + 1, error);
+            continue;
+          } finally {
+            if (thumbs.task === task) thumbs.task = null;
+          }
+          if (token !== thumbs.token) return;
+          rememberThumb(key, canvas);
+        }
+        if (visible.has(node)) showThumb(node, canvas, geometry, pageIndexOf(node.dataset.pageOpen));
+      }
+    } finally {
+      running = false;
+    }
+  }
+  if (!('IntersectionObserver' in window)) {
+    nodes.forEach((node) => {
+      visible.add(node);
+      queued.add(node);
+    });
+    void pump();
     return;
   }
-  updateDocumentInfo();
-  renderPages();
-  renderTool();
-  renderCurrent();
-  renderThumbnails();
+  thumbs.observer = new IntersectionObserver(
+    (entries) => {
+      if (token !== thumbs.token) return;
+      for (const entry of entries) {
+        const node = entry.target;
+        if (entry.isIntersecting) {
+          visible.add(node);
+          queued.add(node);
+        } else {
+          visible.delete(node);
+          queued.delete(node);
+          if (node.querySelector('canvas')) placeholder(node);
+        }
+      }
+      void pump();
+    },
+    { root: phone() ? $('#page-list') : $('.page-sidebar'), rootMargin: '350px', threshold: 0 },
+  );
+  nodes.forEach((node) => thumbs.observer.observe(node));
 }
-async function commit(mutation, message) {
-  if (ui.busy) return false;
-  const previous = snapshot(),
-    active = ui.activeId,
-    selected = new Set(ui.selected);
-  busy(true, 'Applying your changes…');
-  try {
-    mutation();
-    if (!state.pages.length) throw new Error('Keep at least one page in the document.');
-    await rebuild();
-    ui.history.push({ state: previous, active, selected });
-    if (ui.history.length > 30) ui.history.shift();
-    ui.dirty = true;
-    $('#undo-button').disabled = false;
-    renderTool();
-    if (message) toast(message);
-    return true;
-  } catch (error) {
-    state = previous;
-    ui.activeId = active;
-    ui.selected = selected;
-    renderRestoredState();
-    toast(friendly(error), true);
-    return false;
-  } finally {
-    busy(false);
-    updatePending();
+function choosePage(id) {
+  if (ui.busy || !state.pages.some((page) => page.id === id)) return;
+  stopEditing();
+  endGesture();
+  ui.activeId = id;
+  ui.item = null;
+  $$('.page-item').forEach((item) => {
+    const active = item.dataset.pageId === id;
+    item.classList.toggle('active', active);
+    const thumb = $('.page-thumb', item);
+    if (active) thumb.setAttribute('aria-current', 'page');
+    else thumb.removeAttribute('aria-current');
+  });
+  renderTool();
+  renderStage();
+  revealThumbnail(id);
+}
+function chooseTool(tool) {
+  if (ui.busy || !names[tool]) return;
+  stopEditing();
+  endGesture();
+  if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
+  ui.tool = tool;
+  if (tool === 'crop') ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
+  if (phone()) setSheet(true);
+  renderTool();
+  renderStage();
+  // The address follows the tool, so it can be bookmarked or shared.
+  if (!$('#workspace').hidden) recordView('editor');
+}
+/** Phones: the tool panel is a sheet under the page that can be folded away. */
+function setSheet(open) {
+  ui.sheetOpen = open;
+  $('.tool-sidebar').classList.toggle('collapsed', !open);
+  const toggle = $('#sheet-toggle');
+  toggle.setAttribute('aria-expanded', String(open));
+  toggle.setAttribute('aria-label', open ? 'Hide tool settings' : 'Show tool settings');
+}
+
+// ---- Building the PDF ---------------------------------------------------------------
+// The PDF is built only to download, extract or split, in a worker when possible.
+
+let exporter = null;
+let exportSequence = 0;
+function exportWorker() {
+  if (exporter === false || typeof Worker === 'undefined') return null;
+  if (!exporter) {
+    try {
+      const worker = new Worker(new URL('./export-worker.js', import.meta.url), { type: 'module' });
+      const jobs = new Map();
+      const ready = new Promise((resolve) => {
+        worker.addEventListener('message', (event) => event.data?.ready && resolve(true));
+        worker.addEventListener('error', () => resolve(false));
+      });
+      worker.addEventListener('message', ({ data }) => {
+        const job = jobs.get(data?.id);
+        if (!job) return;
+        if ('progress' in data) job.progress(data.progress);
+        else {
+          jobs.delete(data.id);
+          if (data.error) job.reject(Object.assign(new Error(data.error.message), data.error));
+          else job.resolve(data.bytes);
+        }
+      });
+      worker.addEventListener('error', (event) => {
+        event.preventDefault();
+        for (const job of jobs.values())
+          job.reject(new Error('The PDF could not be created. Please try again.'));
+        jobs.clear();
+        worker.terminate();
+        if (exporter?.worker === worker) exporter = null;
+      });
+      exporter = { worker, jobs, ready };
+    } catch {
+      exporter = false;
+      return null;
+    }
   }
+  return exporter;
+}
+async function build(input, onProgress) {
+  const current = exportWorker();
+  if (current && (await current.ready)) {
+    const id = ++exportSequence;
+    return new Promise((resolve, reject) => {
+      current.jobs.set(id, { resolve, reject, progress: onProgress });
+      cancellable('Cancel', () => {
+        current.jobs.delete(id);
+        current.worker.terminate();
+        if (exporter === current) exporter = null;
+        const error = new Error('Stopped. Your document is unchanged.');
+        error.name = 'AbortError';
+        reject(error);
+      });
+      current.worker.postMessage({ id, state: input });
+    });
+  }
+  // No module workers here: build on this page instead.
+  exporter = false;
+  return buildPdf(input, onProgress);
+}
+/** The document as a PDF. Reuses the last build while nothing has changed. */
+async function exportDocument(input = null, label = 'Preparing your PDF…') {
+  stopEditing();
+  if (!input && ui.exported?.version === ui.version) return ui.exported.bytes;
+  const version = ui.version;
+  busy(true, label);
+  try {
+    const bytes = await build(input || snapshot(), (progress) => {
+      $('#busy-message').textContent = label + ' ' + Math.round(progress * 100) + '%';
+    });
+    if (!input) ui.exported = { version, bytes };
+    return bytes;
+  } finally {
+    ui.cancelExport = null;
+    busy(false);
+  }
+}
+/** Show where an export problem is: its page, and the item or tool involved. */
+function showExportError(error) {
+  if (error?.name === 'AbortError') {
+    toast(error.message);
+    return;
+  }
+  const page = state.pages[error?.pageIndex];
+  if (page) {
+    choosePage(page.id);
+    const keys = { watermark: 'watermark', pageNumber: 'numbers' };
+    if (annotationById(error.itemId)) selectItem(error.itemId);
+    else if (keys[error.itemId] || /^(header|footer)/.test(error.itemId || ''))
+      chooseTool(keys[error.itemId] || 'footer');
+  }
+  toast(friendly(error), true);
+}
+function downloadBytes(bytes, name) {
+  const url = URL.createObjectURL(
+    bytes instanceof Blob ? bytes : new Blob([bytes], { type: 'application/pdf' }),
+  );
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = name;
+  anchor.style.display = 'none';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function outputName(suffix = 'edited') {
+  const sources = state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
+  const base = sources.length === 1 ? sources[0].name.replace(/\.pdf$/i, '') : 'combined';
+  return base + '-' + suffix + '.pdf';
+}
+async function downloadDocument() {
+  try {
+    const version = ui.version,
+      bytes = await exportDocument();
+    downloadBytes(bytes, outputName());
+    ui.savedVersion = version;
+    toast('Your edited PDF has been downloaded.');
+  } catch (error) {
+    showExportError(error);
+  }
+}
+async function downloadSelected() {
+  try {
+    const ids = selectedIds();
+    const extraction = snapshot();
+    extraction.pages = extraction.pages.filter((p) => ids.has(p.id));
+    const problem = formProblem(extraction.pages);
+    if (problem) throw new Error(problem);
+    const bytes = await exportDocument(extraction, 'Preparing selected pages…');
+    downloadBytes(bytes, outputName('selected'));
+    toast(
+      extraction.pages.length +
+        ' selected page' +
+        (extraction.pages.length === 1 ? '' : 's') +
+        ' downloaded.',
+    );
+  } catch (error) {
+    showExportError(error);
+  }
+}
+
+function showInfo(kind) {
+  const content = $('#dialog-content');
+  if (kind === 'privacy')
+    content.innerHTML =
+      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
+  if (kind === 'help')
+    content.innerHTML =
+      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Supported files</h3><p>Unencrypted PDFs with no fixed file-size or page-count limit. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts</h3><p>Latin and Chinese text are supported. Chinese text embeds a full font for reliable reading, which adds about 14 MB to the downloaded file. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
+  $('#info-dialog').showModal();
+}
+
+// ---- Opening documents ------------------------------------------------------------
+
+function warmPdfTools() {
+  loadPdfLib().catch(() => {});
+  loadPdfjs().catch(() => {});
+}
+function isDirty() {
+  return ui.version !== ui.savedVersion || Boolean(ui.splitResults?.some((file) => !file.downloaded));
 }
 async function openFiles(files, append = false) {
   if (ui.busy || batch.isBusy() || !files.length) return;
@@ -1029,25 +2361,24 @@ async function openFiles(files, append = false) {
     toast('Please choose PDF files. You can add PNG or JPG images with the Image tool.', true);
     return;
   }
-  const replacing =
-    !append && (ui.dirty || ui.pending.size || ui.splitResults?.some((file) => !file.downloaded));
+  append = append && state.pages.length > 0;
   if (
-    replacing &&
+    !append &&
+    state.pages.length &&
+    isDirty() &&
     !(await confirmDialog({
       eyebrow: 'START A NEW DOCUMENT',
       title: 'Replace your current document?',
-      body: 'Your edits and unapplied settings will be cleared. Download your edited PDF first if you want to keep it.',
+      body: 'Your edits will be cleared. Download your edited PDF first if you want to keep it.',
       confirmLabel: 'Open new PDF',
     }))
   ) {
     resetPicker();
     return;
   }
+  stopEditing();
   busy(true, 'Opening your PDF' + (list.length > 1 ? 's' : '') + '…');
-  const previous = snapshot(),
-    previousActive = ui.activeId,
-    previousSelected = new Set(ui.selected),
-    previousInitial = ui.initial;
+  loadPdfjs().catch(() => {});
   try {
     const sources = [],
       pages = [];
@@ -1055,56 +2386,75 @@ async function openFiles(files, append = false) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const info = await inspectPdf(bytes),
         id = uid();
-      sources.push({ id, bytes, name: file.name, pageCount: info.pageCount });
+      sources.push({
+        id,
+        bytes,
+        name: file.name,
+        pageCount: info.pageCount,
+        hasForm: info.hasForm,
+        pages: info.pages.map((page) => ({ box: page.cropBox, rotation: page.rotation })),
+      });
       for (let index = 0; index < info.pageCount; index++)
         pages.push({ id: uid(), sourceId: id, index, rotation: 0 });
     }
-    if (append && state.pages.length) {
-      state.sources.push(...sources);
-      state.pages.push(...pages);
-    } else {
-      state = { ...emptyState(), sources, pages };
-      ui.activeId = pages[0].id;
-      ui.selected = new Set([pages[0].id]);
-    }
-    showWorkspace();
-    await rebuild();
-    if (append && previous.pages.length) {
-      ui.history.push({ state: previous, active: previousActive, selected: previousSelected });
-      ui.dirty = true;
-    } else {
-      ui.history = [];
-      ui.dirty = false;
-      ui.initial = snapshot();
-      ui.drafts = {};
-      ui.lastCropPreset = null;
-      ui.pending.clear();
-      ui.image = null;
-      ui.zoom = 1;
-      ui.lastCropPreset = null;
-    }
-    $('#undo-button').disabled = !ui.history.length;
-    renderTool();
-    if (append)
+    // Draw text in the standard font as soon as the first page appears.
+    previewFont('standard');
+    if (append) {
+      const known = new Map(state.sources.map((source) => [source.id, source]));
+      sources.forEach((source) => known.set(source.id, source));
+      const used = [...state.pages, ...pages].map((page) => known.get(page.sourceId));
+      if (used.some((source) => source.hasForm))
+        throw new Error(
+          'PDFs with interactive form fields can’t be combined with other files. Save a flattened copy in your PDF reader, then add that copy.',
+        );
+      change(
+        () => {
+          state.sources.push(...sources);
+          state.pages.push(...pages);
+        },
+        { layout: true },
+      );
+      renderTool();
       toast(
         pages.length + ' page' + (pages.length === 1 ? '' : 's') + ' added. Arrange them, then download.',
       );
-    else {
+    } else {
+      closeDocuments();
+      ui.thumbs.cache.clear();
+      state = { ...emptyState(), sources, pages };
+      ui.activeId = pages[0].id;
+      ui.selected = new Set([pages[0].id]);
+      ui.item = null;
+      ui.past = [];
+      ui.future = [];
+      ui.lastChange = null;
+      ui.version++;
+      ui.savedVersion = ui.version;
+      ui.exported = null;
+      ui.initial = snapshot();
+      ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: 'current' };
+      ui.rangeDraft = '';
+      ui.scopeErrors = {};
+      ui.splitResults = null;
+      ui.lastCropPreset = null;
+      ui.image = null;
+      ui.zoom = 1;
+      ui.stage.key = null;
+      ui.stage.pageKey = null;
+      // Phones: tools you use on the page start with their settings folded away.
+      if (phone()) setSheet(!['text', 'highlight'].includes(ui.tool));
+      showWorkspace();
+      documentChanged(true);
+      renderTool();
       ui.focusKey = '#document-name';
       recordView('editor');
       toast('Your PDF is ready. Everything happens on your device.');
     }
   } catch (error) {
-    state = previous;
-    ui.activeId = previousActive;
-    ui.selected = previousSelected;
-    ui.initial = previousInitial;
-    renderRestoredState();
     toast(friendly(error), true);
   } finally {
     busy(false);
-    $('#file-input').value = '';
-    updatePending();
+    resetPicker();
   }
 }
 function showWorkspace() {
@@ -1117,6 +2467,7 @@ function showWorkspace() {
 }
 function showLanding() {
   if (!batch.close()) return;
+  stopEditing();
   document.body.classList.remove('batching');
   $('#landing').hidden = false;
   $('#workspace').hidden = true;
@@ -1190,7 +2541,8 @@ function restoreView(target) {
     ui.shownDepth = Number(target.depth) || 0;
     if (target.view === 'editor' && state.pages.length) {
       showWorkspace();
-      renderCurrent();
+      renderStage();
+      renderThumbnails();
       document.title = viewTitle('editor');
       $('#document-name').focus({ preventScroll: true });
     } else if (target.view === 'batch') {
@@ -1213,322 +2565,27 @@ function updateDocumentInfo() {
     ' page' +
     (state.pages.length === 1 ? '' : 's') +
     ' · ' +
-    formatSize(ui.bytes?.length || 0);
+    formatSize(activeSources.reduce((sum, source) => sum + source.bytes.length, 0));
   $('#total-pages').textContent = state.pages.length;
-  $('#undo-button').disabled = !ui.history.length;
+  updateHistoryButtons();
   syncPageNavigation();
-}
-async function renderCurrent() {
-  if (!ui.pdf || $('#workspace').hidden) return;
-  const token = ++ui.renderToken,
-    pdf = ui.pdf,
-    index = activeIndex();
-  ui.previewPageId = null;
-  $('#page-surface').classList.add('render-pending');
-  try {
-    const page = await pdf.getPage(index + 1);
-    if (token !== ui.renderToken) return;
-    const base = page.getViewport({ scale: 1 }),
-      scroll = $('#canvas-scroll');
-    const available = Math.max(160, scroll.clientWidth - (window.innerWidth <= 720 ? 32 : 60));
-    const fit = Math.min(available / base.width, 1.35),
-      scale = fit * ui.zoom,
-      dpr = Math.min(devicePixelRatio || 1, 2);
-    const viewport = page.getViewport({ scale: scale * dpr });
-    const temporary = document.createElement('canvas');
-    temporary.width = Math.ceil(viewport.width);
-    temporary.height = Math.ceil(viewport.height);
-    await page.render({ canvasContext: temporary.getContext('2d'), viewport }).promise;
-    if (token !== ui.renderToken) return;
-    const canvas = $('#pdf-canvas');
-    canvas.width = temporary.width;
-    canvas.height = temporary.height;
-    canvas.style.width = base.width * scale + 'px';
-    canvas.style.height = base.height * scale + 'px';
-    canvas.getContext('2d').drawImage(temporary, 0, 0);
-    canvas.setAttribute('aria-label', 'PDF preview, page ' + (index + 1) + ' of ' + state.pages.length);
-    syncPageNavigation();
-    $('#zoom-label').textContent = ui.zoom === 1 ? 'Fit' : Math.round(ui.zoom * 100) + '%';
-    $('[data-action=previous]').disabled = index === 0;
-    $('[data-action=next]').disabled = index === state.pages.length - 1;
-    $('#selection-caption').textContent = 'Page ' + (index + 1) + ' · ' + ui.selected.size + ' selected';
-    ui.previewPageId = state.pages[index]?.id;
-    updateMarker();
-    updateCropOverlay();
-  } catch (error) {
-    if (token === ui.renderToken && error?.name !== 'RenderingCancelledException')
-      toast('Could not preview this page. ' + friendly(error), true);
-  } finally {
-    if (token === ui.renderToken) $('#page-surface').classList.remove('render-pending');
-  }
-}
-function renderPages() {
-  const list = $('#page-list');
-  list.innerHTML = state.pages
-    .map(
-      (page, index) =>
-        '<div class="page-item' +
-        (page.id === ui.activeId ? ' active' : '') +
-        '" data-page-id="' +
-        page.id +
-        '" draggable="true"><button class="page-thumb" type="button" data-page-open="' +
-        page.id +
-        '" aria-label="View page ' +
-        (index + 1) +
-        '"><span class="thumb-loading">' +
-        (index + 1) +
-        '</span></button><div class="page-item-foot"><label><input type="checkbox" data-page-select="' +
-        page.id +
-        '" aria-label="Select page ' +
-        (index + 1) +
-        '"' +
-        (ui.selected.has(page.id) ? ' checked' : '') +
-        '><span>' +
-        (index + 1) +
-        '</span></label></div><span class="delete-badge" hidden>Delete</span><div class="page-move"><button class="icon-button" data-move-page="' +
-        page.id +
-        '" data-direction="-1" aria-label="Move page ' +
-        (index + 1) +
-        ' earlier"' +
-        (index === 0 ? ' disabled' : '') +
-        '>' +
-        icon('up') +
-        '</button><button class="icon-button" data-move-page="' +
-        page.id +
-        '" data-direction="1" aria-label="Move page ' +
-        (index + 1) +
-        ' later"' +
-        (index === state.pages.length - 1 ? ' disabled' : '') +
-        '>' +
-        icon('down') +
-        '</button></div></div>',
-    )
-    .join('');
-}
-function renderThumbnails() {
-  const token = ++ui.thumbToken,
-    pdf = ui.pdf,
-    pages = [...state.pages];
-  ui.thumbObserver?.disconnect();
-  ui.thumbObserver = null;
-  ui.thumbRenderTask?.cancel();
-  ui.thumbRenderTask = null;
-  ui.thumbCleanup?.(true);
-  ui.thumbCleanup = null;
-  if (!pdf) return;
-  const nodes = $$('[data-page-open]'),
-    indices = new Map(pages.map((p, i) => [p.id, i]));
-  const visible = new Set(),
-    queued = new Set(),
-    proxies = new Map();
-  let running = false;
-  const cleanup = (all = false) => {
-    for (const [node, page] of proxies) {
-      if ((all || !visible.has(node)) && node.dataset.pageOpen !== ui.activeId) {
-        page.cleanup();
-        proxies.delete(node);
-      }
-    }
-  };
-  ui.thumbCleanup = cleanup;
-  const placeholder = (node, index) => {
-    const canvas = node.querySelector('canvas');
-    if (canvas) {
-      canvas.width = 0;
-      canvas.height = 0;
-    }
-    const span = document.createElement('span');
-    span.className = 'thumb-loading';
-    span.textContent = index + 1;
-    node.replaceChildren(span);
-  };
-  async function pump() {
-    if (running) return;
-    running = true;
-    try {
-      while (queued.size && token === ui.thumbToken) {
-        const node = queued.values().next().value;
-        queued.delete(node);
-        if (!visible.has(node) || node.querySelector('canvas')) continue;
-        const index = indices.get(node.dataset.pageOpen);
-        try {
-          const page = await pdf.getPage(index + 1),
-            base = page.getViewport({ scale: 1 }),
-            viewport = page.getViewport({ scale: 172 / base.width });
-          if (token !== ui.thumbToken) return;
-          proxies.set(node, page);
-          if (!visible.has(node)) {
-            cleanup();
-            continue;
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.ceil(viewport.width);
-          canvas.height = Math.ceil(viewport.height);
-          canvas.setAttribute('aria-hidden', 'true');
-          const task = page.render({ canvasContext: canvas.getContext('2d'), viewport });
-          ui.thumbRenderTask = task;
-          try {
-            await task.promise;
-          } finally {
-            if (ui.thumbRenderTask === task) ui.thumbRenderTask = null;
-          }
-          if (token !== ui.thumbToken) return;
-          if (visible.has(node)) {
-            node.style.aspectRatio = base.width + ' / ' + base.height;
-            node.classList.add('thumb-sized');
-            node.replaceChildren(canvas);
-          } else {
-            canvas.width = 0;
-            canvas.height = 0;
-            cleanup();
-          }
-        } catch (error) {
-          if (token === ui.thumbToken && error?.name !== 'RenderingCancelledException')
-            console.warn('Thumbnail unavailable', index + 1, error);
-        }
-      }
-    } finally {
-      running = false;
-    }
-  }
-  if (!('IntersectionObserver' in window)) {
-    nodes.forEach((node) => {
-      visible.add(node);
-      queued.add(node);
-    });
-    void pump();
-    return;
-  }
-  ui.thumbObserver = new IntersectionObserver(
-    (entries) => {
-      if (token !== ui.thumbToken) return;
-      for (const entry of entries) {
-        const node = entry.target;
-        if (entry.isIntersecting) {
-          visible.add(node);
-          queued.add(node);
-        } else {
-          visible.delete(node);
-          queued.delete(node);
-          if (node.querySelector('canvas')) placeholder(node, indices.get(node.dataset.pageOpen));
-        }
-      }
-      cleanup();
-      void pump();
-    },
-    {
-      root: window.innerWidth <= 720 ? $('#page-list') : $('.page-sidebar'),
-      rootMargin: '350px',
-      threshold: 0,
-    },
-  );
-  nodes.forEach((node) => ui.thumbObserver.observe(node));
-}
-function choosePage(id) {
-  if (ui.busy) return;
-  readDraft();
-  ui.activeId = id;
-  ui.thumbCleanup?.();
-  $$('.page-item').forEach((item) => item.classList.toggle('active', item.dataset.pageId === id));
-  renderTool();
-  renderCurrent();
-  revealThumbnail(id);
-}
-function chooseTool(tool) {
-  if (ui.busy) return;
-  readDraft();
-  ui.tool = tool;
-  if (!ui.drafts[tool]) ui.drafts[tool] = appliedDraft(tool);
-  renderTool();
-  // The address follows the tool, so it can be bookmarked or shared.
-  if (!$('#workspace').hidden) recordView('editor');
-}
-async function movePage(id, offset, targetId = null) {
-  if (ui.busy) return;
-  const from = state.pages.findIndex((p) => p.id === id),
-    to = targetId ? state.pages.findIndex((p) => p.id === targetId) : from + offset;
-  if (from < 0 || to < 0 || to >= state.pages.length || from === to) return;
-  await commit(() => {
-    const [page] = state.pages.splice(from, 1);
-    state.pages.splice(to, 0, page);
-  }, 'Page order updated.');
-}
-function selectedIds() {
-  if (!ui.selected.size) throw new Error('Select one or more pages using the checkboxes in the page strip.');
-  return new Set(ui.selected);
-}
-function downloadBytes(bytes, name) {
-  const url = URL.createObjectURL(
-    bytes instanceof Blob ? bytes : new Blob([bytes], { type: 'application/pdf' }),
-  );
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = name;
-  anchor.style.display = 'none';
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-function outputName(suffix = 'edited') {
-  const sources = state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
-  const base = sources.length === 1 ? sources[0].name.replace(/\.pdf$/i, '') : 'combined';
-  return base + '-' + suffix + '.pdf';
-}
-async function downloadSelected() {
-  try {
-    const ids = selectedIds();
-    busy(true, 'Preparing selected pages…');
-    const extraction = snapshot();
-    extraction.pages = extraction.pages.filter((p) => ids.has(p.id));
-    const bytes = await buildPdf(extraction);
-    downloadBytes(bytes, outputName('selected'));
-    toast(extraction.pages.length + ' selected pages downloaded.');
-  } catch (error) {
-    toast(friendly(error), true);
-  } finally {
-    busy(false);
-  }
-}
-function showInfo(kind) {
-  const content = $('#dialog-content');
-  if (kind === 'privacy')
-    content.innerHTML =
-      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
-  if (kind === 'help')
-    content.innerHTML =
-      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and apply your changes. The preview shows the actual edited document. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Supported files</h3><p>Unencrypted PDFs with no fixed file-size or page-count limit. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts and page positions</h3><p>Latin and Chinese text are supported. Chinese text embeds a full font for reliable reading, which adds about 14 MB to the downloaded file. Other scripts depend on the bundled font coverage.</p><p>Click a page to position text or images, or use the position sliders. Repeated content can apply to every page, the current page, or selected pages. Page numbers follow your final page order.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p><h3>Undo and reset</h3><p>Undo reverses your recent edits. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p>';
-  $('#info-dialog').showModal();
 }
 async function resetDocument() {
   if (!ui.initial) return;
-  busy(true, 'Restoring the original document…');
-  const previous = snapshot(),
-    previousActive = ui.activeId,
-    previousSelected = new Set(ui.selected);
-  try {
-    state = snapshot(ui.initial);
-    ui.activeId = state.pages[0].id;
-    ui.selected = new Set([ui.activeId]);
-    await rebuild();
-    ui.history = [];
-    ui.drafts = {};
-    ui.lastCropPreset = null;
-    ui.pending.clear();
-    ui.image = null;
-    ui.dirty = false;
-    renderTool();
-    updateDocumentInfo();
-    toast('Back to your original document.');
-  } catch (error) {
-    state = previous;
-    ui.activeId = previousActive;
-    ui.selected = previousSelected;
-    renderRestoredState();
-    toast(friendly(error), true);
-  } finally {
-    busy(false);
-  }
+  stopEditing();
+  change(
+    () => {
+      state = snapshot(ui.initial);
+      ui.activeId = state.pages[0].id;
+      ui.selected = new Set([ui.activeId]);
+      ui.item = null;
+    },
+    { layout: true },
+  );
+  ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: 'current' };
+  ui.lastCropPreset = null;
+  renderTool();
+  toast('Back to your original document. Undo brings your edits back.');
 }
 async function action(name, element) {
   if (ui.busy && !['privacy', 'help', 'close-dialog', 'cancel-operation', 'dismiss-toast'].includes(name))
@@ -1540,7 +2597,8 @@ async function action(name, element) {
   if (name === 'cancel-operation') {
     ui.cancelOperation = true;
     $('#busy-cancel').disabled = true;
-    $('#busy-message').textContent = 'Stopping after the current output…';
+    if (ui.cancelExport) ui.cancelExport();
+    else $('#busy-message').textContent = 'Stopping after the current output…';
     return;
   }
   if (name === 'batch') {
@@ -1605,7 +2663,8 @@ async function action(name, element) {
     goToLanding(name === 'tools-home' ? 'tools' : 'top');
   if (name === 'resume') {
     showWorkspace();
-    renderCurrent();
+    renderStage();
+    renderThumbnails();
     recordView('editor');
     $('#document-name').focus({ preventScroll: true });
   }
@@ -1613,74 +2672,50 @@ async function action(name, element) {
   if (name === 'privacy' || name === 'help') showInfo(name);
   if (name === 'close-dialog') $('#info-dialog').close();
   if (name === 'organize') chooseTool('pages');
+  if (name === 'toggle-sheet') setSheet(!ui.sheetOpen);
   if (name === 'previous' || name === 'next') {
     const next = activeIndex() + (name === 'next' ? 1 : -1);
     if (next >= 0 && next < state.pages.length) choosePage(state.pages[next].id);
   }
   if (name === 'zoom-in' || name === 'zoom-out' || name === 'zoom-fit') {
-    ui.zoom =
-      name === 'zoom-fit' ? 1 : Math.max(0.5, Math.min(2.5, ui.zoom + (name === 'zoom-in' ? 0.25 : -0.25)));
-    renderCurrent();
+    ui.zoom = name === 'zoom-fit' ? 1 : clamp(ui.zoom + (name === 'zoom-in' ? 0.25 : -0.25), 0.5, 3);
+    renderStage();
   }
-  if (name === 'undo') {
-    const previous = ui.history.at(-1);
-    if (!previous) return;
-    busy(true, 'Undoing the last change…');
-    const current = snapshot(),
-      currentActive = ui.activeId,
-      currentSelected = new Set(ui.selected);
-    try {
-      state = previous.state;
-      ui.activeId = previous.active;
-      ui.selected = previous.selected;
-      await rebuild();
-      ui.history.pop();
-      ui.drafts = {};
-      ui.lastCropPreset = null;
-      ui.pending.clear();
-      ui.dirty = ui.history.length > 0;
-      renderTool();
-      updateDocumentInfo();
-      toast('Last change undone.');
-    } catch (error) {
-      state = current;
-      ui.activeId = currentActive;
-      ui.selected = currentSelected;
-      renderRestoredState();
-      toast(friendly(error), true);
-    } finally {
-      busy(false);
-    }
-  }
+  if (name === 'undo') undo();
+  if (name === 'redo') redo();
   if (name === 'reset') {
     const confirmed = await confirmDialog({
       eyebrow: 'START FRESH',
       title: 'Reset this document?',
-      body: 'This clears your edits and added PDFs and returns to the document you first opened. Your original files are unchanged.',
+      body: 'This clears your edits and added PDFs and returns to the document you first opened. Undo brings your edits back. Your original files are unchanged.',
       confirmLabel: 'Reset document',
     });
     if (confirmed) await resetDocument();
   }
-  if (name === 'download') {
-    if (ui.pending.size) {
-      const tool = [...ui.pending][0];
-      chooseTool(tool);
-      toast(
-        'Apply or discard the pending ' + names[tool].toLowerCase() + ' settings before downloading.',
-        true,
-      );
-      return;
-    }
-    if (ui.bytes) {
-      downloadBytes(ui.bytes, outputName());
-      ui.dirty = false;
-      toast('Your edited PDF has been downloaded.');
-    }
+  if (name === 'download') await downloadDocument();
+  if (name === 'add-text') {
+    const geometry = ui.stage.geometry;
+    createText({ x: geometry.width * 0.1, y: geometry.height * 0.1 });
   }
-  if (name === 'discard-draft') {
-    ui.pending.delete(ui.tool);
-    ui.drafts[ui.tool] = appliedDraft(ui.tool);
-    renderTool();
+  if (name === 'add-highlight') {
+    const geometry = ui.stage.geometry;
+    addHighlight({ x: geometry.width * 0.1, y: geometry.height * 0.15 });
+  }
+  if (name === 'place-image' && ui.image) placeImage(ui.image);
+  if (name === 'delete-item' && ui.item) deleteItem(ui.item);
+  if (name === 'toggle-setting') toggleSetting();
+  if (name === 'scope-selected') {
+    const key = SETTINGS[ui.tool];
+    const ids = state.pages.filter((page) => ui.selected.has(page.id)).map((page) => page.id);
+    if (key && ids.length) {
+      delete ui.scopeErrors[key];
+      change(() => {
+        state[key] ||= settingDefaults[key]();
+        state[key].enabled = true;
+        state[key].pages = ids;
+      });
+      fillForm({ all: true });
+    }
   }
   if (name === 'select-all' || name === 'select-none') {
     ui.selected = name === 'select-all' ? new Set(state.pages.map((p) => p.id)) : new Set();
@@ -1688,9 +2723,8 @@ async function action(name, element) {
     renderTool();
   }
   if (name === 'select-range') {
-    readDraft();
     try {
-      const indices = parsePageRange(draft().range, state.pages.length);
+      const indices = parsePageRange(ui.rangeDraft, state.pages.length);
       ui.selected = new Set(indices.map((i) => state.pages[i].id));
       $$('[data-page-select]').forEach(
         (input) => (input.checked = ui.selected.has(input.dataset.pageSelect)),
@@ -1702,76 +2736,46 @@ async function action(name, element) {
   }
   if (name === 'rotate') {
     try {
-      const ids = selectedIds();
-      await commit(() => {
-        state.pages.forEach((p) => {
-          if (ids.has(p.id)) p.rotation = (p.rotation + 90) % 360;
-        });
-      }, 'Selected pages rotated.');
+      rotateSelected();
     } catch (error) {
       toast(friendly(error), true);
     }
   }
   if (name === 'clear-crop-margins') {
-    readDraft();
-    ui.drafts.crop = { ...defaults.crop, scope: draft().scope };
-    ui.pending.delete('crop');
-    renderTool();
+    ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
+    fillForm({ all: true });
+    updateCropOverlay();
   }
   if (name === 'restore-crop') {
-    readDraft();
     try {
-      const scope = scopedPages(draft().scope);
-      const success = await commit(() => {
-        state.pages.forEach((p) => {
-          if (scope === 'all' || scope.includes(p.id)) delete p.crop;
-        });
-      }, 'Original page boundaries restored.');
-      if (success) {
-        ui.lastCropPreset = null;
-        ui.drafts.crop = { ...defaults.crop, scope: draft().scope };
-        ui.pending.delete('crop');
-        renderTool();
-      }
+      const scope = scopedPages(ui.cropDraft.scope);
+      const targets = state.pages.filter((p) => (scope === 'all' || scope.includes(p.id)) && p.crop);
+      if (!targets.length) throw new Error('These pages show their original boundaries already.');
+      change(
+        () => {
+          targets.forEach((p) => delete p.crop);
+        },
+        { layout: true },
+      );
+      ui.lastCropPreset = null;
+      ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
+      renderTool();
+      toast('Original page boundaries restored.');
     } catch (error) {
       toast(friendly(error), true);
     }
   }
   if (name === 'delete-pages') {
     try {
-      const ids = selectedIds();
-      if (ids.size === state.pages.length)
-        throw new Error('Keep at least one page. Deselect a page before removing the others.');
-      await commit(() => {
-        state.pages = state.pages.filter((p) => !ids.has(p.id));
-        state.annotations = state.annotations.filter((a) => !ids.has(a.pageId));
-      }, 'Selected pages deleted. You can undo this.');
+      deletePages();
     } catch (error) {
       toast(friendly(error), true);
     }
   }
-  if (name === 'extract') {
-    if (ui.pending.size) {
-      toast('Apply or discard pending changes before downloading selected pages.', true);
-      return;
-    }
-    await downloadSelected();
-  }
+  if (name === 'extract') await downloadSelected();
   if (name === 'move-earlier' || name === 'move-later')
-    await movePage(ui.activeId, name === 'move-earlier' ? -1 : 1);
+    movePage(ui.activeId, name === 'move-earlier' ? -1 : 1);
   if (name === 'choose-image') $('#image-input').click();
-  if (name === 'remove-watermark' || name === 'remove-footer' || name === 'remove-numbers') {
-    const key =
-      name === 'remove-watermark' ? 'watermark' : name === 'remove-footer' ? 'headerFooter' : 'pageNumbers';
-    const success = await commit(() => {
-      state[key] = null;
-    }, 'Removed from your document.');
-    if (success) {
-      ui.drafts[ui.tool] = { ...defaults[ui.tool] };
-      ui.pending.delete(ui.tool);
-      renderTool();
-    }
-  }
 }
 
 function syncPageNavigation() {
@@ -1792,11 +2796,11 @@ function jumpToPage() {
 }
 function revealThumbnail(id) {
   const node = $('[data-page-id="' + id + '"]'),
-    root = window.innerWidth <= 720 ? $('#page-list') : $('.page-sidebar');
+    root = phone() ? $('#page-list') : $('.page-sidebar');
   if (!node) return;
   const rect = node.getBoundingClientRect(),
     area = root.getBoundingClientRect();
-  if (window.innerWidth <= 720) {
+  if (phone()) {
     if (rect.left < area.left) root.scrollLeft += rect.left - area.left;
     else if (rect.right > area.right) root.scrollLeft += rect.right - area.right;
   } else {
@@ -1824,8 +2828,10 @@ function splitFields() {
       '<textarea name="ranges" rows="3" placeholder="1-3; 4-6; 7, 9-10"></textarea>',
       true,
     ) +
-    '<p class="field-hint">Separate PDFs with a semicolon. Use commas for pages within one PDF.</p></div><div id="split-summary" class="scope-note" aria-live="polite"></div>' +
-    applyButton('Create split PDFs') +
+    '<p class="field-hint">Separate PDFs with a semicolon. Use commas for pages within one PDF.</p></div><div id="split-summary" class="scope-note wide" aria-live="polite"></div>' +
+    '<button type="submit" class="button primary">' +
+    icon('split') +
+    'Create split PDFs</button>' +
     '<div id="split-results" class="wide">' +
     splitResultMarkup() +
     '</div>'
@@ -1863,7 +2869,8 @@ function splitResultMarkup() {
   );
 }
 function updateSplitSummary() {
-  const values = draft();
+  const values = ui.splitDraft;
+  if (!$('#split-size')) return;
   $('#split-size').hidden = values.mode !== 'chunks';
   $('#split-ranges').hidden = values.mode !== 'ranges';
   $('#split-size input').disabled = values.mode !== 'chunks';
@@ -1894,53 +2901,49 @@ function updateSplitSummary() {
 }
 async function generateSplit() {
   if (ui.busy) return;
-  readDraft();
-  if (ui.pending.size) {
-    toast('Apply or discard your pending edits before splitting.', true);
-    return;
-  }
   try {
-    const values = draft(),
+    const values = ui.splitDraft,
       groups = planSplit(
         { mode: values.mode, size: Number(values.size), ranges: values.ranges },
         state.pages.length,
       );
+    const bytes = await exportDocument();
     ui.cancelOperation = false;
     busy(true, 'Creating split PDFs…');
-    $('#busy-cancel').disabled = false;
-    $('#busy-cancel').hidden = false;
-    const outputs = await splitPdf(ui.bytes, groups, {
+    cancellable('Cancel splitting', null);
+    const outputs = await splitPdf(bytes, groups, {
       onProgress: (value) => {
         $('#busy-message').textContent = 'Creating split PDFs… ' + Math.round(value * 100) + '%';
       },
       shouldCancel: () => ui.cancelOperation,
     });
     const base = safeBaseName(outputName()).replace(/-edited$/, '');
-    ui.splitResults = outputs.map((bytes, index) => ({
+    ui.splitResults = outputs.map((output, index) => ({
       name: base + '-part-' + String(index + 1).padStart(String(groups.length).length, '0') + '.pdf',
-      bytes,
+      bytes: output,
       pageCount: groups[index].length,
     }));
     renderTool();
     toast(outputs.length + ' PDF' + (outputs.length === 1 ? ' is' : 's are') + ' ready to download.');
   } catch (error) {
     if (error.name === 'AbortError') toast('Splitting cancelled. Your document is unchanged.');
-    else toast(friendly(error), true);
+    else showExportError(error);
   } finally {
     busy(false);
   }
 }
 function sendSettingsToBatch() {
-  if (!$('#tool-form').reportValidity()) return;
-  readDraft();
   try {
-    const values = draft(),
+    const key = SETTINGS[ui.tool],
       preset = { version: 1, name: names[ui.tool] + ' preset' };
-    if (ui.tool === 'watermark') preset.watermark = { ...values, opacity: Number(values.opacity) / 100 };
-    if (ui.tool === 'footer') preset.headerFooter = values;
-    if (ui.tool === 'numbers') preset.pageNumbers = values;
+    if (key) {
+      const { enabled, pages, ...setting } = state[key] || settingDefaults[key]();
+      void enabled;
+      void pages;
+      preset[key] = setting;
+    }
     if (ui.tool === 'crop')
-      preset.crop = !ui.pending.has('crop') && ui.lastCropPreset ? ui.lastCropPreset : cropValues();
+      preset.crop = cropDraftActive() ? cropValues() : ui.lastCropPreset || cropValues();
     batch.open(normalizePreset(preset));
   } catch (error) {
     toast(friendly(error), true);
@@ -1948,7 +2951,7 @@ function sendSettingsToBatch() {
 }
 const batch = initBatch({
   onShow: () => {
-    readDraft();
+    stopEditing();
     $('#landing').hidden = true;
     $('#workspace').hidden = true;
     document.body.classList.remove('editing');
@@ -2019,9 +3022,8 @@ document.addEventListener('click', (event) => {
     }
     if (state.pages.length) {
       event.preventDefault();
-      chooseTool(target.dataset.startTool);
       showWorkspace();
-      renderCurrent();
+      chooseTool(target.dataset.startTool);
       recordView('editor');
       $('#tool-panel h2').focus({ preventScroll: true });
     }
@@ -2029,10 +3031,8 @@ document.addEventListener('click', (event) => {
   if (target.dataset.tool) chooseTool(target.dataset.tool);
   if (target.dataset.pageOpen) choosePage(target.dataset.pageOpen);
   if (target.dataset.movePage) movePage(target.dataset.movePage, Number(target.dataset.direction));
-  if (target.dataset.removeAnnotation)
-    commit(() => {
-      state.annotations = state.annotations.filter((a) => a.id !== target.dataset.removeAnnotation);
-    }, 'Annotation removed.');
+  if (target.dataset.selectItem) selectItem(target.dataset.selectItem);
+  if (target.dataset.removeAnnotation) deleteItem(target.dataset.removeAnnotation);
 });
 $('#file-input').addEventListener('change', (event) => openFiles(event.target.files, ui.append));
 $('#image-input').addEventListener('change', async (event) => {
@@ -2054,9 +3054,9 @@ $('#image-input').addEventListener('change', async (event) => {
       ratio: bitmap.width / bitmap.height,
     };
     bitmap.close();
-    ui.pending.add('image');
-    renderTool();
-    toast('Image ready. Choose its position, then add it.');
+    if (ui.tool !== 'image') chooseTool('image');
+    placeImage(ui.image);
+    toast('Image added. Drag it into place, or drag a corner to resize it.');
   } catch (error) {
     toast(friendly(error), true);
   } finally {
@@ -2068,68 +3068,8 @@ $('#page-list').addEventListener('change', (event) => {
   if (!id) return;
   if (event.target.checked) ui.selected.add(id);
   else ui.selected.delete(id);
-  readDraft();
   renderTool();
 });
-$('#page-surface').addEventListener('click', (event) => {
-  if (ui.busy || !['text', 'image', 'highlight'].includes(ui.tool)) return;
-  const rect = $('#pdf-canvas').getBoundingClientRect();
-  readDraft();
-  const values = draft();
-  values.x = Math.max(0, Math.min(90, Math.round((100 * (event.clientX - rect.left)) / rect.width)));
-  values.y = Math.max(0, Math.min(90, Math.round((100 * (event.clientY - rect.top)) / rect.height)));
-  ui.drafts[ui.tool] = values;
-  ui.pending.add(ui.tool);
-  renderTool();
-});
-let cropDrag = null;
-function cropPoint(event, rect) {
-  return {
-    x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
-    y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
-  };
-}
-$('#page-surface').addEventListener('pointerdown', (event) => {
-  if (ui.busy || ui.tool !== 'crop' || event.button !== 0 || ui.previewPageId !== ui.activeId) return;
-  const surface = $('#page-surface'),
-    rect = $('#pdf-canvas').getBoundingClientRect();
-  cropDrag = { start: cropPoint(event, rect), rect, pointer: event.pointerId };
-  surface.setPointerCapture(event.pointerId);
-  event.preventDefault();
-});
-$('#page-surface').addEventListener('pointermove', (event) => {
-  if (!cropDrag || event.pointerId !== cropDrag.pointer) return;
-  const end = cropPoint(event, cropDrag.rect),
-    start = cropDrag.start;
-  const margins = {
-    left: Math.min(start.x, end.x),
-    top: Math.min(start.y, end.y),
-    right: 1 - Math.max(start.x, end.x),
-    bottom: 1 - Math.max(start.y, end.y),
-  };
-  if (1 - margins.left - margins.right <= 0.01 || 1 - margins.top - margins.bottom <= 0.01) return;
-  readDraft();
-  ui.drafts.crop = {
-    ...draft(),
-    ...Object.fromEntries(
-      Object.entries(margins).map(([key, value]) => [key, Math.round(value * 1000) / 10]),
-    ),
-  };
-  for (const edge of ['left', 'top', 'right', 'bottom'])
-    $('#tool-form [name=' + edge + ']').value = ui.drafts.crop[edge];
-  ui.pending.add('crop');
-  updateCropOverlay();
-  updatePending();
-});
-function endCropDrag(event) {
-  if (cropDrag && event.pointerId === cropDrag.pointer) {
-    cropDrag = null;
-    if ($('#page-surface').hasPointerCapture(event.pointerId))
-      $('#page-surface').releasePointerCapture(event.pointerId);
-  }
-}
-$('#page-surface').addEventListener('pointerup', endCropDrag);
-$('#page-surface').addEventListener('pointercancel', endCropDrag);
 $('#page-list').addEventListener('dragstart', (event) => {
   const item = event.target.closest('[data-page-id]');
   if (!item || ui.busy) return;
@@ -2224,36 +3164,56 @@ window.addEventListener('popstate', (event) => {
 // Views restore their own scroll position; a reload starts on the landing view.
 history.scrollRestoration = 'manual';
 history.replaceState({ view: 'landing', depth: 0 }, '');
+// Fonts finish loading after first use; redraw the text that waited for them.
+onFontsReady(() => {
+  baselines.clear();
+  scheduleOverlays();
+});
+// The page fits the stage, which changes size with the window and the phone tool sheet.
 let resizeTimer;
-window.addEventListener('resize', () => {
-  if (!$('#toast').hidden) positionToast();
+let phoneLayout = phone();
+const refit = () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    renderCurrent();
-    if (ui.pdf) renderThumbnails();
-  }, 180);
+    if ($('#workspace').hidden) return;
+    renderStage();
+    // The page strip scrolls in a different container on phones.
+    if (phoneLayout !== phone()) {
+      phoneLayout = phone();
+      renderThumbnails();
+    }
+  }, 120);
+};
+if ('ResizeObserver' in window) new ResizeObserver(refit).observe($('#canvas-scroll'));
+window.addEventListener('resize', () => {
+  if (!$('#toast').hidden) positionToast();
+  refit();
 });
 window.addEventListener('beforeunload', (event) => {
-  if (
-    ui.dirty ||
-    ui.pending.size ||
-    ui.splitResults?.some((file) => !file.downloaded) ||
-    batch.hasUnsavedWork()
-  ) {
+  if ((state.pages.length && isDirty()) || batch.hasUnsavedWork()) {
     event.preventDefault();
     event.returnValue = '';
   }
 });
+const typing = (element) =>
+  ['INPUT', 'TEXTAREA', 'SELECT'].includes(element?.tagName) || element?.isContentEditable;
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !$('#toast').hidden && !document.querySelector('dialog[open]')) hideToast();
   if (
-    (event.ctrlKey || event.metaKey) &&
-    event.key.toLowerCase() === 'z' &&
-    !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) &&
-    !$('#workspace').hidden
-  ) {
+    !(event.ctrlKey || event.metaKey) ||
+    event.altKey ||
+    typing(document.activeElement) ||
+    $('#workspace').hidden
+  )
+    return;
+  if (document.querySelector('dialog[open]')) return;
+  const key = event.key.toLowerCase();
+  if (key === 'z' && !event.shiftKey) {
     event.preventDefault();
     action('undo');
+  } else if ((key === 'z' && event.shiftKey) || key === 'y') {
+    event.preventDefault();
+    action('redo');
   }
 });
 if (!window.File || !window.Blob || !window.Worker)
