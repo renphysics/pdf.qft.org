@@ -168,9 +168,15 @@
     }
   },
   "pdfjs": {
-    "version": "5.6.205",
-    "tarball": "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-5.6.205.tgz",
-    "tarball_sha256": "e196561c11faacf04e224e177b5d792619136cec5bd2274d8c743e577239ebc7",
+    "version": "6.4.299",
+    "build": "legacy (pdf.min.mjs / pdf.worker.min.mjs from legacy/build/)",
+    "tarball": "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.4.299.tgz",
+    "tarball_sha256": "86269b40170eb41740ea05ad2102d71d33de4f122b34eb2f478be0ea7779c415",
+    "tarball_integrity": "sha512-AVl138zALtfaAPvADulE0PZThbYzCBS79nL4pOSL/6Sm/4AH5A21BD9VHt97OlCuzJuCpmeZtAtkinisF4Vb1g==",
+    "not_vendored": [
+      "wasm/quickjs-eval.js",
+      "wasm/quickjs-eval.wasm (scripting sandbox only; not referenced by pdf.min.mjs or pdf.worker.min.mjs)"
+    ],
     "verified_assets": [
       {
         "path": "dist/assets/vendor/cmaps/78-EUC-H.bcmap",
@@ -1029,13 +1035,13 @@
       },
       {
         "path": "dist/assets/vendor/pdf.mjs",
-        "upstream_path": "build/pdf.min.mjs",
-        "sha256": "2221020ea508479dcc1221f36f2731656339230097c69ba1f78802832c0ad685"
+        "upstream_path": "legacy/build/pdf.min.mjs",
+        "sha256": "bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259"
       },
       {
         "path": "dist/assets/vendor/pdf.worker.mjs",
-        "upstream_path": "build/pdf.worker.min.mjs",
-        "sha256": "51a2fd1ea47f1a9b0814e65e0c336c739c54957795ee774e8f93cb81e8028dd1"
+        "upstream_path": "legacy/build/pdf.worker.min.mjs",
+        "sha256": "145d2dd3ab0c86151011dba95acfa2d5336e2accd59388ea43dbee0efddaaec6"
       },
       {
         "path": "dist/assets/vendor/standard_fonts/FoxitDingbats.pfb",
@@ -1095,7 +1101,7 @@
       {
         "path": "dist/assets/vendor/standard_fonts/LICENSE_LIBERATION",
         "upstream_path": "standard_fonts/LICENSE_LIBERATION",
-        "sha256": "93fed46019c38bbe566b479d22148e2e8a1e85ada614accb0211c37b2c61c19b"
+        "sha256": "d2c4d5b3e115a519cb58eb691aa64538397e2611f9ebe801392cf9667997e7dc"
       },
       {
         "path": "dist/assets/vendor/standard_fonts/LiberationSans-Bold.ttf",
@@ -1140,7 +1146,7 @@
       {
         "path": "dist/assets/vendor/wasm/LICENSE_PDFJS_QCMS",
         "upstream_path": "wasm/LICENSE_PDFJS_QCMS",
-        "sha256": "eb5104ca33552be007857a28351bc408f379ddd4bfacab1226b09c6d1e9fd7c4"
+        "sha256": "508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1"
       },
       {
         "path": "dist/assets/vendor/wasm/LICENSE_QCMS",
@@ -1150,22 +1156,27 @@
       {
         "path": "dist/assets/vendor/wasm/jbig2.wasm",
         "upstream_path": "wasm/jbig2.wasm",
-        "sha256": "e6bee67724a7b5436fe8162638e3708cfc8d52b6342db69a49715e30ff27cfdc"
+        "sha256": "466f45c2a61a698152fb5400c27e56ff2ceb73dcb71fde3fc366a502308eaab0"
+      },
+      {
+        "path": "dist/assets/vendor/wasm/jbig2_nowasm_fallback.js",
+        "upstream_path": "wasm/jbig2_nowasm_fallback.js",
+        "sha256": "68686ced624a48c42f84cdaa482ec44b72b0de4dc84a0df903af1fb7b45b5d9a"
       },
       {
         "path": "dist/assets/vendor/wasm/openjpeg.wasm",
         "upstream_path": "wasm/openjpeg.wasm",
-        "sha256": "67b8e2b162da472e98cb48d3d32e3e38fff481b9b32ff4818e78bb248af88ab2"
+        "sha256": "95e5002597af0824004aa57b1900fe019715db389e37640b1e58395e42f00cc5"
       },
       {
         "path": "dist/assets/vendor/wasm/openjpeg_nowasm_fallback.js",
         "upstream_path": "wasm/openjpeg_nowasm_fallback.js",
-        "sha256": "07c3c3361827308741bc31c561b59e705ebb4d1e8efb84e4d24884e230dbb894"
+        "sha256": "9047b34b6bc142d85e4b0aa1b08b0b9baad4c6f8b7ac87641b9e8f90eb6fd23e"
       },
       {
         "path": "dist/assets/vendor/wasm/qcms_bg.wasm",
         "upstream_path": "wasm/qcms_bg.wasm",
-        "sha256": "6017eca5939cde1836e88e6d8cd27ae039246f206515ea4487bdfd0e3fb16e26"
+        "sha256": "663d86126d5f5fcb1c61490f94353e2a8375660b8c5498ab3ebab5a34b08800e"
       }
     ]
   }

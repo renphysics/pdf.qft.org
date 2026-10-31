@@ -206,7 +206,7 @@ async function pdfjs() {
 }
 async function makePreview(bytes) {
   const lib=await pdfjs();
-  const loading=lib.getDocument({data:bytes.slice(),cMapUrl:assetUrl('./assets/vendor/cmaps/'),cMapPacked:true,standardFontDataUrl:assetUrl('./assets/vendor/standard_fonts/'),wasmUrl:assetUrl('./assets/vendor/wasm/'),iccUrl:assetUrl('./assets/vendor/iccs/'),isEvalSupported:false});
+  const loading=lib.getDocument({data:bytes.slice(),cMapUrl:assetUrl('./assets/vendor/cmaps/'),cMapPacked:true,standardFontDataUrl:assetUrl('./assets/vendor/standard_fonts/'),wasmUrl:assetUrl('./assets/vendor/wasm/'),iccUrl:assetUrl('./assets/vendor/iccs/')});
   return loading.promise;
 }
 async function rebuild() {
@@ -219,9 +219,9 @@ async function rebuild() {
     ui.selected=new Set([...ui.selected].filter(id=>state.pages.some(p=>p.id===id)));
     updateDocumentInfo();renderPages();await renderCurrent();renderThumbnails();
   }catch(error){
-    ui.renderToken++;ui.thumbToken++;ui.pdf=old;ui.bytes=oldBytes;doc.destroy().catch(()=>{});throw error;
+    ui.renderToken++;ui.thumbToken++;ui.pdf=old;ui.bytes=oldBytes;doc.loadingTask.destroy().catch(()=>{});throw error;
   }
-  if(old)old.destroy().catch(()=>{});
+  if(old)old.loadingTask.destroy().catch(()=>{});
 }
 function renderRestoredState() {
   // Cancel results from any render started against the rejected document state.
