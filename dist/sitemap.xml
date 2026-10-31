@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://pdf.qft.org/</loc></url>
+  <url><loc>https://pdf.qft.org/add-text-to-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/add-watermark-to-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/add-header-and-footer-to-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/add-page-numbers-to-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/organize-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/delete-pages-from-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/crop-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/merge-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/split-pdf/</loc></url>
+  <url><loc>https://pdf.qft.org/batch-edit-pdf/</loc></url>
   <url><loc>https://pdf.qft.org/licenses/</loc></url>
 </urlset>

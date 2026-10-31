@@ -20,12 +20,15 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const site = path.resolve(process.argv[2] || fileURLToPath(new URL('../dist', import.meta.url)));
+// One generated page per tool address (routes.js; scripts/build-pages.mjs).
+const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).href);
+const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 const FIRST_PARTY = [
-  'index.html', 'licenses/index.html', 'app.js', 'pdf-engine.js', 'workflows.js', 'batch-ui.js',
-  'style.css', 'studio.css', 'batch.css',
+  'index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, 'app.js', 'routes.js', 'pdf-engine.js',
+  'workflows.js', 'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
 ];
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const sources = Object.fromEntries(
@@ -49,8 +52,17 @@ const RULES = {
     [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
   ],
   'licenses/index.html': [[/(href="\.\.\/(?:style|studio)\.css)"/g, `$1?v=${release}"`, 2]],
+  ...Object.fromEntries(
+    TOOL_PAGE_FILES.map((name) => [
+      name,
+      [
+        [/(href="\.\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
+        [/(src="\.\.\/app\.js)"/g, `$1?v=${release}"`, 1],
+      ],
+    ]),
+  ),
   'app.js': [
-    [/(from '\.\/(?:pdf-engine|workflows|batch-ui)\.js)'/g, `$1?v=${release}'`, 3],
+    [/(from '\.\/(?:pdf-engine|workflows|batch-ui|routes)\.js)'/g, `$1?v=${release}'`, 4],
     [/(import\('\.\/assets\/vendor\/pdf\.mjs)'/g, `$1?v=${pdfjs}'`, 1],
     [/(assetUrl\('\.\/assets\/vendor\/pdf\.worker\.mjs)'/g, `$1?v=${worker}'`, 1],
   ],

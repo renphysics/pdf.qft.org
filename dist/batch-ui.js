@@ -321,5 +321,10 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     root.hidden = true; document.body.classList.remove('batching'); return true;
   }
   readSavedPresets(); setPreset(builtIns[0].preset, builtIns[0].id); renderQueue();
-  return { open, addFiles, close, isOpen: () => !root.hidden, isBusy: () => processing, hasUnsavedWork: () => processing || queue.some(entry => entry.status === 'done' && !entry.downloaded) };
+  function chooseFiles() {
+    // Start loading the PDF engine while the file picker is open.
+    loadPdfLib().catch(() => {});
+    $('#batch-file-input').click();
+  }
+  return { open, addFiles, close, chooseFiles, isOpen: () => !root.hidden, isBusy: () => processing, hasUnsavedWork: () => processing || queue.some(entry => entry.status === 'done' && !entry.downloaded) };
 }

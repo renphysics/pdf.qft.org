@@ -5,6 +5,7 @@ import { appendFile, cp, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TOOL_PAGES } from '../dist/routes.js';
 
 // The Pages workflow versions asset URLs on a copy of dist/ before upload
 // (scripts/stamp-release.mjs). Check that every reference it versions still
@@ -12,9 +13,10 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const site = path.join(root, 'dist');
 const script = path.join(root, 'scripts/stamp-release.mjs');
+const toolPages = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 const files = [
-  'index.html', 'licenses/index.html', 'app.js', 'pdf-engine.js', 'workflows.js', 'batch-ui.js',
-  'style.css', 'studio.css', 'batch.css',
+  'index.html', 'licenses/index.html', ...toolPages, 'app.js', 'routes.js', 'pdf-engine.js', 'workflows.js',
+  'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
   'assets/vendor/pdf.mjs', 'assets/vendor/pdf.worker.mjs', 'assets/vendor/pdf-lib.min.js', 'assets/vendor/fontkit.umd.min.js',
 ];
 const workspace = await mkdtemp(path.join(tmpdir(), 'qft-stamp-'));
@@ -37,11 +39,18 @@ try {
   for (const sheet of ['style', 'studio', 'batch']) assert(html.includes(`href="./${sheet}.css?v=${release}"`), `${sheet}.css versioned`);
   const licenses = await read('licenses/index.html');
   for (const sheet of ['style', 'studio']) assert(licenses.includes(`href="../${sheet}.css?v=${release}"`), `licenses page ${sheet}.css versioned`);
+  // Every tool page loads the same release as the home page.
+  for (const name of toolPages) {
+    const page = await read(name);
+    assert(page.includes(`src="../app.js?v=${release}"`), `${name} loads the release's app.js`);
+    for (const sheet of ['style', 'studio', 'batch']) assert(page.includes(`href="../${sheet}.css?v=${release}"`), `${name} ${sheet}.css versioned`);
+  }
 
   // Each module must be imported through exactly one URL, or it would load twice.
   const engineUrl = `'./pdf-engine.js?v=${release}'`;
   const app = await read('app.js');
   assert(app.includes(`from ${engineUrl}`) && app.includes(`from './workflows.js?v=${release}'`) && app.includes(`from './batch-ui.js?v=${release}'`));
+  assert(app.includes(`from './routes.js?v=${release}'`), 'routes.js versioned');
   assert((await read('workflows.js')).includes(`from ${engineUrl}`));
   const batchUi = await read('batch-ui.js');
   assert(batchUi.includes(`from ${engineUrl}`) && batchUi.includes(`from './workflows.js?v=${release}'`));
@@ -63,7 +72,8 @@ try {
       checked++;
     }
   }
-  assert.equal(checked, 16, 'versioned references: 4 in index.html, 2 licenses, 5 app.js, 2 engine, 1 workflows, 2 batch');
+  const expected = 4 + 2 + 4 * toolPages.length + 6 + 2 + 1 + 2;
+  assert.equal(checked, expected, 'versioned references: 4 per page (home and tools), 2 licenses, 6 app.js, 2 engine, 1 workflows, 2 batch');
 
   // Stamping is single-shot, deterministic, and changes with first-party content.
   assert.throws(() => stamp(first), /already stamped/);
