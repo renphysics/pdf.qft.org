@@ -22,7 +22,17 @@ and can also be run manually. It uses pinned action revisions, installs the test
 dependencies, and runs `npm test` (restoring the verified font asset, checking
 local resource paths, notices and metadata, then the PDF engine and workflow
 suites) before uploading only the static website; a failing test blocks the
-deployment. `.github/workflows/test.yml` runs the same checks on pull requests. No server, API keys, or external document-processing service
+deployment. `.github/workflows/test.yml` runs the same checks on pull requests.
+
+Before upload, the workflow also runs `scripts/stamp-release.mjs`, which adds a
+version query to every first-party module, stylesheet and PDF engine URL in the
+built copy (the committed sources stay unversioned). GitHub Pages lets browsers
+cache every file for ten minutes under an unchanging URL, so without this a
+normal reload just after a deploy could pair the new page with the previous
+release's scripts. First-party files share one release id derived from their
+contents; each engine bundle is versioned by its own bytes, so it is downloaded
+again only when it changes. `tests/release-stamp.test.mjs` keeps the script in
+step with the sources. No server, API keys, or external document-processing service
 is needed.
 
 1. Open repository **Settings → Pages**.
