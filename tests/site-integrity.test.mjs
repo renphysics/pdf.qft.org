@@ -47,6 +47,8 @@ assert.match(html, /<title>QFT PDF/);
 assert.match(html, /http-equiv="Content-Security-Policy"/);
 assert.match(html, /<meta name="referrer" content="strict-origin-when-cross-origin">/);
 assert.match(html, /href="\.\/licenses\/index\.html"[^>]*>Open-source credits<\/a>/);
+// Keep the landing page light: pdf-lib, fontkit and PDF.js load on demand.
+assert(!/pdf-lib\.min\.js|fontkit\.umd\.min\.js|vendor\/pdf\.mjs/.test(html), 'index.html must not load the PDF engines eagerly');
 assert.equal(await readFile(path.join(root, 'LICENSE'), 'utf8'), await readFile(path.join(site, 'licenses/QFT-PDF-MIT.txt'), 'utf8'), 'Served MIT license must match the repository license');
 assert.equal((await readFile(path.join(site, 'CNAME'), 'utf8')).trim(), 'pdf.qft.org');
 await stat(path.join(site, '.nojekyll'));

@@ -1,6 +1,8 @@
 /**
- * QFT PDF's document engine. Requires the local PDFLib UMD bundle. Custom
- * fonts additionally require the local fontkit UMD bundle.
+ * QFT PDF's document engine. Uses the local PDFLib UMD bundle; custom fonts
+ * additionally use the local fontkit UMD bundle. In a browser both bundles are
+ * loaded on first use (see loadPdfLib), so the landing page does not pay for
+ * them. Node tests may provide globalThis.PDFLib / globalThis.fontkit instead.
  *
  * Coordinates are fractions of the visible, rotated CropBox, from top-left.
  * A page descriptor's rotation is an ADDITION to its source's /Rotate value.
@@ -15,6 +17,11 @@
  */
 
 const fontBytes = new Map();
+const VENDOR_SCRIPTS = {
+  PDFLib: new URL('./assets/vendor/pdf-lib.min.js', import.meta.url),
+  fontkit: new URL('./assets/vendor/fontkit.umd.min.js', import.meta.url),
+};
+const scriptLoads = new Map();
 const FONT_FILES = {
   latin: new URL('./assets/fonts/NotoSans-Regular.ttf', import.meta.url),
   cjk: new URL('./assets/fonts/NotoSansCJKsc-Regular.otf', import.meta.url),
@@ -22,8 +29,44 @@ const FONT_FILES = {
 const CJK = /[\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\u{20000}-\u{2FA1F}]/u;
 const ASCII = /^[\u0009\u000A\u000D\u0020-\u007E]*$/u;
 
+/** Resolve a bundled UMD library's global, adding its script tag on first use. */
+function loadGlobal(name, failure) {
+  if (globalThis[name]) return Promise.resolve(globalThis[name]);
+  if (typeof document === 'undefined') return Promise.reject(new Error(failure));
+  if (!scriptLoads.has(name)) {
+    const loading = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = VENDOR_SCRIPTS[name].href;
+      script.async = true;
+      script.onload = () => (globalThis[name] ? resolve(globalThis[name]) : reject(new Error(failure)));
+      script.onerror = () => {
+        script.remove();
+        reject(new Error(failure));
+      };
+      document.head.append(script);
+    });
+    // A failed download (for example while offline) can be retried later.
+    scriptLoads.set(name, loading.catch((error) => {
+      scriptLoads.delete(name);
+      throw error;
+    }));
+  }
+  return scriptLoads.get(name);
+}
+
+/** Load pdf-lib if needed. Safe to call early to warm it up before it is required. */
+export function loadPdfLib() {
+  return loadGlobal('PDFLib', 'The PDF tools did not load. Check your connection, then try again.');
+}
+
+function loadFontkit() {
+  if (!globalThis.fontkit && globalThis.Fontkit) return Promise.resolve(globalThis.Fontkit);
+  return loadGlobal('fontkit', 'The text font engine did not load. Check your connection, then try again.');
+}
+
+/** Synchronous access for code that runs after loadPdfLib() has resolved. */
 function library() {
-  if (!globalThis.PDFLib) throw new Error('The PDF tools did not load. Refresh this page and try again.');
+  if (!globalThis.PDFLib) throw new Error('The PDF tools did not load. Check your connection, then try again.');
   return globalThis.PDFLib;
 }
 
@@ -46,8 +89,9 @@ function bytesOf(bytes) {
 }
 
 async function loadPdf(bytes) {
+  const lib = await loadPdfLib();
   try {
-    const doc = await library().PDFDocument.load(bytesOf(bytes), { updateMetadata: false });
+    const doc = await lib.PDFDocument.load(bytesOf(bytes), { updateMetadata: false });
     if (!doc.getPageCount()) throw new Error('This PDF has no pages.');
     return doc;
   } catch (error) {
@@ -167,9 +211,8 @@ function fontManager(doc) {
     if (!fonts.has(kind)) {
       fonts.set(kind, (async () => {
         if (kind === 'standard') return doc.embedFont(library().StandardFonts.Helvetica);
-        const fontkit = globalThis.fontkit || globalThis.Fontkit;
-        if (!fontkit) throw new Error('The text font engine did not load. Refresh the page and try again.');
-        doc.registerFontkit(fontkit);
+        // fontkit is only needed for non-ASCII text, so it is fetched on demand.
+        doc.registerFontkit(await loadFontkit());
         // CFF subsets from fontkit are not reliably accepted by all PDF readers.
         // Embed the complete CJK OTF so exported Chinese text also renders in
         // native readers; the Latin TrueType font can be safely subset.
@@ -335,7 +378,7 @@ async function drawPageNumbers(page, geometry, setting, getFont, pageNumber, tot
  * would silently lose the interactive form structure.
  */
 export async function buildPdf(state, onProgress = () => {}) {
-  const lib = library();
+  const lib = await loadPdfLib();
   const sources = state?.sources || [];
   const descriptors = state?.pages || [];
   if (!descriptors.length) throw new Error('Keep at least one page before exporting your PDF.');

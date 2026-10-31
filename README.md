@@ -76,7 +76,11 @@ Pages workflow performs this step automatically.
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned
-in `dist/assets/vendor/versions.json`. The package manifest and lockfile provide
+in `dist/assets/vendor/versions.json`. The landing page loads no PDF engine:
+`pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
+non-ASCII text), and `app.js` imports PDF.js when a document opens. Both start
+downloading as soon as a visitor opens the file picker, drags a file in, or
+opens the sample. The package manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license.

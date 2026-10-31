@@ -1,4 +1,4 @@
-import { inspectPdf, buildPdf, parsePageRange, cropMarginsForRotation } from './pdf-engine.js';
+import { inspectPdf, buildPdf, parsePageRange, cropMarginsForRotation, loadPdfLib } from './pdf-engine.js';
 import { planSplit, splitPdf, createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
 
@@ -822,6 +822,13 @@ async function pdfjs() {
   }
   return ui.pdfjs;
 }
+// The landing page loads no PDF engine. Start fetching both engines as soon as
+// someone signals they are about to open a file (file picker, drag, sample), so
+// the download overlaps with choosing the file. Errors surface when they are used.
+function warmPdfTools() {
+  loadPdfLib().catch(() => {});
+  pdfjs().catch(() => {});
+}
 async function makePreview(bytes) {
   const lib = await pdfjs();
   const loading = lib.getDocument({
@@ -1342,14 +1349,17 @@ async function action(name, element) {
   }
   if (name === 'open') {
     ui.append = false;
+    warmPdfTools();
     $('#file-input').click();
   }
   if (name === 'add-files') {
     ui.append = true;
+    warmPdfTools();
     $('#file-input').click();
   }
   if (name === 'sample') {
     try {
+      warmPdfTools();
       busy(true, 'Opening the sample document…');
       const response = await fetch(assetUrl('./assets/sample.pdf'));
       if (!response.ok) throw new Error('The sample could not load. Please choose your own PDF.');
@@ -1802,6 +1812,7 @@ document.addEventListener('click', (event) => {
     } else {
       ui.tool = target.dataset.startTool;
       ui.append = false;
+      warmPdfTools();
       $('#file-input').click();
     }
   }
@@ -1941,6 +1952,7 @@ let dragDepth = 0;
 document.addEventListener('dragenter', (event) => {
   if (!event.dataTransfer?.types.includes('Files')) return;
   event.preventDefault();
+  if (dragDepth === 0) warmPdfTools();
   dragDepth++;
   $('#drop-zone').classList.add('drag-over');
 });

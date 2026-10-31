@@ -1,4 +1,5 @@
 import { normalizePreset, applyPreset, createZip, uniqueFilename, safeBaseName } from './workflows.js';
+import { loadPdfLib } from './pdf-engine.js';
 
 const STORAGE_KEY = 'qft-pdf.presets.v1';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -211,6 +212,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     if (processing) { inform('Wait for this batch to finish, or stop after the current file, before adding PDFs.', true); return; }
     const list = [...files];
     const accepted = list.filter(file => file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf');
+    if (accepted.length) loadPdfLib().catch(() => {});
     queue.push(...accepted.map(file => ({ id: id(), file, status: 'waiting', bytes: null, error: '', outputName: '', downloaded: false })));
     if (accepted.length) { renderQueue(); $('#batch-status').textContent = `${accepted.length} PDF${accepted.length === 1 ? '' : 's'} added. Choose your settings, then process the batch.`; }
     if (accepted.length < list.length) inform('Only PDF files were added. Choose PNG/JPG images in the single-document editor.', true);
@@ -277,7 +279,11 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     const target = event.target.closest('[data-batch-action]'); if (!target || target.disabled) return;
     const action = target.dataset.batchAction;
     if (action === 'back') { if (close()) onBack(); }
-    if (action === 'choose-files') $('#batch-file-input').click();
+    if (action === 'choose-files') {
+      // Start loading the PDF engine while the file picker is open.
+      loadPdfLib().catch(() => {});
+      $('#batch-file-input').click();
+    }
     if (action === 'save-preset') savePreset();
     if (action === 'delete-preset') deletePreset();
     if (action === 'remove-file' && !processing) { queue = queue.filter(entry => entry.id !== target.dataset.fileId); if (!queue.length) { hadRun = false; settingsChanged = false; $('#batch-status').textContent = 'Add PDFs to get started.'; } renderQueue(); }
