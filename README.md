@@ -128,6 +128,12 @@ and test fixtures. It requires Python `reportlab` and `pypdf`, plus
 NotoSans-Bold.ttf, and NotoSerif-Regular.ttf. The ready-to-use sample and fixtures
 are included. Disposable PDF/PNG test output is excluded from Git.
 
+`scripts/social-card/render.mjs` regenerates the link-preview image
+(`dist/assets/social-card.png`, referenced by the Open Graph tags) and
+`dist/apple-touch-icon.png` from the HTML templates beside it. It needs
+Playwright with Chromium and Python's Pillow. Keep the card's wording in step
+with the page title, description and hero headline.
+
 Browser acceptance journeys and review notes are under tests/.
 
 ## Delete Pages and Crop PDF
