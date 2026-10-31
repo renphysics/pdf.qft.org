@@ -153,8 +153,8 @@ export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCan
   let source;
   try { source = await PDFLib.PDFDocument.load(pdfBytes(bytes), { updateMetadata: false }); }
   catch (error) {
-    if (/encrypt|password/i.test(error?.message || '')) throw new Error('This PDF is password-protected. Save an unlocked copy before splitting it.');
-    throw new Error('This file could not be opened as a PDF. Try saving a new copy from your PDF reader.');
+    if (/encrypt|password/i.test(error?.message || '')) throw new Error('This PDF is password-protected. Save an unlocked copy before splitting it.', { cause: error });
+    throw new Error('This file could not be opened as a PDF. Try saving a new copy from your PDF reader.', { cause: error });
   }
   if (!Array.isArray(groups) || !groups.length) throw new Error('Choose at least one output page group.');
   const total = source.getPageCount();

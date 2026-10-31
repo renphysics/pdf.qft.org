@@ -96,10 +96,11 @@ async function loadPdf(bytes) {
     return doc;
   } catch (error) {
     if (/encrypt|password/i.test(String(error?.message))) {
-      throw new Error('This PDF is password-protected. Open it with your password and save an unlocked copy before using QFT PDF.');
+      throw new Error('This PDF is password-protected. Open it with your password and save an unlocked copy before using QFT PDF.', { cause: error });
     }
     if (error?.message === 'This PDF has no pages.') throw error;
-    throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.');
+    // Keep the parser's own error as the cause; it is logged with the message.
+    throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.', { cause: error });
   }
 }
 

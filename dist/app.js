@@ -1013,24 +1013,30 @@ async function commit(mutation, message) {
 async function openFiles(files, append = false) {
   if (ui.busy || batch.isBusy() || !files.length) return;
   const list = [...files];
-  // Clear the picker now so choosing the same file again (for example after
-  // cancelling the replace prompt) still triggers a change event.
-  $('#file-input').value = '';
+  // The picker is cleared only after its files are read (see finally below), or
+  // when we stop early, so choosing the same file again still fires a change event.
+  const resetPicker = () => {
+    $('#file-input').value = '';
+  };
   if (list.some((file) => !file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf')) {
+    resetPicker();
     toast('Please choose PDF files. You can add PNG or JPG images with the Image tool.', true);
     return;
   }
+  const replacing =
+    !append && (ui.dirty || ui.pending.size || ui.splitResults?.some((file) => !file.downloaded));
   if (
-    !append &&
-    (ui.dirty || ui.pending.size || ui.splitResults?.some((file) => !file.downloaded)) &&
+    replacing &&
     !(await confirmDialog({
       eyebrow: 'START A NEW DOCUMENT',
       title: 'Replace your current document?',
       body: 'Your edits and unapplied settings will be cleared. Download your edited PDF first if you want to keep it.',
       confirmLabel: 'Open new PDF',
     }))
-  )
+  ) {
+    resetPicker();
     return;
+  }
   busy(true, 'Opening your PDF' + (list.length > 1 ? 's' : '') + '…');
   const previous = snapshot(),
     previousActive = ui.activeId,
