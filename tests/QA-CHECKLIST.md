@@ -142,3 +142,21 @@ source review does not replace the owner’s browser verification.
   its notice links. Screenshot: screenshots/qft-license-page.jpg.
 - This records local acceptance only. Repository Pages settings, DNS, and HTTPS
   must be configured as described in README.md before public-domain acceptance.
+
+## Deploy check: reload after a release — 2026-10-31
+
+- Incident: right after the previous release deployed, a normal reload loaded
+  the new index.html but reused the earlier release's cached app.js and
+  pdf-engine.js (GitHub Pages caches every file for ten minutes under the same
+  URL). The old engine expected pdf-lib from a script tag the new page no longer
+  has, so every PDF was reported as "could not be opened as a PDF" until the
+  cache expired or the visitor hard-refreshed.
+- Fix: the Pages workflow versions asset URLs per release
+  (`scripts/stamp-release.mjs`; covered by `tests/release-stamp.test.mjs`).
+- Verified with a local server that mimics GitHub Pages caching (max-age=600,
+  ETag): open the site, switch to the next build, reload normally, open the
+  sample. Original -> previous release reproduced the error; previous release
+  -> fixed release, fixed -> later release and original -> fixed all opened
+  the sample. After the reload, every versioned file was fetched fresh.
+- Manual check after each deploy: in a tab opened before the deploy, reload
+  normally (not a hard refresh) and open a PDF.

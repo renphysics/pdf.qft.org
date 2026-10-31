@@ -31,6 +31,13 @@ jobs:
       # runs the PDF engine and workflow suites. A failure blocks deployment.
       - name: Restore font assets and run all tests
         run: npm test
+      # GitHub Pages lets browsers cache every file for ten minutes under the
+      # same URL, so a reload right after a deploy could mix the new page with
+      # the previous release's scripts. Versioned URLs keep each release whole.
+      - name: Version asset URLs for this release
+        run: |
+          node scripts/stamp-release.mjs dist
+          node tests/site-integrity.test.mjs
       - name: Configure GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Upload the website
