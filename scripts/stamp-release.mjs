@@ -27,7 +27,7 @@ const site = path.resolve(process.argv[2] || fileURLToPath(new URL('../dist', im
 const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).href);
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 const FIRST_PARTY = [
-  'index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, 'app.js', 'routes.js', 'pdf-engine.js',
+  'index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, 'app.js', 'routes.js', 'layout.js', 'pdf-engine.js',
   'workflows.js', 'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
 ];
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -66,7 +66,9 @@ const RULES = {
     [/(import\('\.\/assets\/vendor\/pdf\.mjs)'/g, `$1?v=${pdfjs}'`, 1],
     [/(assetUrl\('\.\/assets\/vendor\/pdf\.worker\.mjs)'/g, `$1?v=${worker}'`, 1],
   ],
+  'layout.js': [],
   'pdf-engine.js': [
+    [/(from '\.\/layout\.js)'/g, `$1?v=${release}'`, 2],
     [/(new URL\('\.\/assets\/vendor\/pdf-lib\.min\.js)'/g, `$1?v=${pdfLib}'`, 1],
     [/(new URL\('\.\/assets\/vendor\/fontkit\.umd\.min\.js)'/g, `$1?v=${fontkit}'`, 1],
   ],

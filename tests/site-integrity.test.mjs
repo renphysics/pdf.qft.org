@@ -25,7 +25,7 @@ for (const name of [...Object.keys(PAGES), 'licenses/index.html']) {
   const source = await readFile(path.join(site, name), 'utf8');
   for (const match of source.matchAll(/(?:src|href)=["']([^"']+)["']/g)) add(name, match[1]);
 }
-for (const name of ['app.js', 'routes.js', 'pdf-engine.js', 'workflows.js', 'batch-ui.js']) {
+for (const name of ['app.js', 'routes.js', 'layout.js', 'pdf-engine.js', 'workflows.js', 'batch-ui.js']) {
   const source = await readFile(path.join(site, name), 'utf8');
   assert(!/["']\/assets\//.test(source), `${name}: hard-coded root asset path`);
   for (const match of source.matchAll(/(?:from\s+|import\s*\(\s*)["'](\.[^"']+)["']/g)) add(name, match[1]);

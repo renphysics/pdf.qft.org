@@ -15,7 +15,7 @@ const site = path.join(root, 'dist');
 const script = path.join(root, 'scripts/stamp-release.mjs');
 const toolPages = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 const files = [
-  'index.html', 'licenses/index.html', ...toolPages, 'app.js', 'routes.js', 'pdf-engine.js', 'workflows.js',
+  'index.html', 'licenses/index.html', ...toolPages, 'app.js', 'routes.js', 'layout.js', 'pdf-engine.js', 'workflows.js',
   'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
   'assets/vendor/pdf.mjs', 'assets/vendor/pdf.worker.mjs', 'assets/vendor/pdf-lib.min.js', 'assets/vendor/fontkit.umd.min.js',
 ];
@@ -60,6 +60,7 @@ try {
   assert(app.includes(`import('./assets/vendor/pdf.mjs?v=${await hash(vendor('pdf.mjs'))}')`));
   assert(app.includes(`assetUrl('./assets/vendor/pdf.worker.mjs?v=${await hash(vendor('pdf.worker.mjs'))}')`));
   const engine = await read('pdf-engine.js');
+  assert(engine.includes(`from './layout.js?v=${release}'`), 'the engine imports the release layout');
   assert(engine.includes(`new URL('./assets/vendor/pdf-lib.min.js?v=${await hash(vendor('pdf-lib.min.js'))}'`));
   assert(engine.includes(`new URL('./assets/vendor/fontkit.umd.min.js?v=${await hash(vendor('fontkit.umd.min.js'))}'`));
 
@@ -72,8 +73,8 @@ try {
       checked++;
     }
   }
-  const expected = 4 + 2 + 4 * toolPages.length + 6 + 2 + 1 + 2;
-  assert.equal(checked, expected, 'versioned references: 4 per page (home and tools), 2 licenses, 6 app.js, 2 engine, 1 workflows, 2 batch');
+  const expected = 4 + 2 + 4 * toolPages.length + 6 + 4 + 1 + 2;
+  assert.equal(checked, expected, 'versioned references: 4 per page (home and tools), 2 licenses, 6 app.js, 4 engine, 1 workflows, 2 batch');
 
   // Stamping is single-shot, deterministic, and changes with first-party content.
   assert.throws(() => stamp(first), /already stamped/);
