@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const runtime = process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../node_modules');
-globalThis.PDFLib = require(path.join(runtime, 'pdf-lib'));
+globalThis.PDFLib = require(path.join(runtime, '@cantoo/pdf-lib'));
 globalThis.fontkit = require('../node_modules/@pdf-lib/fontkit');
 const { DOMMatrix, ImageData, Path2D } = require(path.join(runtime, '@napi-rs/canvas'));
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });

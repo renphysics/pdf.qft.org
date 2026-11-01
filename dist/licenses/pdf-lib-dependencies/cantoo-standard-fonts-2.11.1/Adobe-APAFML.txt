@@ -1,0 +1,12 @@
+Adobe Core 14 AFM redistribution notice
+
+Source archive: https://download.macromedia.com/pub/developer/opentype/tech-notes/Core14_AFMs.zip
+The original accompanying file is retained unchanged as Adobe-Core14-MustRead.html.
+
+This file and the 14 PostScript(R) AFM files it accompanies may be used, copied, and distributed for any purpose and without charge, with or without modification, provided that all copyright notices are retained; that the AFM files are not distributed without this file; that all modifications to this file or any of the AFM files are prominently noted in the modified file(s); and that this paragraph is not modified. Adobe Systems has no responsibility or obligation to support the use of the AFM files.
+
+Modification note: @pdf-lib/standard-fonts converts the original AFM metric records
+to JSON and compresses them for JavaScript consumption. QFT PDF ships that
+upstream representation inside the unmodified pdf-lib UMD bundle. Per-font
+copyright/trademark notices are retained in ADOBE-METRIC-NOTICES.txt and in
+the bundled metric data.

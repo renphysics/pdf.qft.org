@@ -151,6 +151,22 @@ the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license.
 
+pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
+maintained fork with the same API (the original project's last release was
+1.17.1, in 2021). To update it, copy the new release's `dist/pdf-lib.min.js`
+to `dist/assets/vendor/`, update the version in `package.json`,
+`dist/assets/vendor/versions.json` and `scripts/asset-checksums.json`, then
+regenerate and check its notices and provenance:
+
+```sh
+npm pack @cantoo/pdf-lib@<version>    # in an empty directory
+python3 scripts/collect-pdf-lib-notices.py --tarball <that .tgz> --cache <empty directory>
+```
+
+The script confirms the bundle is the official npm build and pins every
+library inside it to the npm release whose files match the bundle's embedded
+sources byte for byte.
+
 ```sh
 npm ci --ignore-scripts
 npm test

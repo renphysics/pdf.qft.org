@@ -1,0 +1,6 @@
+The following original-project attribution is preserved from the published README.
+
+Copyright 2015–2018 Christopher Brown.
+[MIT Licensed](https://chbrown.github.io/licenses/MIT/#2015-2018).
+
+The MIT permission and warranty terms are reproduced in LICENSE.md.

@@ -81,6 +81,35 @@ function loadFontkit() {
   return loadGlobal('fontkit', 'The text font engine did not load. Check your connection, then try again.');
 }
 
+const subsetAdapters = new WeakMap();
+/**
+ * @cantoo/pdf-lib serializes a font subset with subset.encode() when that
+ * method exists, as fontkit 2 provides it. @pdf-lib/fontkit 1.1.1 also has an
+ * encode(), but an internal one that needs a stream, so its subsets are offered
+ * with only encodeStream(), which pdf-lib uses otherwise. A fontkit whose
+ * encode() takes no arguments is used as it is.
+ */
+function subsetCompatible(fontkit) {
+  if (!subsetAdapters.has(fontkit)) {
+    subsetAdapters.set(fontkit, {
+      create(...args) {
+        const font = fontkit.create(...args);
+        if (typeof font?.createSubset !== 'function') return font;
+        const createSubset = font.createSubset.bind(font);
+        font.createSubset = () => {
+          const subset = createSubset();
+          if (typeof subset.encode !== 'function' || subset.encode.length === 0 || typeof subset.encodeStream !== 'function') {
+            return subset;
+          }
+          return { cff: subset.cff, includeGlyph: (glyph) => subset.includeGlyph(glyph), encodeStream: () => subset.encodeStream() };
+        };
+        return font;
+      },
+    });
+  }
+  return subsetAdapters.get(fontkit);
+}
+
 /** Synchronous access for code that runs after loadPdfLib() has resolved. */
 function library() {
   if (!globalThis.PDFLib) throw new Error('The PDF tools did not load. Check your connection, then try again.');
@@ -159,7 +188,7 @@ function fontLoader(doc) {
       const loading = (async () => {
         if (kind === 'standard') return doc.embedFont(library().StandardFonts.Helvetica);
         // fontkit is only needed for non-ASCII text, so it is fetched on demand.
-        doc.registerFontkit(await loadFontkit());
+        doc.registerFontkit(subsetCompatible(await loadFontkit()));
         // CFF subsets from fontkit are not reliably accepted by all PDF readers.
         // Embed the complete CJK OTF so exported Chinese text also renders in
         // native readers; the Latin TrueType font can be safely subset.
@@ -307,8 +336,17 @@ export async function buildPdf(state, onProgress = () => {}) {
     const originalPages = doc.getPages();
     outputPages = descriptors.map((descriptor) => originalPages[descriptor.index]);
     // Reuse original PDFPage objects to preserve the original document's form tree.
-    for (let index = doc.getPageCount() - 1; index >= 0; index--) doc.removePage(index);
-    outputPages.forEach((page) => doc.addPage(page));
+    // Pages in their original order stay in place. To reorder, take every page out
+    // of the page tree and add them back; removePage also deletes the page object,
+    // so each one is registered again under its own reference (outlines, links and
+    // form widgets that point at a page keep working).
+    if (outputPages.some((page, index) => page !== originalPages[index])) {
+      for (let index = doc.getPageCount() - 1; index >= 0; index--) doc.removePage(index);
+      for (const page of outputPages) {
+        doc.context.assign(page.ref, page.node);
+        doc.addPage(page);
+      }
+    }
   } else {
     for (const source of loaded.values()) {
       if (source.getForm().getFields().length) throw new Error('Merging, duplicating, or extracting pages from PDFs with interactive forms is not supported. Save a flattened copy in your PDF reader, then add that copy.');
@@ -356,7 +394,7 @@ export async function buildPdf(state, onProgress = () => {}) {
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  const output = await doc.save();
+  const output = await doc.save({ useObjectStreams: true });
   onProgress(1);
   return output;
 }

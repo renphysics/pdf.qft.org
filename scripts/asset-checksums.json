@@ -20,12 +20,12 @@
     "sha256": "bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259"
   },
   "assets/vendor/versions.json": {
-    "bytes": 233,
-    "sha256": "95118894e470a527475af40c21aa888304ebb09d2052ce36ea6af74adb95662b"
+    "bytes": 241,
+    "sha256": "727e461d017ac22425a13b15511ba025fd84f30df35a4f03bc154d25ec70a443"
   },
   "assets/vendor/pdf-lib.min.js": {
-    "bytes": 525099,
-    "sha256": "0f9a5cad07941f0826586c94e089d89b918c46e5c17cf2d5a3c6f666e3bc694f"
+    "bytes": 616746,
+    "sha256": "2294a0bb8742d8948ae2d49a60cb6a3600c0b5deae6de198e57fb368d1b79ba9"
   },
   "assets/vendor/fontkit.umd.min.js": {
     "bytes": 758440,
