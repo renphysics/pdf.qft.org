@@ -129,9 +129,9 @@ shows it without building a PDF:
   of the view is the current page: the page number, the page strip and the
   tools that work on "this page" follow it. Zoom (the buttons, or Control and
   the wheel) keeps the reading position, and undo shows the page it changes.
-- Text, images and highlights can be typed into, dragged and resized on any
-  page where it is, or selected and changed in the panel; with an item selected, arrow keys
-  nudge it, Delete removes it and Enter edits text. Watermarks, headers and
+- Text, images and highlights can be typed into, dragged and resized right on
+  their page, or selected and changed in the panel; with an item selected,
+  arrow keys nudge it, Delete removes it and Enter edits text. Watermarks, headers and
   footers, and page numbers update on every page as their settings change.
   Turning, moving and removing pages only changes the page list.
 - Every change is one undo step (typing, dragging and sliders merge into one
@@ -230,8 +230,9 @@ dragging text, undo and redo, every tool, downloads that match the preview
 password-protected files, signatures, JPG to PDF and PDF to JPG, batch
 processing, continuous scrolling (the current page, editing any page, zoom, a
 400-page document), phones (layout, 44 px targets, no sideways scrolling,
-swiping between pages) and axe accessibility checks. A `release` project stamps a copy of the site and
-serves it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs
+swiping between pages) and axe accessibility checks. A `release` project
+stamps a copy of the site and serves it under `/pdf.qft.org/`, as GitHub
+Pages does, to check versioned URLs
 and the export worker. They run in CI for pull requests and before every
 deployment. Locally:
 
