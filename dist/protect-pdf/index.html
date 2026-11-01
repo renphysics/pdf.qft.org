@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="theme-color" content="#244e41">
+  <!-- page:meta -->
+  <title>Password-protect a PDF for free — QFT PDF</title>
+  <meta name="description" content="Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.">
+  <link rel="canonical" href="https://pdf.qft.org/protect-pdf/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="QFT PDF">
+  <meta property="og:url" content="https://pdf.qft.org/protect-pdf/">
+  <meta property="og:title" content="Password-protect a PDF for free">
+  <meta property="og:description" content="Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.">
+  <meta property="og:image" content="https://pdf.qft.org/assets/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="QFT PDF. Every PDF. A little simpler. Edit, merge, split and number PDFs for free, right in your browser.">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Protect PDF — QFT PDF","url":"https://pdf.qft.org/protect-pdf/","description":"Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"Protect PDF","item":"https://pdf.qft.org/protect-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How strong is the protection?","acceptedAnswer":{"@type":"Answer","text":"The PDF is encrypted with AES-256, the strongest encryption PDF readers support. As with any password, a long one that is hard to guess protects best."}},{"@type":"Question","name":"What if I forget the password?","acceptedAnswer":{"@type":"Answer","text":"QFT PDF doesn’t keep it and can’t recover it, so store it somewhere safe. Your original, unprotected file is unchanged."}},{"@type":"Question","name":"Is my password sent anywhere?","acceptedAnswer":{"@type":"Answer","text":"No. The PDF is encrypted in your browser, and neither the file nor the password leaves your device."}},{"@type":"Question","name":"Can I edit the PDF before protecting it?","acceptedAnswer":{"@type":"Answer","text":"Yes. Add text, page numbers or a watermark, or reorder and remove pages, then download it protected. Split parts and downloaded page selections get the same password."}},{"@type":"Question","name":"Will it open in other PDF readers?","acceptedAnswer":{"@type":"Answer","text":"Yes. Current PDF readers, including Adobe Acrobat and web browsers, ask for the password and then open it."}}]}]}</script>
+  <!-- /page:meta -->
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../studio.css">
+  <link rel="stylesheet" href="../batch.css">
+  <script type="module" src="../app.js"></script>
+</head>
+<body data-tool="protect">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M4 15v5h16v-5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m-4-4 4 4 4-4M4 17v4h16v-4"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8l-5-5Zm0 0v5h5M8 12h8M8 16h6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M4 7V4h16v3M12 4v16m-4 0h8"/></symbol>
+    <symbol id="i-watermark" viewBox="0 0 24 24"><path d="M12 3S5 10 5 15a7 7 0 0 0 14 0c0-5-7-12-7-12Z"/><path d="M9 16a3 3 0 0 0 3 3"/></symbol>
+    <symbol id="i-footer" viewBox="0 0 24 24"><path d="M5 3h14v18H5zM5 16h14M9 7h6M9 10h4"/></symbol>
+    <symbol id="i-pages" viewBox="0 0 24 24"><path d="M4 4h6v7H4zM14 4h6v7h-6zM4 15h6v6H4zM17 15v6m-3-3h6"/></symbol>
+    <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 3v15h15M3 6h15v15M9 6h9v9"/></symbol>
+    <symbol id="i-merge" viewBox="0 0 24 24"><path d="M5 3v4c0 5 14 5 14 10v4M19 3v4c0 5-14 5-14 10v4m0-18 3 3M5 3 2 6m17-3 3 3m-3-3-3 3"/></symbol>
+    <symbol id="i-number" viewBox="0 0 24 24"><path d="m9 3-2 18M17 3l-2 18M4 9h17M3 15h17"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 5 4 10l5 5M4 10h10a5 5 0 0 1 0 10h-3"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 5 5 5-5 5m5-5H10a5 5 0 0 0 0 10h3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-1 7M20 4v6h-6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 17l6-6 5 5 3-3 4 4"/><circle cx="16" cy="8" r="1.5"/></symbol>
+    <symbol id="i-highlight" viewBox="0 0 24 24"><path d="m8 15 8-11 5 4-8 10-5-3ZM8 15l-3 4 4 1 4-2M3 22h18"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3v.1"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24"><path d="M8 3H3v18h5M16 3h5v18h-5M12 3v3m0 3v3m0 3v3m0 3v1"/></symbol>
+    <symbol id="i-batch" viewBox="0 0 24 24"><path d="M8 3h11v14H8zM5 7H3v14h11v-2M11 7h5m-5 4h5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 15 7-7 7 7"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4M12 15v2"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 7.7-1.5M12 15v2"/></symbol>
+  </svg>
+  <header class="site-header">
+    <a href="../" class="brand" aria-label="QFT PDF home">
+      <img class="brand-mark" src="../favicon.svg" width="28" height="28" alt="">
+      <span>QFT <span class="brand-pdf">PDF</span></span>
+    </a>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="#tools" data-action="tools-home">All tools</a>
+      <button class="text-button" data-action="privacy">Your privacy</button>
+    </nav>
+    <span class="header-note"><span class="status-dot"></span> Private. Practical. PDF.</span>
+  </header>
+  <main id="main">
+    <section id="landing">
+      <div class="hero section-wrap">
+        <div class="hero-copy">
+          <!-- page:hero -->
+          <div class="eyebrow"><span class="status-dot"></span> PROTECT PDF</div>
+          <h1 id="landing-title" tabindex="-1">Password-protect a PDF.<br><em>Keep it for the right eyes.</em></h1>
+          <p>Choose a password, and anyone who opens your PDF will need it. The encryption happens right here in your browser.</p>
+          <div class="hero-benefits"><span><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> Free to use</span><span><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> No sign-up</span><span><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg> Stays on your device</span></div>
+          <!-- /page:hero -->
+        </div>
+        <div id="drop-zone" class="upload-card">
+          <div class="paper-stack" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><span class="paper-fold"></span><span class="paper-badge">PDF</span><i></i><i></i><i></i></div><span class="floating-plus">+</span></div>
+          <!-- page:upload -->
+          <h2>Start with your PDF.</h2>
+          <p>Drop a PDF here to protect it.</p>
+          <button class="button primary upload-button" data-action="open"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> Choose a PDF to protect <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+          <span class="upload-meta">PDF files · no fixed size or page limit</span>
+          <!-- /page:upload -->
+          <!-- page:upload-extras -->
+          <div class="sample-row">Just exploring? <button data-action="sample">Try a sample <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+          <!-- /page:upload-extras -->
+        </div>
+      </div>
+      <!-- page:before-tools -->
+      <section class="how-section tool-how section-wrap" aria-labelledby="how-title">
+        <div class="how-title"><div class="eyebrow">HOW IT WORKS</div><h2 id="how-title">How to password-protect<br> <em>a PDF.</em></h2></div>
+        <div class="how-step"><span>01</span><h3>Open your PDF.</h3><p>Choose a file from your device. It opens right here in your browser.</p></div>
+        <div class="how-step"><span>02</span><h3>Choose a password.</h3><p>Type it in Protect PDF. Show password lets you check what you typed.</p></div>
+        <div class="how-step"><span>03</span><h3>Download the protected PDF.</h3><p>Your copy is encrypted with AES-256 and opens only with the password. Your original file is unchanged.</p></div>
+      </section>
+      <section class="faq-section section-wrap" aria-labelledby="faq-title">
+        <div class="faq-heading"><div class="eyebrow">GOOD TO KNOW</div><h2 id="faq-title">Questions, answered.</h2></div>
+        <div class="faq-list">
+          <details class="faq-item"><summary>How strong is the protection?</summary><p>The PDF is encrypted with AES-256, the strongest encryption PDF readers support. As with any password, a long one that is hard to guess protects best.</p></details>
+          <details class="faq-item"><summary>What if I forget the password?</summary><p>QFT PDF doesn’t keep it and can’t recover it, so store it somewhere safe. Your original, unprotected file is unchanged.</p></details>
+          <details class="faq-item"><summary>Is my password sent anywhere?</summary><p>No. The PDF is encrypted in your browser, and neither the file nor the password leaves your device.</p></details>
+          <details class="faq-item"><summary>Can I edit the PDF before protecting it?</summary><p>Yes. Add text, page numbers or a watermark, or reorder and remove pages, then download it protected. Split parts and downloaded page selections get the same password.</p></details>
+          <details class="faq-item"><summary>Will it open in other PDF readers?</summary><p>Yes. Current PDF readers, including Adobe Acrobat and web browsers, ask for the password and then open it.</p></details>
+        </div>
+      </section>
+      <!-- /page:before-tools -->
+      <section class="tools-section section-wrap" id="tools">
+        <!-- page:tools-heading -->
+        <div class="section-heading"><div><div class="eyebrow">MORE TOOLS</div><h2 id="tools-title" tabindex="-1">More PDF tools.</h2></div><p>Free, private, and right in your browser.</p></div>
+        <!-- /page:tools-heading -->
+        <div class="tool-discovery"><div class="tool-filters" role="group" aria-label="Filter tools"><button type="button" data-tool-filter="all" class="active" aria-pressed="true">All tools</button><button type="button" data-tool-filter="edit" aria-pressed="false">Edit &amp; annotate</button><button type="button" data-tool-filter="organize" aria-pressed="false">Organize</button><button type="button" data-tool-filter="automate" aria-pressed="false">Automate</button></div><label class="tool-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="tool-search" type="search" placeholder="Find a tool" aria-label="Find a tool"></label></div>
+        <div class="tool-grid">
+          <a class="tool-card" data-start-tool="text" data-category="edit" href="../add-text-to-pdf/" data-card="text"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-text"/></svg></span><span class="tool-card-copy"><strong>Add text &amp; images</strong><span>A note, a logo, a final thought.<br> Make your mark on the page.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="watermark" data-category="automate" href="../add-watermark-to-pdf/" data-card="watermark"><span class="tool-icon lavender"><svg class="icon" aria-hidden="true"><use href="#i-watermark"/></svg></span><span class="tool-card-copy"><strong>Add a watermark</strong><span>Give every page a subtle stamp<br> with text, color, and transparency.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="footer" data-category="automate" href="../add-header-and-footer-to-pdf/" data-card="footer"><span class="tool-icon peach"><svg class="icon" aria-hidden="true"><use href="#i-footer"/></svg></span><span class="tool-card-copy"><strong>Headers &amp; footers</strong><span>Your name, your project, your details.<br> In the same place on every page.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="numbers" data-category="automate" href="../add-page-numbers-to-pdf/" data-card="numbers"><span class="tool-icon pink"><svg class="icon" aria-hidden="true"><use href="#i-number"/></svg></span><span class="tool-card-copy"><strong>Number pages</strong><span>A little order goes a long way.<br> Custom numbers from start to finish.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="pages" data-category="organize" href="../organize-pdf/" data-card="pages"><span class="tool-icon sand"><svg class="icon" aria-hidden="true"><use href="#i-pages"/></svg></span><span class="tool-card-copy"><strong>Organize &amp; extract</strong><span>Reorder, rotate, remove, or keep<br> just the pages you need.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="delete" data-category="organize" href="../delete-pages-from-pdf/" data-card="delete"><span class="tool-icon peach"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></span><span class="tool-card-copy"><strong>Delete Pages</strong><span>Leave out what you don’t need.<br> Select pages, delete, and save.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="crop" data-category="edit" href="../crop-pdf/" data-card="crop"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-crop"/></svg></span><span class="tool-card-copy"><strong>Crop PDF</strong><span>A little less around the edges.<br> Trim margins with a live preview.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="merge" data-category="organize" href="../merge-pdf/" data-card="merge"><span class="tool-icon blue"><svg class="icon" aria-hidden="true"><use href="#i-merge"/></svg></span><span class="tool-card-copy"><strong>Merge PDFs</strong><span>Bring a few things together.<br> One document, all in order.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="split" data-category="organize" href="../split-pdf/" data-card="split"><span class="tool-icon blue"><svg class="icon" aria-hidden="true"><use href="#i-split"/></svg></span><span class="tool-card-copy"><strong>Split PDF</strong><span>Separate pages, chapters, or ranges.<br> Download them together as a ZIP.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-start-tool="unlock" data-category="organize" data-keywords="password decrypt remove restrictions" href="../unlock-pdf/" data-card="unlock"><span class="tool-icon sand"><svg class="icon" aria-hidden="true"><use href="#i-unlock"/></svg></span><span class="tool-card-copy"><strong>Unlock PDF</strong><span>Know the password? Leave it behind.<br> Save a copy that opens freely.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="tool-card" data-action="batch" data-category="automate" href="../batch-edit-pdf/" data-card="batch"><span class="tool-icon sage"><svg class="icon" aria-hidden="true"><use href="#i-batch"/></svg></span><span class="tool-card-copy"><strong>Batch &amp; presets</strong><span>One setup, many PDFs.<br> Save your settings and process them together.</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </div>
+        <p id="no-tools" class="empty-tools" hidden>No tools match. Try “split”, “crop”, or “footer”.</p>
+      </section>
+      <!-- page:sections -->
+      <!-- /page:sections -->
+      <section class="privacy-strip section-wrap"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><div><h3>Your documents stay with you.</h3><p>PDF processing happens on your device. No document uploads, no account to create.</p></div><button class="text-button" data-action="privacy">How we handle files <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></section>
+      <footer class="site-footer section-wrap"><a href="../" class="footer-brand">QFT PDF</a><span>PDF tools that respect your time and your privacy.</span><div><button data-action="help">Help &amp; supported files</button><a href="../licenses/index.html" target="_blank" rel="noopener">Open-source credits</a></div></footer>
+    </section>
+    <section id="workspace" hidden aria-label="PDF editor">
+      <div class="document-bar">
+        <button class="icon-button" data-action="back" aria-label="Back to all tools" title="All tools"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button>
+        <div class="document-identity"><h1 id="document-name" class="document-name" tabindex="-1">Document.pdf</h1><span id="document-info"></span></div>
+        <span class="local-badge"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg> On your device</span>
+        <div class="document-actions"><button class="button subtle compact" data-action="open">Open PDF</button><button class="button subtle compact" data-action="undo" id="undo-button" disabled aria-keyshortcuts="Control+Z Meta+Z"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>Undo</span></button><button class="button subtle compact" data-action="redo" id="redo-button" disabled aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y"><svg class="icon" aria-hidden="true"><use href="#i-redo"/></svg><span>Redo</span></button><button class="button subtle compact" data-action="reset" id="reset-button">Reset</button><button class="button primary compact" data-action="download" id="download-button"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>Download PDF</span><span class="visually-hidden download-protected" hidden>, protected with a password</span></button></div>
+      </div>
+      <div class="editor-layout">
+        <aside class="tool-sidebar" aria-label="Editing tools and settings">
+          <div class="sidebar-heading"><span class="eyebrow">MAKE IT YOURS</span><strong id="sheet-title" class="sheet-title">Add text</strong><button class="icon-button small" data-action="help" aria-label="Editor help"><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button><button class="icon-button sheet-toggle" id="sheet-toggle" data-action="toggle-sheet" aria-expanded="true" aria-controls="tool-panel" aria-label="Hide tool settings"><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></button></div>
+          <label class="tool-switcher"><span>Choose a tool</span><select id="tool-select"><option value="text">Add text</option><option value="image">Add an image</option><option value="highlight">Highlight</option><option value="watermark">Watermark</option><option value="footer">Headers &amp; footers</option><option value="numbers">Page numbers</option><option value="pages">Organize &amp; extract</option><option value="delete">Delete Pages</option><option value="crop">Crop PDF</option><option value="merge">Merge PDFs</option><option value="split">Split PDF</option><option value="protect">Protect PDF</option><option value="unlock">Unlock PDF</option></select></label>
+          <button type="button" class="batch-editor-link text-button" data-action="batch"><svg class="icon" aria-hidden="true"><use href="#i-batch"/></svg>Batch &amp; saved presets<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+          <div id="tool-panel" class="tool-panel"></div>
+          <div class="sheet-document-actions"><button type="button" class="button subtle" data-action="open">Open another PDF</button><button type="button" class="button subtle" data-action="reset">Reset document</button></div>
+          <div class="sidebar-bottom"><span class="status-dot"></span> Edits show at once and stay on your device until you download.</div>
+        </aside>
+        <div class="document-stage" id="document-stage">
+          <div class="preview-toolbar">
+            <div class="page-navigation"><button class="icon-button small" data-action="previous" aria-label="Previous page"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button><label class="page-jump"><span class="page-jump-label">Page</span> <input id="page-jump" type="number" min="1" value="1" aria-label="Go to page"><span id="page-counter">of 1</span></label><button class="icon-button small" data-action="next" aria-label="Next page"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+            <div class="zoom-controls"><button class="icon-button small" data-action="zoom-out" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button><button class="text-button" data-action="zoom-fit" id="zoom-label" aria-label="Fit page to available width">Fit</button><button class="icon-button small" data-action="zoom-in" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button></div>
+          </div>
+          <div class="canvas-scroll" id="canvas-scroll" tabindex="0" role="region" aria-label="Page preview"><div class="page-surface" id="page-surface"><canvas id="pdf-canvas" role="img" aria-label="Page preview"></canvas><svg id="page-overlay" class="page-overlay" aria-hidden="true" preserveAspectRatio="none"></svg><div id="crop-overlay" class="crop-overlay" hidden aria-hidden="true"><span>Keep this area</span></div><div id="edit-layer" class="edit-layer"></div><textarea id="inline-editor" class="inline-editor" hidden aria-label="Text on the page" aria-describedby="editor-help" spellcheck="true"></textarea></div></div>
+          <p id="item-help" class="visually-hidden">Arrow keys move it, with Shift for bigger steps. Delete removes it. Enter edits text. Escape deselects.</p><p id="editor-help" class="visually-hidden">Escape or Control+Enter finishes typing.</p>
+          <div class="stage-caption"><span id="preview-status"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> Your document, ready for a little finishing touch.</span><span id="selection-caption"></span></div>
+        </div>
+        <nav class="tool-tabs" aria-label="Tools"><button type="button" data-tool="text" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-text"/></svg><span>Text</span></button><button type="button" data-tool="image" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span>Image</span></button><button type="button" data-tool="highlight" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-highlight"/></svg><span>Highlight</span></button><button type="button" data-tool="watermark" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-watermark"/></svg><span>Watermark</span></button><button type="button" data-tool="footer" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-footer"/></svg><span>Header</span></button><button type="button" data-tool="numbers" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-number"/></svg><span>Numbers</span></button><button type="button" data-tool="pages" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-pages"/></svg><span>Pages</span></button><button type="button" data-tool="delete" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg><span>Delete</span></button><button type="button" data-tool="crop" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-crop"/></svg><span>Crop</span></button><button type="button" data-tool="merge" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-merge"/></svg><span>Merge</span></button><button type="button" data-tool="split" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-split"/></svg><span>Split</span></button><button type="button" data-tool="protect" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>Protect</span></button><button type="button" data-tool="unlock" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-unlock"/></svg><span>Unlock</span></button></nav>
+        <aside class="page-sidebar" aria-label="Document pages"><div class="pages-heading"><strong>Pages <span id="total-pages"></span></strong><button class="icon-button small" data-action="add-files" aria-label="Add another PDF" title="Add PDF"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button></div><div id="page-list" class="page-list"></div><button class="add-pages-button" data-action="add-files"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Add PDF</button></aside>
+      </div>
+    </section>
+  </main>
+  <input type="file" id="file-input" accept=".pdf,application/pdf" multiple hidden>
+  <input type="file" id="image-input" accept="image/png,image/jpeg" hidden>
+  <section id="toast" class="toast" aria-label="Notification" hidden><p id="toast-message"></p><button type="button" class="icon-button small toast-close" data-action="dismiss-toast" aria-label="Dismiss notification"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></section>
+  <div id="announce-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="announce-alert" class="visually-hidden" role="alert" aria-atomic="true"></div>
+  <div id="busy-overlay" class="busy-overlay" hidden role="status" aria-live="polite"><div class="busy-card"><span class="spinner"></span><strong id="busy-message">Opening your PDF…</strong><span>Working in your browser</span><button id="busy-cancel" type="button" class="button secondary" data-action="cancel-operation" hidden>Cancel</button></div></div>
+  <dialog id="info-dialog" class="info-dialog" aria-labelledby="dialog-title"><button class="icon-button dialog-close" data-action="close-dialog" aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button><div id="dialog-content"></div><button class="button primary" data-action="close-dialog">Got it <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></button></dialog>
+  <dialog id="confirm-dialog" class="info-dialog confirm-dialog" role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-body"><div class="eyebrow" id="confirm-eyebrow"></div><h2 id="confirm-title"></h2><p id="confirm-body"></p><div class="dialog-actions"><button type="button" class="button secondary" data-confirm="cancel" autofocus>Cancel</button><button type="button" class="button danger-solid" data-confirm="confirm" id="confirm-accept">Confirm</button></div></dialog>
+  <dialog id="password-dialog" class="info-dialog confirm-dialog password-dialog" aria-labelledby="password-title" aria-describedby="password-body"><form id="password-form" novalidate><div class="eyebrow">PASSWORD-PROTECTED PDF</div><h2 id="password-title">Enter the password</h2><p id="password-body"><strong id="password-file"></strong> needs a password to open. It’s used only here, on your device, and isn’t kept.</p><label class="field password-field"><span>Password</span><input id="password-input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="password-error"></label><p id="password-error" class="field-error" role="alert" hidden></p><label class="check-field"><input id="password-show" type="checkbox"> Show password</label><div class="dialog-actions"><button type="button" class="button secondary" id="password-cancel">Cancel</button><button type="submit" class="button primary" id="password-submit">Open PDF</button></div></form></dialog>
+  <noscript><div class="noscript-note">QFT PDF needs JavaScript to process PDFs in your browser. Please enable JavaScript to use the editor.</div></noscript>
+</body>
+</html>

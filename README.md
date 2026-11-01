@@ -186,7 +186,9 @@ requests are still handled by the hosting platform.
 
 ## Supported input
 
-- Unencrypted PDFs with no fixed per-file or combined PDF byte-size limit.
+- PDFs with no fixed per-file or combined PDF byte-size limit.
+- Password-protected PDFs (AES-256, AES-128 and RC4 encryption): see
+  [Passwords](#passwords). PDFs protected with a certificate are not supported.
 - No fixed page-count limit; thumbnails render near the visible portion of the page strip.
 - Practical file capacity depends on available browser memory and device performance; very large documents may be slow or fail to open.
 - PNG/JPEG annotations up to 15 MB and 30 megapixels.
@@ -203,7 +205,7 @@ because the complete CJK font is embedded for compatibility.
 
 tests/engine.test.mjs exercises exported output with independent PDF.js text
 and geometry checks: cropping, rotation, numbering, annotation types, Unicode,
-merge/extract/reorder, encrypted-file rejection, and form handling. It uses the development dependencies installed by `npm ci`.
+merge/extract/reorder, password-protected input and output, and form handling. It uses the development dependencies installed by `npm ci`.
 
 `scripts/create-sample.py` optionally regenerates the original three-page sample
 and test fixtures. It requires Python `reportlab` and `pypdf`, plus
@@ -237,6 +239,38 @@ It hides outside content, **not secure redaction**. Existing crop-box offsets,
 native and added rotations, mixed sizes, and placed annotations are supported.
 Watermarks, headers, footers, and page numbers follow the resulting visible
 page bounds. Files continue to be processed entirely in the browser.
+
+## Passwords
+
+A PDF that needs a password asks for it when it is opened (also when adding
+files); a wrong password keeps the prompt open, and Cancel skips the file.
+PDFs with only an owner password, which restrict printing, copying or changes
+but open without one, open without asking. The editor then works on an
+unencrypted copy in memory: `openPdf` in `pdf-engine.js` decrypts the file once,
+drops its old encryption dictionary (its password hashes must not travel with
+an unlocked copy), and does not keep the password.
+
+Downloads keep the password the PDF was opened with, so an edited copy is not
+silently unprotected. Protect PDF (`/protect-pdf/`) sets or changes it; Unlock
+PDF (`/unlock-pdf/`) removes it, and a file opened there is not protected again.
+Owner-password restrictions are not carried over. Protected downloads use
+AES-256 with the same password as owner password and every permission allowed;
+passwords are prepared as PDF 2.0 asks (SASLprep mapping and NFKC). Split parts
+and extracted pages are protected the same way. A PDF/A file that is protected
+stops declaring PDF/A, which forbids encryption.
+
+Passwords live only in the tab's memory (the editor state and its undo
+history). They are never written to presets or browser storage. Batch
+processing does not ask for passwords: owner-password PDFs are processed, and a
+PDF that needs a password reports that it should be unlocked first.
+
+`@cantoo/pdf-lib` 2.11.1 encrypts stream contents but not the strings in objects
+written outside object streams (the catalog's language, page dictionaries,
+stream dictionaries), which readers then decrypt into garbage.
+`encryptStringsWhenSaving` in `pdf-engine.js` encrypts those strings too; the
+engine tests check the result with PDF.js. The password test fixtures are
+encrypted by pypdf (`scripts/make-encrypted-fixtures.py`), not by the library
+under test.
 
 ## Split PDF and saved batch presets
 

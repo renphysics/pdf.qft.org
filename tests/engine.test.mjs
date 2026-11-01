@@ -18,7 +18,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { inspectPdf, buildPdf, parsePageRange, cropMarginsForRotation } = await import('../dist/pdf-engine.js');
+const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
@@ -37,8 +37,8 @@ async function fixture() {
   return pdf.save();
 }
 
-async function extract(data) {
-  const doc = await pdfjs.getDocument({ data: data.slice(), verbosity: 0, standardFontDataUrl: path.join(runtime, 'pdfjs-dist/standard_fonts/') }).promise;
+async function extract(data, password) {
+  const doc = await pdfjs.getDocument({ data: data.slice(), password, verbosity: 0, standardFontDataUrl: path.join(runtime, 'pdfjs-dist/standard_fonts/') }).promise;
   const result = [];
   for (let number = 1; number <= doc.numPages; number++) {
     const page = await doc.getPage(number);
@@ -256,6 +256,150 @@ for (const crop of [{ left: -.1 }, { top: NaN }, { right: Infinity }, { left: .8
 }
 await assert.rejects(buildPdf({ sources: cropState.sources, pages: [{ id: 'p', sourceId: 'a', index: 0, crop: { left: .999 } }] }), /at least 1 PDF point/);
 
+// PDF/A: a declared PDF/A file exports unchanged (PDF/A-1 forbids object
+// streams), keeps its declaration while only pages change, and stops claiming
+// PDF/A once content is added, keeping the rest of its metadata.
+async function pdfaFixture(part, conformance, attributeForm) {
+  const pdf = await PDFDocument.create();
+  pdf.addPage([400, 300]).drawText('Archived page', { x: 40, y: 200, size: 18, font: await pdf.embedFont(StandardFonts.Helvetica) });
+  const id = attributeForm
+    ? `<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="${part}" pdfaid:conformance="${conformance}"/>`
+    : `<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>${part}</pdfaid:part><pdfaid:conformance>${conformance}</pdfaid:conformance></rdf:Description>`;
+  const xmp = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title><rdf:Alt><rdf:li xml:lang="x-default">Archiv für Berichte</rdf:li></rdf:Alt></dc:title></rdf:Description>${id}</rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+  const { PDFName } = globalThis.PDFLib;
+  pdf.catalog.set(PDFName.of('Metadata'), pdf.context.register(pdf.context.stream(new TextEncoder().encode(xmp), { Type: 'Metadata', Subtype: 'XML' })));
+  return pdf.save({ useObjectStreams: false });
+}
+function metadataOf(bytes) {
+  const { PDFName } = globalThis.PDFLib;
+  return PDFDocument.load(bytes).then((pdf) => new TextDecoder().decode(globalThis.PDFLib.decodePDFRawStream(pdf.catalog.lookup(PDFName.of('Metadata'))).decode()));
+}
+for (const [part, conformance, attributeForm] of [[1, 'B', false], [1, 'A', false], [2, 'B', true]]) {
+  const label = `PDF/A-${part}${conformance.toLowerCase()}`;
+  const bytes = await pdfaFixture(part, conformance, attributeForm);
+  assert.equal((await inspectPdf(bytes)).pdfa, part, `${label} is detected`);
+  const one = { sources: [{ id: 'a', bytes }], pages: [{ id: 'p', sourceId: 'a', index: 0 }] };
+  const unchanged = await buildPdfWithNotes(one);
+  assert.deepEqual(unchanged.notes, [], `${label}: nothing to report for an unchanged export`);
+  assert.match(await metadataOf(unchanged.bytes), /pdfaid:part/, `${label}: an unchanged export still declares PDF/A`);
+  assert.equal(Buffer.from(unchanged.bytes).includes('/ObjStm'), part !== 1, `${label}: object streams ${part === 1 ? 'are not' : 'may be'} used`);
+  const turned = await buildPdfWithNotes({ ...one, pages: [{ id: 'p', sourceId: 'a', index: 0, rotation: 90 }] });
+  assert.deepEqual(turned.notes, [], `${label}: turning a page keeps PDF/A`);
+  const edited = await buildPdfWithNotes({ ...one, watermark: { text: 'DRAFT', pages: 'all' } });
+  assert.deepEqual(edited.notes, ['pdfa-removed'], `${label}: added content is reported`);
+  const metadata = await metadataOf(edited.bytes);
+  assert.doesNotMatch(metadata, /pdfaid:(part|conformance)/, `${label}: the PDF/A declaration is removed`);
+  assert.match(metadata, /Archiv für Berichte/, `${label}: the rest of the metadata is kept`);
+  assert.equal((await inspectPdf(edited.bytes)).pdfa, null);
+  assert.ok((await extract(edited.bytes))[0].items.some((item) => item.text === 'DRAFT'));
+}
+
+// Passwords. The fixtures were encrypted by pypdf (scripts/make-encrypted-fixtures.py),
+// not by the library under test; each has two pages, "Secret page 1" and "Secret page 2".
+const fixturePath = (name) => path.join(outputDir, '../fixtures', name);
+const textOf = async (bytes, password) => (await extract(bytes, password)).map((page) => page.items.map((item) => item.text).join(' '));
+const { PDFDict, PDFName } = globalThis.PDFLib;
+/** Whether the file still holds an encryption dictionary, used or not. */
+async function hasEncryptionDictionary(bytes) {
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  return doc.context.enumerateIndirectObjects().some(([, object]) => object instanceof PDFDict && object.get(PDFName.of('Filter')) === PDFName.of('Standard'));
+}
+/** How pdf.js refuses a file: 1 when it needs a password, 2 when the password is wrong. */
+async function pdfjsRefusal(bytes, password) {
+  const task = pdfjs.getDocument({ data: bytes.slice(), password, verbosity: 0 });
+  try {
+    await task.promise;
+    return null;
+  } catch (error) {
+    assert.equal(error.name, 'PasswordException');
+    return error.code;
+  } finally {
+    await task.destroy();
+  }
+}
+// An owner password only restricts changes: the PDF opens without asking.
+const ownerOnly = new Uint8Array(await readFile(fixturePath('owner-only-aes256.pdf')));
+assert.equal((await inspectPdf(ownerOnly)).encrypted, true);
+const ownerOpened = await openPdf(ownerOnly);
+assert.equal(ownerOpened.protection, 'owner');
+assert.equal(ownerOpened.pageCount, 2);
+assert.equal((await PDFDocument.load(ownerOpened.bytes)).isEncrypted, false, 'the copy to edit is not encrypted');
+assert.equal(await hasEncryptionDictionary(ownerOpened.bytes), false, 'the unlocked copy carries no password hashes');
+assert.deepEqual(await textOf(ownerOpened.bytes), ['Secret page 1', 'Secret page 2']);
+assert.equal((await PDFDocument.load(ownerOpened.bytes)).getTitle(), 'Locked report', 'encrypted strings are decrypted');
+// Batch processing passes encrypted bytes straight to the build.
+const ownerBuilt = await buildPdf({ sources: [{ id: 'o', bytes: ownerOnly }], pages: [{ id: 'o1', sourceId: 'o', index: 0 }, { id: 'o2', sourceId: 'o', index: 1 }], pageNumbers: { format: 'No. {page}', pages: 'all' } });
+assert.equal(await hasEncryptionDictionary(ownerBuilt), false);
+assert.deepEqual(await textOf(ownerBuilt), ['Secret page 1 No. 1', 'Secret page 2 No. 2']);
+// A password to open: required, refused when wrong, accepted when right (the
+// owner password works too). AES-128, RC4 and AES-256 with a Unicode password.
+for (const [name, password, ownerPassword] of [['password-aes128.pdf', 'open sesame', 'owner secret'], ['password-rc4.pdf', 'open sesame', 'owner secret'], ['password-aes256-unicode.pdf', 'Grüße 密码', null]]) {
+  const bytes = new Uint8Array(await readFile(fixturePath(name)));
+  await assert.rejects(openPdf(bytes), (error) => error.code === 'password-required' && /password-protected/.test(error.message), `${name}: needs a password`);
+  await assert.rejects(openPdf(bytes, { password: 'not it' }), (error) => error.code === 'password-incorrect', `${name}: a wrong password is refused`);
+  await assert.rejects(inspectPdf(bytes), (error) => error.code === 'password-required');
+  const opened = await openPdf(bytes, { password });
+  assert.equal(opened.protection, 'password', name);
+  assert.equal(await hasEncryptionDictionary(opened.bytes), false, `${name}: no password hashes in the copy`);
+  assert.deepEqual(await textOf(opened.bytes), ['Secret page 1', 'Secret page 2'], `${name}: decrypted text`);
+  assert.equal((await PDFDocument.load(opened.bytes)).getTitle(), 'Locked report', `${name}: decrypted title`);
+  if (ownerPassword) assert.equal((await openPdf(bytes, { password: ownerPassword })).pageCount, 2, `${name}: the owner password opens it`);
+}
+await assert.rejects(inspectPdf(new Uint8Array(await readFile(fixturePath('encrypted.pdf')))), (error) => error.code === 'password-required');
+const plainOpened = await openPdf(fixtureBytes);
+assert.equal(plainOpened.protection, null);
+assert.equal(plainOpened.bytes, fixtureBytes, 'an unencrypted PDF is used as it is');
+
+// Protecting the download: AES-256, needing the password in another reader
+// (pdf.js), with the document's strings intact. The library alone left strings
+// outside object streams unencrypted, so the language read back as garbage.
+const stringsDoc = await PDFDocument.create();
+stringsDoc.addPage([300, 200]).drawText('Protected page', { x: 40, y: 100, size: 18, font: await stringsDoc.embedFont(StandardFonts.Helvetica) });
+stringsDoc.setTitle('Quarterly figures');
+stringsDoc.setLanguage('de-DE');
+const link = stringsDoc.context.obj({ Type: 'Annot', Subtype: 'Link', Rect: [40, 40, 200, 60], Border: [0, 0, 0], A: { S: 'URI', URI: globalThis.PDFLib.PDFString.of('https://example.com/report') } });
+stringsDoc.getPage(0).node.set(PDFName.of('Annots'), stringsDoc.context.obj([stringsDoc.context.register(link)]));
+const stringsBytes = await stringsDoc.save();
+const one = (bytes) => ({ sources: [{ id: 's', bytes }], pages: [{ id: 's1', sourceId: 's', index: 0 }] });
+const protectedBuild = await buildPdfWithNotes({ ...one(stringsBytes), watermark: { text: 'DRAFT', pages: 'all' }, protection: { enabled: true, password: 'Grüße 1' } });
+assert.deepEqual(protectedBuild.notes, []);
+assert.equal(await pdfjsRefusal(protectedBuild.bytes), 1, 'pdf.js asks for the password');
+assert.equal(await pdfjsRefusal(protectedBuild.bytes, 'wrong'), 2, 'pdf.js refuses a wrong password');
+assert.deepEqual(await textOf(protectedBuild.bytes, 'Grüße 1'), ['Protected page DRAFT']);
+{
+  const doc = await pdfjs.getDocument({ data: protectedBuild.bytes.slice(), password: 'Grüße 1', verbosity: 0 }).promise;
+  const { info } = await doc.getMetadata();
+  assert.equal(info.Title, 'Quarterly figures', 'the title decrypts');
+  assert.equal(info.Language, 'de-DE', 'the language, stored on the catalog outside object streams, decrypts');
+  assert.deepEqual((await (await doc.getPage(1)).getAnnotations()).map((annotation) => annotation.url), ['https://example.com/report'], 'link targets decrypt');
+  await doc.loadingTask.destroy();
+}
+const reopened = await openPdf(protectedBuild.bytes, { password: 'Grüße 1' });
+assert.equal(reopened.protection, 'password', 'QFT PDF reopens its own protected files');
+await assert.rejects(openPdf(protectedBuild.bytes), (error) => error.code === 'password-required');
+// Passwords are prepared as PDF 2.0 asks (SASLprep, NFKC): full-width characters match their plain form.
+const fullWidth = await buildPdf({ ...one(stringsBytes), protection: { enabled: true, password: 'ｐａｓｓ１' } });
+assert.equal(await pdfjsRefusal(fullWidth, 'pass1'), null, 'the prepared password opens it in pdf.js');
+assert.equal((await openPdf(fullWidth, { password: 'ｐａｓｓ１' })).pageCount, 1, 'and as typed in QFT PDF');
+// Protection that is off, or a password that can't be used.
+assert.equal((await PDFDocument.load(await buildPdf({ ...one(stringsBytes), protection: { enabled: false, password: '' } }))).isEncrypted, false);
+await assert.rejects(buildPdf({ ...one(stringsBytes), protection: { enabled: true, password: '' } }), /Enter a password/);
+await assert.rejects(buildPdf({ ...one(stringsBytes), protection: { enabled: true, password: 'tab\there' } }), /control characters/);
+await assert.rejects(buildPdf({ ...one(stringsBytes), protection: { enabled: true, password: '密'.repeat(43) } }), /too long/);
+// PDF/A forbids encryption: a protected copy stops claiming PDF/A.
+{
+  const bytes = await pdfaFixture(2, 'B', false);
+  const protectedOnly = await buildPdfWithNotes({ ...one(bytes), protection: { enabled: true, password: 'archive' } });
+  assert.deepEqual(protectedOnly.notes, ['pdfa-removed-password']);
+  const unlocked = await openPdf(protectedOnly.bytes, { password: 'archive' });
+  assert.equal(unlocked.pdfa, null, 'the protected copy no longer declares PDF/A');
+  assert.match(await metadataOf(unlocked.bytes), /Archiv für Berichte/, 'the rest of the metadata is kept');
+  const both = await buildPdfWithNotes({ ...one(bytes), watermark: { text: 'DRAFT', pages: 'all' }, protection: { enabled: true, password: 'archive' } });
+  assert.deepEqual(both.notes, ['pdfa-removed', 'pdfa-removed-password']);
+  const pdfa1 = await buildPdfWithNotes({ ...one(await pdfaFixture(1, 'B', false)), protection: { enabled: true, password: 'archive' } });
+  assert.deepEqual(await textOf(pdfa1.bytes, 'archive'), ['Archived page'], 'a protected PDF/A-1 file opens with its password');
+}
+
 const formDoc = await PDFDocument.create();
 const formPage = formDoc.addPage();
 const field = formDoc.getForm().createTextField('name');
@@ -266,7 +410,6 @@ const formOutput = await buildPdf({ sources: [{ id: 'form', bytes: formBytes }],
 assert.equal((await PDFDocument.load(formOutput)).getForm().getTextField('name').getText(), 'Preserved field value');
 await assert.rejects(buildPdf({ sources: [{ id: 'form', bytes: formBytes }, { id: 'a', bytes: fixtureBytes }], pages: [{ id: 'f1', sourceId: 'form', index: 0 }, { id: 'a1', sourceId: 'a', index: 0 }] }), /interactive forms/);
 await assert.rejects(inspectPdf(new Uint8Array([1, 2, 3])), /could not be opened/);
-await assert.rejects(inspectPdf(new Uint8Array(await readFile(path.join(outputDir, '../fixtures/encrypted.pdf')))), /password-protected/);
 await assert.rejects(buildPdf({ sources: [], pages: [] }), /at least one page/);
 await assert.rejects(buildPdf({ sources: [{ id: 'a', bytes: fixtureBytes }], pages: [{ id: 'x', sourceId: 'a', index: 9 }] }), /does not exist/);
 await assert.rejects(buildPdf({ sources: [{ id: 'a', bytes: fixtureBytes }], pages: [{ id: 'x', sourceId: 'a', index: 0 }], annotations: [{ pageId: 'x', type: 'text', text: '🦄' }] }), /cannot display/);
@@ -275,4 +418,4 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
-console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));

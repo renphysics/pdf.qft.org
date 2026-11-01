@@ -5,16 +5,17 @@
  *
  * Message in:  { id, state }            (the editor state, as buildPdf takes it)
  * Messages out: { id, progress }        (0..1, while building)
- *               { id, bytes }           (the finished PDF; its buffer is transferred)
+ *               { id, bytes, notes }    (the finished PDF, its buffer transferred,
+ *                                        and notes from buildPdfWithNotes)
  *               { id, error }           ({ message, pageIndex, itemId })
  */
-import { buildPdf } from './pdf-engine.js';
+import { buildPdfWithNotes } from './pdf-engine.js';
 
 self.addEventListener('message', async ({ data }) => {
   const { id, state } = data;
   try {
-    const bytes = await buildPdf(state, (progress) => self.postMessage({ id, progress }));
-    self.postMessage({ id, bytes }, [bytes.buffer]);
+    const { bytes, notes } = await buildPdfWithNotes(state, (progress) => self.postMessage({ id, progress }));
+    self.postMessage({ id, bytes, notes }, [bytes.buffer]);
   } catch (error) {
     // The editor reports the error (and logs it) where the user is.
     self.postMessage({

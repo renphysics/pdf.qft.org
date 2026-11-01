@@ -1,5 +1,5 @@
 /** Reusable, browser-local PDF workflows. No document data is persisted here. */
-import { inspectPdf, buildPdf, parsePageRange, loadPdfLib } from './pdf-engine.js';
+import { inspectPdf, buildPdf, parsePageRange, loadPdfLib, loadPdf, protectDocument, passwordProblem } from './pdf-engine.js';
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -146,16 +146,17 @@ function cancelled(shouldCancel) {
   }
 }
 
-/** Copy already-edited page contents. Printed page numbers are not regenerated. */
-export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCancel = () => false } = {}) {
+/** Copy already-edited page contents. Printed page numbers are not regenerated.
+ * `password`: protect every output PDF with it.
+ */
+export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCancel = () => false, password = null } = {}) {
   cancelled(shouldCancel);
-  const PDFLib = await loadPdfLib();
-  let source;
-  try { source = await PDFLib.PDFDocument.load(pdfBytes(bytes), { updateMetadata: false }); }
-  catch (error) {
-    if (/encrypt|password/i.test(error?.message || '')) throw new Error('This PDF is password-protected. Save an unlocked copy before splitting it.', { cause: error });
-    throw new Error('This file could not be opened as a PDF. Try saving a new copy from your PDF reader.', { cause: error });
+  if (password !== null) {
+    const problem = passwordProblem(password);
+    if (problem) throw new Error(problem);
   }
+  const PDFLib = await loadPdfLib();
+  const source = await loadPdf(bytes);
   if (!Array.isArray(groups) || !groups.length) throw new Error('Choose at least one output page group.');
   const total = source.getPageCount();
   for (const group of groups) {
@@ -175,6 +176,7 @@ export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCan
     if (source.getSubject()) output.setSubject(source.getSubject());
     const copied = await output.copyPages(source, groups[index]);
     copied.forEach(page => output.addPage(page));
+    if (password !== null) protectDocument(output, password);
     outputs.push(await output.save());
     onProgress((index + 1) / groups.length);
     // Permit the progress UI and a cancellation request to reach the event loop.
@@ -189,7 +191,13 @@ export async function applyPreset(bytes, input, onProgress = () => {}) {
   const preset = normalizePreset(input);
   const sourceBytes = pdfBytes(bytes);
   onProgress(0);
-  const inspected = await inspectPdf(sourceBytes);
+  let inspected;
+  try { inspected = await inspectPdf(sourceBytes); }
+  catch (error) {
+    // Batches don't ask for passwords; PDFs that only restrict changes still open.
+    if (error.code === 'password-required') throw Object.assign(new Error('This PDF needs a password. Remove it with Unlock PDF, then add the unlocked copy here.', { cause: error }), { code: error.code });
+    throw error;
+  }
   const pages = inspected.pages.map((_, index) => ({
     id: `preset-page-${index}`, sourceId: 'preset-source', index, rotation: 0,
     ...(preset.crop ? { crop: { ...preset.crop, rotation: 0 } } : {}),

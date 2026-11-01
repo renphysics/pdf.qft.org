@@ -16,5 +16,7 @@ export const TOOL_PAGES = Object.freeze({
   crop: 'crop-pdf',
   merge: 'merge-pdf',
   split: 'split-pdf',
+  protect: 'protect-pdf',
+  unlock: 'unlock-pdf',
   batch: 'batch-edit-pdf',
 });
