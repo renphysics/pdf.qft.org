@@ -58,6 +58,29 @@ export const PAGES = [
     ],
   },
   {
+    tool: 'form',
+    name: 'Fill PDF form',
+    title: 'Fill in a PDF form for free, in your browser — QFT PDF',
+    description:
+      'Type into a PDF form’s fields, tick its boxes and choose options, then download it fillable or flattened. Free, and your answers stay on your device.',
+    eyebrow: 'FILL PDF FORM',
+    heading: ['Fill in a PDF form.', 'Type, tick and download.'],
+    intro: 'Open a PDF form, fill in its fields right on the page, and download it ready to send.',
+    upload: { text: 'Drop a PDF form here to fill it in.', cta: 'Choose a PDF form' },
+    how: ['How to fill in', 'a PDF form.'],
+    steps: [
+      OPEN_STEP,
+      ['Fill in the fields.', 'Click a field and type, tick check boxes, and choose options. Tab takes you to the next field, and Go to the next empty field finds what is left.'],
+      ['Download.', 'Keep the form fillable, or flatten it so it looks the same in every app. Add your signature with Sign PDF if it needs one.'],
+    ],
+    faqs: [
+      ['Are my answers uploaded?', 'No. The form is filled in your browser, and the PDF and everything you type stay on your device.'],
+      ['What does flattening do?', 'It makes the fields part of the page: the PDF looks the same everywhere and can no longer be changed as a form. A flattened form’s pages can also be combined with other PDFs or extracted.'],
+      ['Can I sign the form?', 'Yes. Use [Sign PDF](tool:signature) to draw, type or upload your signature and place it on the page. Certificate-based signature fields are left empty.'],
+      ['Does it work with every PDF form?', 'It fills standard PDF form fields: text, check boxes, radio buttons and lists. Calculations built into a form do not run, and forms made only in Adobe’s XFA format are not supported.'],
+    ],
+  },
+  {
     tool: 'watermark',
     name: 'Add watermark to PDF',
     title: 'Add a watermark to a PDF for free — QFT PDF',

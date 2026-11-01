@@ -2,7 +2,7 @@
 // bottom bar, controls are large enough to tap, and nothing scrolls sideways.
 import { test, expect, openSample, ready, overlayLines } from './helpers.mjs';
 
-const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock'];
+const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'form'];
 
 /** Elements wider than the screen, outside the areas that scroll on purpose. */
 function overflow(page) {

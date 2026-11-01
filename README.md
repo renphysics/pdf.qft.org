@@ -207,12 +207,13 @@ requests are still handled by the hosting platform.
 - Practical file capacity depends on available browser memory and device performance; very large documents may be slow or fail to open.
 - PNG/JPEG annotations up to 15 MB and 30 megapixels.
 - Latin and Chinese text with embedded Noto fonts.
-- Single-source form-preserving editing where the complete source page set is retained.
+- PDF forms (AcroForm): filled in Fill form and kept fillable, or flattened; see
+  [Forms](#forms). Forms made only in XFA are not supported.
 
 Existing paragraphs are not rewritten. Highlighting is not secure redaction.
 Existing digital signatures may be invalidated by changes. Merging, duplicating,
-or subsetting pages from interactive-form PDFs is intentionally rejected to
-avoid silently dropping fields. Chinese, Japanese kana and Korean Hangul use Noto
+or subsetting pages from a PDF with form fields needs its fields flattened
+first; otherwise it is rejected, rather than silently dropping fields. Chinese, Japanese kana and Korean Hangul use Noto
 Sans CJK SC. Only the glyphs used are embedded, so such text typically adds 50–150 KB
 to a download. The font itself (16 MB) is downloaded once, the first time such text
 is typed, and then comes from the browser cache.
@@ -221,25 +222,30 @@ is typed, and then comes from the browser cache.
 
 tests/engine.test.mjs exercises exported output with independent PDF.js text
 and geometry checks: cropping, rotation, numbering, annotation types, Unicode,
-merge/extract/reorder, password-protected input and output, and form handling. It uses the development dependencies installed by `npm ci`.
+merge/extract/reorder, password-protected input and output, and form handling.
+tests/forms.test.mjs fills and flattens a two-page form
+(`tests/fixtures/form-fields.pdf`, made by `scripts/make-form-fixture.mjs`). They
+use the development dependencies installed by `npm ci`.
 
-Browser tests in `tests/browser/` drive the real site in Chromium with
-[Playwright](https://playwright.dev): opening files and the sample, typing and
+Browser tests in `tests/browser/` drive the real site with
+[Playwright](https://playwright.dev) in Chromium, WebKit (Safari's engine) and
+Firefox: opening files and the sample, typing and
 dragging text, undo and redo, every tool, downloads that match the preview
 (pixels, and line widths for Chinese and Korean text), PDF/A and
-password-protected files, signatures, JPG to PDF and PDF to JPG, batch
-processing, continuous scrolling (the current page, editing any page, zoom, a
-400-page document), phones (layout, 44 px targets, no sideways scrolling,
-swiping between pages) and axe accessibility checks. A `release` project
-stamps a copy of the site and serves it under `/pdf.qft.org/`, as GitHub
-Pages does, to check versioned URLs
-and the export worker. They run in CI for pull requests and before every
-deployment. Locally:
+password-protected files, signatures, filling forms, JPG to PDF and PDF to
+JPG, batch processing, continuous scrolling (the current page, editing any
+page, zoom, a 400-page document), phones (layout, 44 px targets, no sideways
+scrolling, swiping between pages; an iPhone in Chromium and in WebKit) and axe
+accessibility checks. A `release` project stamps a copy of the site and serves
+it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
+export worker. They run in CI for pull requests (one job per browser) and
+before every deployment. Locally:
 
 ```sh
 npm ci
-npx playwright install chromium   # once
+npx playwright install chromium webkit firefox   # once; installed browsers are tested
 npm run test:browser
+BROWSERS=webkit npm run test:browser             # one browser
 ```
 
 `node scripts/serve.mjs` serves `dist/` the same way for a manual look
@@ -311,6 +317,32 @@ every page. Copies share one bytes object, and the engine embeds each image once
 per document, so a signature on 50 pages is stored once. It is kept in
 `localStorage` only when "Keep it on this device" is ticked; unticking removes it.
 This is a picture of a signature, not a certificate-based digital signature.
+
+## Forms
+
+Fill form (`/fill-pdf-form/`) fills in a PDF's form fields: text (single and
+multiple lines, boxed characters, maximum lengths), check boxes, radio buttons,
+dropdowns and lists. A PDF with fields opened from the home page opens in it.
+
+- The engine describes the fields when a PDF opens (`formFields` in
+  `pdf-engine.js`): each field's kind, label (its tooltip), value and settings,
+  and each widget's page and rectangle. Read-only, hidden, button and signature
+  fields are not offered for filling.
+- While Fill form is open, PDF.js draws the pages without their fields and the
+  editor puts inputs over them, turned and cropped with the page; Tab moves
+  through them in reading order, on to the next page. In the other tools and
+  the page strip, PDF.js draws the fields with the values typed (its annotation
+  storage), as readers will show the download.
+- Values are part of the document state (`state.formValues`), so each change is
+  an undo step. On export they are written to the fields, and changed fields get
+  new appearances in a font that has their characters (Helvetica, Noto Sans or
+  Noto Sans CJK), with automatic text sizes worked out as PDF.js does; their
+  default appearance is kept, so other apps edit them as before.
+- “Flatten fields on download” (`state.flattenForms`) makes the visible fields
+  part of their pages and removes the form. A flattened form's pages can be
+  combined with other PDFs, extracted, deleted or split.
+- Calculations and checks built into a form do not run. A form that also has an
+  XFA version loses it once fields are filled here.
 
 ## Passwords
 

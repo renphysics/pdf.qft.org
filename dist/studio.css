@@ -1895,3 +1895,94 @@ summary:focus-visible {
   max-width: 100%;
   max-height: 90px;
 }
+
+/* Fill form: inputs over a page's form fields (renderFormLayer in app.js). The
+   page image leaves the fields out while these are shown. */
+.form-layer {
+  --field-rgb: 37 99 235;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.form-field {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  outline: 1px solid rgb(var(--field-rgb) / 0.35);
+  outline-offset: -1px;
+  background: rgb(var(--field-rgb) / 0.1);
+  color: #000000;
+  font-family: 'QFT Helvetica', 'Liberation Sans', Arial, sans-serif;
+  line-height: 1.15;
+  transform-origin: 0 0;
+  pointer-events: auto;
+  appearance: none;
+  resize: none;
+}
+.form-field:hover {
+  background: rgb(var(--field-rgb) / 0.17);
+}
+.form-field:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 0;
+  background: rgb(255 255 255 / 0.96);
+}
+textarea.form-field {
+  padding-top: 1px;
+  line-height: 1.35;
+  overflow: auto;
+}
+/* One character per box. */
+.form-comb {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+.form-field.form-required {
+  outline: 1px dashed var(--color-danger);
+}
+.form-field.form-required:focus {
+  outline: 2px solid var(--color-focus);
+}
+input.form-checkbox,
+input.form-radio {
+  padding: 0;
+  cursor: pointer;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+input.form-radio {
+  border-radius: 50%;
+}
+input.form-checkbox:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.6l3.2 3.1L13 4.6' fill='none' stroke='%23111' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 80% 80%;
+}
+input.form-radio:checked {
+  background-image: radial-gradient(circle, #111111 0 34%, transparent 37%);
+}
+select.form-dropdown {
+  padding-right: 1.1em;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23333' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-position: right 0.3em center;
+  background-repeat: no-repeat;
+  background-size: 0.6em auto;
+}
+select.form-list {
+  overflow-y: auto;
+  background-color: rgb(255 255 255 / 0.9);
+}
+select.form-list option {
+  padding: 0 2px;
+}
+.form-field:disabled,
+.form-field[readonly] {
+  outline-style: dotted;
+  background: transparent;
+  cursor: default;
+}

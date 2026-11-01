@@ -893,7 +893,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     }
   } else {
     for (const source of loaded.values()) {
-      if (hasAcroForm(source) && source.getForm().getFields().length) throw new Error('Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields” in Fill form, then try again.');
+      if (hasAcroForm(source) && source.getForm().getFields().length) throw new Error('Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.');
     }
     doc = await lib.PDFDocument.create();
     doc.setProducer('QFT PDF');
