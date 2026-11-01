@@ -144,9 +144,48 @@ function visibleGeometry(page) {
   return boxGeometry(visibleBox(page.getMediaBox(), page.getCropBox()), page.getRotation().angle);
 }
 
+/** The document's XMP metadata as text, or null. */
+function metadataXml(doc) {
+  try {
+    const lib = library();
+    const stream = doc.catalog.lookup(lib.PDFName.of('Metadata'));
+    if (!(stream instanceof lib.PDFRawStream)) return null;
+    return new TextDecoder().decode(lib.decodePDFRawStream(stream).decode());
+  } catch {
+    return null;
+  }
+}
+
+/** The PDF/A part (1–4) a document declares in its XMP metadata, or null. */
+function pdfaPart(doc) {
+  const xml = metadataXml(doc);
+  const match = xml && (/<pdfaid:part>\s*(\d)\s*<\/pdfaid:part>/.exec(xml) || /\bpdfaid:part\s*=\s*["'](\d)["']/.exec(xml));
+  return match ? Number(match[1]) : null;
+}
+
 /**
- * Page sizes in visible orientation, for layout before rendering, and whether
- * the PDF has interactive form fields (they limit merging and extracting).
+ * Stop the document claiming PDF/A conformance, keeping the rest of its
+ * metadata. Used when added content (non-embedded standard fonts,
+ * transparency) means the result can no longer meet PDF/A rules.
+ */
+function removePdfaIdentification(doc) {
+  const lib = library();
+  const xml = metadataXml(doc);
+  if (!xml) return;
+  const cleaned = xml
+    .replace(/\s*<pdfaid:(part|conformance|amd|rev|corr)>[\s\S]*?<\/pdfaid:\1>/g, '')
+    .replace(/\s+pdfaid:(part|conformance|amd|rev|corr)\s*=\s*(?:"[^"]*"|'[^']*')/g, '');
+  const stream = doc.context.stream(new TextEncoder().encode(cleaned), { Type: 'Metadata', Subtype: 'XML' });
+  const name = lib.PDFName.of('Metadata');
+  const ref = doc.catalog.get(name);
+  if (ref instanceof lib.PDFRef) doc.context.assign(ref, stream);
+  else doc.catalog.set(name, doc.context.register(stream));
+}
+
+/**
+ * Page sizes in visible orientation, for layout before rendering, whether the
+ * PDF has interactive form fields (they limit merging and extracting), and the
+ * PDF/A part it declares, if any.
  */
 export async function inspectPdf(bytes) {
   const doc = await loadPdf(bytes);
@@ -154,7 +193,7 @@ export async function inspectPdf(bytes) {
     const { width, height, rotation, cropBox } = visibleGeometry(page);
     return { index, width, height, rotation, cropBox };
   });
-  return { pages, pageCount: pages.length, hasForm: doc.getForm().getFields().length > 0 };
+  return { pages, pageCount: pages.length, hasForm: doc.getForm().getFields().length > 0, pdfa: pdfaPart(doc) };
 }
 
 function color(hex, fallback) {
@@ -248,21 +287,23 @@ async function fontFor(getFont, text, pageIndex, itemId) {
 
 async function drawTextAnnotation(page, geometry, annotation, getFont, pageIndex) {
   const text = textValue(annotation.text);
-  if (!text.trim()) return;
+  if (!text.trim()) return false;
   const font = await fontFor(getFont, text, pageIndex, annotation.id);
   const layout = layoutTextAnnotation(annotation, geometry, font);
   if (layout.problem) throw pageError(layout.problem, pageIndex, annotation.id);
   const options = { font, size: layout.size, color: color(annotation.color), opacity: number(annotation.opacity, 1, 0, 1) };
   for (const line of layout.lines) page.drawText(line.text, { ...options, x: line.x, y: line.y });
+  return layout.lines.length > 0;
 }
 
 async function drawAnnotation(doc, page, geometry, annotation, getFont, pageIndex) {
   if (annotation.type === 'text') return drawTextAnnotation(page, geometry, annotation, getFont, pageIndex);
   const rect = layoutRect(annotation, geometry);
-  if (!rect) return;
+  if (!rect) return false;
   const options = { ...rect, opacity: number(annotation.opacity, 1, 0, 1) };
   if (annotation.type === 'highlight') {
     page.drawRectangle({ ...options, color: color(annotation.color, '#f5d85c'), opacity: number(annotation.opacity, 0.3, 0, 1), blendMode: library().BlendMode.Multiply });
+    return true;
   } else if (annotation.type === 'image') {
     if (!annotation.imageBytes) throw new Error('Choose a PNG or JPEG image to add to the PDF.');
     try {
@@ -273,28 +314,34 @@ async function drawAnnotation(doc, page, geometry, annotation, getFont, pageInde
     } catch {
       throw new Error('This image could not be added. Choose a valid PNG or JPEG image.');
     }
+    return true;
   }
+  return false;
 }
 
 async function drawWatermark(page, geometry, setting, getFont, pageIndex, total) {
   const text = watermarkText(setting, pageIndex + 1, total);
-  if (!text.trim()) return;
+  if (!text.trim()) return false;
   const font = await fontFor(getFont, text, pageIndex, 'watermark');
   const mark = layoutWatermark(setting, geometry, font, text);
   page.drawText(text, {
     x: mark.x, y: mark.y, size: mark.size, font, color: color(setting.color, '#85948e'),
     opacity: number(setting.opacity, 0.15, 0, 1), rotate: library().degrees(mark.angle),
   });
+  return true;
 }
 
 async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, fallback) {
+  let drew = false;
   for (const item of items) {
     if (!item.text.trim()) continue;
     const font = await fontFor(getFont, item.text, pageIndex, item.key);
     const placed = layoutMarginText(geometry, item, font);
     if (placed.problem) throw pageError(placed.problem, pageIndex, item.key);
     page.drawText(placed.text, { x: placed.x, y: placed.y, size: placed.size, font, color: color(hex, fallback) });
+    drew = true;
   }
+  return drew;
 }
 
 /**
@@ -306,6 +353,16 @@ async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, f
  * would silently lose the interactive form structure.
  */
 export async function buildPdf(state, onProgress = () => {}) {
+  return (await buildPdfWithNotes(state, onProgress)).bytes;
+}
+
+/**
+ * Like buildPdf, with notes about the result for the person downloading it:
+ * 'pdfa-removed' means the source declared PDF/A, and the added content means
+ * the copy no longer does (PDF/A forbids standard fonts that are not embedded,
+ * and PDF/A-1 also forbids transparency).
+ */
+export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const lib = await loadPdfLib();
   const sources = state?.sources || [];
   const descriptors = state?.pages || [];
@@ -330,9 +387,13 @@ export async function buildPdf(state, onProgress = () => {}) {
   const noDuplicates = new Set(descriptors.map((page) => `${page.sourceId}:${page.index}`)).size === descriptors.length;
   let doc;
   let outputPages;
+  // The PDF/A part the kept document declares. Copied pages start a fresh,
+  // undeclared document.
+  let pdfa = null;
   const completeSource = oneSource && descriptors.length === loaded.get(needed[0]).getPageCount();
   if (completeSource && noDuplicates) {
     doc = loaded.get(needed[0]);
+    pdfa = pdfaPart(doc);
     const originalPages = doc.getPages();
     outputPages = descriptors.map((descriptor) => originalPages[descriptor.index]);
     // Reuse original PDFPage objects to preserve the original document's form tree.
@@ -365,6 +426,7 @@ export async function buildPdf(state, onProgress = () => {}) {
   const getFont = fontManager(doc);
   const annotations = state.annotations || [];
   const total = outputPages.length;
+  let added = false;
   for (let index = 0; index < total; index++) {
     const page = outputPages[index];
     const descriptor = descriptors[index];
@@ -378,25 +440,32 @@ export async function buildPdf(state, onProgress = () => {}) {
     for (const annotation of annotations.filter((item) => item.pageId === descriptor.id)) {
       const placement = placementGeometry(source, descriptor, annotation);
       page.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(...placement.matrix));
-      await drawAnnotation(doc, page, placement, annotation, getFont, index);
+      added = (await drawAnnotation(doc, page, placement, annotation, getFont, index)) || added;
       page.pushOperators(lib.popGraphicsState());
     }
     page.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(...geometry.matrix));
-    if (applies(state.watermark, descriptor.id)) await drawWatermark(page, geometry, state.watermark, getFont, index, total);
+    if (applies(state.watermark, descriptor.id)) added = (await drawWatermark(page, geometry, state.watermark, getFont, index, total)) || added;
     if (applies(state.headerFooter, descriptor.id)) {
-      await drawMarginItems(page, geometry, headerFooterItems(state.headerFooter, geometry, index + 1, total), state.headerFooter.color, getFont, index, '#53635d');
+      added = (await drawMarginItems(page, geometry, headerFooterItems(state.headerFooter, geometry, index + 1, total), state.headerFooter.color, getFont, index, '#53635d')) || added;
     }
     if (applies(state.pageNumbers, descriptor.id)) {
-      await drawMarginItems(page, geometry, [pageNumberItem(state.pageNumbers, geometry, index + 1, total)], state.pageNumbers.color, getFont, index, '#53635d');
+      added = (await drawMarginItems(page, geometry, [pageNumberItem(state.pageNumbers, geometry, index + 1, total)], state.pageNumbers.color, getFont, index, '#53635d')) || added;
     }
     page.pushOperators(lib.popGraphicsState());
     onProgress(0.1 + 0.8 * (index + 1) / total);
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  const output = await doc.save({ useObjectStreams: true });
+  const notes = [];
+  if (pdfa && added) {
+    removePdfaIdentification(doc);
+    pdfa = null;
+    notes.push('pdfa-removed');
+  }
+  // Object streams keep files small, but PDF/A-1 forbids them.
+  const output = await doc.save({ useObjectStreams: pdfa !== 1 });
   onProgress(1);
-  return output;
+  return { bytes: output, notes };
 }
 
 /** Parse an inclusive, one-based list like "1-3, 5" into zero-based indexes. */

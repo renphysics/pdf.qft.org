@@ -1,4 +1,10 @@
-import { inspectPdf, buildPdf, parsePageRange, cropMarginsForRotation, loadPdfLib } from './pdf-engine.js';
+import {
+  inspectPdf,
+  buildPdfWithNotes,
+  parsePageRange,
+  cropMarginsForRotation,
+  loadPdfLib,
+} from './pdf-engine.js';
 import { planSplit, splitPdf, createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
 import { TOOL_PAGES } from './routes.js';
@@ -2210,7 +2216,7 @@ function exportWorker() {
         else {
           jobs.delete(data.id);
           if (data.error) job.reject(Object.assign(new Error(data.error.message), data.error));
-          else job.resolve(data.bytes);
+          else job.resolve({ bytes: data.bytes, notes: data.notes || [] });
         }
       });
       worker.addEventListener('error', (event) => {
@@ -2248,20 +2254,23 @@ async function build(input, onProgress) {
   }
   // No module workers here: build on this page instead.
   exporter = false;
-  return buildPdf(input, onProgress);
+  return buildPdfWithNotes(input, onProgress);
 }
-/** The document as a PDF. Reuses the last build while nothing has changed. */
+/**
+ * The document as a PDF: { bytes, notes } (see buildPdfWithNotes). Reuses the
+ * last build while nothing has changed.
+ */
 async function exportDocument(input = null, label = 'Preparing your PDF…') {
   stopEditing();
-  if (!input && ui.exported?.version === ui.version) return ui.exported.bytes;
+  if (!input && ui.exported?.version === ui.version) return ui.exported.result;
   const version = ui.version;
   busy(true, label);
   try {
-    const bytes = await build(input || snapshot(), (progress) => {
+    const result = await build(input || snapshot(), (progress) => {
       $('#busy-message').textContent = label + ' ' + Math.round(progress * 100) + '%';
     });
-    if (!input) ui.exported = { version, bytes };
-    return bytes;
+    if (!input) ui.exported = { version, result };
+    return result;
   } finally {
     ui.cancelExport = null;
     busy(false);
@@ -2301,13 +2310,19 @@ function outputName(suffix = 'edited') {
   const base = sources.length === 1 ? sources[0].name.replace(/\.pdf$/i, '') : 'combined';
   return base + '-' + suffix + '.pdf';
 }
+/** What a download message adds about the file, from the build's notes. */
+function exportNotes(notes) {
+  return notes.includes('pdfa-removed')
+    ? ' It’s no longer marked as PDF/A (archival), because added text and marks don’t meet PDF/A rules.'
+    : '';
+}
 async function downloadDocument() {
   try {
     const version = ui.version,
-      bytes = await exportDocument();
+      { bytes, notes } = await exportDocument();
     downloadBytes(bytes, outputName());
     ui.savedVersion = version;
-    toast('Your edited PDF has been downloaded.');
+    toast('Your edited PDF has been downloaded.' + exportNotes(notes));
   } catch (error) {
     showExportError(error);
   }
@@ -2319,7 +2334,7 @@ async function downloadSelected() {
     extraction.pages = extraction.pages.filter((p) => ids.has(p.id));
     const problem = formProblem(extraction.pages);
     if (problem) throw new Error(problem);
-    const bytes = await exportDocument(extraction, 'Preparing selected pages…');
+    const { bytes } = await exportDocument(extraction, 'Preparing selected pages…');
     downloadBytes(bytes, outputName('selected'));
     toast(
       extraction.pages.length +
@@ -2911,7 +2926,7 @@ async function generateSplit() {
         { mode: values.mode, size: Number(values.size), ranges: values.ranges },
         state.pages.length,
       );
-    const bytes = await exportDocument();
+    const { bytes } = await exportDocument();
     ui.cancelOperation = false;
     busy(true, 'Creating split PDFs…');
     cancellable('Cancel splitting', null);

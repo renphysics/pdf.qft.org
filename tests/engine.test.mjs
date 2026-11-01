@@ -18,7 +18,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { inspectPdf, buildPdf, parsePageRange, cropMarginsForRotation } = await import('../dist/pdf-engine.js');
+const { inspectPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
@@ -256,6 +256,44 @@ for (const crop of [{ left: -.1 }, { top: NaN }, { right: Infinity }, { left: .8
 }
 await assert.rejects(buildPdf({ sources: cropState.sources, pages: [{ id: 'p', sourceId: 'a', index: 0, crop: { left: .999 } }] }), /at least 1 PDF point/);
 
+// PDF/A: a declared PDF/A file exports unchanged (PDF/A-1 forbids object
+// streams), keeps its declaration while only pages change, and stops claiming
+// PDF/A once content is added, keeping the rest of its metadata.
+async function pdfaFixture(part, conformance, attributeForm) {
+  const pdf = await PDFDocument.create();
+  pdf.addPage([400, 300]).drawText('Archived page', { x: 40, y: 200, size: 18, font: await pdf.embedFont(StandardFonts.Helvetica) });
+  const id = attributeForm
+    ? `<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="${part}" pdfaid:conformance="${conformance}"/>`
+    : `<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>${part}</pdfaid:part><pdfaid:conformance>${conformance}</pdfaid:conformance></rdf:Description>`;
+  const xmp = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title><rdf:Alt><rdf:li xml:lang="x-default">Archiv für Berichte</rdf:li></rdf:Alt></dc:title></rdf:Description>${id}</rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+  const { PDFName } = globalThis.PDFLib;
+  pdf.catalog.set(PDFName.of('Metadata'), pdf.context.register(pdf.context.stream(new TextEncoder().encode(xmp), { Type: 'Metadata', Subtype: 'XML' })));
+  return pdf.save({ useObjectStreams: false });
+}
+function metadataOf(bytes) {
+  const { PDFName } = globalThis.PDFLib;
+  return PDFDocument.load(bytes).then((pdf) => new TextDecoder().decode(globalThis.PDFLib.decodePDFRawStream(pdf.catalog.lookup(PDFName.of('Metadata'))).decode()));
+}
+for (const [part, conformance, attributeForm] of [[1, 'B', false], [1, 'A', false], [2, 'B', true]]) {
+  const label = `PDF/A-${part}${conformance.toLowerCase()}`;
+  const bytes = await pdfaFixture(part, conformance, attributeForm);
+  assert.equal((await inspectPdf(bytes)).pdfa, part, `${label} is detected`);
+  const one = { sources: [{ id: 'a', bytes }], pages: [{ id: 'p', sourceId: 'a', index: 0 }] };
+  const unchanged = await buildPdfWithNotes(one);
+  assert.deepEqual(unchanged.notes, [], `${label}: nothing to report for an unchanged export`);
+  assert.match(await metadataOf(unchanged.bytes), /pdfaid:part/, `${label}: an unchanged export still declares PDF/A`);
+  assert.equal(Buffer.from(unchanged.bytes).includes('/ObjStm'), part !== 1, `${label}: object streams ${part === 1 ? 'are not' : 'may be'} used`);
+  const turned = await buildPdfWithNotes({ ...one, pages: [{ id: 'p', sourceId: 'a', index: 0, rotation: 90 }] });
+  assert.deepEqual(turned.notes, [], `${label}: turning a page keeps PDF/A`);
+  const edited = await buildPdfWithNotes({ ...one, watermark: { text: 'DRAFT', pages: 'all' } });
+  assert.deepEqual(edited.notes, ['pdfa-removed'], `${label}: added content is reported`);
+  const metadata = await metadataOf(edited.bytes);
+  assert.doesNotMatch(metadata, /pdfaid:(part|conformance)/, `${label}: the PDF/A declaration is removed`);
+  assert.match(metadata, /Archiv für Berichte/, `${label}: the rest of the metadata is kept`);
+  assert.equal((await inspectPdf(edited.bytes)).pdfa, null);
+  assert.ok((await extract(edited.bytes))[0].items.some((item) => item.text === 'DRAFT'));
+}
+
 const formDoc = await PDFDocument.create();
 const formPage = formDoc.addPage();
 const field = formDoc.getForm().createTextField('name');
@@ -275,4 +313,4 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
-console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
