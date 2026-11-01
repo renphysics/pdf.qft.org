@@ -159,11 +159,12 @@ test('a 400-page document keeps only the pages near the view', async ({ page }) 
   await expect(page.locator('.page-view.current')).toHaveAttribute('data-number', '350');
   await expect(page.locator('.page-view.current canvas')).toHaveAttribute('aria-label', 'Page 350 of 400');
 
-  // Scroll up through many pages with the wheel: the page number follows, and only nearby pages are kept.
+  // Scroll up through many pages with the wheel (browsers scroll different amounts per
+  // turn): the page number follows, and only nearby pages are kept.
   const view = await page.locator('#canvas-scroll').boundingBox();
   await page.mouse.move(view.x + view.width / 2, view.y + view.height / 2);
   for (let i = 0; i < 30; i++) await page.mouse.wheel(0, -1200);
-  await expect.poll(async () => Number(await page.locator('#page-jump').inputValue())).toBeLessThan(330);
+  await expect.poll(async () => Number(await page.locator('#page-jump').inputValue())).toBeLessThan(340);
   await ready(page);
   const after = await kept();
   expect(after.pages).toBeLessThanOrEqual(8);
