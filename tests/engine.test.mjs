@@ -454,6 +454,7 @@ const formOutput = await buildPdf({ sources: [{ id: 'form', bytes: formBytes }],
 assert.equal((await PDFDocument.load(formOutput)).getForm().getTextField('name').getText(), 'Preserved field value');
 await assert.rejects(buildPdf({ sources: [{ id: 'form', bytes: formBytes }, { id: 'a', bytes: fixtureBytes }], pages: [{ id: 'f1', sourceId: 'form', index: 0 }, { id: 'a1', sourceId: 'a', index: 0 }] }), /interactive forms/);
 await assert.rejects(inspectPdf(new Uint8Array([1, 2, 3])), /could not be opened/);
+await assert.rejects(inspectPdf(new TextEncoder().encode('%PDF-1.7 broken')), /could not be opened/, 'A header without a page tree is not a PDF');
 await assert.rejects(buildPdf({ sources: [], pages: [] }), /at least one page/);
 await assert.rejects(buildPdf({ sources: [{ id: 'a', bytes: fixtureBytes }], pages: [{ id: 'x', sourceId: 'a', index: 9 }] }), /does not exist/);
 await assert.rejects(buildPdf({ sources: [{ id: 'a', bytes: fixtureBytes }], pages: [{ id: 'x', sourceId: 'a', index: 0 }], annotations: [{ pageId: 'x', type: 'text', text: '🦄' }] }), /cannot display/);

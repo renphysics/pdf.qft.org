@@ -1038,6 +1038,9 @@ summary:focus-visible {
 
 /* Phones: the four tool filters form an even 2 x 2 grid instead of wrapping unevenly. */
 @media (max-width: 720px) {
+  .reuse-settings .text-button {
+    min-height: 44px;
+  }
   .tool-filters {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1795,4 +1798,9 @@ summary:focus-visible {
   height: 16px;
   margin-top: 3px;
   color: var(--color-accent);
+}
+@media (max-width: 720px) {
+  .check-field {
+    min-height: 44px;
+  }
 }

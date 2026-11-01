@@ -171,7 +171,14 @@ export async function loadPdf(bytes, password = '') {
       throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.', { cause: error });
     }
   }
-  if (!doc.getPageCount()) throw new Error('This PDF has no pages.');
+  // A file can parse without a usable page tree (a header and little else).
+  let pageCount;
+  try {
+    pageCount = doc.getPageCount();
+  } catch (error) {
+    throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.', { cause: error });
+  }
+  if (!pageCount) throw new Error('This PDF has no pages.');
   // Decrypting leaves the encryption dictionary behind with nothing referring to
   // it. Drop it: its password hashes should not travel with an unlocked copy.
   if (doc.context.isDecrypted) {
