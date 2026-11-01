@@ -29,7 +29,7 @@ export const PAGES = [
     faqs: [
       ['Can I change text after adding it?', 'Yes. Drag it to move it, drag its edge to change where lines wrap, or select it to change the words, size, colour or alignment. Undo and Redo cover every change.'],
       ['Can I edit the text that is already in my PDF?', 'No. QFT PDF adds new text, images and highlights on top of the page; it does not rewrite existing paragraphs.'],
-      ['Which languages can I type?', 'Latin-script languages and Chinese. Chinese text embeds a complete font, which adds about 14 MB to the downloaded file.'],
+      ['Which languages can I type?', 'Latin-script languages and Chinese, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes, not megabytes. The Chinese font (16 MB) downloads once, the first time you type it.'],
       ['What images can I add?', 'PNG or JPG files up to 15 MB and 30 megapixels. They keep their original proportions.'],
       ['Can a highlight hide information?', 'No. Highlights are translucent marks, not secure redaction; the text underneath is still there.'],
     ],

@@ -39,9 +39,25 @@ const FONT_FILES = {
   cjk: new URL('./assets/fonts/NotoSansCJKsc-Regular.otf', import.meta.url),
 };
 
-/** Run a bundled UMD library: a script tag in a page; a module import in a worker. */
-function runScript(url) {
-  if (typeof document === 'undefined') return import(url);
+/**
+ * Run a bundled library script: a script tag in a page; a module import in a
+ * worker. Run as a module, a bundle's top-level `var` stays inside the module.
+ * fontkit's bundle also exports through CommonJS when a `module` exists, so in
+ * a worker it gets one for the import, and its export becomes the global.
+ */
+async function runScript(name, url) {
+  if (typeof document === 'undefined') {
+    if (name !== 'fontkit') return import(url);
+    const commonjs = { exports: {} };
+    globalThis.module = commonjs;
+    try {
+      await import(url);
+    } finally {
+      delete globalThis.module;
+    }
+    if (typeof commonjs.exports?.create === 'function') globalThis.fontkit = commonjs.exports;
+    return;
+  }
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = url;
@@ -60,7 +76,7 @@ function loadGlobal(name, failure) {
   if (globalThis[name]) return Promise.resolve(globalThis[name]);
   if (typeof document === 'undefined' && typeof WorkerGlobalScope === 'undefined') return Promise.reject(new Error(failure));
   if (!scriptLoads.has(name)) {
-    const loading = runScript(VENDOR_SCRIPTS[name].href).then(
+    const loading = runScript(name, VENDOR_SCRIPTS[name].href).then(
       () => globalThis[name] || Promise.reject(new Error(failure)),
       () => Promise.reject(new Error(failure)),
     );
@@ -81,35 +97,6 @@ export function loadPdfLib() {
 function loadFontkit() {
   if (!globalThis.fontkit && globalThis.Fontkit) return Promise.resolve(globalThis.Fontkit);
   return loadGlobal('fontkit', 'The text font engine did not load. Check your connection, then try again.');
-}
-
-const subsetAdapters = new WeakMap();
-/**
- * @cantoo/pdf-lib serializes a font subset with subset.encode() when that
- * method exists, as fontkit 2 provides it. @pdf-lib/fontkit 1.1.1 also has an
- * encode(), but an internal one that needs a stream, so its subsets are offered
- * with only encodeStream(), which pdf-lib uses otherwise. A fontkit whose
- * encode() takes no arguments is used as it is.
- */
-function subsetCompatible(fontkit) {
-  if (!subsetAdapters.has(fontkit)) {
-    subsetAdapters.set(fontkit, {
-      create(...args) {
-        const font = fontkit.create(...args);
-        if (typeof font?.createSubset !== 'function') return font;
-        const createSubset = font.createSubset.bind(font);
-        font.createSubset = () => {
-          const subset = createSubset();
-          if (typeof subset.encode !== 'function' || subset.encode.length === 0 || typeof subset.encodeStream !== 'function') {
-            return subset;
-          }
-          return { cff: subset.cff, includeGlyph: (glyph) => subset.includeGlyph(glyph), encodeStream: () => subset.encodeStream() };
-        };
-        return font;
-      },
-    });
-  }
-  return subsetAdapters.get(fontkit);
 }
 
 /** Synchronous access for code that runs after loadPdfLib() has resolved. */
@@ -353,6 +340,8 @@ async function getFontBytes(kind) {
   return fontBytes.get(kind);
 }
 
+const PLAIN_GLYPHS = { liga: false, clig: false, calt: false };
+
 /** One font per kind for a document, loaded when first needed. */
 function fontLoader(doc) {
   const fonts = new Map();
@@ -361,11 +350,15 @@ function fontLoader(doc) {
       const loading = (async () => {
         if (kind === 'standard') return doc.embedFont(library().StandardFonts.Helvetica);
         // fontkit is only needed for non-ASCII text, so it is fetched on demand.
-        doc.registerFontkit(subsetCompatible(await loadFontkit()));
-        // CFF subsets from fontkit are not reliably accepted by all PDF readers.
-        // Embed the complete CJK OTF so exported Chinese text also renders in
-        // native readers; the Latin TrueType font can be safely subset.
-        return doc.embedFont(await getFontBytes(kind), { subset: kind !== 'cjk' });
+        doc.registerFontkit(await loadFontkit());
+        // Only the glyphs used are embedded. @cantoo/fontkit subsets the CJK
+        // font's CFF outlines correctly (older fontkit's CFF subsets did not open
+        // in every reader, so the whole 16 MB font used to be embedded).
+        // Glyphs are plain, as the preview draws them (.ov-text in studio.css): no
+        // ligatures or contextual alternates (in Hangul text the CJK font's calt
+        // widens spaces). pdf-lib never applies kerning: each glyph keeps its own
+        // advance width.
+        return doc.embedFont(await getFontBytes(kind), { subset: true, features: PLAIN_GLYPHS });
       })();
       fonts.set(kind, loading);
       loading.catch(() => fonts.delete(kind));

@@ -246,3 +246,25 @@ source review does not replace the owner’s browser verification.
 - Library fix: protected files kept strings outside object streams (such as the
   document language) unencrypted, so readers showed garbage; now encrypted, and
   checked with PDF.js. The engine test fails without the fix.
+
+## Smaller Chinese text: @cantoo/fontkit subsets — 2026-11-01
+
+- fontkit is now `@cantoo/fontkit` 2.0.12. Its subsets of Noto Sans CJK SC's CFF
+  outlines are valid, so only the glyphs used are embedded: five lines of Chinese,
+  Japanese kana and Korean add about 60 KB to a download instead of 13.5 MB, and
+  the export takes about 0.4 s instead of 4 s. Korean keeps working.
+- Checked in three independent renderers. PDFium (Chrome) and MuPDF draw the subset
+  like the whole font; older fontkit's subset failed in both (MuPDF: "unknown file
+  format"; PDFium drew almost nothing). PDF.js reads the new subset without warnings
+  and warned about the old one; the engine test fails on those warnings.
+- Also fixed: with the whole font embedded, digits and spaces in CJK text were far
+  too wide in downloads ("1  2  3"). Widths now match the preview (engine test).
+- The CJK font's contextual alternates widened spaces in Hangul text, which the
+  preview (no ligatures or alternates) did not draw. The export now uses the same
+  plain glyphs: preview and download of Chinese, Korean and kana text match pixel
+  for pixel (0.000%). Latin text is unchanged (at most 0.002% of pixels).
+- The bundle is half the size (387 KB instead of 758 KB). The export worker loads it
+  through its CommonJS export; both the worker and the no-worker fallback produce
+  the same download.
+- Not checked here: Adobe Acrobat and Apple Preview. Please open a download with
+  Chinese and Korean text in both before relying on it.

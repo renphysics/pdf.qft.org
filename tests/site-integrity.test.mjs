@@ -121,7 +121,7 @@ await stat(path.join(site, '.nojekyll'));
 // These upstream license files must accompany the files sent to visitors.
 for (const name of [
   'licenses/QFT-PDF-MIT.txt', 'licenses/THIRD-PARTY.txt', 'licenses/pdf-lib-MIT.txt', 'licenses/pdfjs-Apache-2.0.txt',
-  'licenses/pdf-lib-dependencies.txt', 'licenses/fontkit-dependencies/NOTICES.txt', 'licenses/fontkit-dependencies/README.md',
+  'licenses/pdf-lib-dependencies.txt', 'licenses/fontkit-dependencies.txt',
   'licenses/fontkit-MIT.txt', 'licenses/NotoSans-OFL.txt', 'licenses/NotoSansCJK-OFL.txt',
   'assets/vendor/cmaps/LICENSE', 'assets/vendor/standard_fonts/LICENSE_FOXIT',
   'assets/vendor/standard_fonts/LICENSE_LIBERATION', 'assets/vendor/iccs/LICENSE',

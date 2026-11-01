@@ -163,6 +163,13 @@ npm pack @cantoo/pdf-lib@<version>    # in an empty directory
 python3 scripts/collect-pdf-lib-notices.py --tarball <that .tgz> --cache <empty directory>
 ```
 
+fontkit is [`@cantoo/fontkit`](https://github.com/cantoo-scribe/fontkit), whose font
+subsets work for the CFF outlines of the CJK font (older fontkit's did not, so that
+font used to be embedded whole). Update it the same way: copy
+`dist/fontkit.umd.min.js`, then run `scripts/collect-fontkit-notices.py` with its
+npm tarball. Embedded text uses each glyph's own advance, with no ligatures,
+contextual alternates or kerning, exactly as the preview draws it.
+
 The script confirms the bundle is the official npm build and pins every
 library inside it to the npm release whose files match the bundle's embedded
 sources byte for byte.
@@ -198,8 +205,10 @@ requests are still handled by the hosting platform.
 Existing paragraphs are not rewritten. Highlighting is not secure redaction.
 Existing digital signatures may be invalidated by changes. Merging, duplicating,
 or subsetting pages from interactive-form PDFs is intentionally rejected to
-avoid silently dropping fields. Chinese text adds approximately 14 MB to output,
-because the complete CJK font is embedded for compatibility.
+avoid silently dropping fields. Chinese, Japanese kana and Korean Hangul use Noto
+Sans CJK SC. Only the glyphs used are embedded, so such text typically adds 50–150 KB
+to a download. The font itself (16 MB) is downloaded once, the first time such text
+is typed, and then comes from the browser cache.
 
 ## Validation
 

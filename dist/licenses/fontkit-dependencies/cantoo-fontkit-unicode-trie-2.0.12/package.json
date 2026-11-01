@@ -1,0 +1,56 @@
+{
+  "name": "@cantoo/unicode-trie",
+  "version": "1.0.5",
+  "description": "Unicode Trie data structure for fast character metadata lookup, ported from ICU (fflate, no tiny-inflate/pako)",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/index.umd.js",
+  "jsdelivr": "./dist/index.umd.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./builder.js": {
+      "types": "./dist/builder.d.ts",
+      "import": "./dist/builder.mjs",
+      "require": "./dist/builder.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "index.d.ts",
+    "builder.d.ts",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../../scripts/build-unicode-packages.js",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/cantoo-scribe/fontkit.git",
+    "directory": "src/packages/unicode-trie"
+  },
+  "author": "Devon Govett <devongovett@gmail.com>",
+  "contributors": [
+    "Cantoo"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "unicode",
+    "trie",
+    "icu"
+  ]
+}

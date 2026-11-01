@@ -1,0 +1,22 @@
+@cantoo/fontkit 2.0.12 — bundled dependency notices
+
+The application’s MIT license does not replace the licenses below.
+The shipped fontkit.umd.min.js is identical to the official @cantoo/fontkit 2.0.12 npm UMD build,
+a maintained fork of fontkit (https://github.com/foliojs/fontkit). Its own license is
+fontkit-MIT.txt. The bundle’s source map identifies the bundled packages; each version
+below is the npm release whose files match the bundled sources byte for byte.
+
+Full preserved notices and package metadata are in fontkit-dependencies/:
+
+- base64-js 1.5.1 — MIT. Directory: base64-js-1.5.1/
+- brotli 1.3.3 — MIT. Directory: brotli-1.3.3/
+  Its decoder sources keep Google’s Apache License 2.0 headers; the license text is included.
+- dfa 1.2.0 — MIT. Directory: dfa-1.2.0/
+- fflate 0.8.3 — MIT. Directory: fflate-0.8.3/
+- restructure 3.0.2 — MIT. Directory: restructure-3.0.2/
+- @cantoo/unicode-properties (fontkit’s src/packages/unicode-properties) — MIT. Directory: cantoo-fontkit-unicode-properties-2.0.12/
+  Its Unicode property data come from the Unicode Character Database: Unicode License V3.
+- @cantoo/unicode-trie (fontkit’s src/packages/unicode-trie) — MIT. Directory: cantoo-fontkit-unicode-trie-2.0.12/
+
+Package download URLs, integrity hashes, and the verification method are recorded in
+scripts/vendor-license-provenance.json in the source repository.

@@ -21,15 +21,15 @@
   },
   "assets/vendor/versions.json": {
     "bytes": 241,
-    "sha256": "727e461d017ac22425a13b15511ba025fd84f30df35a4f03bc154d25ec70a443"
+    "sha256": "43c95340da3f93a60136a4042dee287a67705c0a8e4e5de36d28a11eecc39985"
   },
   "assets/vendor/pdf-lib.min.js": {
     "bytes": 616746,
     "sha256": "2294a0bb8742d8948ae2d49a60cb6a3600c0b5deae6de198e57fb368d1b79ba9"
   },
   "assets/vendor/fontkit.umd.min.js": {
-    "bytes": 758440,
-    "sha256": "d8df561b9fba98e24f2e5130e40948809281bbbc55a20c412359f1a0a5eb35a6"
+    "bytes": 386741,
+    "sha256": "2e8ff09acf511603309720615bcc8cffe10982ecb8a9e0c456c5de0cda195448"
   },
   "assets/vendor/cmaps/GBTpc-EUC-H.bcmap": {
     "bytes": 7298,

@@ -7,7 +7,7 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const runtime = process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../node_modules');
 globalThis.PDFLib = require(path.join(runtime, '@cantoo/pdf-lib'));
-globalThis.fontkit = require('../node_modules/@pdf-lib/fontkit');
+globalThis.fontkit = require(path.join(runtime, '@cantoo/fontkit'));
 const { DOMMatrix, ImageData, Path2D, createCanvas } = require(path.join(runtime, '@napi-rs/canvas'));
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 const nativeFetch = globalThis.fetch;
@@ -18,7 +18,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation } = await import('../dist/pdf-engine.js');
+const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
@@ -151,6 +151,50 @@ const latin = await buildPdf({
 await writeFile(path.join(outputDir, 'latin-subset-export.pdf'), latin);
 assert.ok((await extract(latin))[0].items.some((item) => item.text === 'Café crème, déjà vu'), 'Latin text is extractable');
 assert.ok(latin.length - fixtureBytes.length < 60000, `Noto Sans is subset, not embedded whole (+${latin.length - fixtureBytes.length} bytes)`);
+
+// Chinese, Japanese kana and Korean text embed only the glyphs used from the 16 MB
+// Noto Sans CJK font (the whole font used to be embedded, adding 13.5 MB). Older
+// fontkit's subsets of this CFF font were broken: PDF.js warned ("Out of bounds
+// subrIndex") and drew other glyphs. Widths must also match what the preview
+// measures: with the whole font embedded, digits and spaces in CJK text came out
+// far too wide.
+/** PDF.js warnings while rendering every page (they arrive on stderr). */
+async function renderWarnings(data) {
+  const warnings = [];
+  const write = process.stderr.write;
+  process.stderr.write = (chunk, ...rest) => (String(chunk).includes('Warning:') ? (warnings.push(String(chunk).trim()), true) : write.call(process.stderr, chunk, ...rest));
+  try {
+    const doc = await pdfjs.getDocument({ data: data.slice(), verbosity: 1, standardFontDataUrl: path.join(runtime, 'pdfjs-dist/standard_fonts/') }).promise;
+    for (let number = 1; number <= doc.numPages; number++) {
+      const page = await doc.getPage(number);
+      const viewport = page.getViewport({ scale: 1 });
+      const surface = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+      await page.render({ canvasContext: surface.getContext('2d'), viewport, canvas: surface }).promise;
+    }
+    await doc.loadingTask.destroy();
+  } finally {
+    process.stderr.write = write;
+  }
+  return warnings;
+}
+const cjkLines = ['中文测试：你好，世界！欢迎使用。', '繁體字測試：臺灣、香港。', '日本語：ひらがな、カタカナ。', '한국어 테스트: 안녕하세요.', 'Mixed 混合 ABC abc 123 — “引号”'];
+const cjk = await buildPdf({
+  sources: [{ id: 'a', bytes: fixtureBytes }], pages: [{ id: 'c', sourceId: 'a', index: 0 }],
+  annotations: cjkLines.map((text, index) => ({ id: `cjk${index}`, type: 'text', pageId: 'c', pageRotation: 0, text, x: .05, y: .1 + index * .12, autoWidth: true, fontSize: 14 })),
+});
+await writeFile(path.join(outputDir, 'cjk-subset-export.pdf'), cjk);
+assert.ok(cjk.length - fixtureBytes.length < 300000, `Noto Sans CJK is subset, not embedded whole (+${cjk.length - fixtureBytes.length} bytes)`);
+assert.deepEqual(await renderWarnings(cjk), [], 'PDF.js reads the CJK subset without font warnings');
+const cjkFont = await measuringFont('cjk');
+const cjkItems = (await extract(cjk))[0].items;
+for (const line of cjkLines) {
+  const item = cjkItems.find((candidate) => candidate.text === line);
+  assert.ok(item, `"${line}" is extractable as written`);
+  const doc = await pdfjs.getDocument({ data: cjk.slice(), verbosity: 0 }).promise;
+  const width = (await (await doc.getPage(1)).getTextContent()).items.find((candidate) => candidate.str === line).width;
+  await doc.loadingTask.destroy();
+  approx(width, cjkFont.widthOfTextAtSize(line, 14), `"${line}" is as wide as the preview measures it`, 0.05);
+}
 
 // A note placed before rotation must rotate with the original page; a later
 // note placed in the rotated view must remain upright in that newer view.
@@ -418,4 +462,4 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
-console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
