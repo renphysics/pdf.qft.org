@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtime = process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES || path.join(root, 'node_modules');
 globalThis.PDFLib = require(path.join(runtime, '@cantoo/pdf-lib'));
-globalThis.fontkit = require(path.join(root, 'node_modules/@pdf-lib/fontkit'));
+globalThis.fontkit = require(path.join(root, 'node_modules/@cantoo/fontkit'));
 const nativeFetch = globalThis.fetch;
 globalThis.fetch = async (url, options) => {
   if (String(url).startsWith('file:')) {

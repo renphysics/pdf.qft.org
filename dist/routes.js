@@ -18,5 +18,8 @@ export const TOOL_PAGES = Object.freeze({
   split: 'split-pdf',
   protect: 'protect-pdf',
   unlock: 'unlock-pdf',
+  signature: 'sign-pdf',
+  jpgtopdf: 'jpg-to-pdf',
+  pdftojpg: 'pdf-to-jpg',
   batch: 'batch-edit-pdf',
 });

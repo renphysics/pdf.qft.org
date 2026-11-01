@@ -163,6 +163,13 @@ npm pack @cantoo/pdf-lib@<version>    # in an empty directory
 python3 scripts/collect-pdf-lib-notices.py --tarball <that .tgz> --cache <empty directory>
 ```
 
+fontkit is [`@cantoo/fontkit`](https://github.com/cantoo-scribe/fontkit), whose font
+subsets work for the CFF outlines of the CJK font (older fontkit's did not, so that
+font used to be embedded whole). Update it the same way: copy
+`dist/fontkit.umd.min.js`, then run `scripts/collect-fontkit-notices.py` with its
+npm tarball. Embedded text uses each glyph's own advance, with no ligatures,
+contextual alternates or kerning, exactly as the preview draws it.
+
 The script confirms the bundle is the official npm build and pins every
 library inside it to the npm release whose files match the bundle's embedded
 sources byte for byte.
@@ -198,14 +205,36 @@ requests are still handled by the hosting platform.
 Existing paragraphs are not rewritten. Highlighting is not secure redaction.
 Existing digital signatures may be invalidated by changes. Merging, duplicating,
 or subsetting pages from interactive-form PDFs is intentionally rejected to
-avoid silently dropping fields. Chinese text adds approximately 14 MB to output,
-because the complete CJK font is embedded for compatibility.
+avoid silently dropping fields. Chinese, Japanese kana and Korean Hangul use Noto
+Sans CJK SC. Only the glyphs used are embedded, so such text typically adds 50–150 KB
+to a download. The font itself (16 MB) is downloaded once, the first time such text
+is typed, and then comes from the browser cache.
 
 ## Validation
 
 tests/engine.test.mjs exercises exported output with independent PDF.js text
 and geometry checks: cropping, rotation, numbering, annotation types, Unicode,
 merge/extract/reorder, password-protected input and output, and form handling. It uses the development dependencies installed by `npm ci`.
+
+Browser tests in `tests/browser/` drive the real site in Chromium with
+[Playwright](https://playwright.dev): opening files and the sample, typing and
+dragging text, undo and redo, every tool, downloads that match the preview
+(pixels, and line widths for Chinese and Korean text), PDF/A and
+password-protected files, signatures, JPG to PDF and PDF to JPG, batch
+processing, phones (layout, 44 px targets, no sideways scrolling) and axe
+accessibility checks. A `release` project stamps a copy of the site and
+serves it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs
+and the export worker. They run in CI for pull requests and before every
+deployment. Locally:
+
+```sh
+npm ci
+npx playwright install chromium   # once
+npm run test:browser
+```
+
+`node scripts/serve.mjs` serves `dist/` the same way for a manual look
+(<http://127.0.0.1:4173/>).
 
 `scripts/create-sample.py` optionally regenerates the original three-page sample
 and test fixtures. It requires Python `reportlab` and `pypdf`, plus
@@ -239,6 +268,40 @@ It hides outside content, **not secure redaction**. Existing crop-box offsets,
 native and added rotations, mixed sizes, and placed annotations are supported.
 Watermarks, headers, footers, and page numbers follow the resulting visible
 page bounds. Files continue to be processed entirely in the browser.
+
+## JPG to PDF and PDF to JPG
+
+JPG and PNG files open as pages, alone or with PDFs (`dist/convert.js`,
+`imagesToPdf` in `pdf-engine.js`). Each picture becomes a one-page source on A4 or
+US Letter (chosen from the browser's language), turned to suit the picture, or at
+its own size (96 pixels per inch), with an optional margin; pictures are never
+enlarged. JPEG data goes into the PDF unchanged, except that a photo whose EXIF
+orientation turns it is saved again upright, since PDF ignores that tag. Changing
+the page size or margin lays the picture pages out again as one undo step. With
+Add an image, a picture added from the page strip goes on the page instead.
+
+PDF to JPG draws pages with PDF.js from the PDF as it downloads (edits included,
+no password) on white, at 72, 150 or 300 dpi (smaller for pages that would exceed
+16 million pixels, a browser limit), as JPG or PNG. One page downloads as a picture;
+several download as a ZIP. Word, Excel and PowerPoint conversion is not offered: it
+would need a server or a very large download.
+
+## Signatures
+
+Sign PDF (`/sign-pdf/`) makes a signature in the browser, as a transparent PNG
+(`dist/signature.js`): drawn with a mouse, finger or pen (pointer events, three
+times the screen resolution); typed in Allura, a handwriting font bundled from
+`@fontsource/allura` (OFL, no Reserved Font Name; drawn on a canvas, never embedded
+in PDFs); or uploaded, with the paper made transparent around the ink (anything
+clearly lighter than the picture's median brightness fades out). Signatures are
+cropped to the ink.
+
+A signature is placed like an image: at a click, near the lower right of the page,
+or on every page in one step, and a placed one can be copied to the same spot on
+every page. Copies share one bytes object, and the engine embeds each image once
+per document, so a signature on 50 pages is stored once. It is kept in
+`localStorage` only when "Keep it on this device" is ticked; unticking removes it.
+This is a picture of a signature, not a certificate-based digital signature.
 
 ## Passwords
 

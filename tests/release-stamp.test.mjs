@@ -16,7 +16,7 @@ const script = path.join(root, 'scripts/stamp-release.mjs');
 const toolPages = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 const files = [
   'index.html', 'licenses/index.html', ...toolPages, 'app.js', 'routes.js', 'layout.js', 'preview.js', 'pdf-engine.js',
-  'export-worker.js', 'workflows.js', 'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
+  'export-worker.js', 'workflows.js', 'batch-ui.js', 'signature.js', 'convert.js', 'style.css', 'studio.css', 'batch.css',
   'assets/vendor/pdf.mjs', 'assets/vendor/pdf.worker.mjs', 'assets/vendor/pdf-lib.min.js', 'assets/vendor/fontkit.umd.min.js',
 ];
 const workspace = await mkdtemp(path.join(tmpdir(), 'qft-stamp-'));
@@ -52,6 +52,9 @@ try {
   assert(app.includes(`from ${engineUrl}`) && app.includes(`from './workflows.js?v=${release}'`) && app.includes(`from './batch-ui.js?v=${release}'`));
   assert(app.includes(`from './routes.js?v=${release}'`), 'routes.js versioned');
   assert(app.includes(`from './layout.js?v=${release}'`) && app.includes(`from './preview.js?v=${release}'`));
+  assert(app.includes(`from './signature.js?v=${release}'`), 'signature.js versioned');
+  assert(app.includes(`from './convert.js?v=${release}'`), 'convert.js versioned');
+  assert((await read('convert.js')).includes(`from './preview.js?v=${release}'`), 'convert.js imports the release preview');
   assert(app.includes(`new URL('./export-worker.js?v=${release}', import.meta.url)`), 'export worker versioned');
   const preview = await read('preview.js');
   assert(preview.includes(`from './layout.js?v=${release}'`) && preview.includes(`from ${engineUrl}`));
@@ -78,8 +81,8 @@ try {
       checked++;
     }
   }
-  const expected = 4 + 2 + 4 * toolPages.length + 7 + 4 + 4 + 1 + 1 + 2;
-  assert.equal(checked, expected, 'versioned references: 4 per page (home and tools), 2 licenses, 7 app.js, 4 preview, 4 engine, 1 export worker, 1 workflows, 2 batch');
+  const expected = 4 + 2 + 4 * toolPages.length + 9 + 4 + 4 + 1 + 1 + 2 + 1;
+  assert.equal(checked, expected, 'versioned references: 4 per page (home and tools), 2 licenses, 9 app.js, 4 preview, 4 engine, 1 export worker, 1 workflows, 2 batch, 1 convert');
 
   // Stamping is single-shot, deterministic, and changes with first-party content.
   assert.throws(() => stamp(first), /already stamped/);

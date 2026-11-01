@@ -1,34 +1,6 @@
-@pdf-lib/fontkit 1.1.1 — LICENSE DECLARATION AND ATTRIBUTION
-
-The exact npm package declares "license": "MIT" in package.json and identifies:
-Author: Andrew Dillon <andrew.dillon.j@gmail.com>
-Contributor: Devon Govett <devongovett@gmail.com> (http://badassjs.com/)
-These are upstream metadata credits, not a newly invented copyright notice.
-
-The published package contains no standalone LICENSE file and supplies no
-package-level copyright statement. We preserve its declared MIT terms below
-without inventing a copyright holder, year, or additional upstream grant.
-The original README is preserved in fontkit-README.md, and original package
-metadata is preserved in fontkit-dependencies/fontkit-package.json.
-
-Source repository: https://github.com/Hopding/fontkit
-Exact artifact: https://registry.npmjs.org/@pdf-lib/fontkit/-/fontkit-1.1.1.tgz
-
-Embedded dependencies retain their own licenses. Complete collected license
-texts and source notices for 32 dependency/version records are provided in:
-fontkit-dependencies/NOTICES.txt
-Machine-readable versions, archive integrity, source paths, and verification:
-fontkit-dependencies/provenance.json
-Audit method and remaining upstream notice limitations:
-fontkit-dependencies/README.md
-
-The preserved unminified official bundle, fontkit-bundled-source.js, also
-retains its upstream inline notices. The served minified bundle is unchanged.
-
-The following is the standard text of the upstream-declared MIT license,
-not a claim that this entire third-party bundle is licensed solely under MIT.
-
 MIT License
+
+Copyright (c) 2014-present Devon Govett
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

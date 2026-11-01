@@ -2,6 +2,7 @@
   "@cantoo/pdf-lib": "2.11.1",
   "pdfjs-dist": "6.4.299",
   "NotoSans-Regular": "Version 2.015; ttfautohint (v1.8.4.7-5d5b)",
-  "@pdf-lib/fontkit": "1.1.1",
-  "NotoSansCJKsc-Regular": "Version 2.004;hotconv 1.0.118;makeotfexe 2.5.65603"
+  "@cantoo/fontkit": "2.0.12",
+  "NotoSansCJKsc-Regular": "Version 2.004;hotconv 1.0.118;makeotfexe 2.5.65603",
+  "Allura (@fontsource/allura)": "5.3.0"
 }

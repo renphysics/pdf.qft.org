@@ -29,9 +29,32 @@ export const PAGES = [
     faqs: [
       ['Can I change text after adding it?', 'Yes. Drag it to move it, drag its edge to change where lines wrap, or select it to change the words, size, colour or alignment. Undo and Redo cover every change.'],
       ['Can I edit the text that is already in my PDF?', 'No. QFT PDF adds new text, images and highlights on top of the page; it does not rewrite existing paragraphs.'],
-      ['Which languages can I type?', 'Latin-script languages and Chinese. Chinese text embeds a complete font, which adds about 14 MB to the downloaded file.'],
+      ['Which languages can I type?', 'Latin-script languages and Chinese, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes, not megabytes. The Chinese font (16 MB) downloads once, the first time you type it.'],
       ['What images can I add?', 'PNG or JPG files up to 15 MB and 30 megapixels. They keep their original proportions.'],
       ['Can a highlight hide information?', 'No. Highlights are translucent marks, not secure redaction; the text underneath is still there.'],
+    ],
+  },
+  {
+    tool: 'signature',
+    name: 'Sign PDF',
+    title: 'Sign a PDF for free, in your browser — QFT PDF',
+    description:
+      'Draw, type or upload your signature and place it on one page or every page of a PDF. Free, no sign-up, and your PDF and signature stay on your device.',
+    eyebrow: 'SIGN PDF',
+    heading: ['Sign a PDF.', 'Your signature, right where it belongs.'],
+    intro: 'Draw your signature, type your name, or use a picture of it, then place it on the page and download.',
+    upload: { text: 'Drop a PDF here to sign it.', cta: 'Choose a PDF to sign' },
+    how: ['How to sign', 'a PDF.'],
+    steps: [
+      OPEN_STEP,
+      ['Make your signature.', 'Draw it with a mouse, finger or pen, type your name in a handwriting style, or upload a picture of it.'],
+      ['Place it and download.', 'Click the page where it belongs, or add it to every page. Drag it into place, resize it, then save your copy.'],
+    ],
+    faqs: [
+      ['Is my signature uploaded?', 'No. It is made and placed in your browser. It stays on this device only if you choose “Keep it on this device”, and you can remove it any time.'],
+      ['Is this a legally binding signature?', 'It is an electronic signature: a picture of your signature on the page. Many everyday documents accept one, but some require a certificate-based digital signature, which QFT PDF does not create. Check what the recipient needs.'],
+      ['Can I sign every page at once?', 'Yes. Add your signature to every page in one step, or place it once and copy it to the same spot on all pages. The PDF stores the picture only once.'],
+      ['Can I use a photo of my signature?', 'Yes. Upload a PNG or JPG of your signature on light paper; QFT PDF can make the paper transparent so only the ink shows.'],
     ],
   },
   {
@@ -223,6 +246,57 @@ export const PAGES = [
       ['Can I split a PDF that has fillable form fields?', 'Not yet. Rather than silently losing the fields, QFT PDF asks you to save a flattened copy in your PDF reader first.'],
       ['Is there a page limit?', 'No fixed limit. Very large documents depend on your device’s memory.'],
       ['Is my PDF uploaded?', 'No. The parts are created in your browser and never leave your device.'],
+    ],
+  },
+  {
+    tool: 'jpgtopdf',
+    name: 'JPG to PDF',
+    title: 'Convert JPG and PNG to PDF for free — QFT PDF',
+    description:
+      'Turn photos, scans and screenshots into PDF pages: A4, Letter or their own size, in the order you choose. Free, and your pictures stay on your device.',
+    eyebrow: 'JPG TO PDF',
+    heading: ['Convert JPG to PDF.', 'Pictures in, one tidy PDF out.'],
+    intro: 'Turn photos, scans and screenshots into PDF pages, put them in order, and download a single PDF.',
+    upload: {
+      heading: 'Start with your pictures.',
+      text: 'Drop JPG or PNG pictures here.',
+      cta: 'Choose pictures',
+      meta: 'JPG and PNG · PDFs can join them',
+    },
+    how: ['How to convert', 'JPG to PDF.'],
+    steps: [
+      ['Choose your pictures.', 'Select one or more JPG or PNG files. Photos are turned upright automatically.'],
+      ['Arrange the pages.', 'Pick A4, Letter or the pictures’ own size and a margin, then drag pages into order. Add text or page numbers if you like.'],
+      ['Download one PDF.', 'Save all the pictures as pages of a single PDF.'],
+    ],
+    faqs: [
+      ['Are my pictures uploaded?', 'No. The PDF is made in your browser and the pictures never leave your device.'],
+      ['Does it lose quality?', 'No. JPG photos go into the PDF as they are; a photo is saved again only if it has to be turned upright.'],
+      ['Can I mix pictures and PDFs?', 'Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document.'],
+      ['Can I convert Word or PowerPoint files?', 'Not here. Converting Office files needs a server or a very large download, and QFT PDF keeps everything on your device. Save them as PDF from the app that made them.'],
+    ],
+  },
+  {
+    tool: 'pdftojpg',
+    name: 'PDF to JPG',
+    title: 'Convert PDF to JPG or PNG for free — QFT PDF',
+    description:
+      'Save PDF pages as JPG or PNG pictures at screen or print quality, one page or all of them in a ZIP. Free, and your file stays on your device.',
+    eyebrow: 'PDF TO JPG',
+    heading: ['Convert PDF to JPG.', 'Every page, as a picture.'],
+    intro: 'Save pages as JPG or PNG pictures, exactly as they look, including any edits you make first.',
+    upload: { text: 'Drop a PDF here to save its pages as pictures.', cta: 'Choose a PDF' },
+    how: ['How to convert', 'PDF to JPG.'],
+    steps: [
+      OPEN_STEP,
+      ['Choose the pictures.', 'JPG or PNG; screen, standard or print quality; every page, the selected pages or the current one.'],
+      ['Save them.', 'One page downloads as a picture; several download together in a ZIP.'],
+    ],
+    faqs: [
+      ['Which quality should I choose?', 'Standard (150 dpi) suits screens and sharing. Choose High (300 dpi) for printing, and Screen (72 dpi) for the smallest files.'],
+      ['JPG or PNG?', 'JPG makes smaller files and suits photos. PNG keeps text and lines perfectly sharp but makes larger files.'],
+      ['Is my PDF uploaded?', 'No. The pages are drawn as pictures in your browser and never leave your device.'],
+      ['Can I convert PDF to Word?', 'Not here. That needs a server or a very large download, and QFT PDF keeps everything on your device.'],
     ],
   },
   {

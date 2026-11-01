@@ -14,20 +14,23 @@ Bundled dependencies and Adobe font-metric data: pdf-lib-dependencies.txt
 Original license/copyright files: pdf-lib-dependencies/
 These include MIT, 0BSD and Adobe AFM redistribution terms.
 
-@pdf-lib/fontkit 1.1.1
-MIT declared by the exact upstream package. Author metadata: Andrew Dillon;
-contributor metadata: Devon Govett. No upstream package-level copyright
-statement is invented here. See fontkit-MIT.txt for the declaration and terms.
-Source: https://github.com/Hopding/fontkit
-Exact package: https://registry.npmjs.org/@pdf-lib/fontkit/-/fontkit-1.1.1.tgz
+@cantoo/fontkit 2.0.12 (a maintained fork of fontkit)
+Devon Govett and contributors. MIT License.
+Source: https://github.com/cantoo-scribe/fontkit (fork of https://github.com/foliojs/fontkit)
+Exact package: https://registry.npmjs.org/@cantoo/fontkit/-/fontkit-2.0.12.tgz
+Full license: fontkit-MIT.txt
 Original README: fontkit-README.md
-Original unminified distribution: fontkit-bundled-source.js
-Full notices for its 32 embedded dependency/version records:
-fontkit-dependencies/NOTICES.txt
-Original package metadata, license files and source notices are preserved in
-fontkit-dependencies/. Machine-readable audit: fontkit-dependencies/provenance.json
-Audit method and upstream historical limitations: fontkit-dependencies/README.md
-These dependencies retain their MIT, BSD-3-Clause, ISC, Zlib and Apache-2.0 terms.
+Bundled dependencies and Unicode data: fontkit-dependencies.txt
+Original license/copyright files: fontkit-dependencies/
+These include MIT, the Apache License 2.0 headers of Google's Brotli decoder and the
+Unicode License V3 for the Unicode Character Database data.
+
+Allura (via @fontsource/allura 5.3.0)
+Copyright 2010 The Allura Project Authors (https://github.com/googlefonts/allura).
+SIL Open Font License 1.1, with no Reserved Font Name. Used to draw typed signatures;
+the font is not embedded in PDFs.
+Exact package: https://registry.npmjs.org/@fontsource/allura/-/allura-5.3.0.tgz
+Full license: Allura-OFL.txt
 
 PDF.js (pdfjs-dist) 6.4.299, legacy browser build
 Mozilla and contributors. Apache License 2.0.

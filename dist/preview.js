@@ -384,7 +384,7 @@ export function pageOverlay(state, pageIndex, { hide } = {}) {
               '"/>',
           ),
         );
-      } else if (annotation.type === 'image') {
+      } else if (annotation.type === 'image' || annotation.type === 'signature') {
         const opacity = number(annotation.opacity, 1, 0, 1);
         parts.push(
           group(

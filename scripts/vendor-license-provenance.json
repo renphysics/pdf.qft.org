@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verification": "All PDF.js files below match the official npm tarball byte-for-byte. pdf-lib.min.js matches the official @cantoo/pdf-lib npm UMD; its source map embeds every bundled source, and each third-party package is pinned to the npm release whose files match those sources byte for byte (the fork publishes no lockfile). Notices are copied from exact npm tarballs or clearly identified source headers.",
+  "verification": "All PDF.js files below match the official npm tarball byte-for-byte. pdf-lib.min.js and fontkit.umd.min.js match the official @cantoo/pdf-lib and @cantoo/fontkit npm UMD builds; their source maps embed every bundled source, and each third-party package is pinned to the npm release whose files match those sources byte for byte (neither fork publishes a lockfile). Notices are copied from exact npm tarballs or clearly identified source headers.",
   "pdf_lib": {
     "package": "@cantoo/pdf-lib",
     "version": "2.11.1",
@@ -1161,5 +1161,165 @@
         "sha256": "663d86126d5f5fcb1c61490f94353e2a8375660b8c5498ab3ebab5a34b08800e"
       }
     ]
+  },
+  "fontkit": {
+    "package": "@cantoo/fontkit",
+    "version": "2.0.12",
+    "published": "2026-09-11T01:22:32.593Z",
+    "upstream": "https://github.com/foliojs/fontkit",
+    "repository": "git://github.com/cantoo-scribe/fontkit.git",
+    "git_head": "09fb312281a7b33b44dcc40919fa509182de9594",
+    "tarball": "https://registry.npmjs.org/@cantoo/fontkit/-/fontkit-2.0.12.tgz",
+    "tarball_integrity": "sha512-B9ZE4pA3cUf3pzn7UaPCtjyejd1ie16SLquCqdlGQiDncFgn8iD29dU9vD3dSgKkxAUx2ttvjg/li9JVkj5+fQ==",
+    "tarball_sha256": "449f365aaedb6424b567f8aca6631db2c8e61523c7eeb92b87d42926106a6aba",
+    "bundle": "dist/fontkit.umd.min.js",
+    "bundle_sha256": "2e8ff09acf511603309720615bcc8cffe10982ecb8a9e0c456c5de0cda195448",
+    "source_map_sha256": "473bc273e882ea427b20d1d10daf5084b6dc3cfe5b4a65ca43dd87045d0c8f25",
+    "first_party_sources_matched": 120,
+    "dependencies": [
+      {
+        "name": "base64-js",
+        "version": "1.5.1",
+        "license": "MIT",
+        "author": "T. Jameson Little <t.jameson.little@gmail.com>",
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "git://github.com/beatgammit/base64-js.git"
+        },
+        "tarball": "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz",
+        "integrity": "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==",
+        "tarball_sha256": "b1b7a945b52685269083425216d6597e33d97bf21699d656e92fdb3eb5210a85",
+        "bundled_files_matched": 1,
+        "notice_directory": "base64-js-1.5.1",
+        "notice_files": [
+          "dist/licenses/fontkit-dependencies/base64-js-1.5.1/LICENSE"
+        ]
+      },
+      {
+        "name": "brotli",
+        "version": "1.3.3",
+        "license": "MIT",
+        "author": "Devon Govett <devongovett@gmail.com>",
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "https://github.com/devongovett/brotli.js.git"
+        },
+        "tarball": "https://registry.npmjs.org/brotli/-/brotli-1.3.3.tgz",
+        "integrity": "sha512-oTKjJdShmDuGW94SyyaoQvAjf30dZaHnjJ8uAF+u2/vGJkJbJPJAT1gDiOJP5v1Zb6f9KEyW/1HpuaWIXtGHPg==",
+        "tarball_sha256": "3c7c260f6263df95fee49a9119e9fd21227d628b6c9d99080a75edfd9e2bdb24",
+        "bundled_files_matched": 11,
+        "notice_directory": "brotli-1.3.3",
+        "notice_files": [
+          "dist/licenses/fontkit-dependencies/brotli-1.3.3/MIT-standard-text.txt",
+          "dist/licenses/fontkit-dependencies/brotli-1.3.3/SOURCE-NOTICES.txt",
+          "dist/licenses/fontkit-dependencies/brotli-1.3.3/Apache-2.0.txt"
+        ]
+      },
+      {
+        "name": "dfa",
+        "version": "1.2.0",
+        "license": "MIT",
+        "author": "Devon Govett <devongovett@gmail.com>",
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "git+ssh://git@github.com/devongovett/dfa.git"
+        },
+        "tarball": "https://registry.npmjs.org/dfa/-/dfa-1.2.0.tgz",
+        "integrity": "sha512-ED3jP8saaweFTjeGX8HQPjeC1YYyZs98jGNZx6IiBvxW7JG5v492kamAQB3m2wop07CvU/RQmzcKr6bgcC5D/Q==",
+        "tarball_sha256": "d781eb3a307ab6aa2d97028f695b17dbeadf6fd27788c333b1fb96d18d2a23ad",
+        "bundled_files_matched": 1,
+        "notice_directory": "dfa-1.2.0",
+        "notice_files": [
+          "dist/licenses/fontkit-dependencies/dfa-1.2.0/MIT-standard-text.txt"
+        ]
+      },
+      {
+        "name": "fflate",
+        "version": "0.8.3",
+        "license": "MIT",
+        "author": "Arjun Barrett <arjunbarrett@gmail.com>",
+        "contributors": null,
+        "repository": "https://github.com/101arrowz/fflate",
+        "tarball": "https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz",
+        "integrity": "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==",
+        "tarball_sha256": "38c2cd824402407b43153c782274aec2ea83ea688e4aa0b743c5f2c305857d92",
+        "bundled_files_matched": 1,
+        "notice_directory": "fflate-0.8.3",
+        "notice_files": [
+          "dist/licenses/fontkit-dependencies/fflate-0.8.3/LICENSE"
+        ]
+      },
+      {
+        "name": "restructure",
+        "version": "3.0.2",
+        "license": "MIT",
+        "author": "Devon Govett <devongovett@gmail.com>",
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "git://github.com/devongovett/restructure.git"
+        },
+        "tarball": "https://registry.npmjs.org/restructure/-/restructure-3.0.2.tgz",
+        "integrity": "sha512-gSfoiOEA0VPE6Tukkrr7I0RBdE0s7H1eFCDBk05l1KIQT1UIKNc5JZy6jdyW6eYH3aR3g5b3PuL77rq0hvwtAw==",
+        "tarball_sha256": "11c295b72e9326606649d26bde924942dd560183e0d6395564dbb54254134b41",
+        "bundled_files_matched": 15,
+        "notice_directory": "restructure-3.0.2",
+        "notice_files": [
+          "dist/licenses/fontkit-dependencies/restructure-3.0.2/LICENSE"
+        ]
+      }
+    ],
+    "in_tree_packages": [
+      {
+        "source": "src/packages/unicode-properties",
+        "name": "@cantoo/unicode-properties",
+        "version": "1.0.5",
+        "license": "MIT",
+        "author": "Devon Govett <devongovett@gmail.com>",
+        "bundled_files": 3,
+        "notice_directory": "cantoo-fontkit-unicode-properties-2.0.12",
+        "notice_files": [
+          "dist/licenses/fontkit-dependencies/cantoo-fontkit-unicode-properties-2.0.12/LICENSE",
+          "dist/licenses/fontkit-dependencies/cantoo-fontkit-unicode-properties-2.0.12/UNICODE-DATA-NOTICE.txt"
+        ],
+        "unicode_data": {
+          "license": "Unicode-3.0",
+          "terms_from": "https://registry.npmjs.org/cldr-core/-/cldr-core-49.0.0.tgz",
+          "terms_integrity": "sha512-2Z2dYeDO95AbKIG9dIUdZy6DD4f0hhHjTYnaHZj/9JTQ82pX5EsJlCs2BXPWi4vd1d98MwotOivh4Uthxwri4A=="
+        }
+      },
+      {
+        "source": "src/packages/unicode-trie",
+        "name": "@cantoo/unicode-trie",
+        "version": "1.0.5",
+        "license": "MIT",
+        "author": "Devon Govett <devongovett@gmail.com>",
+        "bundled_files": 2,
+        "notice_directory": "cantoo-fontkit-unicode-trie-2.0.12",
+        "notice_files": [
+          "dist/licenses/fontkit-dependencies/cantoo-fontkit-unicode-trie-2.0.12/LICENSE"
+        ]
+      }
+    ]
+  },
+  "allura": {
+    "package": "@fontsource/allura",
+    "version": "5.3.0",
+    "license": "OFL-1.1",
+    "attribution": "Copyright 2010 The Allura Project Authors (https://github.com/googlefonts/allura)",
+    "reserved_font_name": null,
+    "upstream": "https://github.com/googlefonts/allura",
+    "tarball": "https://registry.npmjs.org/@fontsource/allura/-/allura-5.3.0.tgz",
+    "tarball_integrity": "sha512-UqloNNVxl03+psvtIXCYuo7/v2mD9XmX2HGiczhK6NmDDwbFJJDjrbHZ5tpNuVXKsMEQPc46tZu3hewYN82/YA==",
+    "tarball_sha256": "2ee3e81f8c3777a6ccea66e7548eed2bb2077837d9026da7a9fc2dde8c6aca54",
+    "files": {
+      "dist/assets/fonts/allura-latin-400-normal.woff2": "package/files/allura-latin-400-normal.woff2",
+      "dist/assets/fonts/allura-latin-ext-400-normal.woff2": "package/files/allura-latin-ext-400-normal.woff2"
+    },
+    "license_file": "dist/licenses/Allura-OFL.txt",
+    "use": "Typed signatures are drawn with it in the browser and added to PDFs as images; the font itself is never embedded."
   }
 }

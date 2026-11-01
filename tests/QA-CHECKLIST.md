@@ -246,3 +246,71 @@ source review does not replace the owner’s browser verification.
 - Library fix: protected files kept strings outside object streams (such as the
   document language) unencrypted, so readers showed garbage; now encrypted, and
   checked with PDF.js. The engine test fails without the fix.
+
+## Smaller Chinese text: @cantoo/fontkit subsets — 2026-11-01
+
+- fontkit is now `@cantoo/fontkit` 2.0.12. Its subsets of Noto Sans CJK SC's CFF
+  outlines are valid, so only the glyphs used are embedded: five lines of Chinese,
+  Japanese kana and Korean add about 60 KB to a download instead of 13.5 MB, and
+  the export takes about 0.4 s instead of 4 s. Korean keeps working.
+- Checked in three independent renderers. PDFium (Chrome) and MuPDF draw the subset
+  like the whole font; older fontkit's subset failed in both (MuPDF: "unknown file
+  format"; PDFium drew almost nothing). PDF.js reads the new subset without warnings
+  and warned about the old one; the engine test fails on those warnings.
+- Also fixed: with the whole font embedded, digits and spaces in CJK text were far
+  too wide in downloads ("1  2  3"). Widths now match the preview (engine test).
+- The CJK font's contextual alternates widened spaces in Hangul text, which the
+  preview (no ligatures or alternates) did not draw. The export now uses the same
+  plain glyphs: preview and download of Chinese, Korean and kana text match pixel
+  for pixel (0.000%). Latin text is unchanged (at most 0.002% of pixels).
+- The bundle is half the size (387 KB instead of 758 KB). The export worker loads it
+  through its CommonJS export; both the worker and the no-worker fallback produce
+  the same download.
+- Not checked here: Adobe Acrobat and Apple Preview. Please open a download with
+  Chinese and Korean text in both before relying on it.
+
+## Browser tests in CI — 2026-11-01
+
+- `tests/browser/` (Playwright, Chromium) covers the journeys above: 33 tests, about
+  a minute. They run in the Test workflow for pull requests and in the Pages
+  workflow before deployment. Projects: `desktop` (1280 px), `phone` (iPhone 13,
+  touch) and `release` (a stamped copy served under `/pdf.qft.org/`).
+- They found three problems, now fixed: a damaged PDF (a header and no pages) showed
+  "Cannot read properties of undefined" instead of the "could not be opened"
+  message; on phones the "Use these settings in batch" link and the Show password
+  check box were under 44 px tall.
+- Downloads are compared with the preview pixel by pixel in the browser (at most
+  0.1% of pixels may differ, for anti-aliasing): Latin text, watermarks, headers and
+  footers, page numbers, and Chinese, Korean and kana text.
+
+## Sign PDF — 2026-11-01
+
+- Draw (mouse, finger, pen), type (Allura) or upload a signature; uploads get a
+  transparent background and are cropped to the ink. Use this signature is disabled
+  until there is something to use.
+- Click the page to place it, or Add it to page N (scrolled into view) / Add it to
+  every page; a placed signature can be copied to the same spot on every page. Undo
+  covers each step. Clicking the page before making one explains what to do.
+- Downloads store the picture once however many pages carry it (browser and engine
+  tests count the image objects).
+- Kept in this browser only with "Keep it on this device"; unticking removes it
+  (browser test reloads the page to check both).
+- axe: no violations while typing a signature, with it ready to place, and placed.
+  Phones: 44 px targets and no sideways scrolling with the Sign panel open.
+- Known limit: on phones, the 44 px corner handles can cover a small signature; move
+  it by dragging its middle or the handles, or resize it with the Width slider.
+
+## JPG to PDF and PDF to JPG — 2026-11-01
+
+- Pictures open as pages on their own or with PDFs (also from the page strip's Add
+  button); a photo tagged "turn 90°" (EXIF orientation 6) comes out upright. Page
+  size: A4 or Letter (by browser language), turned to suit each picture, or the
+  picture's own size; margin none, small or large; changing them is one undo step.
+  JPEG data is embedded unchanged (engine test).
+- PDF to JPG: JPG or PNG at 72, 150 or 300 dpi; every page (ZIP), the selected pages
+  or the current page (one picture). An A4 page at 150 dpi is 1240 x 1753 pixels.
+- With Add an image active, a picture added from the page strip is placed on the
+  page rather than added as a page.
+- axe: the JPG to PDF and PDF to JPG pages and panels have no violations; phones: 44
+  px targets and no sideways scrolling with either panel open.
+

@@ -39,9 +39,25 @@ const FONT_FILES = {
   cjk: new URL('./assets/fonts/NotoSansCJKsc-Regular.otf', import.meta.url),
 };
 
-/** Run a bundled UMD library: a script tag in a page; a module import in a worker. */
-function runScript(url) {
-  if (typeof document === 'undefined') return import(url);
+/**
+ * Run a bundled library script: a script tag in a page; a module import in a
+ * worker. Run as a module, a bundle's top-level `var` stays inside the module.
+ * fontkit's bundle also exports through CommonJS when a `module` exists, so in
+ * a worker it gets one for the import, and its export becomes the global.
+ */
+async function runScript(name, url) {
+  if (typeof document === 'undefined') {
+    if (name !== 'fontkit') return import(url);
+    const commonjs = { exports: {} };
+    globalThis.module = commonjs;
+    try {
+      await import(url);
+    } finally {
+      delete globalThis.module;
+    }
+    if (typeof commonjs.exports?.create === 'function') globalThis.fontkit = commonjs.exports;
+    return;
+  }
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = url;
@@ -60,7 +76,7 @@ function loadGlobal(name, failure) {
   if (globalThis[name]) return Promise.resolve(globalThis[name]);
   if (typeof document === 'undefined' && typeof WorkerGlobalScope === 'undefined') return Promise.reject(new Error(failure));
   if (!scriptLoads.has(name)) {
-    const loading = runScript(VENDOR_SCRIPTS[name].href).then(
+    const loading = runScript(name, VENDOR_SCRIPTS[name].href).then(
       () => globalThis[name] || Promise.reject(new Error(failure)),
       () => Promise.reject(new Error(failure)),
     );
@@ -81,35 +97,6 @@ export function loadPdfLib() {
 function loadFontkit() {
   if (!globalThis.fontkit && globalThis.Fontkit) return Promise.resolve(globalThis.Fontkit);
   return loadGlobal('fontkit', 'The text font engine did not load. Check your connection, then try again.');
-}
-
-const subsetAdapters = new WeakMap();
-/**
- * @cantoo/pdf-lib serializes a font subset with subset.encode() when that
- * method exists, as fontkit 2 provides it. @pdf-lib/fontkit 1.1.1 also has an
- * encode(), but an internal one that needs a stream, so its subsets are offered
- * with only encodeStream(), which pdf-lib uses otherwise. A fontkit whose
- * encode() takes no arguments is used as it is.
- */
-function subsetCompatible(fontkit) {
-  if (!subsetAdapters.has(fontkit)) {
-    subsetAdapters.set(fontkit, {
-      create(...args) {
-        const font = fontkit.create(...args);
-        if (typeof font?.createSubset !== 'function') return font;
-        const createSubset = font.createSubset.bind(font);
-        font.createSubset = () => {
-          const subset = createSubset();
-          if (typeof subset.encode !== 'function' || subset.encode.length === 0 || typeof subset.encodeStream !== 'function') {
-            return subset;
-          }
-          return { cff: subset.cff, includeGlyph: (glyph) => subset.includeGlyph(glyph), encodeStream: () => subset.encodeStream() };
-        };
-        return font;
-      },
-    });
-  }
-  return subsetAdapters.get(fontkit);
 }
 
 /** Synchronous access for code that runs after loadPdfLib() has resolved. */
@@ -184,7 +171,14 @@ export async function loadPdf(bytes, password = '') {
       throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.', { cause: error });
     }
   }
-  if (!doc.getPageCount()) throw new Error('This PDF has no pages.');
+  // A file can parse without a usable page tree (a header and little else).
+  let pageCount;
+  try {
+    pageCount = doc.getPageCount();
+  } catch (error) {
+    throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.', { cause: error });
+  }
+  if (!pageCount) throw new Error('This PDF has no pages.');
   // Decrypting leaves the encryption dictionary behind with nothing referring to
   // it. Drop it: its password hashes should not travel with an unlocked copy.
   if (doc.context.isDecrypted) {
@@ -353,6 +347,8 @@ async function getFontBytes(kind) {
   return fontBytes.get(kind);
 }
 
+const PLAIN_GLYPHS = { liga: false, clig: false, calt: false };
+
 /** One font per kind for a document, loaded when first needed. */
 function fontLoader(doc) {
   const fonts = new Map();
@@ -361,11 +357,15 @@ function fontLoader(doc) {
       const loading = (async () => {
         if (kind === 'standard') return doc.embedFont(library().StandardFonts.Helvetica);
         // fontkit is only needed for non-ASCII text, so it is fetched on demand.
-        doc.registerFontkit(subsetCompatible(await loadFontkit()));
-        // CFF subsets from fontkit are not reliably accepted by all PDF readers.
-        // Embed the complete CJK OTF so exported Chinese text also renders in
-        // native readers; the Latin TrueType font can be safely subset.
-        return doc.embedFont(await getFontBytes(kind), { subset: kind !== 'cjk' });
+        doc.registerFontkit(await loadFontkit());
+        // Only the glyphs used are embedded. @cantoo/fontkit subsets the CJK
+        // font's CFF outlines correctly (older fontkit's CFF subsets did not open
+        // in every reader, so the whole 16 MB font used to be embedded).
+        // Glyphs are plain, as the preview draws them (.ov-text in studio.css): no
+        // ligatures or contextual alternates (in Hangul text the CJK font's calt
+        // widens spaces). pdf-lib never applies kerning: each glyph keeps its own
+        // advance width.
+        return doc.embedFont(await getFontBytes(kind), { subset: true, features: PLAIN_GLYPHS });
       })();
       fonts.set(kind, loading);
       loading.catch(() => fonts.delete(kind));
@@ -430,6 +430,23 @@ async function drawTextAnnotation(page, geometry, annotation, getFont, pageIndex
   return layout.lines.length > 0;
 }
 
+const embeddedImages = new WeakMap();
+/**
+ * An image embedded in the document, once per image: a signature placed on
+ * every page is stored one time and drawn on each page. Placed copies share
+ * the same bytes object, also after the editor's state reaches the worker.
+ */
+function embeddedImage(doc, annotation) {
+  if (!embeddedImages.has(doc)) embeddedImages.set(doc, new Map());
+  const images = embeddedImages.get(doc);
+  if (!images.has(annotation.imageBytes)) {
+    images.set(annotation.imageBytes, annotation.imageType === 'jpg' || annotation.imageType === 'jpeg'
+      ? doc.embedJpg(annotation.imageBytes)
+      : doc.embedPng(annotation.imageBytes));
+  }
+  return images.get(annotation.imageBytes);
+}
+
 async function drawAnnotation(doc, page, geometry, annotation, getFont, pageIndex) {
   if (annotation.type === 'text') return drawTextAnnotation(page, geometry, annotation, getFont, pageIndex);
   const rect = layoutRect(annotation, geometry);
@@ -438,13 +455,10 @@ async function drawAnnotation(doc, page, geometry, annotation, getFont, pageInde
   if (annotation.type === 'highlight') {
     page.drawRectangle({ ...options, color: color(annotation.color, '#f5d85c'), opacity: number(annotation.opacity, 0.3, 0, 1), blendMode: library().BlendMode.Multiply });
     return true;
-  } else if (annotation.type === 'image') {
+  } else if (annotation.type === 'image' || annotation.type === 'signature') {
     if (!annotation.imageBytes) throw new Error('Choose a PNG or JPEG image to add to the PDF.');
     try {
-      const image = annotation.imageType === 'jpg' || annotation.imageType === 'jpeg'
-        ? await doc.embedJpg(annotation.imageBytes)
-        : await doc.embedPng(annotation.imageBytes);
-      page.drawImage(image, options);
+      page.drawImage(await embeddedImage(doc, annotation), options);
     } catch {
       throw new Error('This image could not be added. Choose a valid PNG or JPEG image.');
     }
@@ -613,6 +627,45 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const output = await doc.save({ useObjectStreams: pdfa !== 1 });
   onProgress(1);
   return { bytes: output, notes };
+}
+
+// Paper sizes in points, portrait.
+const PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
+
+/**
+ * A PDF with one page per picture ({ bytes, type: 'jpg' | 'png' }), centred.
+ * size 'fit' makes each page the picture's size (96 pixels per inch); 'a4' and
+ * 'letter' use that paper, turned to match the picture, with the picture as
+ * large as fits but not enlarged past 96 pixels per inch. margin is in points.
+ * JPEG data is embedded as it is.
+ */
+export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
+  const lib = await loadPdfLib();
+  if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');
+  if (size !== 'fit' && !PAPER[size]) throw new Error('Choose a page size: the picture’s own size, A4 or Letter.');
+  const doc = await lib.PDFDocument.create();
+  doc.setProducer('QFT PDF');
+  for (const image of images) {
+    let picture;
+    try {
+      picture = image.type === 'png' ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
+    } catch (error) {
+      throw new Error('A picture could not be read. Choose JPG or PNG files.', { cause: error });
+    }
+    const natural = { width: picture.width * 0.75, height: picture.height * 0.75 };
+    let pageWidth, pageHeight;
+    if (size === 'fit') {
+      pageWidth = natural.width + 2 * margin;
+      pageHeight = natural.height + 2 * margin;
+    } else {
+      const [short, long] = PAPER[size];
+      [pageWidth, pageHeight] = picture.width > picture.height ? [long, short] : [short, long];
+    }
+    const scale = size === 'fit' ? 1 : Math.min(1, (pageWidth - 2 * margin) / natural.width, (pageHeight - 2 * margin) / natural.height);
+    const width = natural.width * scale, height = natural.height * scale;
+    doc.addPage([pageWidth, pageHeight]).drawImage(picture, { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height });
+  }
+  return doc.save();
 }
 
 /** Parse an inclusive, one-based list like "1-3, 5" into zero-based indexes. */
