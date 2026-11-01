@@ -45,7 +45,8 @@ async function swipe(page, x, fromY, toY) {
   await cdp.detach();
 }
 
-test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({ page }) => {
+test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Swipes are sent through the Chromium DevTools protocol');
   await openSample(page, 'add-text-to-pdf/');
   await page.click('[data-action="dismiss-toast"]');
   const stage = await page.locator('#canvas-scroll').boundingBox();
