@@ -300,3 +300,17 @@ source review does not replace the owner’s browser verification.
 - Known limit: on phones, the 44 px corner handles can cover a small signature; move
   it by dragging its middle or the handles, or resize it with the Width slider.
 
+## JPG to PDF and PDF to JPG — 2026-11-01
+
+- Pictures open as pages on their own or with PDFs (also from the page strip's Add
+  button); a photo tagged "turn 90°" (EXIF orientation 6) comes out upright. Page
+  size: A4 or Letter (by browser language), turned to suit each picture, or the
+  picture's own size; margin none, small or large; changing them is one undo step.
+  JPEG data is embedded unchanged (engine test).
+- PDF to JPG: JPG or PNG at 72, 150 or 300 dpi; every page (ZIP), the selected pages
+  or the current page (one picture). An A4 page at 150 dpi is 1240 x 1753 pixels.
+- With Add an image active, a picture added from the page strip is placed on the
+  page rather than added as a page.
+- axe: the JPG to PDF and PDF to JPG pages and panels have no violations; phones: 44
+  px targets and no sideways scrolling with either panel open.
+

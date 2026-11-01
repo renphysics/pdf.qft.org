@@ -9,7 +9,7 @@ async function violations(page) {
 }
 
 test('home page, tool pages, licenses and batch', async ({ page }) => {
-  for (const address of ['./', 'merge-pdf/', 'protect-pdf/', 'licenses/']) {
+  for (const address of ['./', 'merge-pdf/', 'protect-pdf/', 'sign-pdf/', 'jpg-to-pdf/', 'pdf-to-jpg/', 'licenses/']) {
     await page.goto(address);
     expect(await violations(page), address).toEqual([]);
   }
@@ -35,7 +35,7 @@ test('every editor tool, with items selected and settings shown', async ({ page 
     await page.selectOption('#tool-form [name="scope"]', 'pages');
     expect(await violations(page), `${tool}, on some pages`).toEqual([]);
   }
-  for (const tool of ['image', 'pages', 'delete', 'crop', 'merge', 'split', 'protect', 'unlock', 'signature']) {
+  for (const tool of ['image', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'signature']) {
     await useTool(page, tool);
     await ready(page);
     expect(await violations(page), tool).toEqual([]);

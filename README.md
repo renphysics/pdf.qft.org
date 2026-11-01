@@ -218,10 +218,11 @@ merge/extract/reorder, password-protected input and output, and form handling. I
 
 Browser tests in `tests/browser/` drive the real site in Chromium with
 [Playwright](https://playwright.dev): opening files and the sample, typing and
-dragging text, undo and redo, every tool, downloads that match the preview pixel
-for pixel (including Chinese and Korean text), PDF/A and password-protected
-files, batch processing, phones (layout, 44 px targets, no sideways scrolling)
-and axe accessibility checks. A `release` project stamps a copy of the site and
+dragging text, undo and redo, every tool, downloads that match the preview
+(pixels, and line widths for Chinese and Korean text), PDF/A and
+password-protected files, signatures, JPG to PDF and PDF to JPG, batch
+processing, phones (layout, 44 px targets, no sideways scrolling) and axe
+accessibility checks. A `release` project stamps a copy of the site and
 serves it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs
 and the export worker. They run in CI for pull requests and before every
 deployment. Locally:
@@ -267,6 +268,23 @@ It hides outside content, **not secure redaction**. Existing crop-box offsets,
 native and added rotations, mixed sizes, and placed annotations are supported.
 Watermarks, headers, footers, and page numbers follow the resulting visible
 page bounds. Files continue to be processed entirely in the browser.
+
+## JPG to PDF and PDF to JPG
+
+JPG and PNG files open as pages, alone or with PDFs (`dist/convert.js`,
+`imagesToPdf` in `pdf-engine.js`). Each picture becomes a one-page source on A4 or
+US Letter (chosen from the browser's language), turned to suit the picture, or at
+its own size (96 pixels per inch), with an optional margin; pictures are never
+enlarged. JPEG data goes into the PDF unchanged, except that a photo whose EXIF
+orientation turns it is saved again upright, since PDF ignores that tag. Changing
+the page size or margin lays the picture pages out again as one undo step. With
+Add an image, a picture added from the page strip goes on the page instead.
+
+PDF to JPG draws pages with PDF.js from the PDF as it downloads (edits included,
+no password) on white, at 72, 150 or 300 dpi (smaller for pages that would exceed
+16 million pixels, a browser limit), as JPG or PNG. One page downloads as a picture;
+several download as a ZIP. Word, Excel and PowerPoint conversion is not offered: it
+would need a server or a very large download.
 
 ## Signatures
 

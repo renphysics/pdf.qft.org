@@ -1,5 +1,6 @@
 import {
   openPdf,
+  imagesToPdf,
   buildPdfWithNotes,
   parsePageRange,
   cropMarginsForRotation,
@@ -8,6 +9,7 @@ import {
 } from './pdf-engine.js';
 import { planSplit, splitPdf, createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
+import { isPicture, pagesToImages, pictureForPage } from './convert.js';
 import {
   forgetSignature,
   loadSignatureFont,
@@ -120,6 +122,12 @@ const ui = {
   signature: null,
   signatureKept: false,
   signatureDraft: { mode: 'draw', strokes: [], text: '', color: '#141414', removeBackground: true },
+  // Pages made from pictures: paper size ('fit' is the picture's own size) and margin in points.
+  pictureLayout: {
+    size: /^(en|es)-(US|CA|MX|PH)$/i.test(navigator.language || '') ? 'letter' : 'a4',
+    margin: 24,
+  },
+  pictureExport: { format: 'jpg', dpi: 150, scope: 'all' },
 };
 {
   const kept = savedSignature();
@@ -143,6 +151,8 @@ const names = {
   protect: 'Protect PDF',
   unlock: 'Unlock PDF',
   signature: 'Sign PDF',
+  jpgtopdf: 'JPG to PDF',
+  pdftojpg: 'PDF to JPG',
 };
 const descriptions = {
   text: 'Click the page where your text should start, then type. Drag text to move it.',
@@ -161,6 +171,9 @@ const descriptions = {
   unlock: 'Download a copy of your PDF that opens without a password.',
   signature:
     'Draw, type or upload your signature, then click the page where it belongs. Drag it to move it, or a corner to resize it.',
+  jpgtopdf:
+    'Your JPG and PNG pictures are pages. Choose their paper size, put them in order in the page strip, then download one PDF.',
+  pdftojpg: 'Save pages as JPG or PNG pictures, exactly as they look with your edits.',
 };
 const settingDefaults = {
   watermark: () => ({
@@ -1578,8 +1591,144 @@ function panelFields() {
       return unlockFields();
     case 'signature':
       return signatureFields(item, index);
+    case 'jpgtopdf':
+      return jpgToPdfFields();
+    case 'pdftojpg':
+      return pdfToJpgFields();
   }
   return '';
+}
+function jpgToPdfFields() {
+  const pictures = state.pages.filter(
+    (page) => state.sources.find((s) => s.id === page.sourceId)?.picture,
+  ).length;
+  return (
+    selectField(
+      'Page size',
+      'pictureSize',
+      [
+        ['a4', 'A4'],
+        ['letter', 'US Letter'],
+        ['fit', 'Same as the picture'],
+      ],
+      true,
+    ) +
+    selectField(
+      'Margin',
+      'pictureMargin',
+      [
+        ['0', 'None'],
+        ['24', 'Small'],
+        ['48', 'Large'],
+      ],
+      true,
+    ) +
+    '<div class="scope-note wide">' +
+    (pictures
+      ? '<strong>' +
+        pictures +
+        ' of ' +
+        state.pages.length +
+        ' pages</strong> are pictures. A4 and Letter pages turn to suit each picture.'
+      : 'No pages here are pictures yet. Add JPG or PNG pictures to make pages from them.') +
+    '</div><button type="button" class="button secondary" data-action="add-files">' +
+    icon('plus') +
+    'Add pictures or PDFs</button>' +
+    '<p class="field-hint wide">Drag pages in the page strip to put them in order. Download PDF saves them as one PDF.</p>'
+  );
+}
+function pdfToJpgFields() {
+  return (
+    '<fieldset class="segmented wide"><legend>Picture format</legend><div>' +
+    [
+      ['jpg', 'JPG'],
+      ['png', 'PNG'],
+    ]
+      .map(
+        ([value, text]) =>
+          '<label><input type="radio" name="pictureFormat" value="' +
+          value +
+          '"><span>' +
+          text +
+          '</span></label>',
+      )
+      .join('') +
+    '</div></fieldset>' +
+    selectField(
+      'Quality',
+      'pictureDpi',
+      [
+        ['72', 'Screen (72 dpi)'],
+        ['150', 'Standard (150 dpi)'],
+        ['300', 'High, for print (300 dpi)'],
+      ],
+      true,
+    ) +
+    selectField(
+      'Pages',
+      'pictureScope',
+      [
+        ['all', 'Every page'],
+        ['selected', 'Selected pages (' + ui.selected.size + ')'],
+        ['current', 'Current page (' + (activeIndex() + 1) + ')'],
+      ],
+      true,
+    ) +
+    '<button type="submit" class="button primary">' +
+    icon('download') +
+    'Save as pictures</button>' +
+    '<p class="field-hint wide">Each page is saved as it looks with your edits. Several pages download together as a ZIP.' +
+    (protectedDownload() ? ' Pictures can’t have a password.' : '') +
+    '</p>'
+  );
+}
+/** Save pages as JPG or PNG pictures: one picture, or a ZIP of them. */
+async function savePictures() {
+  if (ui.busy) return;
+  const settings = ui.pictureExport;
+  const numbers =
+    settings.scope === 'current'
+      ? [activeIndex() + 1]
+      : state.pages
+          .map((page, index) => (settings.scope === 'all' || ui.selected.has(page.id) ? index + 1 : 0))
+          .filter(Boolean);
+  if (!numbers.length) {
+    toast('Select pages in the page strip first.', true);
+    return;
+  }
+  try {
+    // Pictures are made from the PDF as it downloads, without a password.
+    const { bytes } = await exportDocument(protectedDownload() ? { ...snapshot(), protection: null } : null);
+    ui.cancelOperation = false;
+    busy(true, 'Saving pages as pictures…');
+    cancellable('Cancel', null);
+    const base = safeBaseName(outputName()).replace(/-(edited|converted|protected|unlocked)$/, '');
+    const pictures = await pagesToImages(bytes, numbers, {
+      format: settings.format,
+      dpi: settings.dpi,
+      baseName: base,
+      onProgress: (value) => {
+        $('#busy-message').textContent = 'Saving pages as pictures… ' + Math.round(value * 100) + '%';
+      },
+      shouldCancel: () => ui.cancelOperation,
+    });
+    if (pictures.length === 1)
+      downloadBytes(
+        new Blob([pictures[0].bytes], { type: settings.format === 'png' ? 'image/png' : 'image/jpeg' }),
+        pictures[0].name,
+      );
+    else downloadBytes(createZip(pictures), base + '-pictures.zip');
+    toast(
+      pictures.length === 1
+        ? 'Your picture has been downloaded.'
+        : pictures.length + ' pictures have been downloaded in a ZIP.',
+    );
+  } catch (error) {
+    if (error.name === 'AbortError') toast(error.message);
+    else showExportError(error);
+  } finally {
+    busy(false);
+  }
 }
 const INK = [
   ['#141414', 'Black'],
@@ -1956,6 +2105,14 @@ function panelValues() {
       return ui.splitDraft;
     case 'protect':
       return { password: state.protection?.password || '' };
+    case 'jpgtopdf':
+      return { pictureSize: ui.pictureLayout.size, pictureMargin: String(ui.pictureLayout.margin) };
+    case 'pdftojpg':
+      return {
+        pictureFormat: ui.pictureExport.format,
+        pictureDpi: String(ui.pictureExport.dpi),
+        pictureScope: ui.pictureExport.scope,
+      };
     case 'signature': {
       if (item?.type !== 'signature') return { signatureText: ui.signatureDraft.text };
       const frame = overlayItem(item.id)?.frame,
@@ -2026,6 +2183,7 @@ function renderTool() {
     event.preventDefault();
     if (['delete', 'pages'].includes(ui.tool)) action('select-range');
     else if (ui.tool === 'split') generateSplit();
+    else if (ui.tool === 'pdftojpg') savePictures();
     else if (ui.tool === 'crop') applyCrop();
   });
   form.addEventListener('input', onPanelInput);
@@ -2101,6 +2259,18 @@ function onPanelInput(event) {
     if (name === 'scope') ui.cropDraft.scope = value;
     else ui.cropDraft[name] = clamp(Number(value) / 100, 0, 0.99);
     updateCropOverlay();
+    return;
+  }
+  if (ui.tool === 'jpgtopdf') {
+    if (name === 'pictureSize') ui.pictureLayout.size = value;
+    if (name === 'pictureMargin') ui.pictureLayout.margin = Number(value);
+    relayoutPictures();
+    return;
+  }
+  if (ui.tool === 'pdftojpg') {
+    if (name === 'pictureFormat') ui.pictureExport.format = value;
+    if (name === 'pictureDpi') ui.pictureExport.dpi = Number(value);
+    if (name === 'pictureScope') ui.pictureExport.scope = value;
     return;
   }
   if (ui.tool === 'signature') {
@@ -2725,9 +2895,20 @@ function downloadBytes(bytes, name) {
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-function outputName(suffix = protectedDownload() ? 'protected' : unlockedDownload() ? 'unlocked' : 'edited') {
-  const sources = state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
-  const base = sources.length === 1 ? sources[0].name.replace(/\.pdf$/i, '') : 'combined';
+function usedSources() {
+  return state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
+}
+function outputName(
+  suffix = protectedDownload()
+    ? 'protected'
+    : unlockedDownload()
+      ? 'unlocked'
+      : usedSources().every((source) => source.picture)
+        ? 'converted'
+        : 'edited',
+) {
+  const sources = usedSources();
+  const base = sources.length === 1 ? sources[0].name.replace(/\.(pdf|jpe?g|png)$/i, '') : 'combined';
   return base + '-' + suffix + '.pdf';
 }
 /** What a download message adds about the file, from the build's notes. */
@@ -2805,7 +2986,7 @@ function showInfo(kind) {
       '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><p>Passwords are used only in this tab: to open a protected PDF, and to protect your download. They are never saved, not even in presets. Your signature is kept in this browser only if you choose “Keep it on this device”; unticking it removes it.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
   if (kind === 'help')
     content.innerHTML =
-      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Signatures</h3><p>With Sign PDF, draw your signature, type your name in a handwriting style, or upload a picture of it. Click the page to place it, or add it to every page; drag it to move it and a corner to resize it. It is a picture of your signature, not a certificate-based digital signature.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
+      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Signatures</h3><p>With Sign PDF, draw your signature, type your name in a handwriting style, or upload a picture of it. Click the page to place it, or add it to every page; drag it to move it and a corner to resize it. It is a picture of your signature, not a certificate-based digital signature.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). JPG and PNG pictures open as pages (JPG to PDF); PDF to JPG saves pages as pictures. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
   $('#info-dialog').showModal();
 }
 
@@ -2917,8 +3098,16 @@ async function openWithPassword(name, bytes, several) {
 function openedMessage(sources, { added, kept, skipped }) {
   const withPassword = sources.some((source) => source.protection === 'password'),
     limited = sources.some((source) => source.protection === 'owner'),
+    pictures = sources.filter((source) => source.picture).length,
     parts = [];
-  if (added) parts.push(added + ' page' + (added === 1 ? '' : 's') + ' added. Arrange them, then download.');
+  if (pictures === sources.length && !added)
+    parts.push(
+      pictures === 1
+        ? 'Your picture is a PDF page now. Download it, or add more pictures.'
+        : 'Your ' + pictures + ' pictures are PDF pages now. Put them in order, then download one PDF.',
+    );
+  else if (added)
+    parts.push(added + ' page' + (added === 1 ? '' : 's') + ' added. Arrange them, then download.');
   else if (ui.tool === 'unlock' && (withPassword || limited))
     parts.push(
       'Your PDF is unlocked. Download a copy that opens without a password' +
@@ -2937,6 +3126,48 @@ function openedMessage(sources, { added, kept, skipped }) {
     );
   return parts.join(' ');
 }
+/** A picture file as a one-page source; it keeps the picture to lay the page out again. */
+async function pictureSource(file, picture = null) {
+  picture ||= await pictureForPage(file);
+  const layout = ui.pictureLayout;
+  const info = await openPdf(await imagesToPdf([picture], layout));
+  return {
+    id: uid(),
+    bytes: info.bytes,
+    name: picture.name,
+    pageCount: 1,
+    hasForm: false,
+    pages: info.pages.map((page) => ({ box: page.cropBox, rotation: page.rotation })),
+    picture,
+    pictureLayout: { ...layout },
+  };
+}
+/** Lay the pages made from pictures out again (paper size or margin changed), as one undo step. */
+async function relayoutPictures() {
+  const old = state.sources.filter(
+    (source) => source.picture && state.pages.some((p) => p.sourceId === source.id),
+  );
+  if (!old.length) return;
+  busy(true, 'Updating the pages made from pictures…');
+  try {
+    // New sources with new ids: the preview keeps rendered pages by source.
+    const replaced = new Map();
+    for (const source of old) replaced.set(source.id, await pictureSource(null, source.picture));
+    change(
+      () => {
+        state.sources = [...state.sources.filter((s) => !replaced.has(s.id)), ...replaced.values()];
+        state.pages = state.pages.map((page) =>
+          replaced.has(page.sourceId) ? { ...page, sourceId: replaced.get(page.sourceId).id } : page,
+        );
+      },
+      { layout: true },
+    );
+  } catch (error) {
+    toast(friendly(error), true);
+  } finally {
+    busy(false);
+  }
+}
 async function openFiles(files, append = false) {
   if (ui.busy || batch.isBusy() || !files.length) return;
   const list = [...files];
@@ -2945,9 +3176,16 @@ async function openFiles(files, append = false) {
   const resetPicker = () => {
     $('#file-input').value = '';
   };
-  if (list.some((file) => !file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf')) {
+  const isPdf = (file) => file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+  if (list.some((file) => !isPdf(file) && !isPicture(file))) {
     resetPicker();
-    toast('Please choose PDF files. You can add PNG or JPG images with the Image tool.', true);
+    toast('Please choose PDF files, or JPG and PNG pictures to make pages from.', true);
+    return;
+  }
+  // With Add an image, a picture dropped on the page goes on the page.
+  if (append && ui.tool === 'image' && list.length === 1 && isPicture(list[0]) && state.pages.length) {
+    resetPicker();
+    await addImageFile(list[0]);
     return;
   }
   append = append && state.pages.length > 0;
@@ -2975,6 +3213,11 @@ async function openFiles(files, append = false) {
     // The first password that opened a file protects downloads too (not when unlocking).
     let password = '';
     for (const file of list) {
+      if (!isPdf(file)) {
+        sources.push(await pictureSource(file));
+        pages.push({ id: uid(), sourceId: sources.at(-1).id, index: 0, rotation: 0 });
+        continue;
+      }
       const info = await openWithPassword(
         file.name,
         new Uint8Array(await file.arrayBuffer()),
@@ -3676,6 +3919,11 @@ $('#file-input').addEventListener('change', (event) => openFiles(event.target.fi
 $('#image-input').addEventListener('change', async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
+  await addImageFile(file);
+  event.target.value = '';
+});
+/** Put a PNG or JPG on the current page with Add an image. */
+async function addImageFile(file) {
   try {
     if (!['image/png', 'image/jpeg'].includes(file.type))
       throw new Error('Please choose a PNG or JPG image.');
@@ -3697,10 +3945,8 @@ $('#image-input').addEventListener('change', async (event) => {
     toast('Image added. Drag it into place, or drag a corner to resize it.');
   } catch (error) {
     toast(friendly(error), true);
-  } finally {
-    event.target.value = '';
   }
-});
+}
 $('#signature-input').addEventListener('change', async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;

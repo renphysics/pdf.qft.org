@@ -249,6 +249,57 @@ export const PAGES = [
     ],
   },
   {
+    tool: 'jpgtopdf',
+    name: 'JPG to PDF',
+    title: 'Convert JPG and PNG to PDF for free — QFT PDF',
+    description:
+      'Turn photos, scans and screenshots into PDF pages: A4, Letter or their own size, in the order you choose. Free, and your pictures stay on your device.',
+    eyebrow: 'JPG TO PDF',
+    heading: ['Convert JPG to PDF.', 'Pictures in, one tidy PDF out.'],
+    intro: 'Turn photos, scans and screenshots into PDF pages, put them in order, and download a single PDF.',
+    upload: {
+      heading: 'Start with your pictures.',
+      text: 'Drop JPG or PNG pictures here.',
+      cta: 'Choose pictures',
+      meta: 'JPG and PNG · PDFs can join them',
+    },
+    how: ['How to convert', 'JPG to PDF.'],
+    steps: [
+      ['Choose your pictures.', 'Select one or more JPG or PNG files. Photos are turned upright automatically.'],
+      ['Arrange the pages.', 'Pick A4, Letter or the pictures’ own size and a margin, then drag pages into order. Add text or page numbers if you like.'],
+      ['Download one PDF.', 'Save all the pictures as pages of a single PDF.'],
+    ],
+    faqs: [
+      ['Are my pictures uploaded?', 'No. The PDF is made in your browser and the pictures never leave your device.'],
+      ['Does it lose quality?', 'No. JPG photos go into the PDF as they are; a photo is saved again only if it has to be turned upright.'],
+      ['Can I mix pictures and PDFs?', 'Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document.'],
+      ['Can I convert Word or PowerPoint files?', 'Not here. Converting Office files needs a server or a very large download, and QFT PDF keeps everything on your device. Save them as PDF from the app that made them.'],
+    ],
+  },
+  {
+    tool: 'pdftojpg',
+    name: 'PDF to JPG',
+    title: 'Convert PDF to JPG or PNG for free — QFT PDF',
+    description:
+      'Save PDF pages as JPG or PNG pictures at screen or print quality, one page or all of them in a ZIP. Free, and your file stays on your device.',
+    eyebrow: 'PDF TO JPG',
+    heading: ['Convert PDF to JPG.', 'Every page, as a picture.'],
+    intro: 'Save pages as JPG or PNG pictures, exactly as they look, including any edits you make first.',
+    upload: { text: 'Drop a PDF here to save its pages as pictures.', cta: 'Choose a PDF' },
+    how: ['How to convert', 'PDF to JPG.'],
+    steps: [
+      OPEN_STEP,
+      ['Choose the pictures.', 'JPG or PNG; screen, standard or print quality; every page, the selected pages or the current one.'],
+      ['Save them.', 'One page downloads as a picture; several download together in a ZIP.'],
+    ],
+    faqs: [
+      ['Which quality should I choose?', 'Standard (150 dpi) suits screens and sharing. Choose High (300 dpi) for printing, and Screen (72 dpi) for the smallest files.'],
+      ['JPG or PNG?', 'JPG makes smaller files and suits photos. PNG keeps text and lines perfectly sharp but makes larger files.'],
+      ['Is my PDF uploaded?', 'No. The pages are drawn as pictures in your browser and never leave your device.'],
+      ['Can I convert PDF to Word?', 'Not here. That needs a server or a very large download, and QFT PDF keeps everything on your device.'],
+    ],
+  },
+  {
     tool: 'protect',
     name: 'Protect PDF',
     title: 'Password-protect a PDF for free — QFT PDF',

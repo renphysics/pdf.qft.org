@@ -629,6 +629,45 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   return { bytes: output, notes };
 }
 
+// Paper sizes in points, portrait.
+const PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
+
+/**
+ * A PDF with one page per picture ({ bytes, type: 'jpg' | 'png' }), centred.
+ * size 'fit' makes each page the picture's size (96 pixels per inch); 'a4' and
+ * 'letter' use that paper, turned to match the picture, with the picture as
+ * large as fits but not enlarged past 96 pixels per inch. margin is in points.
+ * JPEG data is embedded as it is.
+ */
+export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
+  const lib = await loadPdfLib();
+  if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');
+  if (size !== 'fit' && !PAPER[size]) throw new Error('Choose a page size: the picture’s own size, A4 or Letter.');
+  const doc = await lib.PDFDocument.create();
+  doc.setProducer('QFT PDF');
+  for (const image of images) {
+    let picture;
+    try {
+      picture = image.type === 'png' ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
+    } catch (error) {
+      throw new Error('A picture could not be read. Choose JPG or PNG files.', { cause: error });
+    }
+    const natural = { width: picture.width * 0.75, height: picture.height * 0.75 };
+    let pageWidth, pageHeight;
+    if (size === 'fit') {
+      pageWidth = natural.width + 2 * margin;
+      pageHeight = natural.height + 2 * margin;
+    } else {
+      const [short, long] = PAPER[size];
+      [pageWidth, pageHeight] = picture.width > picture.height ? [long, short] : [short, long];
+    }
+    const scale = size === 'fit' ? 1 : Math.min(1, (pageWidth - 2 * margin) / natural.width, (pageHeight - 2 * margin) / natural.height);
+    const width = natural.width * scale, height = natural.height * scale;
+    doc.addPage([pageWidth, pageHeight]).drawImage(picture, { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height });
+  }
+  return doc.save();
+}
+
 /** Parse an inclusive, one-based list like "1-3, 5" into zero-based indexes. */
 export function parsePageRange(value, pageCount) {
   if (!Number.isInteger(pageCount) || pageCount < 1) throw new Error('Open a PDF before choosing a page range.');

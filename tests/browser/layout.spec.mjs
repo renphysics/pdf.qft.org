@@ -2,7 +2,7 @@
 // editor's tools or in batch, and the header keeps its links.
 import { test, expect, openSample, ready, useTool } from './helpers.mjs';
 
-const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'protect', 'unlock'];
+const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock'];
 const sideways = (page) =>
   page.evaluate(() => [
     document.documentElement.scrollWidth - innerWidth,

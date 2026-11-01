@@ -18,7 +18,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont } = await import('../dist/pdf-engine.js');
+const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont, imagesToPdf } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
@@ -218,6 +218,34 @@ for (const line of cjkLines) {
   const images = doc.context.enumerateIndirectObjects().filter(([, object]) => object instanceof PDFRawStream && object.dict.get(PDFName.of('Subtype')) === PDFName.of('Image'));
   assert.equal(images.length, 2, 'one signature picture and its transparency mask, for four pages');
   assert.deepEqual(doc.getPages().map((page) => page.node.Resources().lookup(PDFName.of('XObject')).keys().length), [1, 1, 1, 1], 'every page draws it');
+}
+
+// Pictures as pages: their own size at 96 pixels per inch, or A4 / Letter turned
+// to suit each picture, centred inside the margin and never enlarged. JPEG data
+// goes into the PDF unchanged.
+{
+  const { PDFName, PDFRawStream } = globalThis.PDFLib;
+  const picture = (width, height, type) => {
+    const surface = createCanvas(width, height);
+    const context = surface.getContext('2d');
+    context.fillStyle = '#3a6ea5';
+    context.fillRect(0, 0, width, height);
+    return { bytes: new Uint8Array(surface.toBuffer(type === 'png' ? 'image/png' : 'image/jpeg')), type };
+  };
+  const wide = picture(800, 400, 'png'), tall = picture(300, 600, 'jpg'), small = picture(100, 100, 'png');
+  const sizes = async (bytes) => (await PDFDocument.load(bytes)).getPages().map((page) => [Math.round(page.getWidth() * 100) / 100, Math.round(page.getHeight() * 100) / 100]);
+  assert.deepEqual(await sizes(await imagesToPdf([wide, tall])), [[600, 300], [225, 450]], 'their own size: 0.75 pt per pixel');
+  assert.deepEqual(await sizes(await imagesToPdf([wide, tall], { size: 'fit', margin: 24 })), [[648, 348], [273, 498]], 'plus the margin');
+  assert.deepEqual(await sizes(await imagesToPdf([wide, tall], { size: 'a4', margin: 24 })), [[841.89, 595.28], [595.28, 841.89]], 'A4, turned to suit');
+  assert.deepEqual(await sizes(await imagesToPdf([wide], { size: 'letter' })), [[792, 612]], 'Letter');
+  const jpeg = await PDFDocument.load(await imagesToPdf([tall], { size: 'a4' }));
+  const stored = jpeg.context.enumerateIndirectObjects().find(([, object]) => object instanceof PDFRawStream && object.dict.get(PDFName.of('Filter')) === PDFName.of('DCTDecode'));
+  assert.deepEqual(stored[1].contents, tall.bytes, 'JPEG data is embedded as it is');
+  const placed = (await extract(await imagesToPdf([small], { size: 'a4' })));
+  assert.equal(placed.length, 1);
+  await assert.rejects(imagesToPdf([]), /at least one/);
+  await assert.rejects(imagesToPdf([{ bytes: new Uint8Array([1, 2, 3]), type: 'png' }]), /could not be read/);
+  await assert.rejects(imagesToPdf([wide], { size: 'a3' }), /page size/);
 }
 
 // A note placed before rotation must rotate with the original page; a later
@@ -487,4 +515,4 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
-console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'signatures on every page stored once', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'signatures on every page stored once', 'pictures as pages: own size, A4 and Letter, JPEG unchanged', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
