@@ -122,7 +122,7 @@ await stat(path.join(site, '.nojekyll'));
 for (const name of [
   'licenses/QFT-PDF-MIT.txt', 'licenses/THIRD-PARTY.txt', 'licenses/pdf-lib-MIT.txt', 'licenses/pdfjs-Apache-2.0.txt',
   'licenses/pdf-lib-dependencies.txt', 'licenses/fontkit-dependencies.txt',
-  'licenses/fontkit-MIT.txt', 'licenses/NotoSans-OFL.txt', 'licenses/NotoSansCJK-OFL.txt',
+  'licenses/fontkit-MIT.txt', 'licenses/NotoSans-OFL.txt', 'licenses/NotoSansCJK-OFL.txt', 'licenses/Allura-OFL.txt',
   'assets/vendor/cmaps/LICENSE', 'assets/vendor/standard_fonts/LICENSE_FOXIT',
   'assets/vendor/standard_fonts/LICENSE_LIBERATION', 'assets/vendor/iccs/LICENSE',
   'assets/vendor/wasm/LICENSE_JBIG2', 'assets/vendor/wasm/LICENSE_OPENJPEG',

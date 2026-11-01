@@ -8,6 +8,15 @@ import {
 } from './pdf-engine.js';
 import { planSplit, splitPdf, createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
+import {
+  forgetSignature,
+  loadSignatureFont,
+  saveSignature,
+  savedSignature,
+  signaturePad,
+  typedSignature,
+  uploadedSignature,
+} from './signature.js';
 import { TOOL_PAGES } from './routes.js';
 import { applyMatrix, fontKind, hexColor, invert, number, TEXT_LINE_HEIGHT, textValue } from './layout.js';
 import {
@@ -44,7 +53,7 @@ const tapOrClick = (text) =>
   touch() ? text.replace(/\bClick\b/g, 'Tap').replace(/\bclick\b/g, 'tap') : text;
 
 // Tools that place items on a page; their items can be selected, dragged and resized.
-const ANNOTATION_TOOLS = ['text', 'image', 'highlight'];
+const ANNOTATION_TOOLS = ['text', 'image', 'highlight', 'signature'];
 // Tools that show a repeated setting on pages, and the state key each one edits.
 const SETTINGS = { watermark: 'watermark', footer: 'headerFooter', numbers: 'pageNumbers' };
 const SETTING_TOOL = { watermark: 'watermark', headerFooter: 'footer', pageNumbers: 'numbers' };
@@ -52,6 +61,7 @@ const SETTING_TOOL = { watermark: 'watermark', headerFooter: 'footer', pageNumbe
 const HANDLES = {
   text: ['e'],
   image: ['nw', 'ne', 'sw', 'se'],
+  signature: ['nw', 'ne', 'sw', 'se'],
   highlight: ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'],
 };
 const THUMB_WIDTH = 172; // canvas pixels: sharp at 86 CSS pixels on high-density screens
@@ -106,7 +116,15 @@ const ui = {
   thumbs: { observer: null, token: 0, task: null, cache: new Map() },
   frame: 0,
   sheetOpen: true,
+  // The signature to place (a PNG: { bytes, type, width, height }), and the one being made.
+  signature: null,
+  signatureKept: false,
+  signatureDraft: { mode: 'draw', strokes: [], text: '', color: '#141414', removeBackground: true },
 };
+{
+  const kept = savedSignature();
+  if (kept) Object.assign(ui, { signature: kept, signatureKept: true });
+}
 // Tool pages (routes.js) name their tool on <body data-tool>; it opens first.
 const pageTool = TOOL_PAGES[document.body.dataset.tool] ? document.body.dataset.tool : null;
 if (pageTool && pageTool !== 'batch') ui.tool = pageTool;
@@ -124,6 +142,7 @@ const names = {
   split: 'Split PDF',
   protect: 'Protect PDF',
   unlock: 'Unlock PDF',
+  signature: 'Sign PDF',
 };
 const descriptions = {
   text: 'Click the page where your text should start, then type. Drag text to move it.',
@@ -140,6 +159,8 @@ const descriptions = {
   split: 'Create separate PDFs from this document, including your edits.',
   protect: 'Choose a password. Anyone who opens the PDF you download will need it.',
   unlock: 'Download a copy of your PDF that opens without a password.',
+  signature:
+    'Draw, type or upload your signature, then click the page where it belongs. Drag it to move it, or a corner to resize it.',
 };
 const settingDefaults = {
   watermark: () => ({
@@ -518,7 +539,7 @@ function renderStage() {
   $('[data-action=previous]').disabled = index === 0;
   $('[data-action=next]').disabled = index === state.pages.length - 1;
   updateSelectionCaption();
-  surface.classList.toggle('placing', ['text', 'highlight'].includes(ui.tool));
+  surface.classList.toggle('placing', ['text', 'highlight', 'signature'].includes(ui.tool));
   surface.dataset.tool = ui.tool;
   renderOverlay();
   updateCropOverlay();
@@ -562,7 +583,7 @@ function itemLabel(annotation) {
     const text = textValue(annotation.text).trim().replace(/\s+/g, ' ');
     return 'Text: ' + (text ? '“' + (text.length > 40 ? text.slice(0, 40) + '…' : text) + '”' : 'empty');
   }
-  return annotation.type === 'image' ? 'Image' : 'Highlight';
+  return { image: 'Image', signature: 'Signature' }[annotation.type] || 'Highlight';
 }
 function renderEditLayer() {
   const layer = $('#edit-layer'),
@@ -636,6 +657,12 @@ function updateStageHint() {
       ? 'Drag the image to move it. Drag a corner to resize it.'
       : 'Choose an image to add it to this page.';
   if (ui.tool === 'highlight') hint = 'Drag across the page to highlight an area.';
+  if (ui.tool === 'signature')
+    hint = selectedItem()
+      ? 'Drag the signature to move it. Drag a corner to resize it.'
+      : ui.signature
+        ? 'Click the page where your signature belongs.'
+        : 'Make your signature in the panel, then click the page to place it.';
   if (ui.tool === 'crop') hint = 'Drag across the page to choose the area to keep.';
   if (ui.tool === 'pages' || ui.tool === 'delete')
     hint = 'Choose pages with the checkboxes in the page strip.';
@@ -824,7 +851,7 @@ function resizeItem(gesture, point) {
     top = frame.y,
     right = frame.x + frame.width,
     bottom = frame.y + frame.height;
-  if (annotation.type === 'image') {
+  if (annotation.type === 'image' || annotation.type === 'signature') {
     // Keep the image's proportions, anchored at the opposite corner.
     const anchorX = handle.includes('w') ? right : left,
       anchorY = handle.includes('n') ? bottom : top;
@@ -990,7 +1017,8 @@ function selectItem(id, { focus = true } = {}) {
   renderTool();
   renderEditLayer();
   updateStageHint();
-  if (changedTool) $('#page-surface').classList.toggle('placing', ['text', 'highlight'].includes(ui.tool));
+  if (changedTool)
+    $('#page-surface').classList.toggle('placing', ['text', 'highlight', 'signature'].includes(ui.tool));
   if (focus) focusItem(id);
 }
 function deselect() {
@@ -1086,6 +1114,7 @@ surface.addEventListener('pointerup', (event) => {
   }
   if (ui.tool === 'text') createText(gesture.start);
   if (ui.tool === 'highlight') addHighlight(gesture.start);
+  if (ui.tool === 'signature') placeSignature(gesture.start);
 });
 surface.addEventListener('pointercancel', (event) => {
   if (ui.gesture?.pointerId === event.pointerId && ui.gesture.type !== 'crop') endGesture();
@@ -1285,7 +1314,7 @@ function annotationList() {
           '"' +
           (a.id === ui.item ? ' aria-current="true"' : '') +
           '>' +
-          icon(a.type === 'text' ? 'text' : a.type === 'image' ? 'image' : 'highlight') +
+          icon({ text: 'text', image: 'image', signature: 'sign' }[a.type] || 'highlight') +
           '<span>' +
           safe(itemLabel(a)) +
           '</span></button><button type="button" class="icon-button" data-remove-annotation="' +
@@ -1304,6 +1333,7 @@ function panelTitle() {
   const item = selectedItem();
   if (item?.type === 'text') return 'Edit text';
   if (item?.type === 'image') return 'Edit image';
+  if (item?.type === 'signature') return 'Edit signature';
   if (item?.type === 'highlight') return 'Edit highlight';
   return names[ui.tool];
 }
@@ -1546,8 +1576,257 @@ function panelFields() {
       return protectFields();
     case 'unlock':
       return unlockFields();
+    case 'signature':
+      return signatureFields(item, index);
   }
   return '';
+}
+const INK = [
+  ['#141414', 'Black'],
+  ['#1d3f9e', 'Blue'],
+];
+function signatureFields(item, index) {
+  if (item?.type === 'signature')
+    return (
+      rangeField('Width', 'width', 2, 100) +
+      '<p class="field-hint wide">Drag the signature to move it, or a corner to resize it. Arrow keys nudge it.</p>' +
+      '<button type="button" class="button secondary" data-action="signature-copy">' +
+      icon('pages') +
+      'Put it here on every page</button>' +
+      '<button type="button" class="button danger" data-action="delete-item">' +
+      icon('trash') +
+      'Delete signature</button>'
+    );
+  if (ui.signature)
+    return (
+      '<div class="signature-preview wide"><img src="' +
+      signatureUrl() +
+      '" alt="Your signature"></div>' +
+      '<button type="button" class="button primary" data-action="signature-place">' +
+      icon('plus') +
+      'Add it to page ' +
+      (index + 1) +
+      '</button><button type="button" class="button secondary" data-action="signature-place-all">' +
+      icon('pages') +
+      'Add it to every page</button>' +
+      '<p class="field-hint wide">Or click the page where it belongs.</p>' +
+      '<label class="check-field wide"><input type="checkbox" name="keepSignature"' +
+      (ui.signatureKept ? ' checked' : '') +
+      '> Keep it on this device for next time</label>' +
+      '<button type="button" class="button subtle" data-action="signature-new">Make a new signature</button>'
+    );
+  const draft = ui.signatureDraft;
+  const choice = (name, options, current, legend) =>
+    '<fieldset class="segmented wide"><legend>' +
+    legend +
+    '</legend><div>' +
+    options
+      .map(
+        ([value, text]) =>
+          '<label><input type="radio" name="' +
+          name +
+          '" value="' +
+          value +
+          '"' +
+          (value === current ? ' checked' : '') +
+          '><span>' +
+          text +
+          '</span></label>',
+      )
+      .join('') +
+    '</div></fieldset>';
+  const modes = [
+    ['draw', 'Draw'],
+    ['type', 'Type'],
+    ['upload', 'Upload'],
+  ];
+  let fields = choice('signatureMode', modes, draft.mode, 'Make your signature');
+  if (draft.mode === 'draw')
+    fields +=
+      '<div class="signature-pad-wrap wide"><canvas id="signature-pad" class="signature-pad" role="img" aria-label="Signature drawing area" aria-describedby="signature-pad-hint"></canvas></div>' +
+      '<p class="field-hint wide" id="signature-pad-hint">' +
+      (touch() ? 'Sign with your finger or a pen.' : 'Sign with your mouse, trackpad or pen.') +
+      '</p><button type="button" class="button subtle" data-action="signature-clear">Clear</button>';
+  else if (draft.mode === 'type')
+    fields +=
+      makeField(
+        'Your name',
+        '<input name="signatureText" type="text" maxlength="60" autocomplete="name" spellcheck="false">',
+        true,
+      ) + '<div class="signature-typed wide" id="signature-typed" aria-hidden="true"></div>';
+  else
+    fields +=
+      '<button type="button" class="button primary" data-action="signature-choose">' +
+      icon('image') +
+      'Choose a picture of it</button>' +
+      '<label class="check-field wide"><input type="checkbox" name="removeBackground"' +
+      (draft.removeBackground ? ' checked' : '') +
+      '> Make the paper transparent</label>' +
+      '<p class="field-hint wide">A PNG or JPG of your signature on light paper.</p>';
+  if (draft.mode !== 'upload')
+    fields +=
+      choice('signatureColor', INK, draft.color, 'Ink') +
+      '<button type="button" class="button primary" data-action="signature-use">' +
+      icon('check') +
+      'Use this signature</button>';
+  return fields;
+}
+let signatureObjectUrl = null;
+/** An address for the current signature's picture in the panel. */
+function signatureUrl() {
+  if (signatureObjectUrl?.bytes !== ui.signature.bytes) {
+    if (signatureObjectUrl) URL.revokeObjectURL(signatureObjectUrl.url);
+    signatureObjectUrl = {
+      bytes: ui.signature.bytes,
+      url: URL.createObjectURL(new Blob([ui.signature.bytes], { type: 'image/png' })),
+    };
+  }
+  return signatureObjectUrl.url;
+}
+let pad = null;
+/** After the Sign panel is drawn: the drawing area, the typed preview and the Use button. */
+function attachSignatureTools() {
+  const canvas = $('#signature-pad');
+  pad = canvas
+    ? signaturePad(canvas, ui.signatureDraft.strokes, {
+        color: ui.signatureDraft.color,
+        onChange: updateSignatureButton,
+      })
+    : null;
+  if ($('#signature-typed')) {
+    updateTypedSignature();
+    loadSignatureFont().catch((error) => toast(friendly(error), true));
+  }
+  updateSignatureButton();
+}
+function updateTypedSignature() {
+  const node = $('#signature-typed');
+  if (!node) return;
+  node.textContent = ui.signatureDraft.text.trim() || 'Your name';
+  node.classList.toggle('empty', !ui.signatureDraft.text.trim());
+  node.style.color = ui.signatureDraft.color;
+}
+function updateSignatureButton() {
+  const button = $('[data-action="signature-use"]');
+  if (!button) return;
+  const draft = ui.signatureDraft;
+  button.disabled = draft.mode === 'draw' ? !draft.strokes.length : !draft.text.trim();
+}
+function setSignature(signature) {
+  ui.signature = signature;
+  if (ui.signatureKept && !saveSignature(signature)) {
+    ui.signatureKept = false;
+    toast('This browser could not keep your signature. It stays until you close this tab.', true);
+  } else toast(tapOrClick('Your signature is ready. Click the page where it belongs.'));
+  renderTool();
+}
+async function useSignature() {
+  try {
+    const draft = ui.signatureDraft;
+    setSignature(
+      draft.mode === 'type' ? await typedSignature(draft.text, draft.color) : await pad.toSignature(),
+    );
+  } catch (error) {
+    toast(friendly(error), true);
+  }
+}
+function keepSignature(keep) {
+  if (keep && ui.signature && !saveSignature(ui.signature)) {
+    toast('This browser could not keep your signature. It stays until you close this tab.', true);
+    keep = false;
+  }
+  if (!keep) forgetSignature();
+  ui.signatureKept = keep;
+  announceMessage(keep ? 'Your signature will be kept on this device.' : 'Your signature is no longer kept.');
+}
+/** A signature's size and place: at a click, or near the lower right of the page. */
+function signatureFrame(geometry, point = null) {
+  const ratio = ui.signature.width / ui.signature.height;
+  let width = Math.min(geometry.width * 0.32, 160),
+    height = width / ratio;
+  if (height > geometry.height * 0.12) {
+    height = geometry.height * 0.12;
+    width = height * ratio;
+  }
+  const margin = Math.min(geometry.width, geometry.height) * 0.08;
+  return {
+    x: point ? clamp(point.x - width / 2, 0, geometry.width - width) : geometry.width - margin - width,
+    y: point
+      ? clamp(point.y - height / 2, 0, geometry.height - height)
+      : geometry.height - margin * 1.5 - height,
+    width,
+    height,
+  };
+}
+function signatureAnnotation(page, geometry, frame, bytes = ui.signature.bytes) {
+  return {
+    id: uid(),
+    pageId: page.id,
+    pageRotation: page.rotation,
+    pageCrop: page.crop ? { ...page.crop } : undefined,
+    type: 'signature',
+    x: frame.x / geometry.width,
+    y: frame.y / geometry.height,
+    width: frame.width / geometry.width,
+    height: frame.height / geometry.height,
+    opacity: 1,
+    // Shared by every copy, so the PDF stores the picture once.
+    imageBytes: bytes,
+    imageType: 'png',
+  };
+}
+function placeSignature(point = null) {
+  if (!ui.signature) {
+    toast('Make your signature first: draw, type or upload it in the panel.');
+    if (phone()) setSheet(true);
+    return;
+  }
+  const page = currentPage(),
+    geometry = ui.stage.geometry || geometryOf(state, page),
+    annotation = signatureAnnotation(page, geometry, signatureFrame(geometry, point));
+  change(() => state.annotations.push(annotation));
+  selectItem(annotation.id);
+  if (!point) revealItem(annotation.id);
+}
+/** Scroll the page so a newly placed item can be seen (placed with a button, it may be off screen). */
+function revealItem(id) {
+  requestAnimationFrame(() =>
+    $('[data-item-id="' + CSS.escape(id) + '"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
+  );
+}
+function placeSignatureEverywhere() {
+  const added = state.pages.map((page) => {
+    const geometry = geometryOf(state, page);
+    return signatureAnnotation(page, geometry, signatureFrame(geometry));
+  });
+  change(() => state.annotations.push(...added));
+  selectItem(added[activeIndex()].id);
+  revealItem(added[activeIndex()].id);
+  toast('Your signature is on all ' + added.length + ' pages. Drag any of them to adjust it.');
+}
+/** Copy a placed signature to the same place, at the same size, on every other page. */
+function copySignature(item) {
+  const own = currentPage(),
+    from = geometryOf(state, own);
+  const width = item.width * from.width,
+    height = item.height * from.height;
+  const added = state.pages
+    .filter((page) => page.id !== own.id)
+    .map((page) => {
+      const geometry = geometryOf(state, page),
+        w = Math.min(width, geometry.width),
+        h = Math.min(height, geometry.height);
+      const frame = {
+        x: clamp(item.x * geometry.width, 0, geometry.width - w),
+        y: clamp(item.y * geometry.height, 0, geometry.height - h),
+        width: w,
+        height: h,
+      };
+      return signatureAnnotation(page, geometry, frame, item.imageBytes);
+    });
+  if (!added.length) return;
+  change(() => state.annotations.push(...added));
+  toast('Signature added to ' + added.length + ' more page' + (added.length === 1 ? '' : 's') + '.');
 }
 /** Whether downloads will need a password to open. */
 function protectedDownload() {
@@ -1677,6 +1956,16 @@ function panelValues() {
       return ui.splitDraft;
     case 'protect':
       return { password: state.protection?.password || '' };
+    case 'signature': {
+      if (item?.type !== 'signature') return { signatureText: ui.signatureDraft.text };
+      const frame = overlayItem(item.id)?.frame,
+        placement = overlayItem(item.id)?.placement;
+      return {
+        width: frame
+          ? Math.round((frame.width / placement.width) * 100)
+          : Math.round(number(item.width, 0.25) * 100),
+      };
+    }
   }
   return {};
 }
@@ -1749,6 +2038,7 @@ function renderTool() {
   updateCropOverlay();
   updateDeletionMarks();
   if (ui.tool === 'split') updateSplitSummary();
+  if (ui.tool === 'signature') attachSignatureTools();
   updateSelectionCaption();
   updateStageHint();
   if (restoreKey) restoreFocus(restoreKey);
@@ -1811,6 +2101,25 @@ function onPanelInput(event) {
     if (name === 'scope') ui.cropDraft.scope = value;
     else ui.cropDraft[name] = clamp(Number(value) / 100, 0, 0.99);
     updateCropOverlay();
+    return;
+  }
+  if (ui.tool === 'signature') {
+    const draft = ui.signatureDraft;
+    if (name === 'signatureMode') {
+      draft.mode = value;
+      renderTool();
+      $('#tool-form [name="signatureMode"]:checked')?.focus();
+    } else if (name === 'signatureText') {
+      draft.text = value;
+      updateTypedSignature();
+      updateSignatureButton();
+    } else if (name === 'signatureColor') {
+      draft.color = value;
+      pad?.setColor(value);
+      updateTypedSignature();
+    } else if (name === 'removeBackground') draft.removeBackground = field.checked;
+    else if (name === 'keepSignature') keepSignature(field.checked);
+    else if (name === 'width' && item?.type === 'signature') resizeImageTo(item, Number(value) / 100);
     return;
   }
   if (ui.tool === 'protect' && name === 'password') {
@@ -2493,10 +2802,10 @@ function showInfo(kind) {
   const content = $('#dialog-content');
   if (kind === 'privacy')
     content.innerHTML =
-      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><p>Passwords are used only in this tab: to open a protected PDF, and to protect your download. They are never saved, not even in presets.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
+      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><p>Passwords are used only in this tab: to open a protected PDF, and to protect your download. They are never saved, not even in presets. Your signature is kept in this browser only if you choose “Keep it on this device”; unticking it removes it.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
   if (kind === 'help')
     content.innerHTML =
-      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
+      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Signatures</h3><p>With Sign PDF, draw your signature, type your name in a handwriting style, or upload a picture of it. Click the page to place it, or add it to every page; drag it to move it and a corner to resize it. It is a picture of your signature, not a certificate-based digital signature.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
   $('#info-dialog').showModal();
 }
 
@@ -3085,6 +3394,17 @@ async function action(name, element) {
   if (name === 'move-earlier' || name === 'move-later')
     movePage(ui.activeId, name === 'move-earlier' ? -1 : 1);
   if (name === 'choose-image') $('#image-input').click();
+  if (name === 'signature-use') await useSignature();
+  if (name === 'signature-clear') pad?.clear();
+  if (name === 'signature-choose') $('#signature-input').click();
+  if (name === 'signature-place') placeSignature();
+  if (name === 'signature-place-all') placeSignatureEverywhere();
+  if (name === 'signature-copy' && selectedItem()?.type === 'signature') copySignature(selectedItem());
+  if (name === 'signature-new') {
+    ui.signature = null;
+    renderTool();
+    $('#tool-form [name="signatureMode"]:checked')?.focus();
+  }
 }
 
 function syncPageNavigation() {
@@ -3375,6 +3695,17 @@ $('#image-input').addEventListener('change', async (event) => {
     if (ui.tool !== 'image') chooseTool('image');
     placeImage(ui.image);
     toast('Image added. Drag it into place, or drag a corner to resize it.');
+  } catch (error) {
+    toast(friendly(error), true);
+  } finally {
+    event.target.value = '';
+  }
+});
+$('#signature-input').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    setSignature(await uploadedSignature(file, { removeBackground: ui.signatureDraft.removeBackground }));
   } catch (error) {
     toast(friendly(error), true);
   } finally {

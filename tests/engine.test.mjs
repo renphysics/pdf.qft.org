@@ -196,6 +196,30 @@ for (const line of cjkLines) {
   approx(width, cjkFont.widthOfTextAtSize(line, 14), `"${line}" is as wide as the preview measures it`, 0.05);
 }
 
+// A signature placed on every page shares one bytes object: the PDF stores the
+// picture once (a PNG with transparency: one image and its mask).
+{
+  const { PDFName, PDFRawStream } = globalThis.PDFLib;
+  const canvas = createCanvas(120, 40);
+  const context = canvas.getContext('2d');
+  context.strokeStyle = '#141414';
+  context.lineWidth = 4;
+  context.beginPath();
+  context.moveTo(10, 30);
+  context.bezierCurveTo(40, 0, 70, 40, 110, 10);
+  context.stroke();
+  const signature = new Uint8Array(canvas.toBuffer('image/png'));
+  const signed = await buildPdf({
+    sources: [{ id: 'a', bytes: fixtureBytes }],
+    pages: inspected.pages.map((_, index) => ({ id: `s${index}`, sourceId: 'a', index })),
+    annotations: inspected.pages.map((_, index) => ({ id: `sig${index}`, pageId: `s${index}`, type: 'signature', x: .6, y: .8, width: .3, height: .1, imageBytes: signature, imageType: 'png' })),
+  });
+  const doc = await PDFDocument.load(signed);
+  const images = doc.context.enumerateIndirectObjects().filter(([, object]) => object instanceof PDFRawStream && object.dict.get(PDFName.of('Subtype')) === PDFName.of('Image'));
+  assert.equal(images.length, 2, 'one signature picture and its transparency mask, for four pages');
+  assert.deepEqual(doc.getPages().map((page) => page.node.Resources().lookup(PDFName.of('XObject')).keys().length), [1, 1, 1, 1], 'every page draws it');
+}
+
 // A note placed before rotation must rotate with the original page; a later
 // note placed in the rotated view must remain upright in that newer view.
 const rotatedAfterEdit = await buildPdf({
@@ -463,4 +487,4 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
-console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'signatures on every page stored once', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));

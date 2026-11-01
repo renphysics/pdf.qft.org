@@ -268,6 +268,23 @@ native and added rotations, mixed sizes, and placed annotations are supported.
 Watermarks, headers, footers, and page numbers follow the resulting visible
 page bounds. Files continue to be processed entirely in the browser.
 
+## Signatures
+
+Sign PDF (`/sign-pdf/`) makes a signature in the browser, as a transparent PNG
+(`dist/signature.js`): drawn with a mouse, finger or pen (pointer events, three
+times the screen resolution); typed in Allura, a handwriting font bundled from
+`@fontsource/allura` (OFL, no Reserved Font Name; drawn on a canvas, never embedded
+in PDFs); or uploaded, with the paper made transparent around the ink (anything
+clearly lighter than the picture's median brightness fades out). Signatures are
+cropped to the ink.
+
+A signature is placed like an image: at a click, near the lower right of the page,
+or on every page in one step, and a placed one can be copied to the same spot on
+every page. Copies share one bytes object, and the engine embeds each image once
+per document, so a signature on 50 pages is stored once. It is kept in
+`localStorage` only when "Keep it on this device" is ticked; unticking removes it.
+This is a picture of a signature, not a certificate-based digital signature.
+
 ## Passwords
 
 A PDF that needs a password asks for it when it is opened (also when adding

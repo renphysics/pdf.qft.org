@@ -20,8 +20,8 @@
     "sha256": "bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259"
   },
   "assets/vendor/versions.json": {
-    "bytes": 241,
-    "sha256": "43c95340da3f93a60136a4042dee287a67705c0a8e4e5de36d28a11eecc39985"
+    "bytes": 283,
+    "sha256": "2e5011e30a8884dfeb0d57c49a01f06f5185dbe5589cc5387e764ad1e8bfb5cc"
   },
   "assets/vendor/pdf-lib.min.js": {
     "bytes": 616746,
@@ -822,5 +822,13 @@
   "assets/vendor/wasm/jbig2_nowasm_fallback.js": {
     "bytes": 152009,
     "sha256": "68686ced624a48c42f84cdaa482ec44b72b0de4dc84a0df903af1fb7b45b5d9a"
+  },
+  "assets/fonts/allura-latin-400-normal.woff2": {
+    "bytes": 26488,
+    "sha256": "203583457d9c8cc90309f580dbf27a5fa9ed2893f06b8404ebb4c05e909c18e5"
+  },
+  "assets/fonts/allura-latin-ext-400-normal.woff2": {
+    "bytes": 21472,
+    "sha256": "5094d993e86782ac258413fa155652988924bb25ed83d26f61bf6d7f10fdb403"
   }
 }

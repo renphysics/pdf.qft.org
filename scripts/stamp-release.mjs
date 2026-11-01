@@ -28,7 +28,8 @@ const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 const FIRST_PARTY = [
   'index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, 'app.js', 'routes.js', 'layout.js', 'preview.js',
-  'pdf-engine.js', 'export-worker.js', 'workflows.js', 'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
+  'pdf-engine.js', 'export-worker.js', 'workflows.js', 'batch-ui.js', 'signature.js', 'style.css', 'studio.css',
+  'batch.css',
 ];
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const sources = Object.fromEntries(
@@ -62,7 +63,7 @@ const RULES = {
     ]),
   ),
   'app.js': [
-    [/(from '\.\/(?:pdf-engine|workflows|batch-ui|routes|layout|preview)\.js)'/g, `$1?v=${release}'`, 6],
+    [/(from '\.\/(?:pdf-engine|workflows|batch-ui|routes|layout|preview|signature)\.js)'/g, `$1?v=${release}'`, 7],
     // The export worker is a module too: one URL per release.
     [/(new URL\('\.\/export-worker\.js)'/g, `$1?v=${release}'`, 1],
   ],
@@ -80,6 +81,7 @@ const RULES = {
   'export-worker.js': [[/(from '\.\/pdf-engine\.js)'/g, `$1?v=${release}'`, 1]],
   'workflows.js': [[/(from '\.\/pdf-engine\.js)'/g, `$1?v=${release}'`, 1]],
   'batch-ui.js': [[/(from '\.\/(?:workflows|pdf-engine)\.js)'/g, `$1?v=${release}'`, 2]],
+  'signature.js': [],
 };
 
 for (const [name, rules] of Object.entries(RULES)) {

@@ -25,6 +25,13 @@ Original license/copyright files: fontkit-dependencies/
 These include MIT, the Apache License 2.0 headers of Google's Brotli decoder and the
 Unicode License V3 for the Unicode Character Database data.
 
+Allura (via @fontsource/allura 5.3.0)
+Copyright 2010 The Allura Project Authors (https://github.com/googlefonts/allura).
+SIL Open Font License 1.1, with no Reserved Font Name. Used to draw typed signatures;
+the font is not embedded in PDFs.
+Exact package: https://registry.npmjs.org/@fontsource/allura/-/allura-5.3.0.tgz
+Full license: Allura-OFL.txt
+
 PDF.js (pdfjs-dist) 6.4.299, legacy browser build
 Mozilla and contributors. Apache License 2.0.
 Source: https://github.com/mozilla/pdf.js

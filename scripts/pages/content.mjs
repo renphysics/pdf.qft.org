@@ -35,6 +35,29 @@ export const PAGES = [
     ],
   },
   {
+    tool: 'signature',
+    name: 'Sign PDF',
+    title: 'Sign a PDF for free, in your browser — QFT PDF',
+    description:
+      'Draw, type or upload your signature and place it on one page or every page of a PDF. Free, no sign-up, and your PDF and signature stay on your device.',
+    eyebrow: 'SIGN PDF',
+    heading: ['Sign a PDF.', 'Your signature, right where it belongs.'],
+    intro: 'Draw your signature, type your name, or use a picture of it, then place it on the page and download.',
+    upload: { text: 'Drop a PDF here to sign it.', cta: 'Choose a PDF to sign' },
+    how: ['How to sign', 'a PDF.'],
+    steps: [
+      OPEN_STEP,
+      ['Make your signature.', 'Draw it with a mouse, finger or pen, type your name in a handwriting style, or upload a picture of it.'],
+      ['Place it and download.', 'Click the page where it belongs, or add it to every page. Drag it into place, resize it, then save your copy.'],
+    ],
+    faqs: [
+      ['Is my signature uploaded?', 'No. It is made and placed in your browser. It stays on this device only if you choose “Keep it on this device”, and you can remove it any time.'],
+      ['Is this a legally binding signature?', 'It is an electronic signature: a picture of your signature on the page. Many everyday documents accept one, but some require a certificate-based digital signature, which QFT PDF does not create. Check what the recipient needs.'],
+      ['Can I sign every page at once?', 'Yes. Add your signature to every page in one step, or place it once and copy it to the same spot on all pages. The PDF stores the picture only once.'],
+      ['Can I use a photo of my signature?', 'Yes. Upload a PNG or JPG of your signature on light paper; QFT PDF can make the paper transparent so only the ink shows.'],
+    ],
+  },
+  {
     tool: 'watermark',
     name: 'Add watermark to PDF',
     title: 'Add a watermark to a PDF for free — QFT PDF',

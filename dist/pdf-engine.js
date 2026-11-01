@@ -430,6 +430,23 @@ async function drawTextAnnotation(page, geometry, annotation, getFont, pageIndex
   return layout.lines.length > 0;
 }
 
+const embeddedImages = new WeakMap();
+/**
+ * An image embedded in the document, once per image: a signature placed on
+ * every page is stored one time and drawn on each page. Placed copies share
+ * the same bytes object, also after the editor's state reaches the worker.
+ */
+function embeddedImage(doc, annotation) {
+  if (!embeddedImages.has(doc)) embeddedImages.set(doc, new Map());
+  const images = embeddedImages.get(doc);
+  if (!images.has(annotation.imageBytes)) {
+    images.set(annotation.imageBytes, annotation.imageType === 'jpg' || annotation.imageType === 'jpeg'
+      ? doc.embedJpg(annotation.imageBytes)
+      : doc.embedPng(annotation.imageBytes));
+  }
+  return images.get(annotation.imageBytes);
+}
+
 async function drawAnnotation(doc, page, geometry, annotation, getFont, pageIndex) {
   if (annotation.type === 'text') return drawTextAnnotation(page, geometry, annotation, getFont, pageIndex);
   const rect = layoutRect(annotation, geometry);
@@ -438,13 +455,10 @@ async function drawAnnotation(doc, page, geometry, annotation, getFont, pageInde
   if (annotation.type === 'highlight') {
     page.drawRectangle({ ...options, color: color(annotation.color, '#f5d85c'), opacity: number(annotation.opacity, 0.3, 0, 1), blendMode: library().BlendMode.Multiply });
     return true;
-  } else if (annotation.type === 'image') {
+  } else if (annotation.type === 'image' || annotation.type === 'signature') {
     if (!annotation.imageBytes) throw new Error('Choose a PNG or JPEG image to add to the PDF.');
     try {
-      const image = annotation.imageType === 'jpg' || annotation.imageType === 'jpeg'
-        ? await doc.embedJpg(annotation.imageBytes)
-        : await doc.embedPng(annotation.imageBytes);
-      page.drawImage(image, options);
+      page.drawImage(await embeddedImage(doc, annotation), options);
     } catch {
       throw new Error('This image could not be added. Choose a valid PNG or JPEG image.');
     }

@@ -35,11 +35,19 @@ test('every editor tool, with items selected and settings shown', async ({ page 
     await page.selectOption('#tool-form [name="scope"]', 'pages');
     expect(await violations(page), `${tool}, on some pages`).toEqual([]);
   }
-  for (const tool of ['image', 'pages', 'delete', 'crop', 'merge', 'split', 'protect', 'unlock']) {
+  for (const tool of ['image', 'pages', 'delete', 'crop', 'merge', 'split', 'protect', 'unlock', 'signature']) {
     await useTool(page, tool);
     await ready(page);
     expect(await violations(page), tool).toEqual([]);
   }
+  // Sign PDF: typing a signature, the signature ready to place, and a placed one.
+  await page.locator('label:has(input[name="signatureMode"][value="type"])').click();
+  await page.fill('#tool-form [name="signatureText"]', 'Alex Morgan');
+  expect(await violations(page), 'typing a signature').toEqual([]);
+  await page.click('[data-action="signature-use"]');
+  expect(await violations(page), 'signature ready').toEqual([]);
+  await page.click('[data-action="signature-place"]');
+  expect(await violations(page), 'signature placed').toEqual([]);
   await page.locator('.tool-sidebar [data-action="help"]').click();
   await expect(page.locator('#info-dialog')).toBeVisible();
   expect(await violations(page), 'help dialog').toEqual([]);

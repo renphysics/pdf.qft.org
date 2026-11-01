@@ -282,3 +282,21 @@ source review does not replace the owner’s browser verification.
 - Downloads are compared with the preview pixel by pixel in the browser (at most
   0.1% of pixels may differ, for anti-aliasing): Latin text, watermarks, headers and
   footers, page numbers, and Chinese, Korean and kana text.
+
+## Sign PDF — 2026-11-01
+
+- Draw (mouse, finger, pen), type (Allura) or upload a signature; uploads get a
+  transparent background and are cropped to the ink. Use this signature is disabled
+  until there is something to use.
+- Click the page to place it, or Add it to page N (scrolled into view) / Add it to
+  every page; a placed signature can be copied to the same spot on every page. Undo
+  covers each step. Clicking the page before making one explains what to do.
+- Downloads store the picture once however many pages carry it (browser and engine
+  tests count the image objects).
+- Kept in this browser only with "Keep it on this device"; unticking removes it
+  (browser test reloads the page to check both).
+- axe: no violations while typing a signature, with it ready to place, and placed.
+  Phones: 44 px targets and no sideways scrolling with the Sign panel open.
+- Known limit: on phones, the 44 px corner handles can cover a small signature; move
+  it by dragging its middle or the handles, or resize it with the Width slider.
+

@@ -1304,5 +1304,22 @@
         ]
       }
     ]
+  },
+  "allura": {
+    "package": "@fontsource/allura",
+    "version": "5.3.0",
+    "license": "OFL-1.1",
+    "attribution": "Copyright 2010 The Allura Project Authors (https://github.com/googlefonts/allura)",
+    "reserved_font_name": null,
+    "upstream": "https://github.com/googlefonts/allura",
+    "tarball": "https://registry.npmjs.org/@fontsource/allura/-/allura-5.3.0.tgz",
+    "tarball_integrity": "sha512-UqloNNVxl03+psvtIXCYuo7/v2mD9XmX2HGiczhK6NmDDwbFJJDjrbHZ5tpNuVXKsMEQPc46tZu3hewYN82/YA==",
+    "tarball_sha256": "2ee3e81f8c3777a6ccea66e7548eed2bb2077837d9026da7a9fc2dde8c6aca54",
+    "files": {
+      "dist/assets/fonts/allura-latin-400-normal.woff2": "package/files/allura-latin-400-normal.woff2",
+      "dist/assets/fonts/allura-latin-ext-400-normal.woff2": "package/files/allura-latin-ext-400-normal.woff2"
+    },
+    "license_file": "dist/licenses/Allura-OFL.txt",
+    "use": "Typed signatures are drawn with it in the browser and added to PDFs as images; the font itself is never embedded."
   }
 }

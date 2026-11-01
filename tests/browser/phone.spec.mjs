@@ -2,7 +2,7 @@
 // bottom bar, controls are large enough to tap, and nothing scrolls sideways.
 import { test, expect, openSample, ready, overlayLines } from './helpers.mjs';
 
-const TOOLS = ['text', 'image', 'highlight', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'protect', 'unlock'];
+const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'protect', 'unlock'];
 
 /** Elements wider than the screen, outside the areas that scroll on purpose. */
 function overflow(page) {
@@ -35,7 +35,7 @@ test('the page comes first, and tapping it adds text', async ({ page }) => {
 
 test('controls in the editor are at least 44 px', async ({ page }) => {
   await openSample(page);
-  for (const tool of ['text', 'watermark', 'pages', 'protect']) {
+  for (const tool of ['text', 'signature', 'watermark', 'pages', 'protect']) {
     await page.locator(`.tool-tabs [data-tool="${tool}"]`).click();
     await ready(page);
     const small = await page.evaluate(() =>
