@@ -1,24 +1,26 @@
-pdf-lib 1.17.1 — bundled dependency notices
+@cantoo/pdf-lib 2.11.1 — bundled dependency notices
 
 The application’s MIT license does not replace the licenses below.
-The shipped pdf-lib.min.js is identical to the official 1.17.1 npm UMD build.
-Its source map identifies the bundled dependencies; the release yarn.lock
-and exact package source comparisons establish their versions.
+The shipped pdf-lib.min.js is identical to the official @cantoo/pdf-lib 2.11.1 npm UMD build,
+a maintained fork of pdf-lib (https://github.com/Hopding/pdf-lib). The bundle’s
+source map identifies the bundled packages; each version below is the npm release
+whose files match the bundled sources byte for byte.
 
 Full preserved notices and package metadata are in pdf-lib-dependencies/:
 
-- @pdf-lib/standard-fonts 1.0.0 — MIT; original Christopher Brown project
-  attribution retained. Adobe Core 14 font metric data retain their APAFML
+- culori 4.0.2 — MIT. Directory: culori-4.0.2/
+- fflate 0.8.3 — MIT. Directory: fflate-0.8.3/
+- html-entities 2.4.0 — MIT. Directory: html-entities-2.4.0/
+- node-html-better-parser 1.5.9 — MIT. Directory: node-html-better-parser-1.5.9/
+- tslib 2.8.1 — 0BSD. Directory: tslib-2.8.1/
+- Standard 14 font metrics (the fork’s src/packages/standard-fonts) — MIT; original
+  Christopher Brown project attribution retained. The Adobe Core 14 font metric data
+  (identical to @pdf-lib/standard-fonts 1.0.0 once decompressed) retain their APAFML
   redistribution notice and copyright/trademark notices.
-  Directory: pdf-lib-standard-fonts-1.0.0/
-- @pdf-lib/upng 1.0.1 — MIT, Copyright (c) 2017 Photopea.
-  Directory: pdf-lib-upng-1.0.1/
-- pako 1.0.10 and 1.0.11 — MIT AND Zlib. The MIT package licenses and
-  the source headers containing the Zlib grants are both preserved.
-  Directories: pako-1.0.10/ and pako-1.0.11/
-- tslib 1.11.1 — Apache-2.0; Microsoft copyright notice retained.
-  Directory: tslib-1.11.1/
+  Directory: cantoo-standard-fonts-2.11.1/
+- UPNG (the fork’s src/packages/upng) — MIT, Copyright (c) 2017 Photopea.
+  Directory: cantoo-upng-2.11.1/
 
-Package download URLs, SHA-256 hashes, source-map verification paths, and
-PDF.js asset checks are recorded in scripts/vendor-license-provenance.json
-in the source repository. The main pdf-lib MIT license is pdf-lib-MIT.txt.
+Package download URLs, integrity hashes, and the verification method are recorded in
+scripts/vendor-license-provenance.json in the source repository. The main pdf-lib MIT
+license is pdf-lib-MIT.txt; it is identical to the fork’s LICENSE.md.

@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const runtime = process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../node_modules');
-globalThis.PDFLib = require(path.join(runtime, 'pdf-lib'));
+globalThis.PDFLib = require(path.join(runtime, '@cantoo/pdf-lib'));
 globalThis.fontkit = require('../node_modules/@pdf-lib/fontkit');
 const { DOMMatrix, ImageData, Path2D, createCanvas } = require(path.join(runtime, '@napi-rs/canvas'));
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
@@ -142,6 +142,15 @@ await writeFile(path.join(outputDir, 'unicode-export.pdf'), unicode);
 const unicodeText = await extract(unicode);
 assert.ok(unicodeText[0].items.some((item) => item.text.includes('中文页脚')));
 assert.ok(unicodeText[0].items.some((item) => item.text.includes('量子场论')));
+
+// Accented Latin text uses Noto Sans, embedded as a subset of the glyphs used.
+const latin = await buildPdf({
+  sources: [{ id: 'a', bytes: fixtureBytes }], pages: [{ id: 'a', sourceId: 'a', index: 0 }],
+  annotations: [{ type: 'text', pageId: 'a', text: 'Café crème, déjà vu', x: .1, y: .2, width: .8, fontSize: 16 }],
+});
+await writeFile(path.join(outputDir, 'latin-subset-export.pdf'), latin);
+assert.ok((await extract(latin))[0].items.some((item) => item.text === 'Café crème, déjà vu'), 'Latin text is extractable');
+assert.ok(latin.length - fixtureBytes.length < 60000, `Noto Sans is subset, not embedded whole (+${latin.length - fixtureBytes.length} bytes)`);
 
 // A note placed before rotation must rotate with the original page; a later
 // note placed in the rotated view must remain upright in that newer view.

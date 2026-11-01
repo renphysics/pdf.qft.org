@@ -5,13 +5,14 @@ Application license: QFT-PDF-MIT.txt (identical to the repository LICENSE).
 The application license does not replace the third-party licenses below.
 A browsable index of these notices is provided in index.html.
 
-pdf-lib 1.17.1
+@cantoo/pdf-lib 2.11.1, a maintained fork of pdf-lib
 Copyright (c) 2019 Andrew Dillon. MIT License.
-Source: https://github.com/Hopding/pdf-lib
+Source: https://github.com/cantoo-scribe/pdf-lib (fork of https://github.com/Hopding/pdf-lib)
+Exact package: https://registry.npmjs.org/@cantoo/pdf-lib/-/pdf-lib-2.11.1.tgz
 Full license: pdf-lib-MIT.txt
 Bundled dependencies and Adobe font-metric data: pdf-lib-dependencies.txt
 Original license/copyright files: pdf-lib-dependencies/
-These include MIT, Zlib, Apache-2.0 and Adobe AFM redistribution terms.
+These include MIT, 0BSD and Adobe AFM redistribution terms.
 
 @pdf-lib/fontkit 1.1.1
 MIT declared by the exact upstream package. Author metadata: Andrew Dillon;

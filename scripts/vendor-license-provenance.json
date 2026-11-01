@@ -1,169 +1,151 @@
 {
   "schema_version": 1,
-  "verification": "All PDF.js files below match the official npm tarball byte-for-byte. pdf-lib.min.js matches the official npm UMD; dependency paths were read from its corresponding source map and versions resolved by the upstream release yarn.lock. Notices are copied from exact npm tarballs or clearly identified source headers.",
+  "verification": "All PDF.js files below match the official npm tarball byte-for-byte. pdf-lib.min.js matches the official @cantoo/pdf-lib npm UMD; its source map embeds every bundled source, and each third-party package is pinned to the npm release whose files match those sources byte for byte (the fork publishes no lockfile). Notices are copied from exact npm tarballs or clearly identified source headers.",
   "pdf_lib": {
-    "version": "1.17.1",
-    "tarball": "https://registry.npmjs.org/pdf-lib/-/pdf-lib-1.17.1.tgz",
-    "tarball_sha256": "a7cc1eaf12e41e612a7be581162a63b18118aefc01e90f6a1f35347b1f324a1c",
-    "bundle_sha256": "0f9a5cad07941f0826586c94e089d89b918c46e5c17cf2d5a3c6f666e3bc694f",
-    "source_map_sha256": "643d7f8cc311af4b84cf09c9e457a43029c9272c0bb4e2015e52bf55e38068e4",
-    "release_lock_url": "https://raw.githubusercontent.com/Hopding/pdf-lib/v1.17.1/yarn.lock",
-    "release_lock_sha256": "1ee25ea1250a44d0f188c66083a24af096f3fed77c1236ff95537dd7eb6f324c",
+    "package": "@cantoo/pdf-lib",
+    "version": "2.11.1",
+    "published": "2026-09-15T11:39:27.933Z",
+    "upstream": "https://github.com/Hopding/pdf-lib",
+    "repository": "git+https://github.com/cantoo-scribe/pdf-lib.git",
+    "git_head": "c8c88e84dcd5510ec35921123bb5140fe02a7115",
+    "tarball": "https://registry.npmjs.org/@cantoo/pdf-lib/-/pdf-lib-2.11.1.tgz",
+    "tarball_integrity": "sha512-lYuRJFfXgoP8WVE8HYSeoLfDcnSXmjMLmdZS7YvmYHngbcZfiqDOruHrZBqjYizkrNa4ad1yW4WCrPYyb26T3Q==",
+    "tarball_sha256": "ac92ff4a16a1cb89779c649f627f6fad8b37ceaca87a8a1eef98fa5fd47d5fe1",
+    "bundle": "dist/pdf-lib.min.js",
+    "bundle_sha256": "2294a0bb8742d8948ae2d49a60cb6a3600c0b5deae6de198e57fb368d1b79ba9",
+    "source_map_sha256": "a5dbd70c36fb02a1448070788702db551ba09eec601b1a70d242609d15a77d32",
+    "first_party_sources_matched": 162,
     "dependencies": [
       {
-        "name": "@pdf-lib/standard-fonts",
-        "version": "1.0.0",
+        "name": "culori",
+        "version": "4.0.2",
         "license": "MIT",
-        "author": "Andrew Dillon <andrew.dillon.j@gmail.com>",
-        "contributors": [
-          "Christopher Brown <io@henrian.com> (http://henrian.com)"
-        ],
-        "repository": "https://github.com/Hopding/standard-fonts.git",
-        "tarball": "https://registry.npmjs.org/@pdf-lib/standard-fonts/-/standard-fonts-1.0.0.tgz",
-        "tarball_sha256": "8a6b3a914d6d928840b484aa247d12702fc7b5ef00130a914929a129a5423d36",
+        "author": "Dan Burzo <dan@danburzo.ro>",
+        "contributors": null,
+        "repository": "git@github.com:Evercoder/culori.git",
+        "tarball": "https://registry.npmjs.org/culori/-/culori-4.0.2.tgz",
+        "integrity": "sha512-1+BhOB8ahCn4O0cep0Sh2l9KCOfOdY+BXJnKMHFFzDEouSr/el18QwXEMRlOj9UY5nCeA8UN3a/82rUWRBeyBw==",
+        "tarball_sha256": "f9764df4e6f910458b80641202346c5be5d9457b92805f6b87491b1c2df6cfe5",
+        "bundled_files_matched": 130,
+        "notice_directory": "culori-4.0.2",
         "notice_files": [
-          "dist/licenses/pdf-lib-dependencies/pdf-lib-standard-fonts-1.0.0/LICENSE.md",
-          "dist/licenses/pdf-lib-dependencies/pdf-lib-standard-fonts-1.0.0/ORIGINAL-PROJECT-NOTICE.txt",
-          "dist/licenses/pdf-lib-dependencies/pdf-lib-standard-fonts-1.0.0/ADOBE-METRIC-NOTICES.txt"
+          "dist/licenses/pdf-lib-dependencies/culori-4.0.2/LICENSE",
+          "dist/licenses/pdf-lib-dependencies/culori-4.0.2/SOURCE-NOTICES.txt"
         ]
       },
       {
-        "name": "@pdf-lib/upng",
-        "version": "1.0.1",
+        "name": "fflate",
+        "version": "0.8.3",
         "license": "MIT",
-        "author": "photopea (https://github.com/photopea)",
+        "author": "Arjun Barrett <arjunbarrett@gmail.com>",
+        "contributors": null,
+        "repository": "https://github.com/101arrowz/fflate",
+        "tarball": "https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz",
+        "integrity": "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==",
+        "tarball_sha256": "38c2cd824402407b43153c782274aec2ea83ea688e4aa0b743c5f2c305857d92",
+        "bundled_files_matched": 1,
+        "notice_directory": "fflate-0.8.3",
+        "notice_files": [
+          "dist/licenses/pdf-lib-dependencies/fflate-0.8.3/LICENSE"
+        ]
+      },
+      {
+        "name": "html-entities",
+        "version": "2.4.0",
+        "license": "MIT",
+        "author": {
+          "name": "Marat Dulin",
+          "email": "mdevils@yandex.ru"
+        },
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "https://github.com/mdevils/html-entities.git"
+        },
+        "tarball": "https://registry.npmjs.org/html-entities/-/html-entities-2.4.0.tgz",
+        "integrity": "sha512-igBTJcNNNhvZFRtm8uA6xMY6xYleeDwn3PeBCkDz7tHttv4F2hsDI2aPgNERWzvRcNYHNT3ymRaQzllmXj4YsQ==",
+        "tarball_sha256": "7a2937c5e2ca62bf3624e34f6b64492e4ae1c8ef24d528dcd156e2d9c091cf95",
+        "bundled_files_matched": 4,
+        "notice_directory": "html-entities-2.4.0",
+        "notice_files": [
+          "dist/licenses/pdf-lib-dependencies/html-entities-2.4.0/LICENSE"
+        ]
+      },
+      {
+        "name": "node-html-better-parser",
+        "version": "1.5.9",
+        "license": "MIT",
+        "author": "Xiaoyi Shi <ashi009@gmail.com>",
         "contributors": [
-          "Andrew Dillon (https://github.com/Hopding)",
-          "Scimonster (https://github.com/Scimonster)"
+          "taoqf<tao_qiufeng@126.com>",
+          "François Billioud<f.billioud@gmail.com>"
         ],
         "repository": {
           "type": "git",
-          "url": "https://github.com/Hopding/upng"
+          "url": "https://github.com/Sharcoux/node-html-parser.git"
         },
-        "tarball": "https://registry.npmjs.org/@pdf-lib/upng/-/upng-1.0.1.tgz",
-        "tarball_sha256": "737ffe924e0e207173427b7fe30a610144c93b27a1c894ac006b6ff70fc84f6c",
+        "tarball": "https://registry.npmjs.org/node-html-better-parser/-/node-html-better-parser-1.5.9.tgz",
+        "integrity": "sha512-z1I5UINMezJXYL9cH3h0a9KBth2G978gSLlfkpQ+CQzzVHVQy9gpARgm9eDsz1O4gn1HtgUqjdAIYxKFZm6uHQ==",
+        "tarball_sha256": "e86461ad6c072b5f87480bc977719e1ee67cbfaf46280d5ed469a2a405055b86",
+        "bundled_files_matched": 1,
+        "notice_directory": "node-html-better-parser-1.5.9",
         "notice_files": [
-          "dist/licenses/pdf-lib-dependencies/pdf-lib-upng-1.0.1/LICENSE"
-        ]
-      },
-      {
-        "name": "pako",
-        "version": "1.0.10",
-        "license": "(MIT AND Zlib)",
-        "contributors": [
-          "Andrei Tuputcyn (https://github.com/andr83)",
-          "Vitaly Puzrin (https://github.com/puzrin)",
-          "Friedel Ziegelmayer (https://github.com/dignifiedquire)",
-          "Kirill Efimov (https://github.com/Kirill89)",
-          "Jean-loup Gailly",
-          "Mark Adler"
-        ],
-        "repository": "nodeca/pako",
-        "tarball": "https://registry.npmjs.org/pako/-/pako-1.0.10.tgz",
-        "tarball_sha256": "226e4f109397e7f7e634d6124607a716b0bd9c95a41348910516ba60f36bf8ff",
-        "notice_files": [
-          "dist/licenses/pdf-lib-dependencies/pako-1.0.10/LICENSE",
-          "dist/licenses/pdf-lib-dependencies/pako-1.0.10/ZLIB-SOURCE-NOTICES.txt"
-        ]
-      },
-      {
-        "name": "pako",
-        "version": "1.0.11",
-        "license": "(MIT AND Zlib)",
-        "contributors": [
-          "Andrei Tuputcyn (https://github.com/andr83)",
-          "Vitaly Puzrin (https://github.com/puzrin)",
-          "Friedel Ziegelmayer (https://github.com/dignifiedquire)",
-          "Kirill Efimov (https://github.com/Kirill89)",
-          "Jean-loup Gailly",
-          "Mark Adler"
-        ],
-        "repository": "nodeca/pako",
-        "tarball": "https://registry.npmjs.org/pako/-/pako-1.0.11.tgz",
-        "tarball_sha256": "0d4028dc0352a740c30cbfd772917f2744986d42bfa0b06ec7642bffe7ad3941",
-        "notice_files": [
-          "dist/licenses/pdf-lib-dependencies/pako-1.0.11/LICENSE",
-          "dist/licenses/pdf-lib-dependencies/pako-1.0.11/ZLIB-SOURCE-NOTICES.txt"
+          "dist/licenses/pdf-lib-dependencies/node-html-better-parser-1.5.9/LICENSE"
         ]
       },
       {
         "name": "tslib",
-        "version": "1.11.1",
-        "license": "Apache-2.0",
+        "version": "2.8.1",
+        "license": "0BSD",
         "author": "Microsoft Corp.",
+        "contributors": null,
         "repository": {
           "type": "git",
           "url": "https://github.com/Microsoft/tslib.git"
         },
-        "tarball": "https://registry.npmjs.org/tslib/-/tslib-1.11.1.tgz",
-        "tarball_sha256": "7095b4b5fe8fe827acbf6ebe53dc44129f887b56d1bf85ee99331729d36b2fed",
+        "tarball": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
+        "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==",
+        "tarball_sha256": "66f635d5eeabae44807534976913a102cf615b9a045368359c9f79ae6ee2119e",
+        "bundled_files_matched": 1,
+        "notice_directory": "tslib-2.8.1",
         "notice_files": [
-          "dist/licenses/pdf-lib-dependencies/tslib-1.11.1/LICENSE.txt",
-          "dist/licenses/pdf-lib-dependencies/tslib-1.11.1/CopyrightNotice.txt"
+          "dist/licenses/pdf-lib-dependencies/tslib-2.8.1/LICENSE.txt",
+          "dist/licenses/pdf-lib-dependencies/tslib-2.8.1/SOURCE-NOTICES.txt"
         ]
       }
     ],
-    "verified_source_map_dependency_files": [
-      "../node_modules/tslib/tslib.es6.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/utils/common.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/trees.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/adler32.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/crc32.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/deflate.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/messages.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/utils/strings.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/zstream.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/deflate.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/inffast.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/inftrees.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/inflate.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/constants.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/zlib/gzheader.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/lib/inflate.js",
-      "../node_modules/@pdf-lib/standard-fonts/node_modules/pako/index.js",
-      "../node_modules/@pdf-lib/standard-fonts/es/utils.js",
-      "../node_modules/@pdf-lib/standard-fonts/es/Font.js",
-      "../node_modules/@pdf-lib/standard-fonts/es/Encoding.js",
-      "../node_modules/pako/lib/utils/common.js",
-      "../node_modules/pako/lib/zlib/trees.js",
-      "../node_modules/pako/lib/zlib/adler32.js",
-      "../node_modules/pako/lib/zlib/crc32.js",
-      "../node_modules/pako/lib/zlib/deflate.js",
-      "../node_modules/pako/lib/zlib/messages.js",
-      "../node_modules/pako/lib/utils/strings.js",
-      "../node_modules/pako/lib/zlib/zstream.js",
-      "../node_modules/pako/lib/deflate.js",
-      "../node_modules/pako/lib/zlib/inffast.js",
-      "../node_modules/pako/lib/zlib/inftrees.js",
-      "../node_modules/pako/lib/zlib/inflate.js",
-      "../node_modules/pako/lib/zlib/constants.js",
-      "../node_modules/pako/lib/zlib/gzheader.js",
-      "../node_modules/pako/lib/inflate.js",
-      "../node_modules/pako/index.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/utils/common.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/trees.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/adler32.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/crc32.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/deflate.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/messages.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/utils/strings.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/zstream.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/deflate.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/inffast.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/inftrees.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/inflate.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/constants.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/zlib/gzheader.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/lib/inflate.js",
-      "../node_modules/@pdf-lib/upng/node_modules/pako/index.js",
-      "../node_modules/@pdf-lib/upng/UPNG.js"
+    "in_tree_packages": [
+      {
+        "source": "src/packages/standard-fonts",
+        "name": "@cantoo/standard-fonts",
+        "license": "MIT",
+        "author": "Andrew Dillon <andrew.dillon.j@gmail.com>",
+        "notice_directory": "cantoo-standard-fonts-2.11.1",
+        "notice_files": [
+          "dist/licenses/pdf-lib-dependencies/cantoo-standard-fonts-2.11.1/LICENSE.md",
+          "dist/licenses/pdf-lib-dependencies/cantoo-standard-fonts-2.11.1/ORIGINAL-PROJECT-NOTICE.txt",
+          "dist/licenses/pdf-lib-dependencies/cantoo-standard-fonts-2.11.1/ADOBE-METRIC-NOTICES.txt",
+          "dist/licenses/pdf-lib-dependencies/cantoo-standard-fonts-2.11.1/Adobe-APAFML.txt",
+          "dist/licenses/pdf-lib-dependencies/cantoo-standard-fonts-2.11.1/Adobe-Core14-MustRead.html"
+        ]
+      },
+      {
+        "source": "src/packages/upng",
+        "name": "@cantoo/upng",
+        "license": "MIT",
+        "author": "photopea (https://github.com/photopea)",
+        "notice_directory": "cantoo-upng-2.11.1",
+        "notice_files": [
+          "dist/licenses/pdf-lib-dependencies/cantoo-upng-2.11.1/LICENSE"
+        ]
+      }
     ],
     "adobe_metrics": {
       "license": "APAFML",
       "archive": "https://download.macromedia.com/pub/developer/opentype/tech-notes/Core14_AFMs.zip",
       "archive_sha256": "8c892c3c49553cfd2d2a27c4495b4bb12e2875115be7fd127ed3876df19d8654",
       "original_notice_sha256": "be71e055bb2551a6fc8b60dcf094bf40357858980abde86f76cc9a3c144d5403",
-      "verification": "All 14 original .afm files match the upstream standard-fonts font_metrics directory byte-for-byte. The upstream package converts these records to compressed JSON.",
+      "verification": "All 14 original .afm files match the upstream standard-fonts font_metrics directory byte-for-byte. The upstream package converts these records to compressed JSON. @cantoo/pdf-lib 2.11.1 ships the same metric records (its compressed JSON decodes identically to @pdf-lib/standard-fonts 1.0.0). @cantoo/pdf-lib 2.11.1 ships the same metric records (its compressed JSON decodes identically to @pdf-lib/standard-fonts 1.0.0).",
       "original_notice": "dist/licenses/pdf-lib-dependencies/pdf-lib-standard-fonts-1.0.0/Adobe-Core14-MustRead.html"
     }
   },
