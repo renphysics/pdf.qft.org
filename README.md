@@ -109,14 +109,44 @@ so Back and Forward move between views, the address names the tool in use, and
 a reload opens that tool's page (documents stay in memory only, so a reload
 starts again from the page's landing view).
 
+## The editor
+
+Edits apply as you make them. The editor keeps a description of the document
+(its source PDFs, the page list with each page's rotation and crop, the items
+placed on pages, and the watermark, header/footer and page-number settings) and
+shows it without building a PDF:
+
+- `preview.js` renders each page from its source PDF with PDF.js, turned and
+  cropped as the page list says, and draws every edit on top as SVG. It lays
+  text out with the export's own code (`layout.js`) and fonts (Helvetica's
+  metrics with the metric-compatible Liberation Sans, Noto Sans, Noto Sans CJK),
+  so lines break and land exactly where the downloaded PDF puts them.
+  `tests/preview.test.mjs` checks this against exported files.
+- Text, images and highlights can be typed into, dragged and resized on the
+  page, or selected and changed in the panel; with an item selected, arrow keys
+  nudge it, Delete removes it and Enter edits text. Watermarks, headers and
+  footers, and page numbers update on every page as their settings change.
+  Turning, moving and removing pages only changes the page list.
+- Every change is one undo step (typing, dragging and sliders merge into one
+  step), with redo. Problems the export would report, such as a character the
+  fonts cannot draw or a header too long for its page, are shown on the page
+  as soon as they appear.
+- The PDF is built only to download, extract or split, in a module Web Worker
+  (`export-worker.js`) so the page stays responsive; browsers without module
+  workers build it on the page instead.
+
+On phones the document comes first: the page fills the screen under a compact
+document bar, tools sit in a bottom bar, and each tool's settings open in a
+sheet that folds away. Controls are at least 44 px.
+
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned
 in `dist/assets/vendor/versions.json`. The landing page loads no PDF engine:
 `pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
-non-ASCII text), and `app.js` imports PDF.js when a document opens. Both start
-downloading as soon as a visitor opens the file picker, drags a file in, or
-opens the sample. The package manifest and lockfile provide
+non-ASCII text), and `preview.js` imports PDF.js when a document opens. Both
+start downloading as soon as a visitor opens the file picker, drags a file in,
+or opens the sample. The package manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license.
@@ -128,7 +158,8 @@ npm test
 
 The tests require Node.js 22.13 or newer and Python 3. `npm run check` validates
 the static distribution without installing dependencies. The PDF tests inspect
-exported text, geometry, numbering and ZIP contents independently. Set `PYTHON`
+exported text, geometry, numbering and ZIP contents independently, and check
+that the editor preview draws text where the export puts it. Set `PYTHON`
 if Python 3 has another executable name on your machine.
 
 The editor keeps PDFs, edits, and generated files in tab memory. Saved presets
@@ -210,8 +241,8 @@ preset usable in the tab. No external ZIP library or network service is used.
 ZIP32 size/count limits produce a message directing users to individual files.
 
 The home toolkit supports category filters and search. The editor uses a compact
-tool selector and direct page navigation. Responsive checks cover 320px and
-390px layouts without document-wide overflow.
+tool selector (a bottom tool bar on phones) and direct page navigation.
+Responsive checks cover 320px to 1280px layouts without horizontal overflow.
 
 `node tests/workflows.test.mjs` verifies split planning including 350 pages,
 preserved geometry/text/numbering, all-page presets, per-file numbering reset,

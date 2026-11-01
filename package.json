@@ -8,7 +8,7 @@
     "prepare-assets": "node scripts/prepare-assets.mjs",
     "pages": "node scripts/build-pages.mjs",
     "check": "node scripts/prepare-assets.mjs && node scripts/build-pages.mjs --check && node tests/site-integrity.test.mjs",
-    "test": "npm run check && node tests/engine.test.mjs && node tests/workflows.test.mjs && node tests/release-stamp.test.mjs"
+    "test": "npm run check && node tests/engine.test.mjs && node tests/preview.test.mjs && node tests/workflows.test.mjs && node tests/release-stamp.test.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1"

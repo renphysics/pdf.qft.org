@@ -27,8 +27,8 @@ const site = path.resolve(process.argv[2] || fileURLToPath(new URL('../dist', im
 const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).href);
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 const FIRST_PARTY = [
-  'index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, 'app.js', 'routes.js', 'pdf-engine.js',
-  'workflows.js', 'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
+  'index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, 'app.js', 'routes.js', 'layout.js', 'preview.js',
+  'pdf-engine.js', 'export-worker.js', 'workflows.js', 'batch-ui.js', 'style.css', 'studio.css', 'batch.css',
 ];
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const sources = Object.fromEntries(
@@ -62,14 +62,22 @@ const RULES = {
     ]),
   ),
   'app.js': [
-    [/(from '\.\/(?:pdf-engine|workflows|batch-ui|routes)\.js)'/g, `$1?v=${release}'`, 4],
+    [/(from '\.\/(?:pdf-engine|workflows|batch-ui|routes|layout|preview)\.js)'/g, `$1?v=${release}'`, 6],
+    // The export worker is a module too: one URL per release.
+    [/(new URL\('\.\/export-worker\.js)'/g, `$1?v=${release}'`, 1],
+  ],
+  'preview.js': [
+    [/(from '\.\/(?:layout|pdf-engine)\.js)'/g, `$1?v=${release}'`, 2],
     [/(import\('\.\/assets\/vendor\/pdf\.mjs)'/g, `$1?v=${pdfjs}'`, 1],
     [/(assetUrl\('\.\/assets\/vendor\/pdf\.worker\.mjs)'/g, `$1?v=${worker}'`, 1],
   ],
+  'layout.js': [],
   'pdf-engine.js': [
+    [/(from '\.\/layout\.js)'/g, `$1?v=${release}'`, 2],
     [/(new URL\('\.\/assets\/vendor\/pdf-lib\.min\.js)'/g, `$1?v=${pdfLib}'`, 1],
     [/(new URL\('\.\/assets\/vendor\/fontkit\.umd\.min\.js)'/g, `$1?v=${fontkit}'`, 1],
   ],
+  'export-worker.js': [[/(from '\.\/pdf-engine\.js)'/g, `$1?v=${release}'`, 1]],
   'workflows.js': [[/(from '\.\/pdf-engine\.js)'/g, `$1?v=${release}'`, 1]],
   'batch-ui.js': [[/(from '\.\/(?:workflows|pdf-engine)\.js)'/g, `$1?v=${release}'`, 2]],
 };
