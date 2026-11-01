@@ -154,6 +154,22 @@ await assert.rejects(splitPdf(source, [[0]], { shouldCancel: () => true }), erro
 let cancel = false;
 await assert.rejects(splitPdf(source, [[0], [1]], { onProgress: fraction => { if (fraction > 0) cancel = true; }, shouldCancel: () => cancel }), error => error.name === 'AbortError');
 
+// Split parts can need a password; batches open PDFs that only restrict changes,
+// and explain that a PDF needing a password must be unlocked in the editor first.
+const protectedParts = await splitPdf(processed, [[0], [1, 2]], { password: 'part secret' });
+for (const part of protectedParts) {
+  assert.equal(await PDFDocument.load(part).then(() => 'opened', (error) => error.constructor.name), 'EncryptedPDFError', 'Each part is encrypted');
+  const task = pdfjs.getDocument({ data: part.slice(), verbosity: 0 });
+  await assert.rejects(task.promise, error => error.name === 'PasswordException', 'Each part needs its password');
+  await task.destroy();
+  assert.equal((await PDFDocument.load(part, { password: 'part secret' })).getPageCount() > 0, true);
+}
+await assert.rejects(splitPdf(processed, [[0]], { password: '' }), /Enter a password/);
+const fixtureFile = name => readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', name)).then(bytes => new Uint8Array(bytes));
+const ownerOnlyBatch = await inspectIndependent(await applyPreset(await fixtureFile('owner-only-aes256.pdf'), { name: 'Numbers', pageNumbers: { format: 'No. {page}' } }));
+assert.deepEqual(ownerOnlyBatch.map(page => page.text.includes('No.')), [true, true], 'A PDF with only an owner password is processed');
+await assert.rejects(applyPreset(await fixtureFile('password-aes128.pdf'), preset), error => error.code === 'password-required' && /Unlock PDF/.test(error.message));
+
 const form = await PDFDocument.create();
 const formPage = form.addPage([400, 600]);
 form.addPage([400, 600]);
@@ -197,7 +213,7 @@ assert.deepEqual(report.sizes, [outputs[0].length, outputs[1].length, 4]);
 console.log(JSON.stringify({ status: 'passed', checks: [
   'split planning and ranges', '350-page planning', 'canonical preset persistence',
   'preset validation', 'batch crop geometry and annotations', 'per-file numbering reset',
-  'split text, page order, crop, and rotation', 'printed numbering retained',
+  'split text, page order, crop, and rotation', 'printed numbering retained', 'password-protected split parts', 'batch with owner-password and password PDFs',
   'source immutability', 'cancellation', 'interactive form handling',
   'safe unique filenames', 'independent ZIP CRC and Unicode verification',
 ], artifacts: ['workflow-batch.pdf', 'workflow-download.zip'] }, null, 2));
