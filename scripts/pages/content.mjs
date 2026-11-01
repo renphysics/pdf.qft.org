@@ -199,7 +199,7 @@ export const PAGES = [
       ['Is merging PDFs free?', 'Yes. There is no sign-up and no fixed limit on file size or page count; very large files depend on your device’s memory.'],
       ['Are my files uploaded?', 'No. The PDFs are combined in your browser and never sent to a server.'],
       ['Can I merge PDFs with fillable form fields?', 'Not yet. Rather than silently losing the fields, QFT PDF asks you to save a flattened copy in your PDF reader first.'],
-      ['What about password-protected PDFs?', 'Open the file in your PDF reader with its password, save an unlocked copy, and merge that copy.'],
+      ['What about password-protected PDFs?', 'Add them as usual and enter each password when asked. The merged PDF is protected with the first password you entered; change it in [Protect PDF](tool:protect) or remove it in [Unlock PDF](tool:unlock).'],
     ],
   },
   {
@@ -223,6 +223,53 @@ export const PAGES = [
       ['Can I split a PDF that has fillable form fields?', 'Not yet. Rather than silently losing the fields, QFT PDF asks you to save a flattened copy in your PDF reader first.'],
       ['Is there a page limit?', 'No fixed limit. Very large documents depend on your device’s memory.'],
       ['Is my PDF uploaded?', 'No. The parts are created in your browser and never leave your device.'],
+    ],
+  },
+  {
+    tool: 'protect',
+    name: 'Protect PDF',
+    title: 'Password-protect a PDF for free — QFT PDF',
+    description:
+      'Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.',
+    eyebrow: 'PROTECT PDF',
+    heading: ['Password-protect a PDF.', 'Keep it for the right eyes.'],
+    intro: 'Choose a password, and anyone who opens your PDF will need it. The encryption happens right here in your browser.',
+    upload: { text: 'Drop a PDF here to protect it.', cta: 'Choose a PDF to protect' },
+    how: ['How to password-protect', 'a PDF.'],
+    steps: [
+      OPEN_STEP,
+      ['Choose a password.', 'Type it in Protect PDF. Show password lets you check what you typed.'],
+      ['Download the protected PDF.', 'Your copy is encrypted with AES-256 and opens only with the password. Your original file is unchanged.'],
+    ],
+    faqs: [
+      ['How strong is the protection?', 'The PDF is encrypted with AES-256, the strongest encryption PDF readers support. As with any password, a long one that is hard to guess protects best.'],
+      ['What if I forget the password?', 'QFT PDF doesn’t keep it and can’t recover it, so store it somewhere safe. Your original, unprotected file is unchanged.'],
+      ['Is my password sent anywhere?', 'No. The PDF is encrypted in your browser, and neither the file nor the password leaves your device.'],
+      ['Can I edit the PDF before protecting it?', 'Yes. Add text, page numbers or a watermark, or reorder and remove pages, then download it protected. Split parts and downloaded page selections get the same password.'],
+      ['Will it open in other PDF readers?', 'Yes. Current PDF readers, including Adobe Acrobat and web browsers, ask for the password and then open it.'],
+    ],
+  },
+  {
+    tool: 'unlock',
+    name: 'Unlock PDF',
+    title: 'Remove a password from a PDF — QFT PDF',
+    description:
+      'Know the password? Open your protected PDF and download a copy that opens without it, and without printing or copying limits. Free and private.',
+    eyebrow: 'UNLOCK PDF',
+    heading: ['Unlock a PDF.', 'Leave the password behind.'],
+    intro: 'Open a password-protected PDF with its password, then download a copy that opens without one.',
+    upload: { text: 'Drop a protected PDF here to unlock it.', cta: 'Choose a PDF to unlock' },
+    how: ['How to remove a password', 'from a PDF.'],
+    steps: [
+      ['Open your PDF.', 'Choose the protected file and enter its password. It is used only on your device.'],
+      ['Check the result.', 'Unlock PDF confirms that your download will open without a password. Edit the PDF too, if you like.'],
+      ['Download the unlocked copy.', 'Save a copy that opens without a password. Your original file is unchanged.'],
+    ],
+    faqs: [
+      ['Can QFT PDF unlock a PDF without its password?', 'Only when the PDF opens without a password and just limits printing, copying or changes. A PDF that needs a password to open can’t be unlocked without it.'],
+      ['Is my password sent anywhere?', 'No. The PDF is decrypted in your browser, and the password is used only to open it. It isn’t stored.'],
+      ['Can I edit a protected PDF and keep its password?', 'Yes. Open it in any QFT PDF tool and enter its password. Your download keeps the same password unless you remove it here or change it in [Protect PDF](tool:protect).'],
+      ['Which kinds of protection are supported?', 'Passwords with AES-256, AES-128 or RC4 encryption. PDFs protected with a certificate can’t be opened.'],
     ],
   },
   {

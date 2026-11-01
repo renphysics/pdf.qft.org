@@ -1,9 +1,10 @@
 import {
-  inspectPdf,
+  openPdf,
   buildPdfWithNotes,
   parsePageRange,
   cropMarginsForRotation,
   loadPdfLib,
+  passwordProblem,
 } from './pdf-engine.js';
 import { planSplit, splitPdf, createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
@@ -63,6 +64,8 @@ const emptyState = () => ({
   watermark: null,
   headerFooter: null,
   pageNumbers: null,
+  // { enabled, password }: downloads need this password to open. Kept in memory only.
+  protection: null,
 });
 let state = emptyState();
 const ui = {
@@ -119,6 +122,8 @@ const names = {
   delete: 'Delete Pages',
   crop: 'Crop PDF',
   split: 'Split PDF',
+  protect: 'Protect PDF',
+  unlock: 'Unlock PDF',
 };
 const descriptions = {
   text: 'Click the page where your text should start, then type. Drag text to move it.',
@@ -133,6 +138,8 @@ const descriptions = {
   delete: 'Select the pages to remove using their checkboxes or a page range. Undo brings them back.',
   crop: 'Drag across the page to choose the area to keep, or set the margins below.',
   split: 'Create separate PDFs from this document, including your edits.',
+  protect: 'Choose a password. Anyone who opens the PDF you download will need it.',
+  unlock: 'Download a copy of your PDF that opens without a password.',
 };
 const settingDefaults = {
   watermark: () => ({
@@ -186,6 +193,7 @@ function snapshot(current = state) {
     watermark: copySetting(current.watermark),
     headerFooter: copySetting(current.headerFooter),
     pageNumbers: copySetting(current.pageNumbers),
+    protection: current.protection ? { ...current.protection } : null,
   };
 }
 function busy(value, message = 'Working on your PDF…') {
@@ -396,11 +404,21 @@ function documentChanged(layout) {
   if (ui.editing && !annotationById(ui.editing)) stopEditing();
   updateHistoryButtons();
   updateDocumentInfo();
+  updateDownloadButton();
   if (layout) {
     renderPages();
     renderThumbnails();
     renderStage();
   } else scheduleOverlays();
+}
+/** While downloads need a password, the Download button shows a lock and says so. */
+function updateDownloadButton() {
+  const button = $('#download-button'),
+    locked = protectedDownload();
+  $('use', button).setAttribute('href', locked ? '#i-lock' : '#i-download');
+  $('.download-protected', button).hidden = !locked;
+  if (locked) button.title = 'Your download will need its password to open';
+  else button.removeAttribute('title');
 }
 function updateHistoryButtons() {
   $('#undo-button').disabled = !ui.past.length;
@@ -1524,8 +1542,87 @@ function panelFields() {
       );
     case 'split':
       return splitFields();
+    case 'protect':
+      return protectFields();
+    case 'unlock':
+      return unlockFields();
   }
   return '';
+}
+/** Whether downloads will need a password to open. */
+function protectedDownload() {
+  return Boolean(state.protection && state.protection.enabled !== false && state.protection.password);
+}
+/** Protected PDFs in use: opened with a password, or limiting printing, copying or changes. */
+function lockedSources() {
+  return state.sources.filter(
+    (source) => source.protection && state.pages.some((page) => page.sourceId === source.id),
+  );
+}
+/** Whether Unlock PDF is giving a protected PDF back without its password. */
+function unlockedDownload() {
+  return ui.tool === 'unlock' && !protectedDownload() && lockedSources().length > 0;
+}
+function protectFields() {
+  return (
+    makeField(
+      'Password',
+      '<input name="password" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" aria-describedby="protect-status">',
+      true,
+    ) +
+    '<label class="check-field wide"><input type="checkbox" data-reveal-password> Show password</label>' +
+    '<p id="protect-status" class="field-hint wide" aria-live="polite"></p>' +
+    '<button type="button" class="button primary" data-action="download-protected">' +
+    icon('lock') +
+    'Download protected PDF</button>' +
+    '<p class="field-hint wide">Encrypted with AES-256. Keep the password somewhere safe: QFT PDF doesn’t store it and can’t recover it.</p>'
+  );
+}
+/** Show whether the typed password protects downloads, or why it can't. */
+function updateProtectionStatus() {
+  const field = $('#tool-form [name="password"]'),
+    status = $('#protect-status');
+  if (!field || !status) return;
+  const password = state.protection?.password || '';
+  const problem = password ? passwordProblem(password) : null;
+  field.setAttribute('aria-invalid', String(Boolean(problem)));
+  status.classList.toggle('invalid', Boolean(problem));
+  status.textContent =
+    problem ||
+    (password
+      ? 'Your download will need this password to open.'
+      : 'Type a password to protect your download.');
+}
+function unlockFields() {
+  if (protectedDownload())
+    return (
+      '<div class="scope-note wide">Your download will need a password to open.</div>' +
+      '<button type="button" class="button primary" data-action="remove-protection">' +
+      icon('unlock') +
+      'Remove the password</button>' +
+      '<p class="field-hint wide">Your original file isn’t changed, and Undo brings the password back.</p>'
+    );
+  const used = lockedSources();
+  if (!used.length)
+    return (
+      '<div class="scope-note wide">This PDF doesn’t have a password, so your download won’t need one either.</div>' +
+      '<button type="button" class="button secondary" data-action="choose-protect">' +
+      icon('lock') +
+      'Add a password instead</button>'
+    );
+  return (
+    '<div class="scope-note wide protection-note">' +
+    icon('check') +
+    '<span>Unlocked. Your download will open without a password' +
+    (used.some((source) => source.protection === 'owner')
+      ? ', and without limits on printing, copying or changes'
+      : '') +
+    '.</span></div>' +
+    '<button type="button" class="button primary" data-action="download">' +
+    icon('download') +
+    'Download unlocked PDF</button>' +
+    '<p class="field-hint wide">Your original file isn’t changed.</p>'
+  );
 }
 /** Values the panel's fields show for the current tool and selection. */
 function panelValues() {
@@ -1578,6 +1675,8 @@ function panelValues() {
       return { range: ui.rangeDraft };
     case 'split':
       return ui.splitDraft;
+    case 'protect':
+      return { password: state.protection?.password || '' };
   }
   return {};
 }
@@ -1608,6 +1707,7 @@ function fillForm({ all = false } = {}) {
     $('#scope-hint').textContent = error || 'Numbers follow the current page order.';
     $('#scope-hint').classList.toggle('invalid', Boolean(error));
   }
+  if (ui.tool === 'protect') updateProtectionStatus();
   const toggle = $('[role="switch"]', form);
   if (toggle) {
     const key = SETTINGS[ui.tool];
@@ -1665,6 +1765,10 @@ function validNumber(field) {
 function onPanelInput(event) {
   const field = event.target,
     name = field.name;
+  if (field.matches('[data-reveal-password]')) {
+    $('#tool-form [name="password"]').type = field.checked ? 'text' : 'password';
+    return;
+  }
   if (!name) return;
   updateOutputs();
   if (!validNumber(field)) {
@@ -1707,6 +1811,13 @@ function onPanelInput(event) {
     if (name === 'scope') ui.cropDraft.scope = value;
     else ui.cropDraft[name] = clamp(Number(value) / 100, 0, 0.99);
     updateCropOverlay();
+    return;
+  }
+  if (ui.tool === 'protect' && name === 'password') {
+    change(() => (state.protection = value ? { enabled: true, password: value } : null), {
+      key: 'protection',
+    });
+    updateProtectionStatus();
     return;
   }
   if (ui.tool === 'split') {
@@ -2305,27 +2416,57 @@ function downloadBytes(bytes, name) {
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-function outputName(suffix = 'edited') {
+function outputName(suffix = protectedDownload() ? 'protected' : unlockedDownload() ? 'unlocked' : 'edited') {
   const sources = state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
   const base = sources.length === 1 ? sources[0].name.replace(/\.pdf$/i, '') : 'combined';
   return base + '-' + suffix + '.pdf';
 }
 /** What a download message adds about the file, from the build's notes. */
 function exportNotes(notes) {
-  return notes.includes('pdfa-removed')
-    ? ' It’s no longer marked as PDF/A (archival), because added text and marks don’t meet PDF/A rules.'
-    : '';
+  const content = notes.includes('pdfa-removed'),
+    password = notes.includes('pdfa-removed-password');
+  if (!content && !password) return '';
+  return (
+    ' It’s no longer marked as PDF/A (archival), because ' +
+    (password && content
+      ? 'PDF/A files can’t have a password, and added text and marks don’t meet PDF/A rules.'
+      : password
+        ? 'PDF/A files can’t have a password.'
+        : 'added text and marks don’t meet PDF/A rules.')
+  );
 }
 async function downloadDocument() {
   try {
     const version = ui.version,
+      locked = protectedDownload(),
       { bytes, notes } = await exportDocument();
     downloadBytes(bytes, outputName());
     ui.savedVersion = version;
-    toast('Your edited PDF has been downloaded.' + exportNotes(notes));
+    toast(
+      (locked
+        ? 'Your protected PDF has been downloaded. It needs your password to open.'
+        : unlockedDownload()
+          ? 'Your unlocked PDF has been downloaded.'
+          : 'Your edited PDF has been downloaded.') + exportNotes(notes),
+    );
   } catch (error) {
     showExportError(error);
   }
+}
+/** Download from Protect PDF: only once a usable password is set. */
+async function downloadProtected() {
+  const field = $('#tool-form [name="password"]');
+  if (!protectedDownload() || passwordProblem(state.protection.password)) {
+    updateProtectionStatus();
+    if (!state.protection?.password) {
+      $('#protect-status').textContent = passwordProblem('');
+      $('#protect-status').classList.add('invalid');
+      field?.setAttribute('aria-invalid', 'true');
+    }
+    field?.focus();
+    return;
+  }
+  await downloadDocument();
 }
 async function downloadSelected() {
   try {
@@ -2340,7 +2481,8 @@ async function downloadSelected() {
       extraction.pages.length +
         ' selected page' +
         (extraction.pages.length === 1 ? '' : 's') +
-        ' downloaded.',
+        ' downloaded.' +
+        (protectedDownload() ? ' The PDF needs your password to open.' : ''),
     );
   } catch (error) {
     showExportError(error);
@@ -2351,10 +2493,10 @@ function showInfo(kind) {
   const content = $('#dialog-content');
   if (kind === 'privacy')
     content.innerHTML =
-      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
+      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><p>Passwords are used only in this tab: to open a protected PDF, and to protect your download. They are never saved, not even in presets.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
   if (kind === 'help')
     content.innerHTML =
-      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Supported files</h3><p>Unencrypted PDFs with no fixed file-size or page-count limit. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts</h3><p>Latin and Chinese text are supported. Chinese text embeds a full font for reliable reading, which adds about 14 MB to the downloaded file. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
+      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, watermarks, headers, footers, and page numbers. Merge PDFs or reorder, rotate, delete, crop, extract, and split their pages. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. Combining, removing, or extracting pages from PDFs with interactive form fields is not supported.</p><h3>Fonts</h3><p>Latin and Chinese text are supported. Chinese text embeds a full font for reliable reading, which adds about 14 MB to the downloaded file. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
   $('#info-dialog').showModal();
 }
 
@@ -2366,6 +2508,125 @@ function warmPdfTools() {
 }
 function isDirty() {
   return ui.version !== ui.savedVersion || Boolean(ui.splitResults?.some((file) => !file.downloaded));
+}
+/**
+ * Ask for a protected PDF's password until it opens the file. `attempt(password)`
+ * opens it; a wrong password keeps the dialog open with a message. Resolves
+ * with what attempt returned, or null if the person cancels or skips the file.
+ */
+function passwordDialog(name, several, attempt) {
+  const dialog = $('#password-dialog'),
+    form = $('#password-form'),
+    input = $('#password-input'),
+    reveal = $('#password-show'),
+    error = $('#password-error'),
+    submit = $('#password-submit'),
+    cancel = $('#password-cancel');
+  $('#password-file').textContent = '“' + name + '”';
+  cancel.textContent = several ? 'Skip this file' : 'Cancel';
+  input.value = '';
+  input.type = 'password';
+  reveal.checked = false;
+  const showError = (message) => {
+    error.textContent = message;
+    error.hidden = !message;
+    if (message) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+  };
+  showError('');
+  return new Promise((resolve, reject) => {
+    let settled = false,
+      working = false;
+    const finish = (value, failure) => {
+      if (settled) return;
+      settled = true;
+      form.removeEventListener('submit', onSubmit);
+      cancel.removeEventListener('click', onCancel);
+      reveal.removeEventListener('change', onReveal);
+      dialog.removeEventListener('close', onClose);
+      if (dialog.open) dialog.close();
+      input.value = '';
+      if (failure) reject(failure);
+      else resolve(value);
+    };
+    const onSubmit = async (event) => {
+      event.preventDefault();
+      if (working) return;
+      if (!input.value) {
+        showError('Enter the password.');
+        input.focus();
+        return;
+      }
+      working = true;
+      submit.disabled = true;
+      submit.textContent = 'Opening…';
+      try {
+        finish(await attempt(input.value));
+      } catch (failure) {
+        if (failure?.code === 'password-incorrect' && !settled) {
+          showError(failure.message);
+          input.focus();
+          input.select();
+        } else finish(null, failure);
+      } finally {
+        working = false;
+        submit.disabled = false;
+        submit.textContent = 'Open PDF';
+      }
+    };
+    const onCancel = () => finish(null);
+    // Escape closes the dialog. The close event arrives later, so one left over
+    // from the previous prompt may reach this one while it is open: ignore that.
+    const onClose = () => {
+      if (!dialog.open) finish(null);
+    };
+    const onReveal = () => (input.type = reveal.checked ? 'text' : 'password');
+    form.addEventListener('submit', onSubmit);
+    cancel.addEventListener('click', onCancel);
+    reveal.addEventListener('change', onReveal);
+    dialog.addEventListener('close', onClose);
+    dialog.showModal();
+    input.focus();
+  });
+}
+/**
+ * Open a PDF, asking for its password if it needs one. Resolves with openPdf's
+ * result and the password that opened it ('' if none was needed), or null.
+ */
+async function openWithPassword(name, bytes, several) {
+  try {
+    return { ...(await openPdf(bytes)), password: '' };
+  } catch (error) {
+    if (error.code !== 'password-required') throw error;
+  }
+  return passwordDialog(name, several, async (password) => ({
+    ...(await openPdf(bytes, { password })),
+    password,
+  }));
+}
+/** What to say once files are open: protection kept or removed, files skipped. */
+function openedMessage(sources, { added, kept, skipped }) {
+  const withPassword = sources.some((source) => source.protection === 'password'),
+    limited = sources.some((source) => source.protection === 'owner'),
+    parts = [];
+  if (added) parts.push(added + ' page' + (added === 1 ? '' : 's') + ' added. Arrange them, then download.');
+  else if (ui.tool === 'unlock' && (withPassword || limited))
+    parts.push(
+      'Your PDF is unlocked. Download a copy that opens without a password' +
+        (limited ? ' and without limits on printing, copying or changes.' : '.'),
+    );
+  else if (withPassword) parts.push('Your PDF is unlocked for editing, here on your device.');
+  else parts.push('Your PDF is ready. Everything happens on your device.');
+  if (kept) parts.push('Your download will keep the same password. Change it in Protect PDF.');
+  if (limited && ui.tool !== 'unlock')
+    parts.push('It had limits on printing, copying or changes, which your download won’t have.');
+  if (skipped.length)
+    parts.push(
+      skipped.map((name) => '“' + name + '”').join(', ') +
+        (skipped.length === 1 ? ' wasn’t' : ' weren’t') +
+        ' opened.',
+    );
+  return parts.join(' ');
 }
 async function openFiles(files, append = false) {
   if (ui.busy || batch.isBusy() || !files.length) return;
@@ -2400,22 +2661,37 @@ async function openFiles(files, append = false) {
   loadPdfjs().catch(() => {});
   try {
     const sources = [],
-      pages = [];
+      pages = [],
+      skipped = [];
+    // The first password that opened a file protects downloads too (not when unlocking).
+    let password = '';
     for (const file of list) {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const info = await inspectPdf(bytes),
-        id = uid();
+      const info = await openWithPassword(
+        file.name,
+        new Uint8Array(await file.arrayBuffer()),
+        list.length > 1,
+      );
+      if (!info) {
+        skipped.push(file.name);
+        continue;
+      }
+      const id = uid();
+      password ||= info.password;
       sources.push({
         id,
-        bytes,
+        // An encrypted PDF's unencrypted copy: the editor works on it in memory.
+        bytes: info.bytes,
         name: file.name,
         pageCount: info.pageCount,
         hasForm: info.hasForm,
         pages: info.pages.map((page) => ({ box: page.cropBox, rotation: page.rotation })),
+        protection: info.protection,
       });
       for (let index = 0; index < info.pageCount; index++)
         pages.push({ id: uid(), sourceId: id, index, rotation: 0 });
     }
+    if (!sources.length) return;
+    const keep = Boolean(password) && ui.tool !== 'unlock' && !(append && protectedDownload());
     // Draw text in the standard font as soon as the first page appears.
     previewFont('standard');
     if (append) {
@@ -2430,17 +2706,21 @@ async function openFiles(files, append = false) {
         () => {
           state.sources.push(...sources);
           state.pages.push(...pages);
+          if (keep) state.protection = { enabled: true, password };
         },
         { layout: true },
       );
       renderTool();
-      toast(
-        pages.length + ' page' + (pages.length === 1 ? '' : 's') + ' added. Arrange them, then download.',
-      );
+      toast(openedMessage(sources, { added: pages.length, kept: keep, skipped }));
     } else {
       closeDocuments();
       ui.thumbs.cache.clear();
-      state = { ...emptyState(), sources, pages };
+      state = {
+        ...emptyState(),
+        sources,
+        pages,
+        protection: keep ? { enabled: true, password } : null,
+      };
       ui.activeId = pages[0].id;
       ui.selected = new Set([pages[0].id]);
       ui.item = null;
@@ -2467,7 +2747,7 @@ async function openFiles(files, append = false) {
       renderTool();
       ui.focusKey = '#document-name';
       recordView('editor');
-      toast('Your PDF is ready. Everything happens on your device.');
+      toast(openedMessage(sources, { added: 0, kept: keep, skipped }));
     }
   } catch (error) {
     toast(friendly(error), true);
@@ -2712,6 +2992,16 @@ async function action(name, element) {
     if (confirmed) await resetDocument();
   }
   if (name === 'download') await downloadDocument();
+  if (name === 'download-protected') await downloadProtected();
+  if (name === 'remove-protection') {
+    change(() => (state.protection = null));
+    renderTool();
+    toast('Password removed. Your download will open without one.');
+  }
+  if (name === 'choose-protect') {
+    chooseTool('protect');
+    $('#tool-form [name="password"]')?.focus();
+  }
   if (name === 'add-text') {
     const geometry = ui.stage.geometry;
     createText({ x: geometry.width * 0.1, y: geometry.height * 0.1 });
@@ -2926,11 +3216,14 @@ async function generateSplit() {
         { mode: values.mode, size: Number(values.size), ranges: values.ranges },
         state.pages.length,
       );
-    const { bytes } = await exportDocument();
+    // Each part is protected on its own, so the document is split unprotected.
+    const password = protectedDownload() ? state.protection.password : null;
+    const { bytes } = await exportDocument(password ? { ...snapshot(), protection: null } : null);
     ui.cancelOperation = false;
     busy(true, 'Creating split PDFs…');
     cancellable('Cancel splitting', null);
     const outputs = await splitPdf(bytes, groups, {
+      password,
       onProgress: (value) => {
         $('#busy-message').textContent = 'Creating split PDFs… ' + Math.round(value * 100) + '%';
       },
@@ -2943,7 +3236,13 @@ async function generateSplit() {
       pageCount: groups[index].length,
     }));
     renderTool();
-    toast(outputs.length + ' PDF' + (outputs.length === 1 ? ' is' : 's are') + ' ready to download.');
+    toast(
+      outputs.length +
+        ' PDF' +
+        (outputs.length === 1 ? ' is' : 's are') +
+        ' ready to download.' +
+        (password ? (outputs.length === 1 ? ' It needs' : ' Each needs') + ' your password to open.' : ''),
+    );
   } catch (error) {
     if (error.name === 'AbortError') toast('Splitting cancelled. Your document is unchanged.');
     else showExportError(error);
@@ -3000,7 +3299,7 @@ function filterTools() {
   $$('.tool-card').forEach((card) => {
     const visible =
       (toolFilter === 'all' || card.dataset.category === toolFilter) &&
-      card.textContent.toLowerCase().includes(query);
+      (card.textContent + ' ' + (card.dataset.keywords || '')).toLowerCase().includes(query);
     card.hidden = !visible;
     if (visible) count++;
   });

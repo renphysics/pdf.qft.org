@@ -1744,3 +1744,55 @@ summary:focus-visible {
     bottom: auto;
   }
 }
+
+/* Passwords: the prompt when opening a protected PDF, and Protect / Unlock PDF. */
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 32px;
+  margin: -6px 0 4px;
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.check-field input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--color-brand);
+  cursor: pointer;
+}
+.field-error,
+.info-dialog .field-error {
+  margin-top: 6px;
+  color: var(--color-danger);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.password-dialog .password-field {
+  margin: 20px 0 12px;
+}
+.password-dialog .field-error {
+  margin: -4px 0 10px;
+}
+.password-dialog .password-field input {
+  font-size: var(--text-md);
+}
+.password-dialog strong {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.protection-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.protection-note .icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  color: var(--color-accent);
+}

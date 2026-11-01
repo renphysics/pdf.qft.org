@@ -9,8 +9,9 @@ source review does not replace the owner’s browser verification.
    page count, filename, and thumbnails appear. A new visitor can also reach the
    file chooser with the keyboard.
 2. **Real file:** Open a PDF from disk and drag/drop another. A document drag must
-   not navigate the browser away from the app. Unsupported file types, corrupted
-   PDFs and encrypted PDFs show readable errors. PDFs above the former 50 MB
+   not navigate the browser away from the app. Unsupported file types and corrupted
+   PDFs show readable errors; a password-protected PDF asks for its password
+   (see Passwords below). PDFs above the former 50 MB
    per-file and 100 MB combined caps are not rejected solely for byte size;
    there is no fixed page-count cap. Capacity depends on browser memory.
 3. **Add text:** Click the page and type a note; drag it, narrow it with its edge
@@ -223,3 +224,25 @@ source review does not replace the owner’s browser verification.
   speed is unchanged (400 pages in about 1 s in the browser).
 - Also fixed: arrow-key nudges pressed within one animation frame collapsed into
   one step; they now accumulate (five presses move 5 pt).
+
+## Passwords, Protect PDF and Unlock PDF — 2026-11-01
+
+- Opening: a PDF that needs a password shows a prompt naming the file; an empty
+  or wrong password keeps it open with a message under the field; Show password
+  reveals what was typed; Cancel (Skip this file when opening several) and Escape
+  open nothing; reopening straight after cancelling prompts again. Owner-password
+  PDFs open without a prompt and say their limits won't be kept. Checked with
+  AES-128, RC4 and AES-256 (Unicode password) files encrypted by pypdf.
+- Downloads keep the password the PDF was opened with: the Download button shows
+  a lock and its name says so, the file is named `-protected`, and it needs the
+  password in another reader. Unlock PDF removes the password (Undo restores it);
+  on the Unlock PDF page a file is opened without protection. Protect PDF refuses
+  to download until a usable password is typed, and rejects control characters.
+- Split parts and extracted pages need the password too. Batch processes
+  owner-password PDFs and asks for PDFs needing a password to be unlocked first.
+- The same journeys pass in a release-stamped build. axe: no violations in the
+  prompt (with and without an error), the Protect and Unlock panels and pages,
+  on desktop and iPhone 13. No horizontal overflow from 320 px to 1280 px.
+- Library fix: protected files kept strings outside object streams (such as the
+  document language) unencrypted, so readers showed garbage; now encrypted, and
+  checked with PDF.js. The engine test fails without the fix.
