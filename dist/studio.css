@@ -1564,6 +1564,8 @@ summary:focus-visible {
     --stage-pad-y: 12px;
     --stage-gap: 12px;
     min-height: 0;
+    /* Pulling down at the first page does not reload the site (and lose the edits). */
+    overscroll-behavior: contain;
   }
   .canvas-scroll.snap-pages {
     scroll-snap-type: y mandatory;

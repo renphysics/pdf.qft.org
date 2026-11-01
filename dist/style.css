@@ -1045,7 +1045,6 @@ body.editing {
   position: relative;
   /* Positions are kept by app.js; the browser should not shift them. */
   overflow-anchor: none;
-  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 .page-stack {
