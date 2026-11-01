@@ -217,47 +217,6 @@ textarea:focus-visible {
   height: 15px;
   width: 15px;
 }
-.featured-tool {
-  grid-column: span 2;
-  min-height: 135px;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  background: var(--color-surface-muted);
-  padding: 24px;
-}
-.featured-tool:nth-child(2) {
-  background: var(--tint-blue-bg);
-}
-.featured-tool .tool-icon {
-  margin: 0;
-  width: 46px;
-  height: 46px;
-  flex-shrink: 0;
-  background: #fff9;
-}
-.featured-tool .tool-card-copy {
-  max-width: 85%;
-  padding-right: 17px;
-}
-.featured-tool .tool-card-copy strong {
-  font-size: var(--text-lg);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.tool-card-copy small {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 1px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 4px;
-  padding: 3px 5px;
-  color: var(--color-accent);
-}
-.featured-tool .card-arrow {
-  bottom: calc(50% - 8px);
-}
 .empty-tools {
   padding: 40px;
   text-align: center;
@@ -595,29 +554,12 @@ textarea:focus-visible {
   .tool-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .featured-tool {
-    grid-column: span 1;
-    align-items: flex-start;
-    min-height: 180px;
-  }
-  .featured-tool .tool-card-copy strong {
-    font-size: var(--text-md);
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .featured-tool .tool-card-copy {
-    padding: 0;
-    max-width: none;
-  }
-  .featured-tool .card-arrow {
-    bottom: 16px;
-  }
-  .tool-card:not(.featured-tool) {
+  .tool-card {
     min-height: 160px;
     display: flex;
     gap: 15px;
   }
-  .tool-card:not(.featured-tool) .tool-icon {
+  .tool-card .tool-icon {
     flex-shrink: 0;
     margin: 0;
   }
@@ -657,9 +599,6 @@ textarea:focus-visible {
   .editing .main-nav {
     gap: 14px;
     font-size: var(--text-base);
-  }
-  .main-nav > [data-action='privacy'] {
-    display: none;
   }
   .brand {
     font-size: var(--text-xl);
@@ -741,14 +680,12 @@ textarea:focus-visible {
   .tool-grid {
     gap: 10px;
   }
-  .tool-card,
-  .tool-card:not(.featured-tool) {
+  .tool-card {
     display: block;
     min-height: 200px;
     padding: 17px 15px;
   }
-  .tool-card .tool-icon,
-  .tool-card:not(.featured-tool) .tool-icon {
+  .tool-card .tool-icon {
     width: 34px;
     height: 34px;
     margin: 0 0 13px;
@@ -763,19 +700,6 @@ textarea:focus-visible {
   .tool-card-copy > span {
     font-size: var(--text-base);
     line-height: 1.65;
-  }
-  .featured-tool {
-    display: block;
-    min-height: 218px;
-  }
-  .featured-tool .tool-card-copy strong {
-    font-size: var(--text-md);
-  }
-  .featured-tool .tool-card-copy {
-    max-width: none;
-  }
-  .tool-card-copy small {
-    font-size: var(--text-xs);
   }
   .card-arrow {
     right: 13px;
@@ -952,9 +876,6 @@ textarea:focus-visible {
     gap: 12px;
     font-size: var(--text-base);
   }
-  .main-nav > [data-action='tools-home'] {
-    display: none;
-  }
   .hero-copy h1 {
     font-size: var(--text-display);
   }
@@ -966,14 +887,10 @@ textarea:focus-visible {
     font-size: var(--text-base);
     padding: 8px 6px;
   }
-  .tool-card,
-  .tool-card:not(.featured-tool) {
+  .tool-card {
     padding: 15px 12px;
   }
   .tool-card-copy strong {
-    font-size: var(--text-md);
-  }
-  .featured-tool .tool-card-copy strong {
     font-size: var(--text-md);
   }
   .document-actions .button {
