@@ -1,7 +1,7 @@
 // Editing journeys on a desktop screen (tests/QA-CHECKLIST.md).
 import {
   test, expect, fixture, openSample, openFiles, ready, useTool, toastText, download, overlayLines, pdfText,
-  previewDifference, writeTemporary, PDFLib,
+  previewDifference, lineWidths, writeTemporary, PDFLib,
 } from './helpers.mjs';
 
 test('opens the sample from the home page', async ({ page }) => {
@@ -125,7 +125,13 @@ test('Chinese, Korean and kana text: a small download that matches the preview',
   expect(text[0]).toContain('한국어 테스트 안녕 하세요 감사 합니다');
   expect(text[0]).toContain('かな 456 · カナ');
   expect(text[1]).toContain('量子场论 第 2 页');
-  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.0002);
+  // Every line is as wide in the preview as in the PDF: a glyph or spacing
+  // difference (such as Hangul spaces widened in the download only) shows here.
+  const widths = await lineWidths(page, bytes, 1, baseURL);
+  expect(widths.length).toBeGreaterThanOrEqual(3);
+  for (const line of widths) expect(Math.abs(line.preview - line.pdf), JSON.stringify(widths)).toBeLessThan(0.5);
+  // Pixels: rasterizers differ a little between systems, so this only guards against gross errors.
+  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.003);
 });
 
 test('organizes pages: reorder, rotate, delete and extract', async ({ page }) => {

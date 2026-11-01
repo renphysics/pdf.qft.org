@@ -164,3 +164,30 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
     { preview, data: Buffer.from(bytes).toString('base64'), pageNumber, siteRoot },
   );
 }
+
+/**
+ * Each line of text the preview draws on a page, with its width there and in a
+ * downloaded PDF (points, from PDF.js). Widths come from the fonts' advances,
+ * so unlike pixels they do not depend on how a system rasterizes text.
+ */
+export async function lineWidths(page, bytes, pageNumber, siteRoot) {
+  await page.locator('[data-page-open]').nth(pageNumber - 1).click();
+  await ready(page);
+  return page.evaluate(
+    async ({ data, pageNumber, siteRoot }) => {
+      const lib = await import(new URL('assets/vendor/pdf.mjs', siteRoot).href);
+      lib.GlobalWorkerOptions.workerSrc = new URL('assets/vendor/pdf.worker.mjs', siteRoot).href;
+      const doc = await lib.getDocument({ data: Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) }).promise;
+      const items = (await (await doc.getPage(pageNumber)).getTextContent()).items;
+      await doc.loadingTask.destroy();
+      return [...document.querySelectorAll('#page-overlay tspan')]
+        .filter((span) => span.textContent.trim())
+        .map((span) => ({
+          text: span.textContent,
+          preview: Math.round(span.getComputedTextLength() * 100) / 100,
+          pdf: Math.round((items.find((item) => item.str === span.textContent)?.width ?? NaN) * 100) / 100,
+        }));
+    },
+    { data: Buffer.from(bytes).toString('base64'), pageNumber, siteRoot },
+  );
+}
