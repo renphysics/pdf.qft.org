@@ -36,20 +36,20 @@ test('draw a signature, place it on one page and on every page; the PDF stores i
   await expect(page.locator('.signature-preview img')).toBeVisible();
 
   // Click the page to place it there.
-  const surface = await page.locator('#page-surface').boundingBox();
+  const surface = await page.locator('.page-view.current').boundingBox();
   await page.mouse.click(surface.x + surface.width * 0.3, surface.y + surface.height * 0.45);
-  await expect(page.locator('#edit-layer [data-item-id]')).toHaveCount(1);
+  await expect(page.locator('.edit-layer [data-item-id]')).toHaveCount(1);
   await expect(page.locator('#tool-panel h2')).toHaveText('Edit signature');
   // Copy it to every other page, then undo that.
   await page.click('[data-action="signature-copy"]');
   await page.locator('[data-page-open]').nth(2).click();
   await ready(page);
-  await expect(page.locator('#page-overlay image')).toHaveCount(1);
+  await expect(page.locator('.page-view.current .page-overlay image')).toHaveCount(1);
   // Undo returns to page 1, where the copy was made; page 3 is clear again.
   await page.click('#undo-button');
   await page.locator('[data-page-open]').nth(2).click();
   await ready(page);
-  await expect(page.locator('#page-overlay image')).toHaveCount(0);
+  await expect(page.locator('.page-view.current .page-overlay image')).toHaveCount(0);
   await page.click('#redo-button');
 
   const { bytes } = await download(page, () => page.click('#download-button'));
@@ -66,6 +66,7 @@ test('type a signature and add it to every page', async ({ page }) => {
   await expect(page.locator('#signature-typed')).toHaveText('Alex Morgan');
   await page.locator('label:has(input[name="signatureColor"][value="#1d3f9e"])').click();
   await page.click('[data-action="signature-use"]');
+  await expect(page.locator('.signature-preview img')).toBeVisible();
   // The ink is the chosen blue: check a dark pixel of the typed signature.
   const blue = await page.evaluate(async () => {
     const image = document.querySelector('.signature-preview img');
@@ -149,10 +150,10 @@ test('a signature is kept on this device only when asked', async ({ page }) => {
 
 test('clicking the page before making a signature explains what to do', async ({ page }) => {
   await openSample(page, 'sign-pdf/');
-  const surface = await page.locator('#page-surface').boundingBox();
+  const surface = await page.locator('.page-view.current').boundingBox();
   await page.mouse.click(surface.x + surface.width * 0.5, surface.y + surface.height * 0.5);
   await expect(page.locator('#toast-message')).toContainText('Make your signature first');
-  await expect(page.locator('#edit-layer [data-item-id]')).toHaveCount(0);
+  await expect(page.locator('.edit-layer [data-item-id]')).toHaveCount(0);
   await useTool(page, 'text');
   await useTool(page, 'signature');
 });

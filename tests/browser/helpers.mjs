@@ -58,11 +58,14 @@ export async function writeTemporary(name, bytes) {
   return file;
 }
 
-/** The editor is showing the document and has finished drawing the page. */
+/** The editor is showing the document and has finished drawing the current page. */
 export async function ready(page) {
   await expect(page.locator('#busy-overlay')).toBeHidden();
   await expect(page.locator('#workspace')).toBeVisible();
-  await page.waitForFunction(() => !document.querySelector('#page-surface').classList.contains('render-pending'));
+  await page.waitForFunction(() => {
+    const current = document.querySelector('.page-view.current');
+    return current && !current.classList.contains('render-pending');
+  });
 }
 
 export async function openSample(page, address = './') {
@@ -96,7 +99,7 @@ export async function download(page, click) {
 /** Text lines the preview draws on the current page, after it has painted. */
 export async function overlayLines(page) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  return page.locator('#page-overlay tspan').allTextContents();
+  return page.locator('.page-view.current .page-overlay tspan').allTextContents();
 }
 
 /**
@@ -112,8 +115,8 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
   await page.setViewportSize({ width, height: 2000 });
   await page.locator('[data-page-open]').nth(pageNumber - 1).click();
   await ready(page);
-  await page.addStyleTag({ content: '#edit-layer, .toast, .stage-caption { visibility: hidden !important; }' });
-  const preview = (await page.locator('#page-surface').screenshot()).toString('base64');
+  await page.addStyleTag({ content: '.edit-layer, .toast, .stage-caption { visibility: hidden !important; }' });
+  const preview = (await page.locator('.page-view.current').screenshot()).toString('base64');
   return page.evaluate(
     async ({ preview, data, pageNumber, siteRoot }) => {
       const lib = await import(new URL('assets/vendor/pdf.mjs', siteRoot).href);
@@ -180,7 +183,7 @@ export async function lineWidths(page, bytes, pageNumber, siteRoot) {
       const doc = await lib.getDocument({ data: Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) }).promise;
       const items = (await (await doc.getPage(pageNumber)).getTextContent()).items;
       await doc.loadingTask.destroy();
-      return [...document.querySelectorAll('#page-overlay tspan')]
+      return [...document.querySelectorAll('.page-view.current .page-overlay tspan')]
         .filter((span) => span.textContent.trim())
         .map((span) => ({
           text: span.textContent,

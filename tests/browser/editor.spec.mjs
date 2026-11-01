@@ -9,12 +9,12 @@ test('opens the sample from the home page', async ({ page }) => {
   await expect(page.locator('#document-name')).toHaveText('A little room to create.pdf');
   await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
   await expect(page.locator('[data-page-open]')).toHaveCount(3);
-  await expect(page.locator('#pdf-canvas')).toBeVisible();
+  await expect(page.locator('.page-view.current .page-canvas')).toBeVisible();
 });
 
 test('adds text, moves it with keys and the mouse, edits, deletes, undoes and redoes', async ({ page }) => {
   await openSample(page, 'add-text-to-pdf/');
-  const item = page.locator('#edit-layer [data-item-id]');
+  const item = page.locator('.edit-layer [data-item-id]');
   await page.click('[data-action="add-text"]');
   await expect(page.locator('#inline-editor')).toBeFocused();
   await page.keyboard.type('Keyboard text');
@@ -23,7 +23,7 @@ test('adds text, moves it with keys and the mouse, edits, deletes, undoes and re
   expect(await overlayLines(page)).toEqual(['Keyboard text']);
 
   // Quick presses all count, even within one animation frame: five move five times one.
-  const x = () => page.evaluate(() => Number(document.querySelector('#edit-layer [data-item-id]').style.transform.split(',')[4]));
+  const x = () => page.evaluate(() => Number(document.querySelector('.edit-layer [data-item-id]').style.transform.split(',')[4]));
   const start = await x();
   await page.keyboard.press('ArrowRight');
   await expect.poll(x).not.toBe(start);
@@ -85,7 +85,7 @@ test('watermark, headers and footers and page numbers: the download matches the 
   await useTool(page, 'numbers');
   await page.click('[data-action="toggle-setting"]');
   await useTool(page, 'text');
-  const surface = await page.locator('#page-surface').boundingBox();
+  const surface = await page.locator('.page-view.current').boundingBox();
   await page.mouse.click(surface.x + surface.width * 0.15, surface.y + surface.height * 0.3);
   await page.keyboard.type('Placed note');
   await page.keyboard.press('Escape');
@@ -105,7 +105,7 @@ test('Chinese, Korean and kana text: a small download that matches the preview',
   // Large text with several spaces between Hangul words: a glyph or spacing
   // difference between preview and download adds up along the line.
   await page.fill('#tool-form [name="size"]', '26');
-  const surface = await page.locator('#page-surface').boundingBox();
+  const surface = await page.locator('.page-view.current').boundingBox();
   await page.mouse.click(surface.x + surface.width * 0.05, surface.y + surface.height * 0.35);
   await page.keyboard.type('中文测试 123，世界 2026');
   await page.keyboard.press('Enter');
@@ -116,7 +116,7 @@ test('Chinese, Korean and kana text: a small download that matches the preview',
   await useTool(page, 'footer');
   await page.fill('#tool-form [name="footerLeft"]', '量子场论 第 {page} 页');
   // The CJK font loads on first use; the preview redraws when it arrives.
-  await expect(page.locator('#page-overlay text[font-family*="CJK"]').first()).toBeAttached();
+  await expect(page.locator('.page-view.current .page-overlay text[font-family*="CJK"]').first()).toBeAttached();
   await page.waitForFunction(() => document.fonts.check('16px "QFT Noto Sans CJK"', '中'));
   const { bytes } = await download(page, () => page.click('#download-button'));
   expect(bytes.length, 'only the glyphs used are embedded').toBeLessThan(350_000);
@@ -165,7 +165,7 @@ test('organizes pages: reorder, rotate, delete and extract', async ({ page }) =>
 
 test('crops by dragging, and restores the original boundary', async ({ page }) => {
   await openSample(page, 'crop-pdf/');
-  const box = await page.locator('#page-surface').boundingBox();
+  const box = await page.locator('.page-view.current').boundingBox();
   await page.mouse.move(box.x + box.width * 0.1, box.y + box.height * 0.1);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.8, { steps: 5 });
@@ -173,7 +173,7 @@ test('crops by dragging, and restores the original boundary', async ({ page }) =
   await expect(page.locator('#tool-form [name="top"]')).not.toHaveValue('0');
   await page.click('#tool-form [type="submit"]');
   await ready(page);
-  expect((await page.locator('#page-surface').boundingBox()).height).toBeLessThan(box.height);
+  expect((await page.locator('.page-view.current').boundingBox()).height).toBeLessThan(box.height);
   const cropped = await download(page, () => page.click('#download-button'));
   const crop = (await PDFLib.PDFDocument.load(cropped.bytes)).getPage(0).getCropBox();
   expect(crop.width).toBeCloseTo(595.28 * 0.8, 0);

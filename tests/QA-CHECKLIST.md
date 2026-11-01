@@ -5,8 +5,8 @@ source review does not replace the owner’s browser verification.
 
 ## Required working journeys
 
-1. **First visit:** Open the supplied sample from the landing page. Its first page,
-   page count, filename, and thumbnails appear. A new visitor can also reach the
+1. **First visit:** Open the supplied sample from the landing page. Its pages (one
+   under another), page count, filename, and thumbnails appear. A new visitor can also reach the
    file chooser with the keyboard.
 2. **Real file:** Open a PDF from disk and drag/drop another. A document drag must
    not navigate the browser away from the app. Unsupported file types and corrupted
@@ -314,3 +314,29 @@ source review does not replace the owner’s browser verification.
 - axe: the JPG to PDF and PDF to JPG pages and panels have no violations; phones: 44
   px targets and no sideways scrolling with either panel open.
 
+## Continuous scrolling — 2026-11-01
+
+- Pages show one under another and scroll continuously, each fitted to the width
+  (a page turned on its side is as wide as the others). The page filling most of the
+  view is the current page: the page number, Previous and Next, the page strip, the
+  "Add … to page N" buttons, PDF to JPG's current page and Organize's current page
+  follow it. Clicking or tapping a page makes it current.
+- Every page is edited where it is: click page 2 under page 1 to add text there
+  (browser test checks the download). Crop outlines the pages its scope covers; Delete
+  pages marks the pages to delete on the stage as in the strip.
+- Undo and redo show the page they change; moving, turning or removing the current
+  page keeps it (or the page now in its place) in view; zoom, window resizing and
+  leaving and returning to the editor keep the reading position. Control and the
+  wheel (a touchpad pinch) zoom around the pointer.
+- Phones: at Fit each page fits the stage and settles in its middle (CSS scroll
+  snapping); zoomed in, pages scroll freely. Swiping does not end typing; a tap does.
+- A 400-page document: the first page drawn 0.7 s after choosing it, two to four pages
+  kept in the page (the rest are released, with PDF.js's data for them), JavaScript
+  heap about 22 MB throughout, frames during scrolling 17 ms (median) and 27 ms (95th
+  percentile) in headless Chromium. Pages in view are drawn first; a page being drawn
+  out of view gives way when scrolling fast.
+- Browser tests: 47 (desktop, phone and release), including `scrolling.spec.mjs`.
+- Known limits: the keyboard's Tab reaches items on the pages near the view; go to a
+  page with the page number or the strip first (as before, when one page showed at a
+  time). Zooming with Control and the wheel was checked in Chromium only; Safari's
+  touchpad pinch sends its own gesture events, which are not handled.

@@ -75,6 +75,19 @@ function documentFor(source) {
   return documents.get(source.id).promise;
 }
 
+/**
+ * Free what PDF.js keeps for drawing a page (its operator list and the like)
+ * once the page is no longer shown, so a long document does not fill memory.
+ */
+export function releasePage(state, descriptor) {
+  const source = state.sources.find((item) => item.id === descriptor.sourceId),
+    entry = source && documents.get(source.id);
+  entry?.promise
+    .then((doc) => doc.getPage(descriptor.index + 1))
+    .then((page) => page.cleanup())
+    .catch(() => {});
+}
+
 /** Release PDF.js documents for sources that are no longer in use. */
 export function closeDocuments(keep = new Set()) {
   for (const [id, entry] of documents) {

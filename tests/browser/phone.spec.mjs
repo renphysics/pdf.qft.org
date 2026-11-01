@@ -20,7 +20,7 @@ function overflow(page) {
 
 test('the page comes first, and tapping it adds text', async ({ page }) => {
   await openSample(page, 'add-text-to-pdf/');
-  const surface = await page.locator('#page-surface').boundingBox();
+  const surface = await page.locator('.page-view.current').boundingBox();
   expect(surface.y, 'the page starts near the top of the screen').toBeLessThan(200);
   await expect(page.locator('.tool-tabs')).toBeVisible();
   await page.touchscreen.tap(surface.x + surface.width * 0.2, surface.y + surface.height * 0.3);
@@ -30,7 +30,49 @@ test('the page comes first, and tapping it adds text', async ({ page }) => {
   expect(await overlayLines(page)).toEqual(['Signed on site']);
   await page.locator('.tool-tabs [data-tool="watermark"]').click();
   await page.click('[data-action="toggle-setting"]');
-  await expect(page.locator('#page-overlay')).toContainText('DRAFT');
+  await expect(page.locator('.page-view.current .page-overlay')).toContainText('DRAFT');
+});
+
+/** Swipe with one finger, as a touch screen sends it (Playwright has taps only). */
+async function swipe(page, x, fromY, toY) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: fromY }] });
+  for (let step = 1; step <= 12; step++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: fromY + ((toY - fromY) * step) / 12 }] });
+    await page.waitForTimeout(16);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({ page }) => {
+  await openSample(page, 'add-text-to-pdf/');
+  await page.click('[data-action="dismiss-toast"]');
+  const stage = await page.locator('#canvas-scroll').boundingBox();
+  // Each page fits the stage; a swipe brings the next one to its middle.
+  const centred = (number) =>
+    page.evaluate((number) => {
+      const area = document.querySelector('#canvas-scroll').getBoundingClientRect();
+      const view = document.querySelector(`.page-view[data-number="${number}"]`).getBoundingClientRect();
+      return Math.abs(view.top + view.height / 2 - (area.top + area.height / 2)) < 3 && view.height < area.height;
+    }, number);
+  expect((await page.locator('.page-view.current').boundingBox()).height).toBeLessThan(stage.height);
+  await swipe(page, stage.x + stage.width / 2, stage.y + stage.height * 0.8, stage.y + stage.height * 0.25);
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  await expect.poll(() => centred(2)).toBe(true);
+
+  // Tap page 2 and type; a swipe back to page 1 does not end the typing.
+  const second = await page.locator('.page-view[data-number="2"]').boundingBox();
+  await page.touchscreen.tap(second.x + second.width * 0.2, second.y + second.height * 0.3);
+  await expect(page.locator('#inline-editor')).toBeFocused();
+  await page.keyboard.type('Second page');
+  const now = await page.locator('#canvas-scroll').boundingBox();
+  await swipe(page, now.x + 8, now.y + now.height * 0.2, now.y + now.height * 0.8);
+  await expect(page.locator('#page-jump')).toHaveValue('1');
+  await expect(page.locator('#inline-editor')).toBeFocused();
+  await page.keyboard.type(', signed');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.page-view[data-number="2"] .page-overlay tspan')).toHaveText(['Second page, signed']);
 });
 
 test('controls in the editor are at least 44 px', async ({ page }) => {

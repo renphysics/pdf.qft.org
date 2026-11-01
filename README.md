@@ -122,9 +122,16 @@ shows it without building a PDF:
   metrics with the metric-compatible Liberation Sans, Noto Sans, Noto Sans CJK),
   so lines break and land exactly where the downloaded PDF puts them.
   `tests/preview.test.mjs` checks this against exported files.
-- Text, images and highlights can be typed into, dragged and resized on the
-  page, or selected and changed in the panel; with an item selected, arrow keys
-  nudge it, Delete removes it and Enter edits text. Watermarks, headers and
+- Pages are shown one under another and scroll continuously, each fitted to
+  the width (on phones, each page fits the stage and settles in its middle).
+  Only the pages near the view are drawn, and they are released again as they
+  leave, so documents with hundreds of pages stay light. The page filling most
+  of the view is the current page: the page number, the page strip and the
+  tools that work on "this page" follow it. Zoom (the buttons, or Control and
+  the wheel) keeps the reading position, and undo shows the page it changes.
+- Text, images and highlights can be typed into, dragged and resized right on
+  their page, or selected and changed in the panel; with an item selected,
+  arrow keys nudge it, Delete removes it and Enter edits text. Watermarks, headers and
   footers, and page numbers update on every page as their settings change.
   Turning, moving and removing pages only changes the page list.
 - Every change is one undo step (typing, dragging and sliders merge into one
@@ -196,7 +203,7 @@ requests are still handled by the hosting platform.
 - PDFs with no fixed per-file or combined PDF byte-size limit.
 - Password-protected PDFs (AES-256, AES-128 and RC4 encryption): see
   [Passwords](#passwords). PDFs protected with a certificate are not supported.
-- No fixed page-count limit; thumbnails render near the visible portion of the page strip.
+- No fixed page-count limit; pages and thumbnails are drawn near the visible part of the document and the page strip.
 - Practical file capacity depends on available browser memory and device performance; very large documents may be slow or fail to open.
 - PNG/JPEG annotations up to 15 MB and 30 megapixels.
 - Latin and Chinese text with embedded Noto fonts.
@@ -221,9 +228,11 @@ Browser tests in `tests/browser/` drive the real site in Chromium with
 dragging text, undo and redo, every tool, downloads that match the preview
 (pixels, and line widths for Chinese and Korean text), PDF/A and
 password-protected files, signatures, JPG to PDF and PDF to JPG, batch
-processing, phones (layout, 44 px targets, no sideways scrolling) and axe
-accessibility checks. A `release` project stamps a copy of the site and
-serves it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs
+processing, continuous scrolling (the current page, editing any page, zoom, a
+400-page document), phones (layout, 44 px targets, no sideways scrolling,
+swiping between pages) and axe accessibility checks. A `release` project
+stamps a copy of the site and serves it under `/pdf.qft.org/`, as GitHub
+Pages does, to check versioned URLs
 and the export worker. They run in CI for pull requests and before every
 deployment. Locally:
 
