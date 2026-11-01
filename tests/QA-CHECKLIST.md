@@ -268,3 +268,17 @@ source review does not replace the owner’s browser verification.
   the same download.
 - Not checked here: Adobe Acrobat and Apple Preview. Please open a download with
   Chinese and Korean text in both before relying on it.
+
+## Browser tests in CI — 2026-11-01
+
+- `tests/browser/` (Playwright, Chromium) covers the journeys above: 33 tests, about
+  a minute. They run in the Test workflow for pull requests and in the Pages
+  workflow before deployment. Projects: `desktop` (1280 px), `phone` (iPhone 13,
+  touch) and `release` (a stamped copy served under `/pdf.qft.org/`).
+- They found three problems, now fixed: a damaged PDF (a header and no pages) showed
+  "Cannot read properties of undefined" instead of the "could not be opened"
+  message; on phones the "Use these settings in batch" link and the Show password
+  check box were under 44 px tall.
+- Downloads are compared with the preview pixel by pixel in the browser (at most
+  0.1% of pixels may differ, for anti-aliasing): Latin text, watermarks, headers and
+  footers, page numbers, and Chinese, Korean and kana text.

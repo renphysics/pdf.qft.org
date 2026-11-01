@@ -216,6 +216,25 @@ tests/engine.test.mjs exercises exported output with independent PDF.js text
 and geometry checks: cropping, rotation, numbering, annotation types, Unicode,
 merge/extract/reorder, password-protected input and output, and form handling. It uses the development dependencies installed by `npm ci`.
 
+Browser tests in `tests/browser/` drive the real site in Chromium with
+[Playwright](https://playwright.dev): opening files and the sample, typing and
+dragging text, undo and redo, every tool, downloads that match the preview pixel
+for pixel (including Chinese and Korean text), PDF/A and password-protected
+files, batch processing, phones (layout, 44 px targets, no sideways scrolling)
+and axe accessibility checks. A `release` project stamps a copy of the site and
+serves it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs
+and the export worker. They run in CI for pull requests and before every
+deployment. Locally:
+
+```sh
+npm ci
+npx playwright install chromium   # once
+npm run test:browser
+```
+
+`node scripts/serve.mjs` serves `dist/` the same way for a manual look
+(<http://127.0.0.1:4173/>).
+
 `scripts/create-sample.py` optionally regenerates the original three-page sample
 and test fixtures. It requires Python `reportlab` and `pypdf`, plus
 `QFT_SAMPLE_FONT_DIR` pointing to a directory with NotoSans-Regular.ttf,

@@ -31,6 +31,12 @@ jobs:
       # runs the PDF engine and workflow suites. A failure blocks deployment.
       - name: Restore font assets and run all tests
         run: npm test
+      # The editing journeys in tests/QA-CHECKLIST.md, in Chromium, including a
+      # stamped copy of the site under the project path. A failure blocks deployment.
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Run the browser tests
+        run: npm run test:browser
       # GitHub Pages lets browsers cache every file for ten minutes under the
       # same URL, so a reload right after a deploy could mix the new page with
       # the previous release's scripts. Versioned URLs keep each release whole.
