@@ -102,6 +102,9 @@ export async function overlayLines(page) {
 /**
  * The share of pixels that differ between the preview of a page and the same
  * page of a downloaded PDF, drawn by PDF.js at the preview's scale in the page.
+ * A pixel counts as the same if a pixel within one pixel of it in the other
+ * image matches: anti-aliasing and font hinting vary between systems by less
+ * than a pixel, while misplaced text is off by more.
  */
 export async function previewDifference(page, bytes, pageNumber, siteRoot) {
   // The whole page must be on screen, clear of the status bar and notices.
@@ -137,11 +140,26 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
       const a = await draw(async (context) => context.drawImage(image, 0, 0));
       const b = await draw((context, canvas) => pdfPage.render({ canvasContext: context, viewport, canvas }).promise);
       await doc.loadingTask.destroy();
+      const width = image.width,
+        height = image.height;
+      const near = (from, to, x, y) => {
+        const i = (y * width + x) * 4;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx,
+              ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+            const j = (ny * width + nx) * 4;
+            if (Math.max(Math.abs(from[i] - to[j]), Math.abs(from[i + 1] - to[j + 1]), Math.abs(from[i + 2] - to[j + 2])) <= 60) return true;
+          }
+        }
+        return false;
+      };
       let different = 0;
-      for (let i = 0; i < a.length; i += 4) {
-        if (Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2])) > 60) different++;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) if (!near(a, b, x, y) || !near(b, a, x, y)) different++;
       }
-      return different / (a.length / 4);
+      return different / (width * height);
     },
     { preview, data: Buffer.from(bytes).toString('base64'), pageNumber, siteRoot },
   );

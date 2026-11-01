@@ -97,16 +97,21 @@ test('watermark, headers and footers and page numbers: the download matches the 
   expect(text[1]).toContain('DRAFT');
   expect(text[2]).toContain('Left 3');
   expect(text[2]).toContain('Page 3 of 3');
-  for (const pageNumber of [1, 2]) expect(await previewDifference(page, bytes, pageNumber, baseURL)).toBeLessThan(0.001);
+  for (const pageNumber of [1, 2]) expect(await previewDifference(page, bytes, pageNumber, baseURL)).toBeLessThan(0.0002);
 });
 
 test('Chinese, Korean and kana text: a small download that matches the preview', async ({ page, baseURL }) => {
   await openSample(page, 'add-text-to-pdf/');
+  // Large text with several spaces between Hangul words: a glyph or spacing
+  // difference between preview and download adds up along the line.
+  await page.fill('#tool-form [name="size"]', '26');
   const surface = await page.locator('#page-surface').boundingBox();
-  await page.mouse.click(surface.x + surface.width * 0.1, surface.y + surface.height * 0.35);
+  await page.mouse.click(surface.x + surface.width * 0.05, surface.y + surface.height * 0.35);
   await page.keyboard.type('中文测试 123，世界 2026');
   await page.keyboard.press('Enter');
-  await page.keyboard.type('한국어 테스트 456 · かな');
+  await page.keyboard.type('한국어 테스트 안녕 하세요 감사 합니다');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('かな 456 · カナ');
   await page.keyboard.press('Escape');
   await useTool(page, 'footer');
   await page.fill('#tool-form [name="footerLeft"]', '量子场论 第 {page} 页');
@@ -117,9 +122,10 @@ test('Chinese, Korean and kana text: a small download that matches the preview',
   expect(bytes.length, 'only the glyphs used are embedded').toBeLessThan(350_000);
   const text = await pdfText(bytes);
   expect(text[0]).toContain('中文测试 123，世界 2026');
-  expect(text[0]).toContain('한국어 테스트 456 · かな');
+  expect(text[0]).toContain('한국어 테스트 안녕 하세요 감사 합니다');
+  expect(text[0]).toContain('かな 456 · カナ');
   expect(text[1]).toContain('量子场论 第 2 页');
-  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.001);
+  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.0002);
 });
 
 test('organizes pages: reorder, rotate, delete and extract', async ({ page }) => {
