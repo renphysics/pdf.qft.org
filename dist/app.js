@@ -29,6 +29,7 @@ import {
   onFontsReady,
   pageOverlay,
   previewFont,
+  releasePage,
   renderKey,
   renderPage,
   warmFont,
@@ -114,7 +115,24 @@ const ui = {
   lastCropPreset: null,
   shownDepth: 0,
   landingFocus: null,
-  stage: { key: null, pageKey: null, task: null, scale: 1, geometry: null, overlay: null },
+  // The page stack (see "The page preview"): its layout, the pages shown, and the reading position.
+  stage: {
+    scale: 1,
+    layout: [],
+    byId: new Map(),
+    metrics: null,
+    version: 0,
+    views: new Map(),
+    position: null,
+    lock: null,
+    reveal: null,
+    frame: 0,
+    rendering: false,
+    drawing: null,
+    renderTimer: 0,
+    holdUntil: 0,
+    failed: new Set(),
+  },
   thumbs: { observer: null, token: 0, task: null, cache: new Map() },
   frame: 0,
   sheetOpen: true,
@@ -383,10 +401,9 @@ function pageIndexOf(id) {
 function annotationById(id) {
   return id ? state.annotations.find((annotation) => annotation.id === id) || null : null;
 }
-/** The selected item, if it is on the current page. */
+/** The selected item, on whichever page it is. */
 function selectedItem() {
-  const annotation = annotationById(ui.item);
-  return annotation && annotation.pageId === ui.activeId ? annotation : null;
+  return annotationById(ui.item);
 }
 function formatSize(bytes) {
   return bytes >= 1048576
@@ -422,6 +439,7 @@ function change(mutate, { key = null, layout = false, before = null } = {}) {
   }
   ui.future = [];
   ui.lastChange = key ? { key, time: now } : null;
+  ui.lastActiveIndex = activeIndex();
   mutate();
   ui.version++;
   if (ui.splitResults) {
@@ -432,7 +450,11 @@ function change(mutate, { key = null, layout = false, before = null } = {}) {
 }
 /** Bring the editor up to date with the document. `layout`: pages were added, removed, moved, turned or cropped. */
 function documentChanged(layout) {
-  if (!state.pages.some((p) => p.id === ui.activeId)) ui.activeId = state.pages[0]?.id;
+  if (!state.pages.some((p) => p.id === ui.activeId)) {
+    // The current page was removed: the page now in its place becomes current.
+    ui.activeId = state.pages[Math.min(ui.lastActiveIndex || 0, state.pages.length - 1)]?.id;
+    ui.stage.reveal = ui.activeId;
+  }
   ui.selected = new Set([...ui.selected].filter((id) => state.pages.some((p) => p.id === id)));
   if (ui.item && !selectedItem()) ui.item = null;
   if (ui.editing && !annotationById(ui.editing)) stopEditing();
@@ -440,6 +462,8 @@ function documentChanged(layout) {
   updateDocumentInfo();
   updateDownloadButton();
   if (layout) {
+    // Pages that moved, turned or left may take the current page out of view: bring it back.
+    ui.stage.reveal ||= ui.activeId;
     renderPages();
     renderThumbnails();
     renderStage();
@@ -462,10 +486,12 @@ function travel(from, to, message) {
   if (ui.busy || !from.length) return;
   stopEditing();
   endGesture();
-  to.push(record());
   const entry = from.pop();
+  // Undo and redo both show the page where the change was made.
+  to.push({ ...record(), active: entry.active });
   state = entry.state;
   ui.activeId = entry.active;
+  ui.stage.reveal = entry.active;
   ui.selected = entry.selected;
   ui.item = entry.item;
   ui.lastChange = null;
@@ -480,107 +506,599 @@ const undo = () => travel(ui.past, ui.future, 'Undone.');
 const redo = () => travel(ui.future, ui.past, 'Redone.');
 
 // ---- The page preview ----------------------------------------------------------
-// The current page is rendered from its source PDF; edits are drawn on top as
-// SVG (preview.js), and items can be selected and moved on the edit layer.
+// Pages are shown one under another in a scrolling stack, each fitted to its
+// width. A page is rendered from its source PDF when it comes near the visible
+// area and released when it leaves, so long documents stay light. Edits are drawn on
+// top as SVG (preview.js), and items can be selected and moved on each page's
+// edit layer. The current page is the one filling most of the view: the page
+// counter, the page strip and the tools that work on "this page" follow it.
 
-function stageScale(geometry) {
-  const scroll = $('#canvas-scroll');
-  const width = Math.max(120, scroll.clientWidth - (phone() ? 24 : 60));
-  let fit = Math.min(width / geometry.width, 1.35);
-  // On phones the whole page fits the stage; zoom in to work on details.
-  if (phone()) fit = Math.min(fit, Math.max(120, scroll.clientHeight - 24) / geometry.height);
+// Larger canvases are refused or slow (iOS Safari allows 16.7 million pixels in all).
+const MAX_PAGE_PIXELS = matchMedia('(pointer: coarse)').matches ? 5_000_000 : 16_000_000;
+const releaseCanvas = (canvas) => {
+  canvas.width = 0;
+  canvas.height = 0;
+};
+function pageById(id) {
+  return state.pages[pageIndexOf(id)];
+}
+/** The stack's margins (set in CSS) and the size of the view. */
+function stageMetrics() {
+  const scroll = $('#canvas-scroll'),
+    style = getComputedStyle(scroll),
+    read = (name, fallback) => {
+      const value = parseFloat(style.getPropertyValue(name));
+      return Number.isFinite(value) ? value : fallback;
+    };
+  return {
+    padX: read('--stage-pad-x', 30),
+    padY: read('--stage-pad-y', 30),
+    gap: read('--stage-gap', 20),
+    width: scroll.clientWidth,
+    height: scroll.clientHeight,
+  };
+}
+/**
+ * CSS pixels per point for a page. At Fit each page fills the width (at most
+ * 135%), so a page turned on its side is as wide as the others; on phones the
+ * whole page fits the stage. Zoom scales every page alike.
+ */
+function pageScale(geometry, metrics) {
+  let fit = Math.min(Math.max(120, metrics.width - 2 * metrics.padX) / geometry.width, 1.35);
+  if (phone()) fit = Math.min(fit, Math.max(120, metrics.height - 2 * metrics.padY) / geometry.height);
   return fit * ui.zoom;
 }
-function renderStage() {
-  if (!state.pages.length || $('#workspace').hidden) return;
-  const index = activeIndex(),
-    descriptor = state.pages[index],
-    geometry = geometryOf(state, descriptor),
-    stage = ui.stage,
-    surface = $('#page-surface'),
-    canvas = $('#pdf-canvas'),
-    scroll = $('#canvas-scroll');
-  // Whole CSS pixels for the page's size and position keep its rendering sharp.
-  const width = Math.max(1, Math.round(geometry.width * stageScale(geometry))),
-    scale = width / geometry.width,
-    padding =
-      parseFloat(getComputedStyle(scroll).paddingLeft) + parseFloat(getComputedStyle(scroll).paddingRight),
-    room = scroll.clientWidth - padding;
-  stage.geometry = geometry;
-  stage.scale = scale;
-  surface.style.width = width + 'px';
-  surface.style.height = Math.max(1, Math.round(geometry.height * scale)) + 'px';
-  surface.style.marginLeft = width < room ? Math.floor((room - width) / 2) + 'px' : '0px';
-  const pageKey = renderKey(descriptor),
-    dpr = Math.min(devicePixelRatio || 1, 2),
-    key = pageKey + '@' + (scale * dpr).toFixed(3);
-  if (stage.key !== key) {
-    stage.task?.cancel();
-    stage.key = key;
-    if (stage.pageKey !== pageKey) {
-      // A different page: clear the old image rather than show it under new edits.
-      canvas.width = 1;
-      canvas.height = 1;
-      surface.classList.add('render-pending');
-    }
-    stage.pageKey = pageKey;
-    const task = renderPage(state, descriptor, scale * dpr);
-    stage.task = task;
-    task.promise.then(
-      (rendered) => {
-        if (stage.task !== task) return;
-        stage.task = null;
-        canvas.width = rendered.width;
-        canvas.height = rendered.height;
-        canvas.getContext('2d').drawImage(rendered, 0, 0);
-        rendered.width = 0;
-        rendered.height = 0;
-        surface.classList.remove('render-pending');
-      },
-      (error) => {
-        if (stage.task !== task) return;
-        stage.task = null;
-        surface.classList.remove('render-pending');
-        if (error?.name !== 'RenderingCancelledException')
-          toast('Could not preview this page. ' + friendly(error), true);
-      },
-    );
+/** Place every page in the stack: whole CSS pixels for each page's size and position keep it sharp. */
+function layoutStage() {
+  const stage = ui.stage,
+    metrics = stageMetrics();
+  let top = metrics.padY,
+    widest = 0;
+  const layout = state.pages.map((page, index) => {
+    const geometry = geometryOf(state, page),
+      scale = pageScale(geometry, metrics),
+      width = Math.max(1, Math.round(geometry.width * scale)),
+      height = Math.max(1, Math.round(geometry.height * scale));
+    const entry = {
+      id: page.id,
+      index,
+      top,
+      left: 0,
+      width,
+      height,
+      scale: width / geometry.width,
+      geometry,
+    };
+    top += height + metrics.gap;
+    widest = Math.max(widest, width);
+    return entry;
+  });
+  const width = Math.max(metrics.width, widest + 2 * metrics.padX);
+  // Pages narrower than the view are centred in it; wider ones start at the margin.
+  for (const entry of layout)
+    entry.left =
+      entry.width + 2 * metrics.padX <= metrics.width
+        ? Math.floor((metrics.width - entry.width) / 2)
+        : metrics.padX;
+  Object.assign(stage, {
+    scale: layout[activeIndex()]?.scale || 1,
+    layout,
+    metrics,
+    byId: new Map(layout.map((entry) => [entry.id, entry])),
+    version: stage.version + 1,
+  });
+  const stack = $('#page-stack');
+  stack.style.width = width + 'px';
+  stack.style.height = top - metrics.gap + metrics.padY + 'px';
+}
+/** The page at a height in the stack, or the page above the gap there. */
+function entryAt(y) {
+  const layout = ui.stage.layout;
+  let low = 0,
+    high = layout.length - 1;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (layout[middle].top <= y) low = middle;
+    else high = middle - 1;
   }
-  canvas.setAttribute('aria-label', 'Page ' + (index + 1) + ' of ' + state.pages.length);
-  syncPageNavigation();
+  return layout[low];
+}
+/** The index of the first page reaching below a height in the stack. */
+function firstBelow(y) {
+  const layout = ui.stage.layout;
+  let low = 0,
+    high = layout.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (layout[middle].top + layout[middle].height > y) high = middle;
+    else low = middle + 1;
+  }
+  return low;
+}
+/** The point of the view that stays put when pages change size: the middle of its top edge. */
+const readingPoint = () => ({ x: $('#canvas-scroll').clientWidth / 2, y: 0 });
+/**
+ * Where a point of the view is in the document: a page, the spot on it, and
+ * any distance beyond its edges (in a margin or a gap), so that the same spot
+ * can be brought back to the same point after the pages change size.
+ */
+function positionAt(x, y) {
+  const scroll = $('#canvas-scroll');
+  if (!ui.stage.layout.length) return null;
+  const left = scroll.scrollLeft + x,
+    top = scroll.scrollTop + y;
+  let entry = entryAt(top);
+  // In the gap under a page, the point belongs to the next page, which it stays above.
+  const next = ui.stage.layout[entry.index + 1];
+  if (next && top > entry.top + entry.height) entry = next;
+  const fx = clamp((left - entry.left) / entry.width, 0, 1),
+    fy = clamp((top - entry.top) / entry.height, 0, 1);
+  return {
+    id: entry.id,
+    index: entry.index,
+    fx,
+    fy,
+    dx: left - entry.left - fx * entry.width,
+    dy: top - entry.top - fy * entry.height,
+    rx: scroll.clientWidth ? x / scroll.clientWidth : 0.5,
+    ry: scroll.clientHeight ? y / scroll.clientHeight : 0,
+  };
+}
+function restorePosition(position) {
+  const scroll = $('#canvas-scroll'),
+    stage = ui.stage;
+  if (!position) {
+    scroll.scrollTop = 0;
+    scroll.scrollLeft = 0;
+    return;
+  }
+  const entry = stage.byId.get(position.id);
+  if (!entry) {
+    // The page was removed: show the page now in its place.
+    scroll.scrollTop = pageTop(stage.layout[Math.min(position.index, stage.layout.length - 1)]);
+    return;
+  }
+  scroll.scrollTop = Math.round(
+    entry.top + position.fy * entry.height + position.dy - position.ry * scroll.clientHeight,
+  );
+  scroll.scrollLeft = Math.round(
+    entry.left + position.fx * entry.width + position.dx - position.rx * scroll.clientWidth,
+  );
+}
+/** The scroll position showing a page from its top edge (on phones at Fit, where pages snap to the middle, centred). */
+function pageTop(entry) {
+  const scroll = $('#canvas-scroll');
+  if (scroll.classList.contains('snap-pages'))
+    return Math.max(0, Math.round(entry.top + entry.height / 2 - scroll.clientHeight / 2));
+  return entry.index === 0 ? 0 : Math.max(0, entry.top - Math.round(ui.stage.metrics.gap / 2));
+}
+/** How much of a page shows, from 0 to 1, where 1 is all of it or all of the view. */
+function pageShare(entry) {
+  const scroll = $('#canvas-scroll'),
+    top = scroll.scrollTop,
+    bottom = top + scroll.clientHeight,
+    visible = Math.min(bottom, entry.top + entry.height) - Math.max(top, entry.top);
+  return Math.max(0, visible) / Math.max(1, Math.min(entry.height, scroll.clientHeight));
+}
+/**
+ * The page filling most of the view; ties go to the earlier page, except at
+ * the end of the document, where the last whole page wins. While a selected
+ * item's page shows, that page stays current.
+ */
+function pageInView() {
+  const scroll = $('#canvas-scroll'),
+    layout = ui.stage.layout,
+    top = scroll.scrollTop,
+    bottom = top + scroll.clientHeight,
+    atEnd = top > 0 && bottom >= scroll.scrollHeight - 2;
+  const working = ui.stage.byId.get(annotationById(ui.editing || ui.item)?.pageId);
+  if (working && pageShare(working) > 0) return working.id;
+  let best = null,
+    bestShare = 0;
+  for (let index = firstBelow(top); index < layout.length && layout[index].top < bottom; index++) {
+    const share = pageShare(layout[index]);
+    if (share > bestShare + 0.001 || (atEnd && share > 0.999)) {
+      best = layout[index];
+      bestShare = share;
+    }
+  }
+  return best?.id || null;
+}
+/** Until the view scrolls, the current page stays current, whatever a new layout shows most of. */
+function lockCurrentPage() {
+  ui.stage.lock = { id: ui.activeId, top: $('#canvas-scroll').scrollTop };
+}
+/** Lay the pages out again (after a change of zoom, view size or pages) and draw them. */
+function renderStage({ position = null } = {}) {
+  if (!state.pages.length || $('#workspace').hidden) return;
+  const stage = ui.stage,
+    scroll = $('#canvas-scroll');
+  scroll.classList.toggle('snap-pages', phone() && ui.zoom === 1);
+  const keep = position || stage.position;
+  layoutStage();
+  restorePosition(keep);
+  if (stage.reveal) {
+    // Undo, redo and removed pages show the page concerned, if it is out of view.
+    const entry = stage.byId.get(stage.reveal);
+    stage.reveal = null;
+    if (entry && pageShare(entry) < 0.25) scroll.scrollTop = pageTop(entry);
+  }
+  lockCurrentPage();
+  stage.position = positionAt(readingPoint().x, readingPoint().y);
+  $('#page-stack').dataset.tool = ui.tool;
   $('#zoom-label').textContent = ui.zoom === 1 ? 'Fit' : Math.round(ui.zoom * 100) + '%';
-  $('[data-action=previous]').disabled = index === 0;
-  $('[data-action=next]').disabled = index === state.pages.length - 1;
-  updateSelectionCaption();
-  surface.classList.toggle('placing', ['text', 'highlight', 'signature'].includes(ui.tool));
-  surface.dataset.tool = ui.tool;
-  renderOverlay();
-  updateCropOverlay();
+  syncViews();
+  orderViews();
+  renderOverlays();
+  updateCurrentPage();
+}
+/** Forget the pages shown for the last document. */
+function resetStage() {
+  const stage = ui.stage;
+  for (const view of [...stage.views.values()]) removeView(view, { release: false });
+  Object.assign(stage, {
+    layout: [],
+    byId: new Map(),
+    position: null,
+    lock: null,
+    reveal: null,
+    failed: new Set(),
+  });
+  const scroll = $('#canvas-scroll');
+  scroll.scrollTop = 0;
+  scroll.scrollLeft = 0;
+}
+function onStageScroll() {
+  if (ui.stage.frame) return;
+  ui.stage.frame = requestAnimationFrame(() => {
+    ui.stage.frame = 0;
+    trackScroll();
+  });
+}
+/** After scrolling: the current page follows the view, and pages coming into view are drawn. */
+function trackScroll() {
+  const stage = ui.stage,
+    scroll = $('#canvas-scroll');
+  if (!stage.layout.length || $('#workspace').hidden || !state.pages.length) return;
+  stage.position = positionAt(readingPoint().x, readingPoint().y);
+  if (stage.lock && Math.abs(scroll.scrollTop - stage.lock.top) > 2) stage.lock = null;
+  if (!stage.lock) {
+    const id = pageInView();
+    if (id && id !== ui.activeId) {
+      ui.activeId = id;
+      updateCurrentPage();
+    }
+  }
+  syncViews();
+}
+/** Bring a page into view (from the page strip, the page number or Previous and Next). */
+function scrollToPage(id) {
+  const entry = ui.stage.byId.get(id),
+    scroll = $('#canvas-scroll');
+  if (!entry) return;
+  scroll.scrollTop = pageTop(entry);
+  lockCurrentPage();
+  ui.stage.position = positionAt(readingPoint().x, readingPoint().y);
+  syncViews();
+}
+/** Make a page current without moving the view: it is on screen, and was clicked or tapped. */
+function setCurrentPage(id) {
+  if (id === ui.activeId) return;
+  ui.activeId = id;
+  lockCurrentPage();
+  updateCurrentPage();
+}
+/**
+ * Keep elements for the pages near the view (and the pages in use) and drop
+ * the rest; their canvases are released and drawn again when they return.
+ */
+function syncViews() {
+  const stage = ui.stage,
+    scroll = $('#canvas-scroll');
+  if (!stage.layout.length) return;
+  const margin = Math.max(scroll.clientHeight, 400),
+    from = scroll.scrollTop - margin,
+    to = scroll.scrollTop + scroll.clientHeight + margin,
+    wanted = new Set();
+  for (let index = firstBelow(from); index < stage.layout.length && stage.layout[index].top < to; index++)
+    wanted.add(stage.layout[index].id);
+  // Pages in use stay: the current page, and the pages being typed on, dragged on or holding focus.
+  const focused = document.activeElement?.closest?.('.page-view')?.dataset.viewId;
+  for (const id of [ui.activeId, annotationById(ui.editing)?.pageId, ui.gesture?.pageId, focused])
+    if (id && stage.byId.has(id)) wanted.add(id);
+  for (const view of [...stage.views.values()]) if (!wanted.has(view.id)) removeView(view);
+  const created = [];
+  for (const id of wanted) {
+    let view = stage.views.get(id);
+    if (!view) {
+      view = createView(id);
+      created.push(view);
+    }
+    if (view.version !== stage.version) placeView(view);
+  }
+  if (created.length) {
+    for (const view of created) renderViewOverlay(view);
+    updateCropOverlays();
+  }
+  scheduleRenders();
+}
+function blankCanvas(label = '') {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'page-canvas';
+  canvas.width = 1;
+  canvas.height = 1;
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', label);
+  return canvas;
+}
+function createView(id) {
+  const stage = ui.stage,
+    el = document.createElement('div'),
+    canvas = blankCanvas(),
+    svg = document.createElementNS(SVG_NS, 'svg'),
+    crop = document.createElement('div'),
+    layer = document.createElement('div');
+  el.className = 'page-view blank render-pending';
+  el.dataset.viewId = id;
+  svg.classList.add('page-overlay');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  crop.className = 'crop-overlay';
+  crop.hidden = true;
+  crop.setAttribute('aria-hidden', 'true');
+  crop.innerHTML = '<span>Keep this area</span>';
+  layer.className = 'edit-layer';
+  el.append(canvas, svg, crop, layer);
+  const view = { id, el, canvas, svg, crop, layer, key: null, pageKey: null, task: null, overlay: null };
+  view.version = -1;
+  // Until the page is drawn, its thumbnail from the page strip stands in for it.
+  const pageKey = renderKey(pageById(id)),
+    thumb = ui.thumbs.cache.get(pageKey);
+  if (thumb?.width > 1) {
+    canvas.width = thumb.width;
+    canvas.height = thumb.height;
+    canvas.getContext('2d').drawImage(thumb, 0, 0);
+    view.pageKey = pageKey;
+    el.classList.remove('blank');
+  }
+  // In page order among the pages shown, without moving them (that would end a drag or move focus).
+  const index = stage.byId.get(id).index;
+  let next = null;
+  for (const other of stage.views.values()) {
+    const otherIndex = stage.byId.get(other.id)?.index ?? -1;
+    if (otherIndex > index && (!next || otherIndex < stage.byId.get(next.id).index)) next = other;
+  }
+  $('#page-stack').insertBefore(el, next?.el || null);
+  stage.views.set(id, view);
+  return view;
+}
+function removeView(view, { release = true } = {}) {
+  const stage = ui.stage,
+    editor = $('#inline-editor');
+  view.task?.cancel();
+  if (view.el.contains(editor)) $('#page-stack').append(editor);
+  view.el.remove();
+  releaseCanvas(view.canvas);
+  stage.views.delete(view.id);
+  const page = release && pageById(view.id);
+  if (page) releasePage(state, page);
+}
+/** After pages move, put their elements in page order, so the keyboard reaches their items in order. */
+function orderViews() {
+  const stage = ui.stage,
+    stack = $('#page-stack'),
+    views = [...stage.views.values()].sort(
+      (a, b) => (stage.byId.get(a.id)?.index ?? 0) - (stage.byId.get(b.id)?.index ?? 0),
+    ),
+    present = [...stack.children].filter((node) => node.classList.contains('page-view'));
+  if (views.every((view, index) => present[index] === view.el)) return;
+  // Moving an element takes keyboard focus from inside it: put focus back.
+  const focused = document.activeElement,
+    selection = focused?.selectionStart !== undefined ? [focused.selectionStart, focused.selectionEnd] : null;
+  stack.append(...views.map((view) => view.el));
+  if (focused?.isConnected && document.activeElement !== focused) {
+    focused.focus({ preventScroll: true });
+    if (selection) focused.setSelectionRange(...selection);
+  }
+}
+/** What a page's canvas should hold: the page's content, at the screen's resolution. */
+function wantedRender(entry) {
+  const descriptor = state.pages[entry.index],
+    pageKey = renderKey(descriptor),
+    { width, height } = entry.geometry;
+  // Very large pages at high zoom are drawn at a little less than the screen's resolution.
+  const scale = Math.min(
+    entry.scale * Math.min(devicePixelRatio || 1, 2),
+    Math.sqrt(MAX_PAGE_PIXELS / (width * height)),
+  );
+  return { descriptor, pageKey, scale, key: pageKey + '@' + scale.toFixed(4) };
+}
+function pageLabel(id, index) {
+  return (
+    'Page ' +
+    (index + 1) +
+    ' of ' +
+    state.pages.length +
+    (ui.tool === 'delete' && ui.selected.has(id) ? ', marked for deletion' : '')
+  );
+}
+/** Size and place a page's element, and mark what it shows. */
+function placeView(view) {
+  const entry = ui.stage.byId.get(view.id),
+    style = view.el.style;
+  view.version = ui.stage.version;
+  style.top = entry.top + 'px';
+  style.left = entry.left + 'px';
+  style.width = entry.width + 'px';
+  style.height = entry.height + 'px';
+  view.el.dataset.number = entry.index + 1;
+  view.el.classList.toggle('current', view.id === ui.activeId);
+  markView(view, entry.index);
+  // The page was turned or cropped: never show its old image under the new edits.
+  const wanted = wantedRender(entry);
+  if (view.pageKey && view.pageKey !== wanted.pageKey) {
+    view.task?.cancel();
+    const canvas = blankCanvas(view.canvas.getAttribute('aria-label'));
+    view.canvas.replaceWith(canvas);
+    releaseCanvas(view.canvas);
+    Object.assign(view, { canvas, pageKey: null, key: null });
+    view.el.classList.add('blank');
+  }
+  view.el.classList.toggle('render-pending', view.key !== wanted.key);
+}
+function markView(view, index = pageIndexOf(view.id)) {
+  view.el.classList.toggle('marked-delete', ui.tool === 'delete' && ui.selected.has(view.id));
+  view.canvas.setAttribute('aria-label', pageLabel(view.id, index));
+}
+/** Draw pages whose canvas is missing or out of date, nearest the middle of the view first, one at a time. */
+function scheduleRenders(delay = 0) {
+  const stage = ui.stage,
+    drawing = stage.drawing;
+  // A page out of view gives way to a page in view (when scrolling fast through a long document).
+  if (drawing?.task && !inView(drawing)) {
+    const next = nextRender();
+    if (next && inView(next.view)) drawing.task.cancel();
+  }
+  clearTimeout(stage.renderTimer);
+  stage.renderTimer = setTimeout(
+    () => void pumpRenders(),
+    Math.max(delay, stage.holdUntil - performance.now(), 0),
+  );
+}
+async function pumpRenders() {
+  const stage = ui.stage;
+  if (stage.rendering) return;
+  stage.rendering = true;
+  try {
+    for (let next = nextRender(); next; next = nextRender()) await renderView(next.view, next.wanted);
+  } finally {
+    stage.rendering = false;
+  }
+  // Zooming holds new renders back until it pauses.
+  if (performance.now() < stage.holdUntil) scheduleRenders();
+}
+function nextRender() {
+  const stage = ui.stage,
+    scroll = $('#canvas-scroll');
+  if ($('#workspace').hidden || performance.now() < stage.holdUntil) return null;
+  const top = scroll.scrollTop,
+    bottom = top + scroll.clientHeight,
+    middle = top + scroll.clientHeight / 2;
+  let best = null,
+    bestDistance = Infinity;
+  for (const view of stage.views.values()) {
+    const entry = stage.byId.get(view.id);
+    if (!entry) continue;
+    const wanted = wantedRender(entry);
+    if (view.key === wanted.key || stage.failed.has(wanted.key)) continue;
+    // Pages in view first, then the nearest.
+    const away = Math.max(0, entry.top - bottom, top - entry.top - entry.height),
+      distance = away * 1e6 + Math.abs(entry.top + entry.height / 2 - middle);
+    if (distance < bestDistance) {
+      best = { view, wanted };
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+function inView(view) {
+  const entry = ui.stage.byId.get(view.id),
+    scroll = $('#canvas-scroll');
+  return (
+    Boolean(entry) &&
+    entry.top < scroll.scrollTop + scroll.clientHeight &&
+    entry.top + entry.height > scroll.scrollTop
+  );
+}
+async function renderView(view, wanted) {
+  const stage = ui.stage,
+    task = renderPage(state, wanted.descriptor, wanted.scale);
+  view.task = task;
+  stage.drawing = view;
+  let canvas;
+  try {
+    canvas = await task.promise;
+  } catch (error) {
+    if (error?.name !== 'RenderingCancelledException') {
+      stage.failed.add(wanted.key);
+      view.el.classList.remove('render-pending');
+      if (stage.views.get(view.id) === view)
+        toast('Could not preview page ' + (pageIndexOf(view.id) + 1) + '. ' + friendly(error), true);
+    }
+    return;
+  } finally {
+    if (view.task === task) view.task = null;
+    if (stage.drawing === view) stage.drawing = null;
+  }
+  const entry = stage.byId.get(view.id);
+  // The page left the view, or was turned or cropped, while it was drawn.
+  if (stage.views.get(view.id) !== view || !entry || wantedRender(entry).pageKey !== wanted.pageKey) {
+    releaseCanvas(canvas);
+    return;
+  }
+  canvas.className = 'page-canvas';
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', view.canvas.getAttribute('aria-label') || '');
+  view.canvas.replaceWith(canvas);
+  releaseCanvas(view.canvas);
+  Object.assign(view, { canvas, key: wanted.key, pageKey: wanted.pageKey });
+  view.el.classList.remove('blank');
+  // Drawn at an earlier zoom, the image stands in until the page is drawn again.
+  view.el.classList.toggle('render-pending', wantedRender(entry).key !== view.key);
+}
+/** Change the zoom, keeping a point of the view (the middle of its top edge, or the pointer) in place. */
+function setZoom(zoom, at = null) {
+  zoom = clamp(zoom, 0.5, 3);
+  // Zooming across Fit stops at Fit.
+  if ((ui.zoom - 1) * (zoom - 1) < 0) zoom = 1;
+  if (Math.abs(zoom - ui.zoom) < 0.0001 || !state.pages.length) return;
+  const point = at || readingPoint(),
+    position = positionAt(point.x, point.y);
+  ui.zoom = zoom;
+  // While zooming continues (a pinch or the wheel), pages are scaled and drawn again once it pauses.
+  ui.stage.holdUntil = at ? performance.now() + 200 : 0;
+  renderStage({ position });
 }
 function scheduleOverlays() {
   if (ui.frame) return;
   ui.frame = requestAnimationFrame(() => {
     ui.frame = 0;
     if ($('#workspace').hidden || !state.pages.length) return;
-    renderOverlay();
+    renderOverlays();
     refreshThumbOverlays();
   });
 }
-function renderOverlay() {
-  const index = activeIndex();
-  if (!state.pages[index] || !ui.stage.geometry) return;
-  const overlay = pageOverlay(state, index, { hide: ui.editing ? new Set([ui.editing]) : null });
-  ui.stage.overlay = overlay;
-  const svg = $('#page-overlay');
-  svg.setAttribute('viewBox', '0 0 ' + overlay.geometry.width + ' ' + overlay.geometry.height);
-  svg.innerHTML = overlay.markup;
-  renderEditLayer();
+/** Draw the edits on every page shown. */
+function renderOverlays() {
+  if (!state.pages.length) return;
+  for (const view of ui.stage.views.values()) renderViewOverlay(view);
   positionInlineEditor();
-  updateProblems(overlay.problems);
+  updateProblems(currentOverlay()?.problems || []);
   updateStageHint();
 }
+function renderViewOverlay(view) {
+  const index = pageIndexOf(view.id);
+  if (index < 0) return;
+  const overlay = pageOverlay(state, index, { hide: ui.editing ? new Set([ui.editing]) : null });
+  view.overlay = overlay;
+  view.svg.setAttribute('viewBox', '0 0 ' + overlay.geometry.width + ' ' + overlay.geometry.height);
+  view.svg.innerHTML = overlay.markup;
+  renderEditLayer(view);
+}
+function currentOverlay() {
+  return ui.stage.views.get(ui.activeId)?.overlay || null;
+}
+/** An item's frame and placement on its page, from the page's drawn edits (worked out if the page is not shown). */
 function overlayItem(id) {
-  return ui.stage.overlay?.items.find((item) => item.id === id) || null;
+  const annotation = annotationById(id);
+  if (!annotation) return null;
+  let overlay = ui.stage.views.get(annotation.pageId)?.overlay;
+  if (!overlay) {
+    const index = pageIndexOf(annotation.pageId);
+    if (index < 0) return null;
+    overlay = pageOverlay(state, index);
+  }
+  return overlay.items.find((item) => item.id === id) || null;
 }
 /** CSS transform placing an element over a frame given in an item's placement view. */
 function frameTransform(item, frame, scale, extra = '') {
@@ -598,12 +1116,15 @@ function itemLabel(annotation) {
   }
   return { image: 'Image', signature: 'Signature' }[annotation.type] || 'Highlight';
 }
-function renderEditLayer() {
-  const layer = $('#edit-layer'),
+function renderEditLayers() {
+  for (const view of ui.stage.views.values()) renderEditLayer(view);
+}
+function renderEditLayer(view) {
+  const layer = view.layer,
     interactive = ANNOTATION_TOOLS.includes(ui.tool),
-    scale = ui.stage.scale;
+    scale = ui.stage.byId.get(view.id)?.scale || ui.stage.scale;
   layer.classList.toggle('interactive', interactive);
-  const items = interactive ? (ui.stage.overlay?.items || []).filter((item) => item.frame) : [];
+  const items = interactive ? (view.overlay?.items || []).filter((item) => item.frame) : [];
   const existing = new Map($$('[data-item-id]', layer).map((node) => [node.dataset.itemId, node]));
   for (const item of items) {
     let node = existing.get(item.id);
@@ -647,6 +1168,80 @@ function focusItem(id) {
   if (node) node.focus({ preventScroll: true });
   else $('#canvas-scroll').focus({ preventScroll: true });
 }
+/** Scroll the view just enough to show an element on a page (an item added with a button may be out of view). */
+function revealElement(node) {
+  const scroll = $('#canvas-scroll');
+  if (!node?.isConnected) return;
+  const area = scroll.getBoundingClientRect(),
+    rect = node.getBoundingClientRect(),
+    margin = 24,
+    top = area.top + scroll.clientTop,
+    left = area.left + scroll.clientLeft,
+    bottom = top + scroll.clientHeight,
+    right = left + scroll.clientWidth;
+  let dx = 0,
+    dy = 0;
+  if (rect.top < top + margin) dy = rect.top - top - margin;
+  else if (rect.bottom > bottom - margin)
+    dy = Math.min(rect.bottom - bottom + margin, rect.top - top - margin);
+  if (rect.left < left + margin) dx = rect.left - left - margin;
+  else if (rect.right > right - margin) dx = Math.min(rect.right - right + margin, rect.left - left - margin);
+  if (!dx && !dy) return;
+  scroll.scrollTop += dy;
+  scroll.scrollLeft += dx;
+  lockCurrentPage();
+}
+function revealItem(id) {
+  requestAnimationFrame(() => revealElement($('[data-item-id="' + CSS.escape(id) + '"]')));
+}
+/** Show which page is current: in the counter and the page strip, and in the tools that work on "this page". */
+function updateCurrentPage() {
+  if (!state.pages.length) return;
+  const id = ui.activeId,
+    index = activeIndex();
+  const previous = $('.page-item.active');
+  if (previous?.dataset.pageId !== id) {
+    if (previous) {
+      previous.classList.remove('active');
+      $('.page-thumb', previous).removeAttribute('aria-current');
+    }
+    const item = $('.page-item[data-page-id="' + CSS.escape(id) + '"]');
+    if (item) {
+      item.classList.add('active');
+      $('.page-thumb', item).setAttribute('aria-current', 'page');
+    }
+  }
+  revealThumbnail(id);
+  for (const view of ui.stage.views.values()) view.el.classList.toggle('current', view.id === id);
+  syncPageNavigation();
+  updateSelectionCaption();
+  for (const node of $$('#tool-panel [data-current-page]')) node.textContent = index + 1;
+  const option = $('#tool-form [name="pictureScope"] option[value="current"]');
+  if (option) option.textContent = 'Current page (' + (index + 1) + ')';
+  const earlier = $('#tool-form [data-action="move-earlier"]'),
+    later = $('#tool-form [data-action="move-later"]');
+  if (earlier) earlier.disabled = index === 0;
+  if (later) later.disabled = index === state.pages.length - 1;
+  refreshAnnotationList();
+  updateCropOverlays();
+  updateProblems(currentOverlay()?.problems || []);
+  updateStageHint();
+}
+/** The panel's list of the items on the current page. */
+function refreshAnnotationList() {
+  const panel = $('#tool-panel'),
+    old = $('.annotation-list', panel),
+    markup = annotationList();
+  if (!old && !markup) return;
+  const restore = old?.contains(document.activeElement) ? focusKey() : null,
+    holder = document.createElement('div');
+  holder.innerHTML = markup;
+  const next = holder.firstElementChild;
+  if (old && next) old.replaceWith(next);
+  else if (old) old.remove();
+  else panel.append(next);
+  if (restore) restoreFocus(restore);
+}
 function updateProblems(problems) {
   const node = $('#panel-problems');
   if (!node) return;
@@ -659,7 +1254,7 @@ function updateProblems(problems) {
 }
 function updateStageHint() {
   const status = $('#preview-status');
-  const problems = ui.stage.overlay?.problems || [];
+  const problems = currentOverlay()?.problems || [];
   let hint = 'Your edits show here as you make them.';
   if (ui.tool === 'text')
     hint = ui.editing
@@ -714,13 +1309,19 @@ function startEditing(id) {
   ui.editing = id;
   // Phones: fold the tool sheet away so the page stays visible above the keyboard.
   if (phone()) setSheet(false);
-  const editor = $('#inline-editor');
+  if (annotation.pageId !== ui.activeId) setCurrentPage(annotation.pageId);
+  // The editor sits on the text's page, which stays shown while it is typed in.
+  syncViews();
+  const editor = $('#inline-editor'),
+    view = ui.stage.views.get(annotation.pageId);
+  if (view && editor.parentElement !== view.el) view.el.append(editor);
   editor.value = textValue(annotation.text);
   editor.hidden = false;
-  renderOverlay();
+  renderOverlays();
   renderTool();
   editor.focus({ preventScroll: true });
   editor.setSelectionRange(editor.value.length, editor.value.length);
+  revealElement(editor);
 }
 function positionInlineEditor() {
   const editor = $('#inline-editor');
@@ -730,7 +1331,7 @@ function positionInlineEditor() {
     return;
   }
   const annotation = item.annotation,
-    scale = ui.stage.scale,
+    scale = ui.stage.byId.get(annotation.pageId)?.scale || ui.stage.scale,
     size = number(annotation.fontSize, 16, 4, 200),
     kind = fontKind(editor.value),
     frame = item.frame,
@@ -775,15 +1376,14 @@ function stopEditing() {
     if (ui.item === id) ui.item = null;
   }
   ui.pendingRecord = null;
-  renderOverlay();
+  renderOverlays();
   refreshThumbOverlays();
   if (removed) renderTool();
   if (hadFocus) focusItem(id);
 }
-/** Add a text box at a point in the current view and start typing in it. */
-function createText(point) {
-  const page = currentPage(),
-    geometry = ui.stage.geometry,
+/** Add a text box at a point on a page (in points from its top-left corner) and start typing in it. */
+function createText(page, point) {
+  const geometry = geometryOf(state, page),
     size = ui.styles.text.size;
   stopEditing();
   const lineHeight = (size * TEXT_LINE_HEIGHT) / geometry.height;
@@ -810,10 +1410,10 @@ function createText(point) {
 
 // ---- Moving and resizing items --------------------------------------------------
 
-/** A pointer position in the current page view, in points from the top-left. */
-function surfacePoint(event) {
-  const rect = $('#page-surface').getBoundingClientRect(),
-    scale = ui.stage.scale;
+/** A pointer position on a page, in points from its top-left corner. */
+function pagePoint(event, view) {
+  const rect = view.el.getBoundingClientRect(),
+    scale = ui.stage.byId.get(view.id)?.scale || ui.stage.scale;
   return { x: (event.clientX - rect.left) / scale, y: (event.clientY - rect.top) / scale };
 }
 function setFrame(annotation, item, frame) {
@@ -894,8 +1494,8 @@ function resizeItem(gesture, point) {
   });
 }
 function drawHighlight(gesture, point) {
-  const geometry = ui.stage.geometry,
-    page = currentPage();
+  const page = pageById(gesture.pageId),
+    geometry = geometryOf(state, page);
   const x1 = clamp(Math.min(gesture.start.x, point.x), 0, geometry.width),
     x2 = clamp(Math.max(gesture.start.x, point.x), 0, geometry.width),
     y1 = clamp(Math.min(gesture.start.y, point.y), 0, geometry.height),
@@ -925,10 +1525,9 @@ function drawHighlight(gesture, point) {
   const annotation = annotationById(gesture.id);
   if (annotation) change(() => Object.assign(annotation, box), { key: gesture.key });
 }
-/** Add an item at a default spot (keyboard and touch alternative to drawing). */
-function addHighlight(point) {
-  const geometry = ui.stage.geometry,
-    page = currentPage();
+/** Add a highlight at a spot on a page (keyboard and touch alternative to drawing). */
+function addHighlight(page, point) {
+  const geometry = geometryOf(state, page);
   const width = Math.min(0.4, 1 - point.x / geometry.width),
     height = Math.min(18 / geometry.height, 1 - point.y / geometry.height);
   const annotation = {
@@ -949,7 +1548,7 @@ function addHighlight(point) {
 }
 function placeImage(image, point = null) {
   const page = currentPage(),
-    geometry = ui.stage.geometry || geometryOf(state, page);
+    geometry = geometryOf(state, page);
   // A quarter of the page wide (less for tall images), centred unless placed at a point.
   let width = geometry.width * 0.3,
     height = width / image.ratio;
@@ -1017,7 +1616,8 @@ function deleteItem(id) {
   $('#canvas-scroll').focus({ preventScroll: true });
   announceMessage(label + ' deleted.');
 }
-function selectItem(id, { focus = true } = {}) {
+/** Select an item; its page becomes current. `reveal` scrolls it into view (chosen from a list, it may be out of view). */
+function selectItem(id, { focus = true, reveal = false } = {}) {
   const annotation = annotationById(id);
   if (!annotation) return;
   if (ui.editing && ui.editing !== id) stopEditing();
@@ -1025,46 +1625,56 @@ function selectItem(id, { focus = true } = {}) {
   ui.item = id;
   if (changedTool) {
     ui.tool = annotation.type;
+    $('#page-stack').dataset.tool = ui.tool;
     recordView('editor');
   }
+  if (annotation.pageId !== ui.activeId) setCurrentPage(annotation.pageId);
+  // A new item is drawn now (not at the next frame), so that it can take focus.
+  const view = ui.stage.views.get(annotation.pageId);
+  if (view && !view.overlay?.items.some((item) => item.id === id)) renderViewOverlay(view);
   renderTool();
-  renderEditLayer();
+  renderEditLayers();
   updateStageHint();
-  if (changedTool)
-    $('#page-surface').classList.toggle('placing', ['text', 'highlight', 'signature'].includes(ui.tool));
   if (focus) focusItem(id);
+  if (reveal) revealItem(id);
 }
 function deselect() {
   stopEditing();
   if (!ui.item) return;
   ui.item = null;
   renderTool();
-  renderEditLayer();
+  renderEditLayers();
   updateStageHint();
 }
 function endGesture() {
   const gesture = ui.gesture;
   ui.gesture = null;
-  const surface = $('#page-surface');
-  if (gesture && surface.hasPointerCapture(gesture.pointerId))
-    surface.releasePointerCapture(gesture.pointerId);
-  surface.classList.remove('dragging');
+  const target = gesture?.view?.el;
+  if (target?.hasPointerCapture(gesture.pointerId)) target.releasePointerCapture(gesture.pointerId);
+  $('#page-stack').classList.remove('dragging');
 }
 
-const surface = $('#page-surface');
-surface.addEventListener('pointerdown', (event) => {
-  if (ui.busy || event.button !== 0 || !ui.stage.geometry) return;
+// Pages are worked on where they are: pointer events reach the stack from every page.
+const stack = $('#page-stack');
+stack.addEventListener('pointerdown', (event) => {
+  const node = event.target.closest('.page-view'),
+    view = node && ui.stage.views.get(node.dataset.viewId);
+  if (ui.busy || event.button !== 0 || !view || !pageById(view.id) || event.target.closest('#inline-editor'))
+    return;
+  // The page you work on becomes the current page.
+  setCurrentPage(view.id);
   if (ui.tool === 'crop') {
-    startCropDrag(event);
+    startCropDrag(event, view);
     return;
   }
-  if (!ANNOTATION_TOOLS.includes(ui.tool) || event.target.closest('#inline-editor')) return;
+  if (!ANNOTATION_TOOLS.includes(ui.tool)) return;
   const box = event.target.closest('[data-item-id]'),
     handle = event.target.closest('[data-handle]'),
-    point = surfacePoint(event);
+    point = pagePoint(event, view);
   const wasEditing = Boolean(ui.editing),
     wasSelected = box && box.dataset.itemId === ui.item;
-  if (ui.editing && box?.dataset.itemId !== ui.editing) stopEditing();
+  // Typing ends with a tap elsewhere (see pointerup), not when a finger starts to scroll.
+  if (ui.editing && box && box.dataset.itemId !== ui.editing) stopEditing();
   if (box) {
     selectItem(box.dataset.itemId, { focus: true });
     ui.gesture = {
@@ -1086,25 +1696,29 @@ surface.addEventListener('pointerdown', (event) => {
     start: point,
     key: 'gesture:' + uid(),
     moved: false,
+    view,
+    pageId: view.id,
   });
-  surface.setPointerCapture(event.pointerId);
+  node.setPointerCapture(event.pointerId);
   event.preventDefault();
 });
-surface.addEventListener('pointermove', (event) => {
+stack.addEventListener('pointermove', (event) => {
   const gesture = ui.gesture;
   if (!gesture || event.pointerId !== gesture.pointerId || gesture.type === 'crop') return;
-  const point = surfacePoint(event);
+  const point = pagePoint(event, gesture.view);
   if (!gesture.moved) {
-    const distance = Math.hypot(point.x - gesture.start.x, point.y - gesture.start.y) * ui.stage.scale;
+    const distance =
+      Math.hypot(point.x - gesture.start.x, point.y - gesture.start.y) *
+      (ui.stage.byId.get(gesture.pageId)?.scale || 1);
     if (distance < 4) return;
     gesture.moved = true;
-    surface.classList.add('dragging');
+    stack.classList.add('dragging');
   }
   if (gesture.type === 'move' && gesture.item?.frame) moveItem(gesture, point);
   if (gesture.type === 'resize' && gesture.item?.frame) resizeItem(gesture, point);
   if (gesture.type === 'draw') drawHighlight(gesture, point);
 });
-surface.addEventListener('pointerup', (event) => {
+stack.addEventListener('pointerup', (event) => {
   const gesture = ui.gesture;
   if (!gesture || event.pointerId !== gesture.pointerId || gesture.type === 'crop') return;
   endGesture();
@@ -1125,22 +1739,25 @@ surface.addEventListener('pointerup', (event) => {
     $('#canvas-scroll').focus({ preventScroll: true });
     return;
   }
-  if (ui.tool === 'text') createText(gesture.start);
-  if (ui.tool === 'highlight') addHighlight(gesture.start);
-  if (ui.tool === 'signature') placeSignature(gesture.start);
+  const page = pageById(gesture.pageId);
+  if (!page) return;
+  if (ui.tool === 'text') createText(page, gesture.start);
+  if (ui.tool === 'highlight') addHighlight(page, gesture.start);
+  if (ui.tool === 'signature') placeSignature(gesture.start, page);
 });
-surface.addEventListener('pointercancel', (event) => {
+stack.addEventListener('pointercancel', (event) => {
+  // The browser took over the touch (to scroll or zoom): nothing is added.
   if (ui.gesture?.pointerId === event.pointerId && ui.gesture.type !== 'crop') endGesture();
 });
-surface.addEventListener('dblclick', (event) => {
+stack.addEventListener('dblclick', (event) => {
   const box = event.target.closest('[data-item-id]');
   if (box && annotationById(box.dataset.itemId)?.type === 'text') startEditing(box.dataset.itemId);
 });
-$('#edit-layer').addEventListener('focusin', (event) => {
+stack.addEventListener('focusin', (event) => {
   const box = event.target.closest('[data-item-id]');
   if (box && box.dataset.itemId !== ui.item) selectItem(box.dataset.itemId, { focus: false });
 });
-$('#edit-layer').addEventListener('keydown', (event) => {
+stack.addEventListener('keydown', (event) => {
   const box = event.target.closest('[data-item-id]');
   if (!box || ui.busy) return;
   const id = box.dataset.itemId,
@@ -1177,7 +1794,7 @@ inlineEditor.addEventListener('input', () => {
   warmFont(inlineEditor.value);
   const field = $('#tool-form [name="text"]');
   if (field) field.value = inlineEditor.value;
-  renderOverlay();
+  renderOverlays();
 });
 inlineEditor.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' || (event.key === 'Enter' && (event.ctrlKey || event.metaKey))) {
@@ -1375,8 +1992,9 @@ function panelFields() {
         '</div>' +
         '<button type="button" class="button secondary" data-action="add-text">' +
         icon('plus') +
-        'Add text to page ' +
+        'Add text to page <span data-current-page>' +
         (index + 1) +
+        '</span>' +
         '</button>'
       );
     case 'image':
@@ -1400,8 +2018,9 @@ function panelFields() {
         (ui.image
           ? '<button type="button" class="button secondary" data-action="place-image">' +
             icon('plus') +
-            'Add it to page ' +
+            'Add it to page <span data-current-page>' +
             (index + 1) +
+            '</span>' +
             '</button>'
           : '')
       );
@@ -1418,8 +2037,9 @@ function panelFields() {
             'Delete highlight</button>'
           : '<button type="button" class="button secondary" data-action="add-highlight">' +
             icon('plus') +
-            'Add a highlight to page ' +
+            'Add a highlight to page <span data-current-page>' +
             (index + 1) +
+            '</span>' +
             '</button>')
       );
     case 'watermark':
@@ -1499,9 +2119,9 @@ function panelFields() {
         icon('trash') +
         'Remove</button></div><button type="button" class="button secondary" data-action="extract">' +
         icon('download') +
-        'Download selected pages</button><div class="field-section wide">CURRENT PAGE · ' +
+        'Download selected pages</button><div class="field-section wide">CURRENT PAGE · <span data-current-page>' +
         (index + 1) +
-        '</div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="move-earlier"' +
+        '</span></div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="move-earlier"' +
         (index === 0 ? ' disabled' : '') +
         '>' +
         icon('up') +
@@ -1753,8 +2373,9 @@ function signatureFields(item, index) {
       '" alt="Your signature"></div>' +
       '<button type="button" class="button primary" data-action="signature-place">' +
       icon('plus') +
-      'Add it to page ' +
+      'Add it to page <span data-current-page>' +
       (index + 1) +
+      '</span>' +
       '</button><button type="button" class="button secondary" data-action="signature-place-all">' +
       icon('pages') +
       'Add it to every page</button>' +
@@ -1924,24 +2545,18 @@ function signatureAnnotation(page, geometry, frame, bytes = ui.signature.bytes) 
     imageType: 'png',
   };
 }
-function placeSignature(point = null) {
+/** Place the signature at a point on a page, or (from the panel) in the corner of the current page. */
+function placeSignature(point = null, page = currentPage()) {
   if (!ui.signature) {
     toast('Make your signature first: draw, type or upload it in the panel.');
     if (phone()) setSheet(true);
     return;
   }
-  const page = currentPage(),
-    geometry = ui.stage.geometry || geometryOf(state, page),
+  const geometry = geometryOf(state, page),
     annotation = signatureAnnotation(page, geometry, signatureFrame(geometry, point));
   change(() => state.annotations.push(annotation));
-  selectItem(annotation.id);
-  if (!point) revealItem(annotation.id);
-}
-/** Scroll the page so a newly placed item can be seen (placed with a button, it may be off screen). */
-function revealItem(id) {
-  requestAnimationFrame(() =>
-    $('[data-item-id="' + CSS.escape(id) + '"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
-  );
+  // Placed with a button, it may be out of view.
+  selectItem(annotation.id, { reveal: !point });
 }
 function placeSignatureEverywhere() {
   const added = state.pages.map((page) => {
@@ -1949,13 +2564,12 @@ function placeSignatureEverywhere() {
     return signatureAnnotation(page, geometry, signatureFrame(geometry));
   });
   change(() => state.annotations.push(...added));
-  selectItem(added[activeIndex()].id);
-  revealItem(added[activeIndex()].id);
+  selectItem(added[activeIndex()].id, { reveal: true });
   toast('Your signature is on all ' + added.length + ' pages. Drag any of them to adjust it.');
 }
 /** Copy a placed signature to the same place, at the same size, on every other page. */
 function copySignature(item) {
-  const own = currentPage(),
+  const own = pageById(item.pageId),
     from = geometryOf(state, own);
   const width = item.width * from.width,
     height = item.height * from.height;
@@ -2192,8 +2806,8 @@ function renderTool() {
     if (event.target.type === 'number' && !event.target.checkValidity()) fillForm({ all: true });
   });
   fillForm({ all: true });
-  if (ui.stage.overlay) updateProblems(ui.stage.overlay.problems);
-  updateCropOverlay();
+  updateProblems(currentOverlay()?.problems || []);
+  updateCropOverlays();
   updateDeletionMarks();
   if (ui.tool === 'split') updateSplitSummary();
   if (ui.tool === 'signature') attachSignatureTools();
@@ -2258,7 +2872,7 @@ function onPanelInput(event) {
   if (ui.tool === 'crop') {
     if (name === 'scope') ui.cropDraft.scope = value;
     else ui.cropDraft[name] = clamp(Number(value) / 100, 0, 0.99);
-    updateCropOverlay();
+    updateCropOverlays();
     return;
   }
   if (ui.tool === 'jpgtopdf') {
@@ -2389,30 +3003,40 @@ function cropValues() {
     throw new Error('Keep more than 1% of the width and height. Reduce the crop margins.');
   return margins;
 }
-function updateCropOverlay() {
-  const overlay = $('#crop-overlay'),
-    enabled = ui.tool === 'crop' && state.pages.length > 0;
-  overlay.hidden = !enabled;
-  $('#page-surface').classList.toggle('cropping', enabled);
-  if (!enabled) return;
-  const summary = $('#crop-summary');
-  try {
-    const crop = cropValues();
-    overlay.style.inset = [crop.top, crop.right, crop.bottom, crop.left]
-      .map((value) => value * 100 + '%')
-      .join(' ');
-    if (summary)
-      summary.textContent =
-        'Keep ' +
-        ((1 - crop.left - crop.right) * 100).toFixed(1) +
-        '% of width × ' +
-        ((1 - crop.top - crop.bottom) * 100).toFixed(1) +
-        '% of height.';
-  } catch (error) {
-    overlay.hidden = true;
-    if (summary) summary.textContent = error.message;
+/** Outline the area to keep on the pages the crop applies to (and on the page being dragged on). */
+function updateCropOverlays() {
+  const enabled = ui.tool === 'crop' && state.pages.length > 0,
+    summary = $('#crop-summary');
+  let crop = null;
+  if (enabled) {
+    try {
+      crop = cropValues();
+      if (summary)
+        summary.textContent =
+          'Keep ' +
+          ((1 - crop.left - crop.right) * 100).toFixed(1) +
+          '% of width × ' +
+          ((1 - crop.top - crop.bottom) * 100).toFixed(1) +
+          '% of height.';
+    } catch (error) {
+      if (summary) summary.textContent = error.message;
+    }
+  }
+  const scope = ui.cropDraft.scope,
+    inset = crop
+      ? [crop.top, crop.right, crop.bottom, crop.left].map((value) => value * 100 + '%').join(' ')
+      : '';
+  for (const view of ui.stage.views.values()) {
+    const shown =
+      Boolean(crop) &&
+      (scope === 'all' ||
+        (scope === 'current' ? view.id === ui.activeId : ui.selected.has(view.id)) ||
+        (ui.gesture?.type === 'crop' && ui.gesture.pageId === view.id));
+    view.crop.hidden = !shown;
+    if (shown) view.crop.style.inset = inset;
   }
 }
+/** Pages selected for deletion are marked in the page strip and on the stage. */
 function updateDeletionMarks() {
   $$('.page-item').forEach((item) => {
     const deleting = ui.tool === 'delete' && ui.selected.has(item.dataset.pageId);
@@ -2420,6 +3044,7 @@ function updateDeletionMarks() {
     const badge = $('.delete-badge', item);
     if (badge) badge.hidden = !deleting;
   });
+  for (const view of ui.stage.views.values()) markView(view);
 }
 function scopedPages(value) {
   if (value === 'all') return 'all';
@@ -2478,16 +3103,21 @@ function cropPoint(event, rect) {
     y: clamp((event.clientY - rect.top) / rect.height, 0, 1),
   };
 }
-function startCropDrag(event) {
-  const rect = surface.getBoundingClientRect();
-  ui.gesture = { type: 'crop', start: cropPoint(event, rect), rect, pointerId: event.pointerId };
-  surface.setPointerCapture(event.pointerId);
+function startCropDrag(event, view) {
+  ui.gesture = {
+    type: 'crop',
+    start: cropPoint(event, view.el.getBoundingClientRect()),
+    view,
+    pageId: view.id,
+    pointerId: event.pointerId,
+  };
+  view.el.setPointerCapture(event.pointerId);
   event.preventDefault();
 }
-surface.addEventListener('pointermove', (event) => {
+stack.addEventListener('pointermove', (event) => {
   const gesture = ui.gesture;
   if (gesture?.type !== 'crop' || event.pointerId !== gesture.pointerId) return;
-  const end = cropPoint(event, gesture.rect),
+  const end = cropPoint(event, gesture.view.el.getBoundingClientRect()),
     start = gesture.start;
   const margins = {
     left: Math.min(start.x, end.x),
@@ -2498,13 +3128,15 @@ surface.addEventListener('pointermove', (event) => {
   if (1 - margins.left - margins.right <= 0.01 || 1 - margins.top - margins.bottom <= 0.01) return;
   for (const [edge, value] of Object.entries(margins)) ui.cropDraft[edge] = Math.round(value * 1000) / 1000;
   fillForm({ all: true });
-  updateCropOverlay();
+  updateCropOverlays();
 });
 function endCropDrag(event) {
-  if (ui.gesture?.type === 'crop' && event.pointerId === ui.gesture.pointerId) endGesture();
+  if (ui.gesture?.type !== 'crop' || event.pointerId !== ui.gesture.pointerId) return;
+  endGesture();
+  updateCropOverlays();
 }
-surface.addEventListener('pointerup', endCropDrag);
-surface.addEventListener('pointercancel', endCropDrag);
+stack.addEventListener('pointerup', endCropDrag);
+stack.addEventListener('pointercancel', endCropDrag);
 
 // ---- Pages -------------------------------------------------------------------------
 
@@ -2745,22 +3377,21 @@ function renderThumbnails() {
   );
   nodes.forEach((node) => thumbs.observer.observe(node));
 }
+/** Go to a page (from the page strip, the page number, or Previous and Next). */
 function choosePage(id) {
   if (ui.busy || !state.pages.some((page) => page.id === id)) return;
   stopEditing();
   endGesture();
+  const deselected = Boolean(ui.item);
   ui.activeId = id;
   ui.item = null;
-  $$('.page-item').forEach((item) => {
-    const active = item.dataset.pageId === id;
-    item.classList.toggle('active', active);
-    const thumb = $('.page-thumb', item);
-    if (active) thumb.setAttribute('aria-current', 'page');
-    else thumb.removeAttribute('aria-current');
-  });
-  renderTool();
-  renderStage();
-  revealThumbnail(id);
+  scrollToPage(id);
+  // An item's settings give way to the page's tools.
+  if (deselected) {
+    renderTool();
+    renderEditLayers();
+  }
+  updateCurrentPage();
 }
 function chooseTool(tool) {
   if (ui.busy || !names[tool]) return;
@@ -3290,8 +3921,7 @@ async function openFiles(files, append = false) {
       ui.lastCropPreset = null;
       ui.image = null;
       ui.zoom = 1;
-      ui.stage.key = null;
-      ui.stage.pageKey = null;
+      resetStage();
       // Phones: tools you use on the page start with their settings folded away.
       if (phone()) setSheet(!['text', 'highlight'].includes(ui.tool));
       showWorkspace();
@@ -3430,6 +4060,7 @@ async function resetDocument() {
       ui.activeId = state.pages[0].id;
       ui.selected = new Set([ui.activeId]);
       ui.item = null;
+      ui.stage.reveal = ui.activeId;
     },
     { layout: true },
   );
@@ -3529,8 +4160,9 @@ async function action(name, element) {
     if (next >= 0 && next < state.pages.length) choosePage(state.pages[next].id);
   }
   if (name === 'zoom-in' || name === 'zoom-out' || name === 'zoom-fit') {
-    ui.zoom = name === 'zoom-fit' ? 1 : clamp(ui.zoom + (name === 'zoom-in' ? 0.25 : -0.25), 0.5, 3);
-    renderStage();
+    // Steps of 25% of Fit; from a zoom set with the wheel, to the next step.
+    const quarters = name === 'zoom-in' ? Math.ceil(ui.zoom * 4 + 0.01) : Math.floor(ui.zoom * 4 - 0.01);
+    setZoom(name === 'zoom-fit' ? 1 : quarters / 4);
   }
   if (name === 'undo') undo();
   if (name === 'redo') redo();
@@ -3555,14 +4187,20 @@ async function action(name, element) {
     $('#tool-form [name="password"]')?.focus();
   }
   if (name === 'add-text') {
-    const geometry = ui.stage.geometry;
-    createText({ x: geometry.width * 0.1, y: geometry.height * 0.1 });
+    const page = currentPage(),
+      geometry = geometryOf(state, page);
+    createText(page, { x: geometry.width * 0.1, y: geometry.height * 0.1 });
   }
   if (name === 'add-highlight') {
-    const geometry = ui.stage.geometry;
-    addHighlight({ x: geometry.width * 0.1, y: geometry.height * 0.15 });
+    const page = currentPage(),
+      geometry = geometryOf(state, page);
+    addHighlight(page, { x: geometry.width * 0.1, y: geometry.height * 0.15 });
+    revealItem(ui.item);
   }
-  if (name === 'place-image' && ui.image) placeImage(ui.image);
+  if (name === 'place-image' && ui.image) {
+    placeImage(ui.image);
+    revealItem(ui.item);
+  }
   if (name === 'delete-item' && ui.item) deleteItem(ui.item);
   if (name === 'toggle-setting') toggleSetting();
   if (name === 'scope-selected') {
@@ -3605,7 +4243,7 @@ async function action(name, element) {
   if (name === 'clear-crop-margins') {
     ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
     fillForm({ all: true });
-    updateCropOverlay();
+    updateCropOverlays();
   }
   if (name === 'restore-crop') {
     try {
@@ -3650,18 +4288,22 @@ async function action(name, element) {
   }
 }
 
-function syncPageNavigation() {
-  const field = $('#page-jump');
+/** The page number box and Previous and Next follow the current page (but not while a number is typed). */
+function syncPageNavigation({ force = false } = {}) {
+  const field = $('#page-jump'),
+    index = activeIndex();
   field.max = state.pages.length;
-  field.value = activeIndex() + 1;
+  if (force || document.activeElement !== field) field.value = index + 1;
   $('#page-counter').textContent = 'of ' + state.pages.length;
+  $('[data-action=previous]').disabled = index === 0;
+  $('[data-action=next]').disabled = index >= state.pages.length - 1;
 }
 function jumpToPage() {
   const field = $('#page-jump'),
     number = Number(field.value);
   if (!Number.isInteger(number) || number < 1 || number > state.pages.length) {
     toast('Enter a page number from 1 to ' + state.pages.length + '.', true);
-    syncPageNavigation();
+    syncPageNavigation({ force: true });
     return;
   }
   choosePage(state.pages[number - 1].id);
@@ -3848,6 +4490,8 @@ const batch = initBatch({
 });
 $('#tool-select').addEventListener('change', (event) => chooseTool(event.target.value));
 $('#page-jump').addEventListener('change', jumpToPage);
+// While the box had focus, the current page may have changed.
+$('#page-jump').addEventListener('blur', () => syncPageNavigation());
 $('#page-jump').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     event.preventDefault();
@@ -3912,7 +4556,7 @@ document.addEventListener('click', (event) => {
   if (target.dataset.tool) chooseTool(target.dataset.tool);
   if (target.dataset.pageOpen) choosePage(target.dataset.pageOpen);
   if (target.dataset.movePage) movePage(target.dataset.movePage, Number(target.dataset.direction));
-  if (target.dataset.selectItem) selectItem(target.dataset.selectItem);
+  if (target.dataset.selectItem) selectItem(target.dataset.selectItem, { reveal: true });
   if (target.dataset.removeAnnotation) deleteItem(target.dataset.removeAnnotation);
 });
 $('#file-input').addEventListener('change', (event) => openFiles(event.target.files, ui.append));
@@ -4080,6 +4724,23 @@ const refit = () => {
   }, 120);
 };
 if ('ResizeObserver' in window) new ResizeObserver(refit).observe($('#canvas-scroll'));
+$('#canvas-scroll').addEventListener('scroll', onStageScroll, { passive: true });
+// Control and the wheel (or a pinch on a touchpad) zoom the pages around the pointer.
+$('#canvas-scroll').addEventListener(
+  'wheel',
+  (event) => {
+    if (!event.ctrlKey || !state.pages.length || ui.busy) return;
+    event.preventDefault();
+    const scroll = $('#canvas-scroll'),
+      area = scroll.getBoundingClientRect(),
+      delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+    setZoom(ui.zoom * Math.exp(-delta / 400), {
+      x: event.clientX - area.left - scroll.clientLeft,
+      y: event.clientY - area.top - scroll.clientTop,
+    });
+  },
+  { passive: false },
+);
 window.addEventListener('resize', () => {
   if (!$('#toast').hidden) positionToast();
   refit();

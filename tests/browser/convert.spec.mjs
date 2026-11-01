@@ -100,6 +100,6 @@ test('with Add an image, a picture added from the page strip goes on the page', 
   await useTool(page, 'image');
   await page.locator('.pages-heading [data-action="add-files"]').click();
   await page.setInputFiles('#file-input', logo);
-  await expect(page.locator('#edit-layer [data-item-id]')).toHaveCount(1);
+  await expect(page.locator('.edit-layer [data-item-id]')).toHaveCount(1);
   await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
 });

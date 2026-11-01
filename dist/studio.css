@@ -1051,14 +1051,15 @@ summary:focus-visible {
   }
 }
 
-/* Live editor: the page is rendered from its source and every edit is drawn on
+/* Live editor: each page is rendered from its source and every edit is drawn on
    top (preview.js). Items can be selected, typed into, dragged and resized. */
-.page-surface {
+.page-view {
   isolation: isolate;
 }
-.page-surface #pdf-canvas {
+.page-view > .page-canvas {
   position: absolute;
   inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
 }
@@ -1081,20 +1082,43 @@ summary:focus-visible {
 .ov-highlight {
   mix-blend-mode: multiply;
 }
-.page-surface[data-tool='text'] {
+.page-stack[data-tool='text'] .page-view {
   cursor: text;
   touch-action: manipulation;
 }
-.page-surface[data-tool='image'] {
+.page-stack[data-tool='image'] .page-view {
   touch-action: manipulation;
 }
-.page-surface[data-tool='highlight'] {
+.page-stack[data-tool='highlight'] .page-view {
   cursor: crosshair;
   touch-action: none;
 }
-.page-surface.dragging,
-.page-surface.dragging .item-box {
+.page-stack.dragging,
+.page-stack.dragging .page-view,
+.page-stack.dragging .item-box {
   cursor: grabbing;
+}
+/* Pages marked in Delete pages. */
+.page-view.marked-delete {
+  outline: 2px dashed var(--color-danger);
+  outline-offset: 4px;
+}
+.page-view.marked-delete > .page-canvas,
+.page-view.marked-delete > .page-overlay {
+  opacity: 0.5;
+}
+.page-view.marked-delete::after {
+  content: 'Delete' / '';
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 6;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--color-danger);
+  color: var(--color-on-brand);
+  font-size: var(--text-xs);
+  line-height: 1.4;
 }
 .edit-layer {
   position: absolute;
@@ -1534,9 +1558,18 @@ summary:focus-visible {
   .page-navigation span {
     min-width: 0;
   }
+  /* At Fit, each page fits the stage and settles in its middle (zoomed in, pages scroll freely). */
   .canvas-scroll {
+    --stage-pad-x: 12px;
+    --stage-pad-y: 12px;
+    --stage-gap: 12px;
     min-height: 0;
-    padding: 12px;
+  }
+  .canvas-scroll.snap-pages {
+    scroll-snap-type: y mandatory;
+  }
+  .snap-pages .page-view {
+    scroll-snap-align: center;
   }
   /* One line of guidance under the page. */
   .stage-caption {
@@ -1806,7 +1839,7 @@ summary:focus-visible {
 }
 
 /* Sign PDF: the drawing area, the typed signature and the signature to place. */
-.page-surface[data-tool='signature'] {
+.page-stack[data-tool='signature'] .page-view {
   cursor: copy;
   touch-action: manipulation;
 }
