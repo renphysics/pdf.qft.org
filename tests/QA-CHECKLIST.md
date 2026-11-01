@@ -194,3 +194,32 @@ source review does not replace the owner’s browser verification.
 - Phone (iPhone 13): the page starts 113 px from the top, below the document bar
   and page controls; every tap target in the editor is at least 44 px (page
   checkboxes through their 44 px labels).
+
+## pdf-lib replaced by @cantoo/pdf-lib 2.11.1 — 2026-11-01
+
+- Why: upstream pdf-lib's last release (1.17.1) was in November 2021. The fork is
+  maintained, keeps the same API, and can open password-protected PDFs and encrypt
+  output (not enabled yet; verified separately that it unlocks AES-256 files with
+  the right password, rejects a wrong one, and opens owner-password-only files).
+- Provenance: the vendored bundle is the official npm UMD (registry integrity
+  checked). `scripts/collect-pdf-lib-notices.py` pins its five bundled libraries
+  (culori, fflate, html-entities, node-html-better-parser, tslib) to the npm
+  releases whose files match the bundle's embedded sources byte for byte, and
+  confirms the standard-font metrics decode identically to @pdf-lib/standard-fonts
+  1.0.0, so the Adobe notices and text measurements are unchanged.
+- Engine changes: removePage now deletes the page object, so reordering a whole
+  document registers each page again before re-adding it; @pdf-lib/fontkit subsets
+  are offered through encodeStream() (the fork otherwise calls fontkit 2's
+  encode()); saves request object streams explicitly. A new engine test embeds
+  accented Latin text as a font subset, the path that broke.
+- Same results: identical text and positions in exports of the sample, a reordered
+  document, a merge, the rotated/cropped fixture and 100/400-page documents; the
+  preview still matches downloads pixel for pixel (at most 0.07% of pixels differ);
+  editing, merge/split/extract/crop, batch (with an encrypted file isolated as
+  before), the export worker in a release-stamped build and its fallback all pass.
+- Differences: the fork leaves page dictionaries outside compressed object streams,
+  so files grow by about 0.3 KB per page (a 100-page report with a watermark,
+  footer and numbers: 78 KB → 110 KB; the 3-page sample: 51 KB → 53 KB). Export
+  speed is unchanged (400 pages in about 1 s in the browser).
+- Also fixed: arrow-key nudges pressed within one animation frame collapsed into
+  one step; they now accumulate (five presses move 5 pt).

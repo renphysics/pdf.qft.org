@@ -920,10 +920,14 @@ function nudge(id, dx, dy) {
     origin = applyMatrix(inverse, 0, 0),
     delta = applyMatrix(inverse, dx, dy);
   const { placement, frame } = item;
+  // Start from the item's stored position: the drawn frame refreshes once per
+  // animation frame, and several key presses (or key repeat) can arrive before it.
+  const x = number(annotation.x, 0.1, 0, 1) * placement.width,
+    y = number(annotation.y, 0.1, 0, 1) * placement.height;
   const moved = {
     ...frame,
-    x: clamp(frame.x + delta.x - origin.x, 0, Math.max(0, placement.width - frame.width)),
-    y: clamp(frame.y + delta.y - origin.y, 0, Math.max(0, placement.height - frame.height)),
+    x: clamp(x + delta.x - origin.x, 0, Math.max(0, placement.width - frame.width)),
+    y: clamp(y + delta.y - origin.y, 0, Math.max(0, placement.height - frame.height)),
   };
   change(() => setFrame(annotation, item, moved), { key: 'nudge:' + id });
 }
