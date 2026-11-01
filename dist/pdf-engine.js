@@ -17,13 +17,16 @@
  * All operations return new bytes; the input byte arrays remain untouched.
  * Encrypted PDFs open with their password (openPdf), or without one when they
  * only restrict changes; the editor works on an unencrypted copy in memory.
+ * Form fields are described when a PDF opens (formFields), filled from
+ * state.formValues on export, and flattened into their pages when
+ * state.flattenForms is on, which also lets their pages be combined.
  *
  * Geometry and text layout live in layout.js, shared with the editor preview.
  */
 import {
   applies, boxGeometry, fontKind, hexColor, headerFooterItems, layoutMarginText, layoutRect,
   layoutTextAnnotation, layoutWatermark, number, pageGeometry, pageNumberItem, placementGeometry, rotation, textValue,
-  unsupportedCharacter, unsupportedMessage, visibleBox, watermarkText,
+  unsupportedCharacter, unsupportedMessage, visibleBox, watermarkText, wrapText,
 } from './layout.js';
 
 export { cropMarginsForRotation } from './layout.js';
@@ -292,18 +295,311 @@ function removePdfaIdentification(doc) {
   else doc.catalog.set(name, doc.context.register(stream));
 }
 
+// ---- Forms ---------------------------------------------------------------------
+
+// Annotation flags: Hidden and NoView widgets are not shown.
+const NOT_SHOWN = 2 | 32;
+
+/** PDF.js names a widget after its object: "12R", or "12R1" in generation 1. */
+function annotationId(ref) {
+  return ref ? `${ref.objectNumber}R${ref.generationNumber ? ref.generationNumber : ''}` : null;
+}
+
+function decodedText(object) {
+  return object && typeof object.decodeText === 'function' ? object.decodeText() : null;
+}
+
+/** What a field is called on screen: its tooltip, else the last part of its name. */
+function fieldLabel(field) {
+  return decodedText(field.acroField.dict.lookup(library().PDFName.of('TU')))?.trim() || field.getName().split('.').pop();
+}
+
+/** A field's text size (0: automatic) and colour, from a default appearance such as "/Helv 0 Tf 0 g". */
+function appearanceStyle(da = '') {
+  const size = /(-?[\d.]+)\s+Tf\b/.exec(da);
+  const gray = /(?:^|\s)([\d.]+)\s+g\b/.exec(da);
+  const rgb = /([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg\b/.exec(da);
+  const hex = (value) => Math.round(Math.min(1, Math.max(0, Number(value))) * 255).toString(16).padStart(2, '0');
+  const color = rgb ? `#${rgb.slice(1).map(hex).join('')}` : gray ? `#${hex(gray[1]).repeat(3)}` : '#000000';
+  return { fontSize: size ? Math.max(0, Number(size[1])) : 0, color };
+}
+
+function fieldKind(field) {
+  const lib = library();
+  if (field instanceof lib.PDFTextField) return 'text';
+  if (field instanceof lib.PDFCheckBox) return 'checkbox';
+  if (field instanceof lib.PDFRadioGroup) return 'radio';
+  if (field instanceof lib.PDFDropdown) return 'dropdown';
+  if (field instanceof lib.PDFOptionList) return 'list';
+  if (field instanceof lib.PDFSignature) return 'signature';
+  return 'button';
+}
+
+/** A field's value: text, true or false for a check box, a chosen option, or chosen options for a list. */
+function fieldValue(field, kind) {
+  if (kind === 'text') return field.getText() ?? '';
+  if (kind === 'checkbox') return field.isChecked();
+  if (kind === 'radio') return field.getSelected() ?? null;
+  if (kind === 'dropdown') return field.getSelected()[0] ?? '';
+  if (kind === 'list') return field.getSelected();
+  return null;
+}
+
+function hasAcroForm(doc) {
+  const lib = library();
+  return Boolean(doc.catalog.lookupMaybe(lib.PDFName.of('AcroForm'), lib.PDFDict));
+}
+
+/**
+ * The fields of a PDF's form, to fill in: for each field with a visible widget,
+ * its name, kind, label (the tooltip, else the last part of the name), value
+ * and settings, and each widget's page, rectangle (PDF user space) and the
+ * ID PDF.js knows it by. `count` includes fields without a visible widget.
+ * `xfa`: the form also has an XFA version (some readers show that instead).
+ * `scripts`: it has calculations or actions, which do not run here. Null when
+ * the PDF has no form.
+ */
+function formFields(doc) {
+  const lib = library();
+  if (!hasAcroForm(doc)) return null;
+  const acroForm = doc.catalog.lookup(lib.PDFName.of('AcroForm'), lib.PDFDict);
+  const xfa = acroForm.has(lib.PDFName.of('XFA'));
+  let scripts = acroForm.has(lib.PDFName.of('CO'));
+  let form;
+  try {
+    form = doc.getForm();
+  } catch {
+    return null;
+  }
+  const all = form.getFields();
+  const pages = doc.getPages();
+  const fields = [];
+  for (const field of all) {
+    const kind = fieldKind(field);
+    const dict = field.acroField.dict;
+    scripts ||= dict.has(lib.PDFName.of('AA'));
+    const name = field.getName();
+    const options = ['radio', 'dropdown', 'list'].includes(kind) ? field.getOptions() : [];
+    const widgets = [];
+    field.acroField.getWidgets().forEach((widget, index) => {
+      scripts ||= widget.dict.has(lib.PDFName.of('AA'));
+      const flags = widget.dict.lookup(lib.PDFName.of('F'));
+      if (flags instanceof lib.PDFNumber && flags.asNumber() & NOT_SHOWN) return;
+      let pageIndex = -1;
+      try {
+        pageIndex = pages.indexOf(form.findWidgetPage(widget));
+      } catch {
+        return;
+      }
+      const { x, y, width, height } = widget.getRectangle();
+      if (pageIndex < 0 || !(width > 0 && height > 0)) return;
+      const entry = { id: annotationId(doc.context.getObjectRef(widget.dict)), pageIndex, rect: [x, y, width, height] };
+      // The option a radio button stands for (widgets list them in order).
+      if (kind === 'radio') entry.option = options[index] ?? null;
+      widgets.push(entry);
+    });
+    if (!widgets.length) continue;
+    const entry = {
+      name,
+      kind,
+      label: fieldLabel(field),
+      value: fieldValue(field, kind),
+      readOnly: field.isReadOnly(),
+      required: field.isRequired(),
+      widgets,
+    };
+    if (kind === 'text') {
+      Object.assign(entry, {
+        multiline: field.isMultiline(),
+        maxLength: field.getMaxLength() ?? null,
+        comb: field.isCombed(),
+        password: field.isPassword(),
+        align: field.getAlignment() ?? 0,
+      });
+    }
+    if (kind === 'radio' || kind === 'dropdown' || kind === 'list') entry.options = [...new Set(options)];
+    if (kind === 'list') entry.multiple = field.isMultiselect();
+    if (kind === 'text' || kind === 'dropdown' || kind === 'list') {
+      const da = field.acroField.getDefaultAppearance?.() ?? decodedText(acroForm.lookup(lib.PDFName.of('DA'))) ?? '';
+      Object.assign(entry, appearanceStyle(da));
+    }
+    fields.push(entry);
+  }
+  return { fields, count: all.length, xfa, scripts };
+}
+
+const LINE_FACTOR = 1.35;
+const twoDecimals = (value) => Math.floor(value * 100) / 100;
+
+/**
+ * The size of a field's text when its default appearance asks for an
+ * automatic size (0), worked out as PDF.js does, so the download looks like
+ * the editor's preview (and like most readers): one line fills the field's
+ * height unless the text is too wide; several lines are about 12 pt, smaller
+ * when the text does not fit; a list fits its longest option on each row.
+ */
+function automaticSize(kind, multiline, rect, font, text, options = []) {
+  const width = rect.width - 4;
+  const height = rect.height - 2;
+  if (width <= 0 || height <= 0) return 4;
+  const widthAtOne = (line) => font.widthOfTextAtSize(line, 1);
+  const fit = (lineHeight, line) => {
+    const lineWidth = widthAtOne(line);
+    return twoDecimals(Math.min(lineHeight / LINE_FACTOR, lineWidth ? width / lineWidth : Infinity));
+  };
+  let size;
+  if (kind === 'list') {
+    const longest = options.reduce((best, option) => (widthAtOne(option) > widthAtOne(best) ? option : best), '');
+    size = fit((rect.height - 1) / Math.max(1, options.length), longest);
+  } else if (!multiline) {
+    size = fit(height, text);
+  } else {
+    const lines = text.split('\n');
+    const sizeFor = (count) => twoDecimals(height / count / LINE_FACTOR);
+    const tooBig = (fontSize) => {
+      let total = 0;
+      for (const line of lines) {
+        total += Math.max(1, wrapText(line, font, fontSize, width).length) * fontSize;
+        if (total > height) return true;
+      }
+      return false;
+    };
+    let count = Math.max(Math.round(height / (12 * LINE_FACTOR)), lines.length, 1);
+    if (tooBig(sizeFor(count))) {
+      let low = count;
+      let high = 2 * count;
+      while (tooBig(sizeFor(high)) && high < 1000) {
+        low = high;
+        high *= 2;
+      }
+      while (high - low > 1) {
+        const middle = Math.floor((low + high) / 2);
+        if (tooBig(sizeFor(middle))) low = middle;
+        else high = middle;
+      }
+      count = high;
+    }
+    size = sizeFor(count);
+  }
+  return Math.min(Math.max(size, 1), 1000);
+}
+
+/** The text a field shows, to pick a font that has its characters. */
+function shownText(field, kind) {
+  if (kind === 'text') return field.getText() ?? '';
+  if (kind === 'dropdown' || kind === 'list') return field.getSelected().join('\n');
+  return '';
+}
+
+/**
+ * Fill a document's form with values by field name, and flatten it when asked.
+ * Changed fields get new appearances, in a font that has their characters;
+ * their default appearance (the font and automatic size a reader uses when
+ * the field is edited again) is kept. Check boxes and radio buttons keep
+ * their own look. `fieldError(name, message)` makes an error for a field.
+ */
+async function fillForm(doc, values, { flatten, getFont, fieldError }) {
+  const lib = library();
+  const form = doc.getForm();
+  // By name: pdf-lib makes new field objects on each call.
+  const changed = new Set();
+  for (const [name, value] of Object.entries(values || {})) {
+    const field = form.getFieldMaybe(name);
+    if (!field || field.isReadOnly()) continue;
+    const kind = fieldKind(field);
+    try {
+      if (kind === 'text') {
+        const text = String(value ?? '');
+        const limit = field.getMaxLength();
+        field.setText(text ? (limit === undefined ? text : text.slice(0, limit)) : undefined);
+      } else if (kind === 'checkbox') {
+        if (value) field.check();
+        else field.uncheck();
+      } else if (kind === 'radio' || kind === 'dropdown') {
+        if (value) field.select(String(value));
+        else field.clear();
+      } else if (kind === 'list') {
+        const chosen = (Array.isArray(value) ? value : [value]).filter(Boolean).map(String);
+        if (chosen.length) field.select(chosen);
+        else field.clear();
+      } else continue;
+    } catch (error) {
+      throw fieldError(name, `“${fieldLabel(field)}” can’t take this value. ${error.message}`);
+    }
+    changed.add(name);
+  }
+  const da = lib.PDFName.of('DA');
+  for (const field of form.getFields()) {
+    const kind = fieldKind(field);
+    if (!changed.has(field.getName()) && !(flatten && field.needsAppearancesUpdate())) continue;
+    if (kind === 'checkbox' || kind === 'radio') {
+      if (field.needsAppearancesUpdate()) field.updateAppearances();
+      continue;
+    }
+    if (kind !== 'text' && kind !== 'dropdown' && kind !== 'list') continue;
+    let font;
+    try {
+      font = await getFont(shownText(field, kind));
+    } catch (error) {
+      if (error.unsupported) throw fieldError(field.getName(), `“${fieldLabel(field)}”: ${error.message}`);
+      throw error;
+    }
+    const kept = [field.acroField.dict, ...field.acroField.getWidgets().map((widget) => widget.dict)].map((dict) => [dict, dict.get(da)]);
+    // An automatic size is worked out for each widget, and given to pdf-lib in the
+    // widget's default appearance while it draws (the original is restored below).
+    const appearance = field.acroField.getDefaultAppearance?.() ?? decodedText(form.acroForm.dict.lookup(da)) ?? '/Helv 0 Tf 0 g';
+    if (!appearanceStyle(appearance).fontSize) {
+      const text = shownText(field, kind);
+      const options = kind === 'list' ? field.getOptions() : [];
+      for (const widget of field.acroField.getWidgets()) {
+        const size = automaticSize(kind, kind === 'text' && field.isMultiline(), widget.getRectangle(), font, text, options);
+        const sized = /-?[\d.]+\s+Tf\b/.test(appearance) ? appearance.replace(/-?[\d.]+(\s+Tf\b)/, `${size}$1`) : `/Helv ${size} Tf 0 g`;
+        widget.dict.set(da, lib.PDFString.of(sized));
+      }
+    }
+    field.updateAppearances(font);
+    for (const [dict, value] of kept) {
+      if (value === undefined) dict.delete(da);
+      else dict.set(da, value);
+    }
+  }
+  if (flatten) flattenForm(form);
+  return changed.size > 0 || flatten;
+}
+
+/** Draw each visible field on its page as it looks, then remove the form's fields (pdf-lib's flatten draws hidden ones too). */
+function flattenForm(form) {
+  const lib = library();
+  const flagsName = lib.PDFName.of('F');
+  for (const field of form.getFields()) {
+    for (const widget of field.acroField.getWidgets()) {
+      const flags = widget.dict.lookup(flagsName);
+      if (flags instanceof lib.PDFNumber && flags.asNumber() & NOT_SHOWN) continue;
+      try {
+        form.flattenWidgetOntoPage(form.findWidgetPage(widget), widget, form.findWidgetAppearanceRef(field, widget));
+      } catch {
+        // A widget without an appearance shows nothing.
+      }
+    }
+    form.removeField(field);
+  }
+  form.flattenOrphanWidgets();
+}
+
 function describePdf(doc) {
   const pages = doc.getPages().map((page, index) => {
     const { width, height, rotation, cropBox } = visibleGeometry(page);
     return { index, width, height, rotation, cropBox };
   });
-  return { pages, pageCount: pages.length, hasForm: doc.getForm().getFields().length > 0, pdfa: pdfaPart(doc), encrypted: Boolean(doc.context.isDecrypted) };
+  const form = formFields(doc);
+  return { pages, pageCount: pages.length, hasForm: Boolean(form?.count), form, pdfa: pdfaPart(doc), encrypted: Boolean(doc.context.isDecrypted) };
 }
 
 /**
  * Page sizes in visible orientation, for layout before rendering, whether the
- * PDF has interactive form fields (they limit merging and extracting), the
- * PDF/A part it declares, if any, and whether it is encrypted.
+ * PDF has interactive form fields (they limit merging and extracting unless
+ * flattened) and the fields to fill in (see formFields), the PDF/A part it
+ * declares, if any, and whether it is encrypted.
  */
 export async function inspectPdf(bytes, { password = '' } = {}) {
   return describePdf(await loadPdf(bytes, password));
@@ -541,6 +837,34 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     }
     rotation(descriptor.rotation || 0);
   }
+  // Forms: the values typed in Fill form, and flattening (fields become page
+  // content, so their pages can also be combined with others).
+  const fontManagers = new Map();
+  const fontsFor = (target) => {
+    if (!fontManagers.has(target)) fontManagers.set(target, fontManager(target));
+    return fontManagers.get(target);
+  };
+  let formFilled = false;
+  for (const id of needed) {
+    const sourceDoc = loaded.get(id);
+    const values = state.formValues?.[id];
+    if (!hasAcroForm(sourceDoc) || !(state.flattenForms || (values && Object.keys(values).length))) continue;
+    // A problem with a field is reported on the page that shows it.
+    const fieldError = (name, message) => {
+      let sourceIndex = -1;
+      try {
+        const form = sourceDoc.getForm();
+        const widget = form.getFieldMaybe(name)?.acroField.getWidgets()[0];
+        if (widget) sourceIndex = sourceDoc.getPages().indexOf(form.findWidgetPage(widget));
+      } catch {
+        // The field is not on a page.
+      }
+      const pageIndex = descriptors.findIndex((descriptor) => descriptor.sourceId === id && descriptor.index === sourceIndex);
+      const itemId = `form:${name}`;
+      return pageIndex < 0 ? Object.assign(new Error(message), { itemId }) : pageError(message, pageIndex, itemId);
+    };
+    formFilled = (await fillForm(sourceDoc, values, { flatten: Boolean(state.flattenForms), getFont: fontsFor(sourceDoc), fieldError })) || formFilled;
+  }
   onProgress(0.1);
   const oneSource = needed.length === 1;
   const noDuplicates = new Set(descriptors.map((page) => `${page.sourceId}:${page.index}`)).size === descriptors.length;
@@ -569,7 +893,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     }
   } else {
     for (const source of loaded.values()) {
-      if (source.getForm().getFields().length) throw new Error('Merging, duplicating, or extracting pages from PDFs with interactive forms is not supported. Save a flattened copy in your PDF reader, then add that copy.');
+      if (hasAcroForm(source) && source.getForm().getFields().length) throw new Error('Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields” in Fill form, then try again.');
     }
     doc = await lib.PDFDocument.create();
     doc.setProducer('QFT PDF');
@@ -582,7 +906,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     outputPages = descriptors.map((descriptor) => copies.get(descriptor.id));
     outputPages.forEach((page) => doc.addPage(page));
   }
-  const getFont = fontManager(doc);
+  const getFont = fontsFor(doc);
   const annotations = state.annotations || [];
   const total = outputPages.length;
   let added = false;
@@ -616,6 +940,8 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
   const notes = [];
+  // New field appearances use fonts that PDF/A requires to be embedded.
+  added ||= formFilled;
   if (pdfa && (added || password)) {
     removePdfaIdentification(doc);
     pdfa = null;
@@ -623,8 +949,9 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     if (password) notes.push('pdfa-removed-password');
   }
   if (password) protectDocument(doc, password);
-  // Object streams keep files small, but PDF/A-1 forbids them.
-  const output = await doc.save({ useObjectStreams: pdfa !== 1 });
+  // Object streams keep files small, but PDF/A-1 forbids them. Field appearances
+  // are made above, in fonts that have their characters.
+  const output = await doc.save({ useObjectStreams: pdfa !== 1, updateFieldAppearances: false });
   onProgress(1);
   return { bytes: output, notes };
 }
