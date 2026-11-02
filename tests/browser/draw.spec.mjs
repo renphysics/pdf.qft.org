@@ -1,6 +1,6 @@
 // Draw: pen strokes and shapes on the page, saved as lines and curves that
 // look in the download exactly as in the preview.
-import { test, expect, openSample, download, previewDifference, PDFLib } from './helpers.mjs';
+import { test, expect, openSample, ready, download, previewDifference, PDFLib } from './helpers.mjs';
 
 const paths = (page) => page.locator('.page-view[data-number="1"] path.ov-drawing');
 const selected = (page) => page.locator('.page-view[data-number="1"] .item-box.selected');
@@ -13,6 +13,17 @@ async function drag(page, points) {
   await page.mouse.down();
   for (const point of points.slice(1)) await page.mouse.move(...at(point), { steps: 8 });
   await page.mouse.up();
+}
+/**
+ * Where the first drawing is on screen, once the page has settled. The overlay
+ * may be redrawn while it is measured (boundingBox does not retry), so measure
+ * until a box comes back.
+ */
+async function placeOf(page) {
+  await ready(page);
+  let box = null;
+  await expect.poll(async () => (box = await paths(page).first().boundingBox())).not.toBeNull();
+  return box;
 }
 async function tap(page, [u, v]) {
   const box = await page.locator('.page-view[data-number="1"]').boundingBox();
@@ -70,10 +81,13 @@ test('a selected drawing moves when dragged, and keeps its shape', async ({ page
   await page.selectOption('#tool-form [name="shape"]', 'line');
   await drag(page, [[0.2, 0.3], [0.6, 0.4]]);
   await expect(selected(page)).toHaveCount(1);
-  const before = await paths(page).first().boundingBox();
+  const before = await placeOf(page);
   await drag(page, [[0.4, 0.35], [0.5, 0.45]]);
   await expect(paths(page)).toHaveCount(1);
-  const after = await paths(page).first().boundingBox();
+  await expect
+    .poll(async () => ((await paths(page).first().boundingBox())?.x ?? before.x) - before.x, { message: 'the drawing moved' })
+    .toBeGreaterThan(20);
+  const after = await placeOf(page);
   expect(after.x - before.x).toBeGreaterThan(20);
   expect(after.y - before.y).toBeGreaterThan(20);
   expect(Math.abs(after.width - before.width)).toBeLessThan(2);
