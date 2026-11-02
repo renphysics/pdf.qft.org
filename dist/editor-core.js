@@ -55,6 +55,9 @@ export const emptyState = () => ({
   // Values typed into form fields, by source and field name, and whether downloads flatten the fields.
   formValues: {},
   flattenForms: false,
+  // Document properties set in the editor ({ title, author, subject, keywords,
+  // language, clean }), or null to keep the first PDF's own.
+  properties: null,
 });
 export let state = emptyState();
 export const ui = {
@@ -148,6 +151,7 @@ export const names = {
   jpgtopdf: 'JPG to PDF',
   pdftojpg: 'PDF to JPG',
   form: 'Fill form',
+  properties: 'Properties',
 };
 export const descriptions = {
   text: 'Click the page where your text should start, then type. Drag text to move it.',
@@ -170,6 +174,7 @@ export const descriptions = {
     'Your JPG and PNG pictures are pages. Choose their paper size, put them in order in the page strip, then download one PDF.',
   pdftojpg: 'Save pages as JPG or PNG pictures, exactly as they look with your edits.',
   form: 'Click a field to type in it, or tick its box. Tab moves to the next field.',
+  properties: 'The title, author and other details saved in your PDF. Change them, or remove them before you share it.',
 };
 export const settingDefaults = {
   watermark: () => ({
@@ -233,6 +238,7 @@ export function snapshot(current = state) {
       ]),
     ),
     flattenForms: Boolean(current.flattenForms),
+    properties: current.properties ? { ...current.properties } : null,
   };
 }
 export function busy(value, message = 'Working on your PDF…') {

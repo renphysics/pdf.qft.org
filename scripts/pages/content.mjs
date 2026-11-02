@@ -81,6 +81,29 @@ export const PAGES = [
     ],
   },
   {
+    tool: 'properties',
+    name: 'Edit PDF metadata',
+    title: 'Edit PDF metadata for free, in your browser — QFT PDF',
+    description:
+      'Change a PDF’s title, author, subject, keywords and language, or remove its hidden details before you share it. Free, and nothing is uploaded.',
+    eyebrow: 'EDIT PDF METADATA',
+    heading: ['Edit PDF metadata.', 'Or remove it before sharing.'],
+    intro: 'See the title, author and other details a PDF carries, change them, or remove them before you send it.',
+    upload: { text: 'Drop a PDF here to see its details.' },
+    how: ['How to edit', 'PDF metadata.'],
+    steps: [
+      OPEN_STEP,
+      ['Change the details.', 'Edit the title, author, subject, keywords and language, or choose Remove all.'],
+      ['Download.', 'Your PDF carries the new details. Pages and everything on them stay as they were.'],
+    ],
+    faqs: [
+      ['What does Remove all remove?', 'The title, author, subject and keywords, and what apps add without asking: which app made the PDF, when it was made and changed, and a second copy of these details (XMP metadata). The language stays, because screen readers need it.'],
+      ['Where do readers show the title?', 'Many PDF readers and browsers show it in the window or tab title instead of the file name, and search tools index it.'],
+      ['Is my PDF uploaded?', 'No. The details are changed in your browser, and the PDF never leaves your device.'],
+      ['What about PDF/A files?', 'Changing the details removes the metadata that declares PDF/A, so the download is no longer marked as PDF/A (archival).'],
+    ],
+  },
+  {
     tool: 'watermark',
     name: 'Add watermark to PDF',
     title: 'Add a watermark to a PDF for free — QFT PDF',

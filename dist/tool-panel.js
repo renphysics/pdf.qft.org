@@ -470,8 +470,58 @@ function panelFields() {
       return pdfToJpgFields();
     case 'form':
       return formPanel();
+    case 'properties':
+      return propertiesPanel();
   }
   return '';
+}
+
+// ---- Document properties -------------------------------------------------------------
+// The title, author, subject, keywords and language a download carries: the
+// first PDF's own (state.properties is null) until they are changed here.
+
+const PROPERTY_FIELDS = ['title', 'author', 'subject', 'keywords', 'language'];
+/** The details the first PDF keeps about itself (pictures and blank pages have none). */
+function ownDetails() {
+  return state.sources.find((source) => source.id === state.pages[0]?.sourceId)?.details || {};
+}
+export function currentProperties() {
+  if (state.properties) return state.properties;
+  const own = ownDetails();
+  return Object.fromEntries(PROPERTY_FIELDS.map((name) => [name, own[name] || '']));
+}
+function propertiesPanel() {
+  const own = ownDetails(),
+    clean = Boolean(state.properties?.clean);
+  const extra = clean
+    ? []
+    : [
+        own.creator && 'made with ' + own.creator,
+        own.producer && own.producer !== own.creator && 'saved by ' + own.producer,
+        own.created && 'created on ' + new Date(own.created).toLocaleDateString(),
+      ].filter(Boolean);
+  return (
+    textField('Title', 'title', '', true) +
+    textField('Author', 'author', '', true) +
+    textField('Subject', 'subject', '', true) +
+    textField('Keywords', 'keywords', 'Separated by commas', true) +
+    textField('Language', 'language', 'For example en-GB, de or zh-CN', true) +
+    '<p class="field-hint wide" id="properties-extra">' +
+    (extra.length
+      ? 'Also in the file: ' + safe(extra.join(', ')) + '.'
+      : clean
+        ? 'Your download keeps only the details above.'
+        : '') +
+    '</p><button type="button" class="button danger" data-action="properties-clear">' +
+    icon('trash') +
+    'Remove all</button><p class="field-hint wide">Removes the title, author, subject and keywords, and what apps add without asking: which app made the PDF, when, and a second copy of these details. The language stays, because screen readers need it.</p>'
+  );
+}
+/** Remove all: keep only the language, for privacy before sharing (one undo step). */
+export function clearProperties() {
+  change(() => (state.properties = { ...currentProperties(), title: '', author: '', subject: '', keywords: '', clean: true }));
+  renderTool();
+  toast('Details removed. Your download won’t include them.');
 }
 function jpgToPdfFields() {
   const pictures = state.pages.filter(
@@ -925,6 +975,8 @@ function unlockFields() {
 function panelValues() {
   const item = selectedItem();
   switch (ui.tool) {
+    case 'properties':
+      return currentProperties();
     case 'text':
       return item?.type === 'text'
         ? { text: item.text, size: item.fontSize, color: hexColor(item.color), align: item.align || 'left' }
@@ -1090,6 +1142,10 @@ function onPanelInput(event) {
   if (name === 'flattenForms') {
     change(() => (state.flattenForms = field.checked));
     announceMessage(field.checked ? 'Fields will be flattened on download.' : 'Fields will stay fillable.');
+    return;
+  }
+  if (ui.tool === 'properties' && PROPERTY_FIELDS.includes(name)) {
+    change(() => (state.properties = { ...currentProperties(), [name]: field.value }), { key: 'properties:' + name });
     return;
   }
   if (!name) return;

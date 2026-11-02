@@ -592,7 +592,22 @@ function describePdf(doc) {
     return { index, width, height, rotation, cropBox };
   });
   const form = formFields(doc);
-  return { pages, pageCount: pages.length, hasForm: Boolean(form?.count), form, pdfa: pdfaPart(doc), encrypted: Boolean(doc.context.isDecrypted) };
+  return { pages, pageCount: pages.length, hasForm: Boolean(form?.count), form, details: documentDetails(doc), pdfa: pdfaPart(doc), encrypted: Boolean(doc.context.isDecrypted) };
+}
+
+/** The details a PDF keeps about itself (Document properties shows them). */
+function documentDetails(doc) {
+  const created = detail(() => doc.getCreationDate());
+  return {
+    title: detail(() => doc.getTitle()) || '',
+    author: detail(() => doc.getAuthor()) || '',
+    subject: detail(() => doc.getSubject()) || '',
+    keywords: detail(() => doc.getKeywords()) || '',
+    language: detail(() => doc.getLanguage()) || '',
+    creator: detail(() => doc.getCreator()) || '',
+    producer: detail(() => doc.getProducer()) || '',
+    created: created && !Number.isNaN(created.getTime()) ? created.toISOString() : '',
+  };
 }
 
 /**
@@ -976,6 +991,30 @@ function detail(read) {
   }
 }
 
+/**
+ * Document properties (state.properties): the title, author, subject, keywords
+ * and language as set in the editor; an empty one is removed. `clean` (Remove
+ * all) also removes every other detail: the app that made the PDF, dates and
+ * the rest of its document information. Its XMP metadata, a second copy of
+ * these details that some readers prefer, is always removed, so no reader
+ * shows the old ones.
+ */
+function applyProperties(doc, properties) {
+  const { PDFHexString, PDFName } = library();
+  const info = doc.getInfoDict();
+  if (properties.clean) for (const key of info.keys()) info.delete(key);
+  const fields = { Title: properties.title, Author: properties.author, Subject: properties.subject, Keywords: properties.keywords };
+  for (const [key, value] of Object.entries(fields)) {
+    const text = String(value ?? '').trim();
+    if (text) info.set(PDFName.of(key), PDFHexString.fromText(text));
+    else info.delete(PDFName.of(key));
+  }
+  const language = String(properties.language ?? '').trim();
+  if (language) doc.setLanguage(language);
+  else doc.catalog.delete(PDFName.of('Lang'));
+  doc.catalog.delete(PDFName.of('Metadata'));
+}
+
 /** Copy a PDF's title, author, subject, keywords, creator, creation date and language. */
 export function copyDocumentInfo(doc, source) {
   const { PDFBool, PDFDict, PDFName } = library();
@@ -1225,12 +1264,16 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const notes = [];
   // New field appearances use fonts that PDF/A requires to be embedded.
   added ||= formFilled;
-  if (pdfa && (added || password)) {
-    removePdfaIdentification(doc);
+  const properties = state.properties;
+  if (pdfa && (added || password || properties)) {
+    // Changed properties remove the XMP metadata, and with it the PDF/A claim.
+    if (!properties) removePdfaIdentification(doc);
     pdfa = null;
     if (added) notes.push('pdfa-removed');
     if (password) notes.push('pdfa-removed-password');
+    if (properties) notes.push('pdfa-removed-properties');
   }
+  if (properties) applyProperties(doc, properties);
   if (password) protectDocument(doc, password);
   // Object streams keep files small, but PDF/A-1 forbids them. Field appearances
   // are made above, in fonts that have their characters.

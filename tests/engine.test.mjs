@@ -393,6 +393,49 @@ for (const [part, conformance, attributeForm] of [[1, 'B', false], [1, 'A', fals
   assert.ok((await extract(edited.bytes))[0].items.some((item) => item.text === 'DRAFT'));
 }
 
+// Document properties: read when a PDF opens; set, removed or cleaned on export.
+// Changed properties remove the XMP copy of the details, which PDF.js prefers.
+{
+  const { PDFName } = globalThis.PDFLib;
+  const withInfo = await PDFDocument.load(await pdfaFixture(2, 'B', true));
+  withInfo.setTitle('Archiv für Berichte');
+  withInfo.setAuthor('A. Author');
+  withInfo.setSubject('Reports');
+  withInfo.setKeywords(['archive, 2026']);
+  withInfo.setCreator('Writer 7');
+  withInfo.setLanguage('de-DE');
+  const bytes = await withInfo.save();
+  const opened = await openPdf(bytes);
+  assert.deepEqual({ ...opened.details, producer: '', created: '' }, { title: 'Archiv für Berichte', author: 'A. Author', subject: 'Reports', keywords: 'archive, 2026', language: 'de-DE', creator: 'Writer 7', producer: '', created: '' });
+  assert.match(opened.details.created, /^\d{4}-\d\d-\d\dT/, 'the creation date');
+  const one = { sources: [{ id: 'a', bytes }], pages: [{ id: 'p', sourceId: 'a', index: 0 }] };
+  const edited = await buildPdfWithNotes({ ...one, properties: { title: 'Annual report', author: '', subject: 'Reports', keywords: 'archive, 2026', language: 'de-DE' } });
+  assert.deepEqual(edited.notes, ['pdfa-removed-properties'], 'a PDF/A file stops claiming PDF/A');
+  const doc = await PDFDocument.load(edited.bytes, { updateMetadata: false });
+  assert.equal(doc.getTitle(), 'Annual report');
+  assert.equal(doc.getAuthor(), undefined, 'an emptied property is removed');
+  assert.equal(doc.getCreator(), 'Writer 7', 'other details stay');
+  assert.equal(doc.catalog.get(PDFName.of('Metadata')), undefined, 'the XMP copy is removed');
+  const read = await pdfjs.getDocument({ data: edited.bytes.slice(), verbosity: 0 }).promise;
+  const { info, metadata } = await read.getMetadata();
+  assert.deepEqual([info.Title, metadata], ['Annual report', null], 'PDF.js shows the new title');
+  await read.loadingTask.destroy();
+  // Remove all: no details at all; the language stays, for screen readers.
+  const cleaned = await PDFDocument.load(await buildPdf({ ...one, properties: { title: '', author: '', subject: '', keywords: '', language: 'de-DE', clean: true } }), { updateMetadata: false });
+  assert.deepEqual(cleaned.getInfoDict().keys(), [], 'no document information left');
+  assert.equal(cleaned.getLanguage(), 'de-DE');
+  // Combined with another PDF (pages copied into a new one): the properties set win.
+  const other = await PDFDocument.create();
+  other.addPage([100, 100]);
+  const merged = await PDFDocument.load(
+    await buildPdf({ sources: [...one.sources, { id: 'b', bytes: await other.save() }], pages: [...one.pages, { id: 'q', sourceId: 'b', index: 0 }], properties: { title: 'Combined', author: 'B. Author', subject: '', keywords: '', language: 'en' } }),
+    { updateMetadata: false },
+  );
+  assert.deepEqual([merged.getTitle(), merged.getAuthor(), merged.getSubject(), merged.getLanguage()], ['Combined', 'B. Author', undefined, 'en']);
+  // Unchanged properties: the PDF keeps its own details, XMP included.
+  assert.ok((await PDFDocument.load((await buildPdfWithNotes(one)).bytes)).catalog.get(PDFName.of('Metadata')));
+}
+
 // Passwords. The fixtures were encrypted by pypdf (scripts/make-encrypted-fixtures.py),
 // not by the library under test; each has two pages, "Secret page 1" and "Secret page 2".
 const fixturePath = (name) => path.join(outputDir, '../fixtures', name);

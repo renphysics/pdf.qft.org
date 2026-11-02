@@ -377,6 +377,18 @@ dropdowns and lists. A PDF with fields opened from the home page opens in it.
 - Calculations and checks built into a form do not run. A form that also has an
   XFA version loses it once fields are filled here.
 
+## Document properties
+
+Properties (`/edit-pdf-metadata/`) shows the title, author, subject, keywords and
+language the first PDF carries (`details` from `openPdf`), and the app that made
+it and when. Changing them sets `state.properties`; downloads then write them to
+the document information (an emptied one is removed, `applyProperties` in
+`pdf-engine.js`) and remove the XMP metadata, a second copy of these details that
+PDF.js and others show in preference, so no reader shows the old ones. Remove all
+also removes every other detail (the creating app, producer and dates); the
+language stays, because screen readers need it. A PDF/A file whose properties
+change stops declaring PDF/A, since that declaration lives in the XMP metadata.
+
 ## Passwords
 
 A PDF that needs a password asks for it when it is opened (also when adding

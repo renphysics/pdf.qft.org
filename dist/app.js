@@ -59,6 +59,7 @@ import {
   stopEditing,
 } from './page-items.js';
 import {
+  clearProperties,
   copySignature,
   cropDraftActive,
   cropValues,
@@ -491,6 +492,7 @@ export async function action(name, element) {
       toast(friendly(error), true);
     }
   }
+  if (name === 'properties-clear') clearProperties();
   if (name === 'insert-blank') {
     try {
       await insertBlankPage();
