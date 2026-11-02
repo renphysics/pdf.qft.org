@@ -146,6 +146,18 @@ On phones the document comes first: the page fills the screen under a compact
 document bar, tools sit in a bottom bar, and each tool's settings open in a
 sheet that folds away. Controls are at least 44 px.
 
+The editor's code is split by what it does. `app.js` starts it (edit history,
+addresses, the actions behind buttons, listeners), and the rest lives in
+`editor-core.js` (state, helpers and messages; it imports no other editor
+module, so every module can use it as they load), `page-view.js` (the page
+preview), `page-items.js` (typing, moving and resizing items, crop drag),
+`form-ui.js` (Fill form), `tool-panel.js` (the tool panel), `pages.js` (pages,
+the page strip and choosing tools) and `documents.js` (opening, building and
+downloading PDFs). The modules import each other's functions freely; code that
+runs as a module loads uses only `editor-core.js` and the libraries. The release
+script versions every module's imports (`scripts/stamp-release.mjs`), so a new
+module needs no changes there.
+
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned

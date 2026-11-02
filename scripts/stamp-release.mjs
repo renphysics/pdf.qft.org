@@ -18,7 +18,7 @@
  * Usage: node scripts/stamp-release.mjs [siteDirectory]   (default: dist)
  */
 import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -26,11 +26,9 @@ const site = path.resolve(process.argv[2] || fileURLToPath(new URL('../dist', im
 // One generated page per tool address (routes.js; scripts/build-pages.mjs).
 const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).href);
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
-const FIRST_PARTY = [
-  'index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, 'app.js', 'routes.js', 'layout.js', 'preview.js',
-  'pdf-engine.js', 'export-worker.js', 'workflows.js', 'batch-ui.js', 'signature.js', 'convert.js', 'style.css',
-  'studio.css', 'batch.css',
-];
+// Every module beside index.html (app.js and the editor's modules, the engine...).
+const MODULES = (await readdir(site)).filter((name) => name.endsWith('.js')).sort();
+const FIRST_PARTY = ['index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, ...MODULES, 'style.css', 'studio.css', 'batch.css'];
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const sources = Object.fromEntries(
   await Promise.all(FIRST_PARTY.map(async (name) => [name, await readFile(path.join(site, name), 'utf8')])),
@@ -45,9 +43,13 @@ const worker = await engine('pdf.worker.mjs');
 const pdfLib = await engine('pdf-lib.min.js');
 const fontkit = await engine('fontkit.umd.min.js');
 
-// [pattern, replacement, expected number of matches]. A mismatch means the
-// sources changed shape and this script must be updated, so it fails loudly.
+// [pattern, replacement, expected number of matches, or null for any number].
+// A mismatch means the sources changed shape and this script must be updated,
+// so it fails loudly. Every module's imports of its neighbours are versioned;
+// the check below fails on any relative import left unversioned.
+const imports = [/(from '\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
 const RULES = {
+  ...Object.fromEntries(MODULES.map((name) => [name, [imports]])),
   'index.html': [
     [/(href="\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
     [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
@@ -62,34 +64,28 @@ const RULES = {
       ],
     ]),
   ),
-  'app.js': [
-    [/(from '\.\/(?:pdf-engine|workflows|batch-ui|routes|layout|preview|signature|convert)\.js)'/g, `$1?v=${release}'`, 8],
+  'documents.js': [
+    imports,
     // The export worker is a module too: one URL per release.
     [/(new URL\('\.\/export-worker\.js)'/g, `$1?v=${release}'`, 1],
   ],
   'preview.js': [
-    [/(from '\.\/(?:layout|pdf-engine)\.js)'/g, `$1?v=${release}'`, 2],
+    imports,
     [/(import\('\.\/assets\/vendor\/pdf\.mjs)'/g, `$1?v=${pdfjs}'`, 1],
     [/(assetUrl\('\.\/assets\/vendor\/pdf\.worker\.mjs)'/g, `$1?v=${worker}'`, 1],
   ],
-  'layout.js': [],
   'pdf-engine.js': [
-    [/(from '\.\/layout\.js)'/g, `$1?v=${release}'`, 2],
+    imports,
     [/(new URL\('\.\/assets\/vendor\/pdf-lib\.min\.js)'/g, `$1?v=${pdfLib}'`, 1],
     [/(new URL\('\.\/assets\/vendor\/fontkit\.umd\.min\.js)'/g, `$1?v=${fontkit}'`, 1],
   ],
-  'export-worker.js': [[/(from '\.\/pdf-engine\.js)'/g, `$1?v=${release}'`, 1]],
-  'workflows.js': [[/(from '\.\/pdf-engine\.js)'/g, `$1?v=${release}'`, 1]],
-  'batch-ui.js': [[/(from '\.\/(?:workflows|pdf-engine)\.js)'/g, `$1?v=${release}'`, 2]],
-  'signature.js': [],
-  'convert.js': [[/(from '\.\/preview\.js)'/g, `$1?v=${release}'`, 1]],
 };
 
 for (const [name, rules] of Object.entries(RULES)) {
   let text = sources[name];
   for (const [pattern, replacement, expected] of rules) {
     const found = text.match(pattern)?.length ?? 0;
-    if (found !== expected) throw new Error(`${name}: expected ${expected} match(es) for ${pattern}, found ${found}.`);
+    if (expected !== null && found !== expected) throw new Error(`${name}: expected ${expected} match(es) for ${pattern}, found ${found}.`);
     text = text.replace(pattern, replacement);
   }
   // Every relative import must be versioned: an unversioned URL could load a
