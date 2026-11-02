@@ -94,7 +94,8 @@ test('flattened downloads, and flattening lets a form join other PDFs', async ({
   // Fields stay fillable: another PDF can't join.
   await page.click('[data-action="add-files"]');
   await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
-  expect(await toastText(page)).toContain('Flatten fields on download');
+  // Wait for this message: the one about the form's fields may still be showing.
+  await expect(page.locator('#toast-message')).toContainText('Flatten fields on download');
   await page.click('[data-action="dismiss-toast"]');
   await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
 

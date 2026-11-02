@@ -81,7 +81,8 @@ test('Protect PDF sets a new password, also for split parts', async ({ page }) =
 
   await useTool(page, 'split');
   await page.click('#tool-form [type="submit"]');
-  expect(await toastText(page)).toContain('Each needs your password to open');
+  // Wait for this message: the download's message may still be showing.
+  await expect(page.locator('#toast-message')).toContainText('Each needs your password to open');
   const part = await download(page, () => page.locator('[data-action="download-split"]').first().click());
   expect(await opensWith(part.bytes)).toBe('password');
   expect((await pdfText(part.bytes, 'Grüße 1'))[0]).toContain('ROTATION 0');
