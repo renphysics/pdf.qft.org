@@ -177,7 +177,7 @@ const field = form.getForm().createTextField('student');
 field.setText('Retain this value');
 field.addToPage(formPage, { x: 50, y: 300, width: 200, height: 25 });
 const formBytes = await form.save();
-await assert.rejects(splitPdf(formBytes, [[0], [1]]), /form/i, 'Split rejects interactive forms explicitly');
+await assert.rejects(splitPdf(formBytes, [[0], [1]]), /Flatten fields on download/, 'Split rejects interactive forms and points to flattening');
 const formProcessed = await applyPreset(formBytes, { name: 'Footer', headerFooter: { footerCenter: 'Course notes' } });
 assert.equal((await PDFDocument.load(formProcessed)).getForm().getTextField('student').getText(), 'Retain this value');
 

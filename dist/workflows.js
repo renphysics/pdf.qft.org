@@ -164,7 +164,7 @@ export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCan
       throw new Error(`Each output must contain valid page numbers between 1 and ${total}.`);
     }
   }
-  if (source.getForm().getFields().length) throw new Error('Splitting PDFs with interactive form fields is not supported. Save a flattened copy in your PDF reader first.');
+  if (source.getForm().getFields().length) throw new Error('A PDF with form fields can only be split once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.');
   const outputs = [];
   onProgress(0);
   for (let index = 0; index < groups.length; index++) {

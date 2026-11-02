@@ -112,6 +112,28 @@ test('flattened downloads, and flattening lets a form join other PDFs', async ({
   expect(text[0]).toContain('QFT-1001');
 });
 
+test('Split asks for the fields to be flattened, then splits the form', async ({ page }) => {
+  await openFiles(page, fixture('form-fields.pdf'));
+  await field(page, 'applicant.name').first().fill('Zoë Łukasz');
+  await useTool(page, 'split');
+  // The panel says what is needed before anything is tried.
+  await expect(page.locator('#split-summary')).toHaveText(/To split it, turn on “Flatten fields on download” in Fill form/);
+  await page.click('#tool-form [type="submit"]');
+  await expect(page.locator('#toast-message')).toContainText('Flatten fields on download');
+  await expect(page.locator('[data-action="download-split"]')).toHaveCount(0);
+  await page.click('[data-action="dismiss-toast"]');
+
+  await useTool(page, 'form');
+  await page.locator('#tool-form [name="flattenForms"]').check();
+  await useTool(page, 'split');
+  await expect(page.locator('#split-summary')).toHaveText(/^2 output PDFs/);
+  await page.click('#tool-form [type="submit"]');
+  await expect(page.locator('[data-action="download-split"]')).toHaveCount(2);
+  const { bytes } = await download(page, () => page.locator('[data-action="download-split"]').first().click());
+  expect((await PDFLib.PDFDocument.load(bytes)).getForm().getFields()).toHaveLength(0);
+  expect((await pdfText(bytes))[0]).toContain('Zoë Łukasz');
+});
+
 test('a character no font has is reported on its field', async ({ page }) => {
   await openFiles(page, fixture('form-fields.pdf'));
   await field(page, 'comments').fill('Unicorn 🦄');

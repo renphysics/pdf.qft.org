@@ -244,7 +244,7 @@ export const PAGES = [
     faqs: [
       ['Is merging PDFs free?', 'Yes. There is no sign-up and no fixed limit on file size or page count; very large files depend on your device’s memory.'],
       ['Are my files uploaded?', 'No. The PDFs are combined in your browser and never sent to a server.'],
-      ['Can I merge PDFs with fillable form fields?', 'Not yet. Rather than silently losing the fields, QFT PDF asks you to save a flattened copy in your PDF reader first.'],
+      ['Can I merge PDFs with fillable form fields?', 'Yes, once the fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then add the other PDFs: the answers become part of the pages. While its fields stay fillable, a form isn’t combined, so the fields are never lost silently.'],
       ['What about password-protected PDFs?', 'Add them as usual and enter each password when asked. The merged PDF is protected with the first password you entered; change it in [Protect PDF](tool:protect) or remove it in [Unlock PDF](tool:unlock).'],
     ],
   },
@@ -266,7 +266,7 @@ export const PAGES = [
     ],
     faqs: [
       ['Do my other edits carry over?', 'Yes. Text, page numbers, crops and other edits appear in every part, exactly as previewed.'],
-      ['Can I split a PDF that has fillable form fields?', 'Not yet. Rather than silently losing the fields, QFT PDF asks you to save a flattened copy in your PDF reader first.'],
+      ['Can I split a PDF that has fillable form fields?', 'Yes, once its fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then split: each part keeps the answers as part of its pages. While the fields stay fillable, the PDF isn’t split, so they are never lost silently.'],
       ['Is there a page limit?', 'No fixed limit. Very large documents depend on your device’s memory.'],
       ['Is my PDF uploaded?', 'No. The parts are created in your browser and never leave your device.'],
     ],
