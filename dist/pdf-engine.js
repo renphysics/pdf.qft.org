@@ -1249,6 +1249,16 @@ const PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
  * large as fits but not enlarged past 96 pixels per inch. margin is in points.
  * JPEG data is embedded as it is.
  */
+/** A PDF of one blank page, `width` by `height` points (Insert a blank page). */
+export async function blankPdf(width, height) {
+  const lib = await loadPdfLib();
+  if (!(width >= 1 && height >= 1 && width <= 14400 && height <= 14400)) throw new Error('A blank page must be between 1 and 14,400 points wide and high.');
+  const doc = await lib.PDFDocument.create();
+  doc.setProducer('QFT PDF');
+  doc.addPage([width, height]);
+  return doc.save();
+}
+
 export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
   const lib = await loadPdfLib();
   if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');

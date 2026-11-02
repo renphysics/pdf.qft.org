@@ -78,6 +78,7 @@ import {
   choosePage,
   chooseTool,
   deletePages,
+  insertBlankPage,
   movePage,
   renderPages,
   renderThumbnails,
@@ -486,6 +487,13 @@ export async function action(name, element) {
   if (name === 'delete-pages') {
     try {
       deletePages();
+    } catch (error) {
+      toast(friendly(error), true);
+    }
+  }
+  if (name === 'insert-blank') {
+    try {
+      await insertBlankPage();
     } catch (error) {
       toast(friendly(error), true);
     }

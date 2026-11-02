@@ -170,6 +170,7 @@ export const PAGES = [
     faqs: [
       ['Can I extract pages into a new PDF?', 'Yes. Select the pages, or type a range such as 1-3, 5, and choose Download selected pages.'],
       ['Can I reorder pages without dragging?', 'Yes. Move earlier and Move later buttons work with the keyboard and on touch screens.'],
+      ['Can I add a blank page?', 'Yes. Go to the page it should follow and choose Add a blank page after it. The new page has the same size and shape as that page.'],
       ['Can I combine pages from several PDFs?', 'Yes. Use Add PDF to bring in more files and arrange all the pages together, or start with [Merge PDF](tool:merge).'],
       ['Is my PDF uploaded?', 'No. Pages are rearranged in your browser and the file never leaves your device.'],
     ],

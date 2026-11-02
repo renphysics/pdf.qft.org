@@ -18,7 +18,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont, imagesToPdf } = await import('../dist/pdf-engine.js');
+const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont, imagesToPdf, blankPdf } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
@@ -238,6 +238,9 @@ for (const line of cjkLines) {
   assert.deepEqual(await sizes(await imagesToPdf([wide, tall], { size: 'fit', margin: 24 })), [[648, 348], [273, 498]], 'plus the margin');
   assert.deepEqual(await sizes(await imagesToPdf([wide, tall], { size: 'a4', margin: 24 })), [[841.89, 595.28], [595.28, 841.89]], 'A4, turned to suit');
   assert.deepEqual(await sizes(await imagesToPdf([wide], { size: 'letter' })), [[792, 612]], 'Letter');
+  // A blank page, as Organize pages adds one.
+  assert.deepEqual(await sizes(await blankPdf(841.89, 595.28)), [[841.89, 595.28]], 'a blank page of the given size');
+  await assert.rejects(blankPdf(0, 100), /between 1 and 14,400 points/);
   const jpeg = await PDFDocument.load(await imagesToPdf([tall], { size: 'a4' }));
   const stored = jpeg.context.enumerateIndirectObjects().find(([, object]) => object instanceof PDFRawStream && object.dict.get(PDFName.of('Filter')) === PDFName.of('DCTDecode'));
   assert.deepEqual(stored[1].contents, tall.bytes, 'JPEG data is embedded as it is');

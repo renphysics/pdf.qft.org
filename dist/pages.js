@@ -3,12 +3,15 @@
  * turning, deleting and selecting pages.
  */
 
+import { blankPdf, openPdf } from './pdf-engine.js';
 import { formKey, geometryOf, pageOverlay, renderKey, renderPage } from './preview.js';
 import {
   $,
   $$,
   annotationById,
   announceMessage,
+  busy,
+  currentPage,
   icon,
   names,
   pageIndexOf,
@@ -19,6 +22,7 @@ import {
   THUMB_WIDTH,
   toast,
   ui,
+  uid,
 } from './editor-core.js';
 import { renderEditLayers, renderStage, scrollToPage, updateCurrentPage } from './page-view.js';
 import { sourceOf } from './form-ui.js';
@@ -67,6 +71,44 @@ export function movePage(id, offset, targetId = null) {
   );
   renderTool();
   announceMessage('Page moved to position ' + (to + 1) + '.');
+}
+/** Add a blank page after the current one, the size and shape it shows at (one undo step). */
+export async function insertBlankPage() {
+  const page = currentPage();
+  if (ui.busy || !page) return;
+  const blank = { id: uid(), sourceId: uid(), index: 0, rotation: 0 };
+  // A form's pages can be combined with others only once its fields are flattened.
+  if (formProblem([...state.pages, blank]))
+    throw new Error(
+      'This PDF has form fields, so pages can’t be added while the fields stay fillable. Turn on “Flatten fields on download” in Fill form, then try again.',
+    );
+  const at = pageIndexOf(page.id) + 1;
+  const { width, height } = geometryOf(state, page);
+  stopEditing();
+  busy(true, 'Adding a blank page…');
+  try {
+    const info = await openPdf(await blankPdf(width, height));
+    const source = {
+      id: blank.sourceId,
+      bytes: info.bytes,
+      name: 'Blank page',
+      pageCount: 1,
+      hasForm: false,
+      pages: info.pages.map((sheet) => ({ box: sheet.cropBox, rotation: sheet.rotation })),
+    };
+    change(
+      () => {
+        state.sources.push(source);
+        state.pages.splice(at, 0, blank);
+      },
+      { layout: true },
+    );
+  } finally {
+    busy(false);
+  }
+  choosePage(blank.id);
+  renderTool();
+  toast('Blank page added as page ' + (at + 1) + '.');
 }
 export function selectedIds() {
   if (!ui.selected.size) throw new Error('Select one or more pages using the checkboxes in the page strip.');

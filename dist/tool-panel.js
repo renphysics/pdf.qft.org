@@ -380,7 +380,9 @@ function panelFields() {
         (index === state.pages.length - 1 ? ' disabled' : '') +
         '>' +
         icon('down') +
-        'Move later</button></div>'
+        'Move later</button></div><button type="button" class="button secondary" data-action="insert-blank">' +
+        icon('plus') +
+        'Add a blank page after it</button>'
       );
     case 'delete':
       return (
