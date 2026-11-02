@@ -214,9 +214,13 @@ Existing paragraphs are not rewritten. Highlighting is not secure redaction.
 Existing digital signatures may be invalidated by changes. Merging, duplicating,
 or subsetting pages from a PDF with form fields needs its fields flattened
 first; otherwise it is rejected, rather than silently dropping fields. Chinese, Japanese kana and Korean Hangul use Noto
-Sans CJK SC. Only the glyphs used are embedded, so such text typically adds 50–150 KB
-to a download. The font itself (16 MB) is downloaded once, the first time such text
-is typed, and then comes from the browser cache.
+Sans CJK SC, drawn with its Simplified Chinese shapes (the preview and the export
+use none of its language-specific `locl` forms): some Japanese kanji and
+Traditional Chinese characters, such as 骨 and 令, look slightly different from
+Japanese or Traditional Chinese typefaces. Only the glyphs used are embedded, so
+such text typically adds 50–150 KB to a download. The font itself (16 MB) is
+downloaded once, the first time such text is typed, and then comes from the browser
+cache.
 
 ## Validation
 
@@ -381,9 +385,10 @@ under test.
 Split the actual edited PDF by individual pages, fixed page intervals, or custom
 groups. A semicolon starts a new PDF; commas and ranges choose pages within it
 (e.g. `1-3; 4,6; 7-9`). Applied edits, text, crop boxes, rotations, and printed
-page numbers are retained. Download individual PDFs or a ZIP. Splitting form
-PDFs is rejected to avoid losing interactive fields. Splitting can be cancelled
-between output files.
+page numbers are retained. Download individual PDFs or a ZIP. A PDF with form
+fields is split only once its fields are flattened (“Flatten fields on download”
+in Fill form); until then the Split panel says so, rather than losing the fields.
+Splitting can be cancelled between output files.
 
 Batch presets combine watermark, headers/footers, page numbers, and percentage
 cropping. Crop is applied before repeated content; each file is processed from

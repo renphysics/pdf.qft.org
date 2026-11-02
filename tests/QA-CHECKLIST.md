@@ -266,8 +266,14 @@ source review does not replace the owner’s browser verification.
 - The bundle is half the size (387 KB instead of 758 KB). The export worker loads it
   through its CommonJS export; both the worker and the no-worker fallback produce
   the same download.
-- Not checked here: Adobe Acrobat and Apple Preview. Please open a download with
-  Chinese and Korean text in both before relying on it.
+- Adobe Acrobat and Apple Preview (checked by the site owner, 2026-11-02): a download
+  with Simplified and Traditional Chinese, Japanese kana, Korean and mixed text (the
+  engine test's `tests/output/cjk-subset-export.pdf`) displays properly in both.
+- Known limit: Han characters are drawn with the font's Simplified Chinese shapes (the
+  preview and the export use none of its language-specific `locl` forms), so some
+  Japanese kanji and Traditional Chinese characters, such as 骨 and 令, look slightly
+  different from Japanese or Traditional Chinese typefaces. The font has those shapes;
+  using them would need to know each text's language.
 
 ## Browser tests in CI — 2026-11-01
 
@@ -338,8 +344,9 @@ source review does not replace the owner’s browser verification.
 - Browser tests: 47 (desktop, phone and release), including `scrolling.spec.mjs`.
 - Known limits: the keyboard's Tab reaches items on the pages near the view; go to a
   page with the page number or the strip first (as before, when one page showed at a
-  time). Zooming with Control and the wheel was checked in Chromium only; Safari's
-  touchpad pinch sends its own gesture events, which are not handled.
+  time). Zooming with Control and the wheel was checked in Chromium at first, and since
+  in WebKit and Firefox too (below); Safari's touchpad pinch sends its own gesture
+  events, which are not handled.
 
 ## Safari's engine and Firefox — 2026-11-01
 
@@ -352,6 +359,8 @@ source review does not replace the owner’s browser verification.
   are kept to 0.1%, so the crop size check allows up to 1.3 pt.
 - The phone swipe test sends touches through Chromium's DevTools protocol and runs
   in Chromium only.
+- The zoom test (Control and the wheel, around the pointer) passes in all three.
+  Safari's touchpad pinch, which sends its own gesture events, is still not handled.
 
 ## Fill form — 2026-11-01
 
@@ -374,3 +383,12 @@ source review does not replace the owner’s browser verification.
 - Known limits: calculations and checks built into a form do not run; XFA-only forms
   are not supported; signature fields stay empty (Sign PDF places a picture of a
   signature). On phones, fields are small at Fit: zoom in to fill them comfortably.
+
+## Split and forms; help and FAQs — 2026-11-02
+
+- Split with a PDF that has form fields: the Split panel says “Flatten fields on
+  download” is needed, and Create split PDFs shows the same message. With flattening
+  on, the parts download with no fields and the answers on their pages (browser test).
+  Split's own check in `workflows.js` points to the same option.
+- The help dialog (a Forms section, Supported files, Fonts), the Merge PDF and Split
+  PDF FAQs and the README no longer say that form PDFs can't be combined or split.
