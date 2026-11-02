@@ -392,3 +392,31 @@ source review does not replace the owner’s browser verification.
   Split's own check in `workflows.js` points to the same option.
 - The help dialog (a Forms section, Supported files, Fonts), the Merge PDF and Split
   PDF FAQs and the README no longer say that form PDFs can't be combined or split.
+
+## Copying pages: links, bookmarks and details — 2026-11-02
+
+- Before: copying pages (delete, extract, combine, duplicate, split) used pdf-lib's
+  copyPages, which follows links. Extracting the contents page of a 60-page PDF
+  gave a one-page file holding the text of the other 59 pages, unreachable but
+  readable; links led to those hidden copies, and the title, author, language and
+  bookmarks were dropped.
+- Now (`copyPagesWithLinks`, `copyDocumentInfo`, `copyBookmarks` in `pdf-engine.js`,
+  also used by Split): links and bookmarks to kept pages lead to them, named
+  destinations included; links to pages left out are removed; any other reference to
+  a page (an annotation's /P, page actions, beads) points at the copy or at nothing.
+  Details and language come from the first PDF; combined PDFs keep every PDF's
+  bookmarks. The source is restored after each copy, so overlapping Split groups
+  each keep their own links.
+- `tests/copy.test.mjs`, checked with PDF.js: where each link and bookmark leads
+  (explicit, /Dests and /Names destinations, GoTo actions, a shared action, open and
+  closed bookmarks, colour and bold), no hidden page objects, the deleted page's
+  text absent, details, language and viewer settings kept, source bytes unchanged.
+- A real LibreOffice 24.2 PDF (6 pages, contents links, 10 bookmarks): deleting
+  chapter 2 used to leave 11 page objects for 5 pages (the deleted chapter still in
+  the file, linked from the contents), no title and no bookmarks. Now 5 page
+  objects, the title, 8 bookmarks and 8 working links.
+- Deleting one page of a 400-page PDF whose first page links to every page: 1.6 MB
+  and about 300 ms before, 1.0 MB (the size of the original) and about 270 ms now.
+- Known limits: page labels, file attachments, tags and layer settings are not
+  carried over to copied pages; content on a hidden layer shows in the copy
+  (checked by rendering with PDF.js; the same before this change).

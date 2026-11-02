@@ -796,6 +796,284 @@ async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, f
  * Combining/subsetting forms is rejected: copying widget appearances alone
  * would silently lose the interactive form structure.
  */
+// ---- Copying pages ---------------------------------------------------------------
+// Deleting, extracting, combining and splitting pages copy them into a new PDF.
+// pdf-lib's copyPages copies everything a page refers to, so a link to another
+// page would bring that whole page along: outside the page tree, unseen, but
+// readable by any PDF tool, and the link would lead to the hidden copy. Here,
+// links and bookmarks that lead to a copied page lead to its copy, those that
+// lead to a page left behind are dropped, and nothing else on a copied page
+// brings another page along. Document details and bookmarks, which belong to the
+// document rather than its pages, are copied separately.
+
+const destinationNames = new WeakMap();
+
+/** A PDF's named destinations (its /Dests dictionary and /Names tree), by name. */
+function namedDestinations(doc) {
+  if (destinationNames.has(doc)) return destinationNames.get(doc);
+  const { PDFArray, PDFDict, PDFName } = library();
+  const names = new Map();
+  const dests = doc.catalog.lookup(PDFName.of('Dests'));
+  if (dests instanceof PDFDict) for (const [key, value] of dests.entries()) names.set(key.decodeText(), value);
+  const seen = new Set();
+  const walk = (node) => {
+    if (!(node instanceof PDFDict) || seen.has(node)) return;
+    seen.add(node);
+    const pairs = node.lookup(PDFName.of('Names'));
+    for (let index = 0; pairs instanceof PDFArray && index + 1 < pairs.size(); index += 2) {
+      const key = pairs.lookup(index);
+      if (typeof key?.decodeText === 'function') names.set(key.decodeText(), pairs.get(index + 1));
+    }
+    const kids = node.lookup(PDFName.of('Kids'));
+    for (let index = 0; kids instanceof PDFArray && index < kids.size(); index++) walk(kids.lookup(index));
+  };
+  const tree = doc.catalog.lookup(PDFName.of('Names'));
+  if (tree instanceof PDFDict) walk(tree.lookup(PDFName.of('Dests')));
+  destinationNames.set(doc, names);
+  return names;
+}
+
+/** A destination as [page, /XYZ, …], following names and references, or null. */
+function explicitDestination(doc, destination) {
+  const { PDFArray, PDFDict, PDFHexString, PDFName, PDFRef, PDFString } = library();
+  let value = destination instanceof PDFRef ? doc.context.lookup(destination) : destination;
+  if (value instanceof PDFName || value instanceof PDFString || value instanceof PDFHexString) {
+    value = namedDestinations(doc).get(value.decodeText());
+    if (value instanceof PDFRef) value = doc.context.lookup(value);
+  }
+  if (value instanceof PDFDict) value = value.lookup(PDFName.of('D'));
+  return value instanceof PDFArray && value.get(0) instanceof PDFRef ? value : null;
+}
+
+/** Where a link or bookmark keeps its destination: its /Dest, or its GoTo action's /D. */
+function destinationSlot(item) {
+  const { PDFDict, PDFName } = library();
+  if (item.has(PDFName.of('Dest'))) return { holder: item, key: PDFName.of('Dest') };
+  const action = item.lookup(PDFName.of('A'));
+  if (action instanceof PDFDict && action.get(PDFName.of('S')) === PDFName.of('GoTo')) return { holder: action, key: PDFName.of('D') };
+  return null;
+}
+
+/** Whether an object is a page or a node of the page tree. */
+function isPageObject(object) {
+  const { PDFDict, PDFName } = library();
+  const type = object instanceof PDFDict ? object.get(PDFName.of('Type')) : null;
+  return type === PDFName.of('Page') || type === PDFName.of('Pages');
+}
+
+/** A destination's position on its page ([/XYZ left top zoom] and so on), for a new array. */
+function destinationRest(destination) {
+  const { PDFNull, PDFRef } = library();
+  return destination.asArray().slice(1).map((value) => (value instanceof PDFRef ? PDFNull : value.clone()));
+}
+
+/**
+ * Visit every value that `pages` (page dictionaries) lead to, without entering
+ * other pages or the page tree. `change(value)` may return a replacement, which
+ * `set(container, key, replacement)` puts in the value's place.
+ */
+function rewriteFromPages(context, pages, change, set) {
+  const { PDFArray, PDFDict, PDFName, PDFRef, PDFStream } = library();
+  const parent = PDFName.of('Parent');
+  const roots = new Set(pages);
+  const seen = new Set();
+  const visit = (container) => {
+    const entries = container instanceof PDFArray ? container.asArray().map((value, index) => [index, value]) : container.entries();
+    for (const [key, value] of entries) {
+      if (key === parent && roots.has(container)) continue;
+      const replacement = change(value);
+      if (replacement !== undefined) {
+        set(container, key, replacement);
+        continue;
+      }
+      if (value instanceof PDFRef) {
+        if (seen.has(value)) continue;
+        seen.add(value);
+      }
+      const target = value instanceof PDFRef ? context.lookup(value) : value;
+      if (isPageObject(target)) continue;
+      if (target instanceof PDFStream) visit(target.dict);
+      else if (target instanceof PDFDict || target instanceof PDFArray) visit(target);
+    }
+  };
+  for (const page of pages) visit(page);
+}
+
+/**
+ * Copy pages of `source` (by index, in order; an index may repeat) into `doc`.
+ * Returns the copies, to add to `doc`, and a map from each copied source page's
+ * reference to its first copy's. `source` is left as it was: it is changed while
+ * copying and then restored, so the same source can be copied again (Split).
+ */
+export async function copyPagesWithLinks(doc, source, indices) {
+  const { PDFArray, PDFDict, PDFName, PDFNull, PDFRef } = library();
+  const sourcePages = source.getPages();
+  const kept = new Set(indices.map((index) => sourcePages[index].ref));
+  // Decide first, as links may share one action: links to a copied page get an
+  // explicit destination (named ones are resolved); links to other pages go.
+  const plans = [];
+  for (const ref of kept) {
+    const page = source.context.lookup(ref);
+    const annots = page.lookup(PDFName.of('Annots'));
+    if (!(annots instanceof PDFArray)) continue;
+    const plan = { page, keep: [], links: [] };
+    for (let index = 0; index < annots.size(); index++) {
+      const annotation = annots.lookup(index);
+      const slot = annotation instanceof PDFDict ? destinationSlot(annotation) : null;
+      if (slot) {
+        const destination = explicitDestination(source, slot.holder.get(slot.key));
+        if (!destination || !kept.has(destination.get(0))) continue;
+        plan.links.push({ slot, destination: [destination.get(0), ...destinationRest(destination)] });
+      }
+      plan.keep.push(annots.get(index));
+    }
+    plans.push(plan);
+  }
+  const undo = [];
+  const set = (holder, key, value) => {
+    const before = holder.get(key);
+    undo.push(() => (before === undefined ? holder.delete(key) : holder.set(key, before)));
+    holder.set(key, value);
+  };
+  for (const { page, keep, links } of plans) {
+    for (const { slot, destination } of links) set(slot.holder, slot.key, source.context.obj(destination));
+    set(page, PDFName.of('Annots'), source.context.obj(keep));
+  }
+  // Every reference from the copied pages to a page (links, an annotation's own
+  // page, page actions, article beads…): to a copied page, it becomes a stand-in
+  // name, pointed at the copy afterwards; to any other page, it becomes null.
+  const token = Math.random().toString(36).slice(2);
+  const standIns = new Map();
+  const standIn = (value) => {
+    if (!(value instanceof PDFRef) || !isPageObject(source.context.lookup(value))) return undefined;
+    if (!kept.has(value)) return PDFNull;
+    const name = PDFName.of(`QFT.page.${token}.${value.objectNumber}.${value.generationNumber}`);
+    standIns.set(name, value);
+    return name;
+  };
+  rewriteFromPages(source.context, [...kept].map((ref) => source.context.lookup(ref)), standIn, set);
+  let pages;
+  try {
+    pages = await doc.copyPages(source, indices);
+  } finally {
+    for (const step of undo.reverse()) step();
+  }
+  const refs = new Map();
+  indices.forEach((index, position) => {
+    if (!refs.has(sourcePages[index].ref)) refs.set(sourcePages[index].ref, pages[position].ref);
+  });
+  const copyOf = (value) => (standIns.has(value) ? refs.get(standIns.get(value)) : undefined);
+  rewriteFromPages(doc.context, pages.map((page) => page.node), copyOf, (holder, key, value) => holder.set(key, value));
+  return { pages, refs };
+}
+
+/** Read a document detail, or nothing when it is damaged. */
+function detail(read) {
+  try {
+    return read();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Copy a PDF's title, author, subject, keywords, creator, creation date and language. */
+export function copyDocumentInfo(doc, source) {
+  const { PDFBool, PDFDict, PDFName } = library();
+  const preferences = source.catalog.lookup(PDFName.of('ViewerPreferences'));
+  const showTitle = preferences instanceof PDFDict && preferences.lookup(PDFName.of('DisplayDocTitle')) === PDFBool.True;
+  const title = detail(() => source.getTitle());
+  if (title) doc.setTitle(title, { showInWindowTitleBar: showTitle });
+  const author = detail(() => source.getAuthor());
+  if (author) doc.setAuthor(author);
+  const subject = detail(() => source.getSubject());
+  if (subject) doc.setSubject(subject);
+  const keywords = detail(() => source.getKeywords());
+  if (keywords) doc.setKeywords([keywords]);
+  const creator = detail(() => source.getCreator());
+  if (creator) doc.setCreator(creator);
+  const created = detail(() => source.getCreationDate());
+  if (created && !Number.isNaN(created.getTime())) doc.setCreationDate(created);
+  const language = detail(() => source.getLanguage());
+  if (language) doc.setLanguage(language);
+}
+
+/**
+ * Bookmarks for copied pages: those of each part ({ source, refs } from
+ * copyPagesWithLinks), one part after another, nested as they were. A bookmark
+ * whose page was left behind leads to its first remaining sub-bookmark's page
+ * instead, and is dropped when none remains. Web-address bookmarks are kept.
+ * Damaged outlines (loops) are read as far as they go.
+ */
+export function copyBookmarks(doc, parts) {
+  const { PDFArray, PDFDict, PDFHexString, PDFName, PDFNumber, PDFString } = library();
+  const read = (source, refs, first, seen) => {
+    const items = [];
+    for (let item = first; item instanceof PDFDict && !seen.has(item); item = item.lookup(PDFName.of('Next'))) {
+      seen.add(item);
+      const children = read(source, refs, item.lookup(PDFName.of('First')), seen);
+      const slot = destinationSlot(item);
+      const destination = slot && explicitDestination(source, slot.holder.get(slot.key));
+      const target = destination && refs.get(destination.get(0));
+      const action = item.lookup(PDFName.of('A'));
+      const uri = action instanceof PDFDict && action.get(PDFName.of('S')) === PDFName.of('URI') ? action.lookup(PDFName.of('URI')) : null;
+      const leadsTo = target ? [target, ...destinationRest(destination)] : children.find((child) => child.leadsTo)?.leadsTo;
+      const web = !leadsTo && (uri instanceof PDFString || uri instanceof PDFHexString) ? uri.clone() : null;
+      if (!leadsTo && !web && !children.length) continue;
+      const title = item.lookup(PDFName.of('Title'));
+      const count = item.lookup(PDFName.of('Count'));
+      const color = item.lookup(PDFName.of('C'));
+      const flags = item.lookup(PDFName.of('F'));
+      items.push({
+        title: typeof title?.decodeText === 'function' ? title.decodeText() : '',
+        leadsTo,
+        uri: web,
+        open: count instanceof PDFNumber && count.asNumber() > 0,
+        color: color instanceof PDFArray && color.size() === 3 ? color.asArray().map((value) => (value instanceof PDFNumber ? value.asNumber() : 0)) : null,
+        flags: flags instanceof PDFNumber ? flags.asNumber() : 0,
+        children,
+      });
+    }
+    return items;
+  };
+  const items = parts.flatMap(({ source, refs }) => {
+    const outlines = source.catalog.lookup(PDFName.of('Outlines'));
+    return outlines instanceof PDFDict ? read(source, refs, outlines.lookup(PDFName.of('First')), new Set()) : [];
+  });
+  if (!items.length) return;
+  // Count: how many bookmarks show under an open one (negative when it is closed).
+  const write = (list, parent) => {
+    const refs = list.map(() => doc.context.nextRef());
+    let shown = 0;
+    list.forEach((item, index) => {
+      const entry = doc.context.obj({ Title: PDFHexString.fromText(item.title), Parent: parent });
+      if (item.leadsTo) entry.set(PDFName.of('Dest'), doc.context.obj(item.leadsTo));
+      else if (item.uri) entry.set(PDFName.of('A'), doc.context.obj({ S: 'URI', URI: item.uri }));
+      if (index > 0) entry.set(PDFName.of('Prev'), refs[index - 1]);
+      if (index < list.length - 1) entry.set(PDFName.of('Next'), refs[index + 1]);
+      if (item.color) entry.set(PDFName.of('C'), doc.context.obj(item.color));
+      if (item.flags) entry.set(PDFName.of('F'), PDFNumber.of(item.flags));
+      let below = 0;
+      if (item.children.length) {
+        const children = write(item.children, refs[index]);
+        below = children.shown;
+        entry.set(PDFName.of('First'), children.refs[0]);
+        entry.set(PDFName.of('Last'), children.refs.at(-1));
+        entry.set(PDFName.of('Count'), PDFNumber.of(item.open ? below : -below));
+      }
+      doc.context.assign(refs[index], entry);
+      shown += 1 + (item.open ? below : 0);
+    });
+    return { refs, shown };
+  };
+  const root = doc.context.nextRef();
+  const top = write(items, root);
+  doc.context.assign(root, doc.context.obj({ Type: 'Outlines', First: top.refs[0], Last: top.refs.at(-1), Count: top.shown }));
+  doc.catalog.set(PDFName.of('Outlines'), root);
+  if (parts.some(({ source }) => source.catalog.get(PDFName.of('PageMode')) === PDFName.of('UseOutlines'))) {
+    doc.catalog.set(PDFName.of('PageMode'), PDFName.of('UseOutlines'));
+  }
+}
+
 export async function buildPdf(state, onProgress = () => {}) {
   return (await buildPdfWithNotes(state, onProgress)).bytes;
 }
@@ -898,13 +1176,18 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     doc = await lib.PDFDocument.create();
     doc.setProducer('QFT PDF');
     const copies = new Map();
+    const parts = [];
     for (const id of needed) {
       const selected = descriptors.filter((descriptor) => descriptor.sourceId === id);
-      const copied = await doc.copyPages(loaded.get(id), selected.map((page) => page.index));
-      selected.forEach((descriptor, index) => copies.set(descriptor.id, copied[index]));
+      const { pages, refs } = await copyPagesWithLinks(doc, loaded.get(id), selected.map((page) => page.index));
+      selected.forEach((descriptor, index) => copies.set(descriptor.id, pages[index]));
+      parts.push({ source: loaded.get(id), refs });
     }
     outputPages = descriptors.map((descriptor) => copies.get(descriptor.id));
     outputPages.forEach((page) => doc.addPage(page));
+    // The first PDF's details, and every PDF's bookmarks to pages that are kept.
+    copyDocumentInfo(doc, loaded.get(descriptors[0].sourceId));
+    copyBookmarks(doc, parts);
   }
   const getFont = fontsFor(doc);
   const annotations = state.annotations || [];

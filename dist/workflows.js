@@ -1,5 +1,5 @@
 /** Reusable, browser-local PDF workflows. No document data is persisted here. */
-import { inspectPdf, buildPdf, parsePageRange, loadPdfLib, loadPdf, protectDocument, passwordProblem } from './pdf-engine.js';
+import { inspectPdf, buildPdf, parsePageRange, loadPdfLib, loadPdf, protectDocument, passwordProblem, copyPagesWithLinks, copyDocumentInfo, copyBookmarks } from './pdf-engine.js';
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -171,11 +171,12 @@ export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCan
     cancelled(shouldCancel);
     const output = await PDFLib.PDFDocument.create();
     output.setProducer('QFT PDF');
-    if (source.getTitle()) output.setTitle(`${source.getTitle()} — part ${index + 1}`);
-    if (source.getAuthor()) output.setAuthor(source.getAuthor());
-    if (source.getSubject()) output.setSubject(source.getSubject());
-    const copied = await output.copyPages(source, groups[index]);
-    copied.forEach(page => output.addPage(page));
+    // Links and bookmarks to pages in this part keep working; the others are dropped.
+    const { pages, refs } = await copyPagesWithLinks(output, source, groups[index]);
+    pages.forEach(page => output.addPage(page));
+    copyDocumentInfo(output, source);
+    if (output.getTitle()) output.setTitle(`${output.getTitle()} — part ${index + 1}`);
+    copyBookmarks(output, [{ source, refs }]);
     if (password !== null) protectDocument(output, password);
     outputs.push(await output.save());
     onProgress((index + 1) / groups.length);
