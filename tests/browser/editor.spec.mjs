@@ -165,7 +165,13 @@ test('organizes pages: reorder, rotate, delete and extract', async ({ page }) =>
 
 test('crops by dragging, and restores the original boundary', async ({ page }) => {
   await openSample(page, 'crop-pdf/');
+  // Half size, so that the drag stays on screen (Playwright's Firefox drops mouse moves outside the window).
+  await page.click('[data-action="zoom-out"]');
+  await page.click('[data-action="zoom-out"]');
+  await expect(page.locator('#zoom-label')).toHaveText('50%');
+  await ready(page);
   const box = await page.locator('.page-view.current').boundingBox();
+  expect(box.y + box.height).toBeLessThan(page.viewportSize().height);
   await page.mouse.move(box.x + box.width * 0.1, box.y + box.height * 0.1);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.8, { steps: 5 });
@@ -176,8 +182,9 @@ test('crops by dragging, and restores the original boundary', async ({ page }) =
   expect((await page.locator('.page-view.current').boundingBox()).height).toBeLessThan(box.height);
   const cropped = await download(page, () => page.click('#download-button'));
   const crop = (await PDFLib.PDFDocument.load(cropped.bytes)).getPage(0).getCropBox();
-  expect(crop.width).toBeCloseTo(595.28 * 0.8, 0);
-  expect(crop.height).toBeCloseTo(841.89 * 0.7, 0);
+  // Margins are kept to 0.1% (0.6 pt on this page) on each side.
+  expect(Math.abs(crop.width - 595.28 * 0.8)).toBeLessThan(1.3);
+  expect(Math.abs(crop.height - 841.89 * 0.7)).toBeLessThan(1.8);
   await page.click('[data-action="restore-crop"]');
   expect(await toastText(page)).toContain('Original page boundaries restored');
 });

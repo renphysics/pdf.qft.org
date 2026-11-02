@@ -67,7 +67,11 @@ test('Protect PDF sets a new password, also for split parts', async ({ page }) =
   await openFiles(page, fixture('rotated-cropped.pdf'), 'protect-pdf/');
   await page.click('[data-action="download-protected"]');
   await expect(page.locator('#protect-status')).toHaveText('Enter a password to protect your PDF.');
-  await page.fill('#tool-form [name="password"]', '\u0007');
+  // A control character, set directly: Firefox drops it when typed.
+  await page.locator('#tool-form [name="password"]').evaluate((field) => {
+    field.value = '\u0007';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await expect(page.locator('#protect-status')).toContainText('control characters');
   await page.fill('#tool-form [name="password"]', 'Grüße 1');
   await expect(page.locator('#protect-status')).toHaveText('Your download will need this password to open.');

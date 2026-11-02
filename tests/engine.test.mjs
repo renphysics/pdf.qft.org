@@ -504,7 +504,7 @@ field.addToPage(formPage, { x: 50, y: 100, width: 220, height: 30 });
 const formBytes = await formDoc.save();
 const formOutput = await buildPdf({ sources: [{ id: 'form', bytes: formBytes }], pages: [{ id: 'f1', sourceId: 'form', index: 0 }], headerFooter: { footerCenter: 'With form' } });
 assert.equal((await PDFDocument.load(formOutput)).getForm().getTextField('name').getText(), 'Preserved field value');
-await assert.rejects(buildPdf({ sources: [{ id: 'form', bytes: formBytes }, { id: 'a', bytes: fixtureBytes }], pages: [{ id: 'f1', sourceId: 'form', index: 0 }, { id: 'a1', sourceId: 'a', index: 0 }] }), /interactive forms/);
+await assert.rejects(buildPdf({ sources: [{ id: 'form', bytes: formBytes }, { id: 'a', bytes: fixtureBytes }], pages: [{ id: 'f1', sourceId: 'form', index: 0 }, { id: 'a1', sourceId: 'a', index: 0 }] }), /form fields can only be combined/);
 await assert.rejects(inspectPdf(new Uint8Array([1, 2, 3])), /could not be opened/);
 await assert.rejects(inspectPdf(new TextEncoder().encode('%PDF-1.7 broken')), /could not be opened/, 'A header without a page tree is not a PDF');
 await assert.rejects(buildPdf({ sources: [], pages: [] }), /at least one page/);

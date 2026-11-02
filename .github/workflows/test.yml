@@ -30,9 +30,21 @@ jobs:
       - name: Restore font assets and run all tests
         run: npm test
 
-  # The editing journeys in tests/QA-CHECKLIST.md, in Chromium (tests/browser).
+  # The editing journeys in tests/QA-CHECKLIST.md (tests/browser), one job per
+  # browser engine: Chromium, WebKit (Safari's engine) and Firefox.
   browser:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: browser
+            browser: chromium
+          - name: browser (WebKit)
+            browser: webkit
+          - name: browser (Firefox)
+            browser: firefox
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -45,7 +57,9 @@ jobs:
           cache: npm
       - name: Install test dependencies
         run: npm ci --ignore-scripts
-      - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+      - name: Install ${{ matrix.browser }} for Playwright
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Run the browser tests
         run: npm run test:browser
+        env:
+          BROWSERS: ${{ matrix.browser }}

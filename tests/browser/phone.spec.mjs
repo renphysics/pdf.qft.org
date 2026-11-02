@@ -2,7 +2,7 @@
 // bottom bar, controls are large enough to tap, and nothing scrolls sideways.
 import { test, expect, openSample, ready, overlayLines } from './helpers.mjs';
 
-const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock'];
+const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'form'];
 
 /** Elements wider than the screen, outside the areas that scroll on purpose. */
 function overflow(page) {
@@ -45,7 +45,8 @@ async function swipe(page, x, fromY, toY) {
   await cdp.detach();
 }
 
-test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({ page }) => {
+test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Swipes are sent through the Chromium DevTools protocol');
   await openSample(page, 'add-text-to-pdf/');
   await page.click('[data-action="dismiss-toast"]');
   const stage = await page.locator('#canvas-scroll').boundingBox();

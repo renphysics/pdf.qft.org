@@ -177,17 +177,79 @@ export function renderKey(descriptor) {
   ].join(':');
 }
 
+// ---- Form fields ------------------------------------------------------------------
+// PDF.js draws a page's form fields with the values typed in the editor (its
+// annotation storage), as the download will show them. While Fill form is
+// open, the fields are left out instead (`forms`), and the editor puts its own
+// inputs in their place.
+
+/** The value a field shows: the one typed in the editor, else its own. */
+export function fieldValue(state, source, field) {
+  const values = state.formValues?.[source.id];
+  return values && Object.hasOwn(values, field.name) ? values[field.name] : field.value;
+}
+
+const fieldsByPage = new WeakMap();
+/** The names of the fields with a widget on each page of a source, by page index. */
+function pageFields(form) {
+  if (!fieldsByPage.has(form)) {
+    const pages = new Map();
+    for (const field of form.fields)
+      for (const widget of field.widgets) {
+        if (!pages.has(widget.pageIndex)) pages.set(widget.pageIndex, new Set());
+        pages.get(widget.pageIndex).add(field.name);
+      }
+    fieldsByPage.set(form, pages);
+  }
+  return fieldsByPage.get(form);
+}
+
+/** A key that changes whenever the values typed into a page's fields change ('' when there are none). */
+export function formKey(state, descriptor) {
+  const values = state.formValues?.[descriptor.sourceId];
+  const source = values && state.sources.find((item) => item.id === descriptor.sourceId);
+  const names = source?.form && pageFields(source.form).get(descriptor.index);
+  if (!names) return '';
+  const typed = [...names].filter((name) => Object.hasOwn(values, name)).map((name) => [name, values[name]]);
+  return typed.length ? JSON.stringify(typed) : '';
+}
+
+/** What PDF.js should draw for a widget: { value } for its storage. */
+function storedValue(field, widget, value) {
+  if (field.kind === 'text' || field.kind === 'dropdown') return { value: String(value ?? '') };
+  if (field.kind === 'checkbox') return { value: Boolean(value) };
+  if (field.kind === 'radio') return { value: widget.option !== null && widget.option === value };
+  if (field.kind === 'list') return { value: Array.isArray(value) ? value : [] };
+  return null;
+}
+
+/** Give PDF.js the values typed into a source's fields; fields left as they were draw as in the file. */
+function syncFormStorage(doc, state, source) {
+  const storage = doc.annotationStorage,
+    typed = state.formValues?.[source.id] || {};
+  for (const field of source.form.fields) {
+    const changed = Object.hasOwn(typed, field.name);
+    for (const widget of field.widgets) {
+      if (!widget.id) continue;
+      const entry = changed && storedValue(field, widget, typed[field.name]);
+      if (entry) storage.setValue(widget.id, entry);
+      else if (storage.has(widget.id)) storage.remove(widget.id);
+    }
+  }
+}
+
 /**
  * Render a page's source content, turned and cropped, at `scale` canvas
- * pixels per point. Returns { canvas, promise, cancel }.
+ * pixels per point, with its form fields showing the values typed in the
+ * editor (or without its fields: `forms`). Returns { canvas, promise, cancel }.
  */
-export function renderPage(state, descriptor, scale) {
+export function renderPage(state, descriptor, scale, { forms = false } = {}) {
   const canvas = document.createElement('canvas');
   let task = null,
     cancelled = false;
   const promise = (async () => {
     const source = state.sources.find((item) => item.id === descriptor.sourceId);
-    const doc = await documentFor(source);
+    const [lib, doc] = await Promise.all([loadPdfjs(), documentFor(source)]);
     const page = await doc.getPage(descriptor.index + 1);
     if (cancelled) throw cancelledError();
     const info = source.pages[descriptor.index];
@@ -207,7 +269,15 @@ export function renderPage(state, descriptor, scale) {
     const context = canvas.getContext('2d');
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
-    task = page.render({ canvasContext: context, viewport });
+    let annotationMode = lib.AnnotationMode.ENABLE;
+    if (source.form?.fields.length) {
+      if (forms) annotationMode = lib.AnnotationMode.ENABLE_FORMS;
+      else {
+        syncFormStorage(doc, state, source);
+        annotationMode = lib.AnnotationMode.ENABLE_STORAGE;
+      }
+    }
+    task = page.render({ canvasContext: context, viewport, annotationMode });
     if (cancelled) task.cancel();
     await task.promise;
     return canvas;

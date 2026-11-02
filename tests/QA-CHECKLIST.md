@@ -340,3 +340,37 @@ source review does not replace the owner’s browser verification.
   page with the page number or the strip first (as before, when one page showed at a
   time). Zooming with Control and the wheel was checked in Chromium only; Safari's
   touchpad pinch sends its own gesture events, which are not handled.
+
+## Safari's engine and Firefox — 2026-11-01
+
+- The browser tests run in Chromium, WebKit (desktop and iPhone) and Firefox
+  (desktop), in their own CI jobs for pull requests and all three before deploying.
+- What they found: three test assumptions, not app bugs. Firefox drops a control
+  character typed into a field, and scrolls a different amount per wheel turn; in
+  Playwright's Firefox, mouse moves outside the window are dropped, so the crop drag
+  now stays on screen (a diagnostic run showed the drag itself works); crop margins
+  are kept to 0.1%, so the crop size check allows up to 1.3 pt.
+- The phone swipe test sends touches through Chromium's DevTools protocol and runs
+  in Chromium only.
+
+## Fill form — 2026-11-01
+
+- A PDF with form fields opened from the home page opens in Fill form. Text fields
+  (one line, several lines, boxed characters, maximum length), check boxes, radio
+  buttons, dropdowns and lists fill in on the page; read-only fields are drawn as they
+  are. Tab moves through the fields in reading order and on to the next page; “Go to
+  the next empty field” finds what is left; the panel counts filled and required
+  fields. Each change is an undo step.
+- Other tools and the page strip show the values as PDF.js draws them, as readers will
+  show the download.
+- Download keeps the fields fillable, with the values and new appearances (Polish and
+  Chinese text in the Noto fonts; automatic sizes as PDF.js works them out), or
+  flattens them: no fields or widgets remain, the values are page content, and hidden
+  fields are not drawn. A flattened form can be combined with other PDFs; without
+  flattening, combining is refused with a message pointing to the option.
+- A character no font has is reported on its page and field, and Fill form opens at it.
+- Engine tests (`tests/forms.test.mjs`) and browser tests (`forms.spec.mjs`), including
+  axe and a turned page (/Rotate 90) whose inputs turn with it.
+- Known limits: calculations and checks built into a form do not run; XFA-only forms
+  are not supported; signature fields stay empty (Sign PDF places a picture of a
+  signature). On phones, fields are small at Fit: zoom in to fill them comfortably.
