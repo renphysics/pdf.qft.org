@@ -81,6 +81,52 @@ export const PAGES = [
     ],
   },
   {
+    tool: 'properties',
+    name: 'Edit PDF metadata',
+    title: 'Edit PDF metadata for free, in your browser — QFT PDF',
+    description:
+      'Change a PDF’s title, author, subject, keywords and language, or remove its hidden details before you share it. Free, and nothing is uploaded.',
+    eyebrow: 'EDIT PDF METADATA',
+    heading: ['Edit PDF metadata.', 'Or remove it before sharing.'],
+    intro: 'See the title, author and other details a PDF carries, change them, or remove them before you send it.',
+    upload: { text: 'Drop a PDF here to see its details.' },
+    how: ['How to edit', 'PDF metadata.'],
+    steps: [
+      OPEN_STEP,
+      ['Change the details.', 'Edit the title, author, subject, keywords and language, or choose Remove all.'],
+      ['Download.', 'Your PDF carries the new details. Pages and everything on them stay as they were.'],
+    ],
+    faqs: [
+      ['What does Remove all remove?', 'The title, author, subject and keywords, and what apps add without asking: which app made the PDF, when it was made and changed, and a second copy of these details (XMP metadata). The language stays, because screen readers need it.'],
+      ['Where do readers show the title?', 'Many PDF readers and browsers show it in the window or tab title instead of the file name, and search tools index it.'],
+      ['Is my PDF uploaded?', 'No. The details are changed in your browser, and the PDF never leaves your device.'],
+      ['What about PDF/A files?', 'Changing the details removes the metadata that declares PDF/A, so the download is no longer marked as PDF/A (archival).'],
+    ],
+  },
+  {
+    tool: 'draw',
+    name: 'Draw on PDF',
+    title: 'Draw on a PDF for free, in your browser — QFT PDF',
+    description:
+      'Draw on PDF pages with a pen, or add lines, arrows, rectangles and ellipses in any colour. Free, and your PDF never leaves your device.',
+    eyebrow: 'DRAW ON PDF',
+    heading: ['Draw on a PDF.', 'Mark it up your way.'],
+    intro: 'Circle what matters, point at it with an arrow, or write a note by hand, right on the page.',
+    upload: { text: 'Drop a PDF here to draw on it.' },
+    how: ['How to draw', 'on a PDF.'],
+    steps: [
+      OPEN_STEP,
+      ['Draw.', 'Choose the pen or a shape, a colour and a line width, then drag on the page. Drag a drawing to move it, or a handle to resize it.'],
+      ['Download.', 'Your drawings become part of the pages, exactly as you see them.'],
+    ],
+    faqs: [
+      ['Can I draw with a finger or a pen?', 'Yes. On a touch screen one finger draws and two fingers scroll; a stylus works like a pen.'],
+      ['Can I change a drawing afterwards?', 'Yes. Select it to move it, resize it, change its colour or line width, or delete it. Undo takes back each stroke.'],
+      ['Do drawings stay sharp?', 'Yes. They are saved as lines and curves, not pictures, so they stay sharp at any zoom and when printed.'],
+      ['Is my PDF uploaded?', 'No. You draw in your browser, and the PDF never leaves your device.'],
+    ],
+  },
+  {
     tool: 'watermark',
     name: 'Add watermark to PDF',
     title: 'Add a watermark to a PDF for free — QFT PDF',
@@ -170,6 +216,7 @@ export const PAGES = [
     faqs: [
       ['Can I extract pages into a new PDF?', 'Yes. Select the pages, or type a range such as 1-3, 5, and choose Download selected pages.'],
       ['Can I reorder pages without dragging?', 'Yes. Move earlier and Move later buttons work with the keyboard and on touch screens.'],
+      ['Can I add a blank page?', 'Yes. Go to the page it should follow and choose Add a blank page after it. The new page has the same size and shape as that page.'],
       ['Can I combine pages from several PDFs?', 'Yes. Use Add PDF to bring in more files and arrange all the pages together, or start with [Merge PDF](tool:merge).'],
       ['Is my PDF uploaded?', 'No. Pages are rearranged in your browser and the file never leaves your device.'],
     ],

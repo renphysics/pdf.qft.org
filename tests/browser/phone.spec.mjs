@@ -2,7 +2,7 @@
 // bottom bar, controls are large enough to tap, and nothing scrolls sideways.
 import { test, expect, openSample, ready, overlayLines } from './helpers.mjs';
 
-const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'form'];
+const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'form', 'properties', 'draw'];
 
 /** Elements wider than the screen, outside the areas that scroll on purpose. */
 function overflow(page) {
@@ -44,6 +44,16 @@ async function swipe(page, x, fromY, toY) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await cdp.detach();
 }
+
+test('in Draw, one finger draws instead of scrolling', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Touches are sent through the Chromium DevTools protocol');
+  await openSample(page, 'draw-on-pdf/');
+  await page.click('[data-action="dismiss-toast"]');
+  const sheet = await page.locator('.page-view.current').boundingBox();
+  await swipe(page, sheet.x + sheet.width / 2, sheet.y + sheet.height * 0.3, sheet.y + sheet.height * 0.6);
+  await expect(page.locator('.page-view[data-number="1"] path.ov-drawing')).toHaveCount(1);
+  await expect(page.locator('#page-jump')).toHaveValue('1');
+});
 
 test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'Swipes are sent through the Chromium DevTools protocol');

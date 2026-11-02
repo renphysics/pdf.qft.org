@@ -8,6 +8,8 @@ import {
   applies,
   boxGeometry,
   cropMarginsForRotation,
+  drawingBox,
+  drawingPath,
   fontKind,
   headerFooterItems,
   hexColor,
@@ -435,6 +437,22 @@ export function pageOverlay(state, pageIndex, { hide } = {}) {
           ),
         );
       }
+    } else if (annotation.type === 'drawing') {
+      // The export draws the same path (drawingPath), with the same round ends and corners.
+      const box = drawingBox(annotation, placement);
+      item.frame = { x: box.x, y: box.top, width: box.width, height: box.height };
+      const { d, strokeWidth } = drawingPath(annotation, placement);
+      parts.push(
+        group(
+          '<path class="ov-drawing" d="' +
+            d +
+            '" fill="none" stroke="' +
+            hexColor(annotation.color, '#d0342c') +
+            '" stroke-width="' +
+            fixed(strokeWidth) +
+            '" stroke-linecap="round" stroke-linejoin="round"/>',
+        ),
+      );
     } else {
       const rect = layoutRect(annotation, placement);
       if (!rect) continue;

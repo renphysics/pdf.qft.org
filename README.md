@@ -146,6 +146,18 @@ On phones the document comes first: the page fills the screen under a compact
 document bar, tools sit in a bottom bar, and each tool's settings open in a
 sheet that folds away. Controls are at least 44 px.
 
+The editor's code is split by what it does. `app.js` starts it (edit history,
+addresses, the actions behind buttons, listeners), and the rest lives in
+`editor-core.js` (state, helpers and messages; it imports no other editor
+module, so every module can use it as they load), `page-view.js` (the page
+preview), `page-items.js` (typing, moving and resizing items, crop drag),
+`form-ui.js` (Fill form), `tool-panel.js` (the tool panel), `pages.js` (pages,
+the page strip and choosing tools) and `documents.js` (opening, building and
+downloading PDFs). The modules import each other's functions freely; code that
+runs as a module loads uses only `editor-core.js` and the libraries. The release
+script versions every module's imports (`scripts/stamp-release.mjs`), so a new
+module needs no changes there.
+
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned
@@ -364,6 +376,35 @@ dropdowns and lists. A PDF with fields opened from the home page opens in it.
   combined with other PDFs, extracted, deleted or split.
 - Calculations and checks built into a form do not run. A form that also has an
   XFA version loses it once fields are filled here.
+
+## Draw
+
+Draw (`/draw-on-pdf/`) adds pen strokes, lines, arrows, rectangles and ellipses
+with a colour and a line width. A drawing is an item like an image: a box on its
+page (fractions of the page, so it turns and crops with it) and, for pen strokes,
+lines and arrows, its points as fractions of that box, so moving and resizing it
+work as for other items. `drawingPath` in `layout.js` turns it into SVG path data
+(ellipses as the same four Bézier curves pdf-lib uses); the preview draws that
+path, and the export gives the same data to pdf-lib's `drawSvgPath` with round
+ends and corners, so the download matches the preview and stays vector.
+
+Pen strokes are not selected when drawn, so writing goes on, and a stroke may
+start over another drawing; a tap selects a drawing. A new line, arrow, rectangle
+or ellipse is selected, to adjust it, and the panel has a button that adds one
+without dragging. On touch screens one finger draws and two fingers scroll
+(`touch-action: pinch-zoom`).
+
+## Document properties
+
+Properties (`/edit-pdf-metadata/`) shows the title, author, subject, keywords and
+language the first PDF carries (`details` from `openPdf`), and the app that made
+it and when. Changing them sets `state.properties`; downloads then write them to
+the document information (an emptied one is removed, `applyProperties` in
+`pdf-engine.js`) and remove the XMP metadata, a second copy of these details that
+PDF.js and others show in preference, so no reader shows the old ones. Remove all
+also removes every other detail (the creating app, producer and dates); the
+language stays, because screen readers need it. A PDF/A file whose properties
+change stops declaring PDF/A, since that declaration lives in the XMP metadata.
 
 ## Passwords
 

@@ -22,5 +22,7 @@ export const TOOL_PAGES = Object.freeze({
   jpgtopdf: 'jpg-to-pdf',
   pdftojpg: 'pdf-to-jpg',
   form: 'fill-pdf-form',
+  properties: 'edit-pdf-metadata',
+  draw: 'draw-on-pdf',
   batch: 'batch-edit-pdf',
 });

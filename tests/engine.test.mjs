@@ -18,7 +18,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont, imagesToPdf } = await import('../dist/pdf-engine.js');
+const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont, imagesToPdf, blankPdf } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
@@ -238,6 +238,9 @@ for (const line of cjkLines) {
   assert.deepEqual(await sizes(await imagesToPdf([wide, tall], { size: 'fit', margin: 24 })), [[648, 348], [273, 498]], 'plus the margin');
   assert.deepEqual(await sizes(await imagesToPdf([wide, tall], { size: 'a4', margin: 24 })), [[841.89, 595.28], [595.28, 841.89]], 'A4, turned to suit');
   assert.deepEqual(await sizes(await imagesToPdf([wide], { size: 'letter' })), [[792, 612]], 'Letter');
+  // A blank page, as Organize pages adds one.
+  assert.deepEqual(await sizes(await blankPdf(841.89, 595.28)), [[841.89, 595.28]], 'a blank page of the given size');
+  await assert.rejects(blankPdf(0, 100), /between 1 and 14,400 points/);
   const jpeg = await PDFDocument.load(await imagesToPdf([tall], { size: 'a4' }));
   const stored = jpeg.context.enumerateIndirectObjects().find(([, object]) => object instanceof PDFRawStream && object.dict.get(PDFName.of('Filter')) === PDFName.of('DCTDecode'));
   assert.deepEqual(stored[1].contents, tall.bytes, 'JPEG data is embedded as it is');
@@ -388,6 +391,93 @@ for (const [part, conformance, attributeForm] of [[1, 'B', false], [1, 'A', fals
   assert.match(metadata, /Archiv für Berichte/, `${label}: the rest of the metadata is kept`);
   assert.equal((await inspectPdf(edited.bytes)).pdfa, null);
   assert.ok((await extract(edited.bytes))[0].items.some((item) => item.text === 'DRAFT'));
+}
+
+// Document properties: read when a PDF opens; set, removed or cleaned on export.
+// Changed properties remove the XMP copy of the details, which PDF.js prefers.
+{
+  const { PDFName } = globalThis.PDFLib;
+  const withInfo = await PDFDocument.load(await pdfaFixture(2, 'B', true));
+  withInfo.setTitle('Archiv für Berichte');
+  withInfo.setAuthor('A. Author');
+  withInfo.setSubject('Reports');
+  withInfo.setKeywords(['archive, 2026']);
+  withInfo.setCreator('Writer 7');
+  withInfo.setLanguage('de-DE');
+  // Something the file no longer refers to, which pdf-lib would still write out.
+  withInfo.context.register(withInfo.context.stream(new TextEncoder().encode('LEFTOVER-SECRET'), {}));
+  const bytes = await withInfo.save();
+  // Every object in a file, linked or not, as text (streams decoded).
+  const everything = async (pdfBytes) => {
+    const pdf = await PDFDocument.load(pdfBytes, { updateMetadata: false });
+    const { PDFRawStream, decodePDFRawStream } = globalThis.PDFLib;
+    return pdf.context
+      .enumerateIndirectObjects()
+      .map(([, object]) => (object instanceof PDFRawStream ? new TextDecoder().decode(decodePDFRawStream(object).decode()) : object.toString()))
+      .join('\n');
+  };
+  assert.match(await everything(bytes), /LEFTOVER-SECRET/);
+  const opened = await openPdf(bytes);
+  assert.deepEqual({ ...opened.details, producer: '', created: '' }, { title: 'Archiv für Berichte', author: 'A. Author', subject: 'Reports', keywords: 'archive, 2026', language: 'de-DE', creator: 'Writer 7', producer: '', created: '' });
+  assert.match(opened.details.created, /^\d{4}-\d\d-\d\dT/, 'the creation date');
+  const one = { sources: [{ id: 'a', bytes }], pages: [{ id: 'p', sourceId: 'a', index: 0 }] };
+  const edited = await buildPdfWithNotes({ ...one, properties: { title: 'Annual report', author: '', subject: 'Reports', keywords: 'archive, 2026', language: 'de-DE' } });
+  assert.deepEqual(edited.notes, ['pdfa-removed-properties'], 'a PDF/A file stops claiming PDF/A');
+  const doc = await PDFDocument.load(edited.bytes, { updateMetadata: false });
+  assert.equal(doc.getTitle(), 'Annual report');
+  assert.equal(doc.getAuthor(), undefined, 'an emptied property is removed');
+  assert.equal(doc.getCreator(), 'Writer 7', 'other details stay');
+  assert.equal(doc.catalog.get(PDFName.of('Metadata')), undefined, 'the XMP copy is removed');
+  assert.doesNotMatch(await everything(edited.bytes), /x:xmpmeta/, 'the XMP stream itself, not only its link');
+  const read = await pdfjs.getDocument({ data: edited.bytes.slice(), verbosity: 0 }).promise;
+  const { info, metadata } = await read.getMetadata();
+  assert.deepEqual([info.Title, metadata], ['Annual report', null], 'PDF.js shows the new title');
+  await read.loadingTask.destroy();
+  // Remove all: no details at all; the language stays, for screen readers.
+  const cleanedBytes = await buildPdf({ ...one, properties: { title: '', author: '', subject: '', keywords: '', language: 'de-DE', clean: true } });
+  const cleaned = await PDFDocument.load(cleanedBytes, { updateMetadata: false });
+  const left = await everything(cleanedBytes);
+  for (const detail of ['Archiv für Berichte', 'x:xmpmeta', 'LEFTOVER-SECRET', 'Writer 7']) assert.ok(!left.includes(detail), `Remove all leaves nothing of ${detail} in the file`);
+  assert.deepEqual(cleaned.getInfoDict().keys(), [], 'no document information left');
+  assert.equal(cleaned.getLanguage(), 'de-DE');
+  // Combined with another PDF (pages copied into a new one): the properties set win.
+  const other = await PDFDocument.create();
+  other.addPage([100, 100]);
+  const merged = await PDFDocument.load(
+    await buildPdf({ sources: [...one.sources, { id: 'b', bytes: await other.save() }], pages: [...one.pages, { id: 'q', sourceId: 'b', index: 0 }], properties: { title: 'Combined', author: 'B. Author', subject: '', keywords: '', language: 'en' } }),
+    { updateMetadata: false },
+  );
+  assert.deepEqual([merged.getTitle(), merged.getAuthor(), merged.getSubject(), merged.getLanguage()], ['Combined', 'B. Author', undefined, 'en']);
+  // Unchanged properties: the PDF keeps its own details, XMP included.
+  assert.ok((await PDFDocument.load((await buildPdfWithNotes(one)).bytes)).catalog.get(PDFName.of('Metadata')));
+}
+
+// Drawings: vector paths with round ends and corners, from the same path data as
+// the preview (drawingPath), so they stay sharp and land where the preview shows them.
+{
+  const { PDFName, PDFArray, decodePDFRawStream } = globalThis.PDFLib;
+  const blank = await PDFDocument.create();
+  blank.addPage([400, 300]);
+  const one = { sources: [{ id: 's', bytes: await blank.save() }], pages: [{ id: 'p', sourceId: 's', index: 0 }] };
+  const drawn = await PDFDocument.load(
+    await buildPdf({
+      ...one,
+      annotations: [
+        { id: 'r', type: 'drawing', shape: 'rect', pageId: 'p', pageRotation: 0, x: 0.25, y: 0.5, width: 0.5, height: 0.25, color: '#d0342c', strokeWidth: 4 },
+        { id: 'a', type: 'drawing', shape: 'arrow', pageId: 'p', pageRotation: 0, x: 0.1, y: 0.1, width: 0.3, height: 0.2, points: [[0, 1], [1, 0]], color: '#2255cc', strokeWidth: 2 },
+      ],
+    }),
+  );
+  const contents = drawn.getPage(0).node.lookup(PDFName.of('Contents'));
+  const streams = contents instanceof PDFArray ? contents.asArray().map((ref) => drawn.context.lookup(ref)) : [contents];
+  const content = streams.map((stream) => new TextDecoder().decode(decodePDFRawStream(stream).decode())).join('\n');
+  assert.match(content, /0\.81\d* 0\.20\d* 0\.17\d* RG/, 'the rectangle’s colour');
+  assert.match(content, /\b1 j\b/, 'round corners');
+  assert.match(content, /\b1 J\b/, 'round ends');
+  // The rectangle's corners, in its frame from the top left (the export flips it, as drawSvgPath does).
+  assert.match(content, /100 150 m\s+300 150 l\s+300 225 l\s+100 225 l/, 'the rectangle where the preview draws it');
+  assert.equal((await extract(await drawn.save()))[0].items.length, 0, 'no text: lines and curves only');
+  assert.equal(drawn.getPage(0).node.Resources().lookup(PDFName.of('XObject'))?.entries().length ?? 0, 0, 'no pictures');
 }
 
 // Passwords. The fixtures were encrypted by pypdf (scripts/make-encrypted-fixtures.py),

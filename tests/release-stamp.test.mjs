@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFile, cp, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { appendFile, cp, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,9 +14,10 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const site = path.join(root, 'dist');
 const script = path.join(root, 'scripts/stamp-release.mjs');
 const toolPages = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
+// Every module beside index.html: app.js, the editor's modules, the engine and the rest.
+const modules = (await readdir(site)).filter((name) => name.endsWith('.js')).sort();
 const files = [
-  'index.html', 'licenses/index.html', ...toolPages, 'app.js', 'routes.js', 'layout.js', 'preview.js', 'pdf-engine.js',
-  'export-worker.js', 'workflows.js', 'batch-ui.js', 'signature.js', 'convert.js', 'style.css', 'studio.css', 'batch.css',
+  'index.html', 'licenses/index.html', ...toolPages, ...modules, 'style.css', 'studio.css', 'batch.css',
   'assets/vendor/pdf.mjs', 'assets/vendor/pdf.worker.mjs', 'assets/vendor/pdf-lib.min.js', 'assets/vendor/fontkit.umd.min.js',
 ];
 const workspace = await mkdtemp(path.join(tmpdir(), 'qft-stamp-'));
@@ -46,16 +47,17 @@ try {
     for (const sheet of ['style', 'studio', 'batch']) assert(page.includes(`href="../${sheet}.css?v=${release}"`), `${name} ${sheet}.css versioned`);
   }
 
-  // Each module must be imported through exactly one URL, or it would load twice.
+  // Each module must be imported through exactly one URL, or it would load twice:
+  // every import between modules carries the release.
   const engineUrl = `'./pdf-engine.js?v=${release}'`;
+  for (const name of modules) {
+    for (const [, specifier, version] of (await read(name)).matchAll(/from '(\.\/[\w-]+\.js)(\?v=[0-9a-f]{12})?'/g)) {
+      assert.equal(version, `?v=${release}`, `${name} imports ${specifier} with the release`);
+    }
+  }
   const app = await read('app.js');
-  assert(app.includes(`from ${engineUrl}`) && app.includes(`from './workflows.js?v=${release}'`) && app.includes(`from './batch-ui.js?v=${release}'`));
-  assert(app.includes(`from './routes.js?v=${release}'`), 'routes.js versioned');
-  assert(app.includes(`from './layout.js?v=${release}'`) && app.includes(`from './preview.js?v=${release}'`));
-  assert(app.includes(`from './signature.js?v=${release}'`), 'signature.js versioned');
-  assert(app.includes(`from './convert.js?v=${release}'`), 'convert.js versioned');
-  assert((await read('convert.js')).includes(`from './preview.js?v=${release}'`), 'convert.js imports the release preview');
-  assert(app.includes(`new URL('./export-worker.js?v=${release}', import.meta.url)`), 'export worker versioned');
+  assert(app.includes(`from ${engineUrl}`) && app.includes(`from './editor-core.js?v=${release}'`), 'app.js imports the release engine and editor');
+  assert((await read('documents.js')).includes(`new URL('./export-worker.js?v=${release}', import.meta.url)`), 'export worker versioned');
   const preview = await read('preview.js');
   assert(preview.includes(`from './layout.js?v=${release}'`) && preview.includes(`from ${engineUrl}`));
   assert((await read('export-worker.js')).includes(`from ${engineUrl}`));
@@ -81,8 +83,11 @@ try {
       checked++;
     }
   }
-  const expected = 4 + 2 + 4 * toolPages.length + 9 + 4 + 4 + 1 + 1 + 2 + 1;
-  assert.equal(checked, expected, 'versioned references: 4 per page (home and tools), 2 licenses, 9 app.js, 4 preview, 4 engine, 1 export worker, 1 workflows, 2 batch, 1 convert');
+  // 4 per page (home and tools: three stylesheets and app.js), 2 on the licenses page,
+  // every import between modules, and the export worker, PDF.js worker, pdf-lib and fontkit URLs.
+  let expected = 4 * (1 + toolPages.length) + 2 + 4;
+  for (const name of modules) expected += [...(await readFile(path.join(site, name), 'utf8')).matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*)'\.\/[^']+'/g)].length;
+  assert.equal(checked, expected, 'every versioned reference: pages, imports between modules, workers and engines');
 
   // Stamping is single-shot, deterministic, and changes with first-party content.
   assert.throws(() => stamp(first), /already stamped/);

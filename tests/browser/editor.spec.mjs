@@ -163,6 +163,39 @@ test('organizes pages: reorder, rotate, delete and extract', async ({ page }) =>
   await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
 });
 
+test('adds a blank page after the current one, shaped as that page shows', async ({ page }) => {
+  await openSample(page, 'organize-pdf/');
+  // Page 2, turned on its side: the blank page that follows it is landscape too.
+  await page.locator('[data-page-open]').nth(1).click();
+  await page.click('[data-action="select-none"]');
+  await page.locator('[data-page-select]').nth(1).check();
+  await page.click('[data-action="rotate"]');
+  await page.click('[data-action="insert-blank"]');
+  await expect(page.locator('#toast-message')).toHaveText('Blank page added as page 3.');
+  await expect(page.locator('#document-info')).toHaveText(/^4 pages/);
+  await expect(page.locator('#page-jump')).toHaveValue('3');
+
+  const { bytes } = await download(page, () => page.click('#download-button'));
+  const doc = await PDFLib.PDFDocument.load(bytes);
+  const shown = (sheet) => {
+    const box = sheet.getCropBox();
+    return sheet.getRotation().angle % 180 ? [box.height, box.width] : [box.width, box.height];
+  };
+  const [, turned, blank] = doc.getPages();
+  expect(shown(turned)[0]).toBeGreaterThan(shown(turned)[1]);
+  expect(shown(blank)[0]).toBeCloseTo(shown(turned)[0], 1);
+  expect(shown(blank)[1]).toBeCloseTo(shown(turned)[1], 1);
+  const text = await pdfText(bytes);
+  expect(text[2].trim()).toBe('');
+  expect(text.map((page) => /(\d) \/ 3/.exec(page)?.[1] ?? '-')).toEqual(['1', '2', '-', '3']);
+
+  // One undo step, and back.
+  await page.click('#undo-button');
+  await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
+  await page.click('#redo-button');
+  await expect(page.locator('#document-info')).toHaveText(/^4 pages/);
+});
+
 test('crops by dragging, and restores the original boundary', async ({ page }) => {
   await openSample(page, 'crop-pdf/');
   // Half size, so that the drag stays on screen (Playwright's Firefox drops mouse moves outside the window).

@@ -24,7 +24,7 @@
  * Geometry and text layout live in layout.js, shared with the editor preview.
  */
 import {
-  applies, boxGeometry, fontKind, hexColor, headerFooterItems, layoutMarginText, layoutRect,
+  applies, boxGeometry, drawingPath, fontKind, hexColor, headerFooterItems, layoutMarginText, layoutRect,
   layoutTextAnnotation, layoutWatermark, number, pageGeometry, pageNumberItem, placementGeometry, rotation, textValue,
   unsupportedCharacter, unsupportedMessage, visibleBox, watermarkText, wrapText,
 } from './layout.js';
@@ -592,7 +592,22 @@ function describePdf(doc) {
     return { index, width, height, rotation, cropBox };
   });
   const form = formFields(doc);
-  return { pages, pageCount: pages.length, hasForm: Boolean(form?.count), form, pdfa: pdfaPart(doc), encrypted: Boolean(doc.context.isDecrypted) };
+  return { pages, pageCount: pages.length, hasForm: Boolean(form?.count), form, details: documentDetails(doc), pdfa: pdfaPart(doc), encrypted: Boolean(doc.context.isDecrypted) };
+}
+
+/** The details a PDF keeps about itself (Document properties shows them). */
+function documentDetails(doc) {
+  const created = detail(() => doc.getCreationDate());
+  return {
+    title: detail(() => doc.getTitle()) || '',
+    author: detail(() => doc.getAuthor()) || '',
+    subject: detail(() => doc.getSubject()) || '',
+    keywords: detail(() => doc.getKeywords()) || '',
+    language: detail(() => doc.getLanguage()) || '',
+    creator: detail(() => doc.getCreator()) || '',
+    producer: detail(() => doc.getProducer()) || '',
+    created: created && !Number.isNaN(created.getTime()) ? created.toISOString() : '',
+  };
 }
 
 /**
@@ -745,6 +760,14 @@ function embeddedImage(doc, annotation) {
 
 async function drawAnnotation(doc, page, geometry, annotation, getFont, pageIndex) {
   if (annotation.type === 'text') return drawTextAnnotation(page, geometry, annotation, getFont, pageIndex);
+  if (annotation.type === 'drawing') {
+    // The preview's path, from the top left of the frame; round ends and corners as in the preview.
+    const { LineCapStyle, LineJoinStyle, setLineJoin } = library();
+    const { d, strokeWidth } = drawingPath(annotation, geometry);
+    page.pushOperators(setLineJoin(LineJoinStyle.Round));
+    page.drawSvgPath(d, { x: 0, y: geometry.height, borderColor: color(annotation.color, '#d0342c'), borderWidth: strokeWidth, borderLineCap: LineCapStyle.Round });
+    return true;
+  }
   const rect = layoutRect(annotation, geometry);
   if (!rect) return false;
   const options = { ...rect, opacity: number(annotation.opacity, 1, 0, 1) };
@@ -974,6 +997,57 @@ function detail(read) {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Document properties (state.properties): the title, author, subject, keywords
+ * and language as set in the editor; an empty one is removed. `clean` (Remove
+ * all) also removes every other detail: the app that made the PDF, dates and
+ * the rest of its document information. Its XMP metadata, a second copy of
+ * these details that some readers prefer, is always removed, so no reader
+ * shows the old ones.
+ */
+function applyProperties(doc, properties) {
+  const { PDFHexString, PDFName } = library();
+  const info = doc.getInfoDict();
+  if (properties.clean) for (const key of info.keys()) info.delete(key);
+  const fields = { Title: properties.title, Author: properties.author, Subject: properties.subject, Keywords: properties.keywords };
+  for (const [key, value] of Object.entries(fields)) {
+    const text = String(value ?? '').trim();
+    if (text) info.set(PDFName.of(key), PDFHexString.fromText(text));
+    else info.delete(PDFName.of(key));
+  }
+  const language = String(properties.language ?? '').trim();
+  if (language) doc.setLanguage(language);
+  else doc.catalog.delete(PDFName.of('Lang'));
+  // The XMP stream itself goes: pdf-lib writes every object it holds, so a stream
+  // only unlinked from the catalog would still be in the file.
+  const metadata = doc.catalog.get(PDFName.of('Metadata'));
+  if (metadata instanceof library().PDFRef) doc.context.delete(metadata);
+  doc.catalog.delete(PDFName.of('Metadata'));
+  // Remove all: nothing the document no longer refers to (earlier versions of its
+  // details, say) travels with it either.
+  if (properties.clean) dropUnreachable(doc);
+}
+
+/** Delete the objects nothing in the document refers to, which pdf-lib would still write. */
+function dropUnreachable(doc) {
+  const { PDFArray, PDFDict, PDFRef, PDFStream } = library();
+  const { Root, Info, Encrypt } = doc.context.trailerInfo;
+  const reached = new Set();
+  const pending = [Root, Info, Encrypt];
+  while (pending.length) {
+    let value = pending.pop();
+    if (value instanceof PDFRef) {
+      if (reached.has(value)) continue;
+      reached.add(value);
+      value = doc.context.lookup(value);
+    }
+    if (value instanceof PDFStream) value = value.dict;
+    if (value instanceof PDFDict) for (const [, entry] of value.entries()) pending.push(entry);
+    else if (value instanceof PDFArray) for (const entry of value.asArray()) pending.push(entry);
+  }
+  for (const [ref] of doc.context.enumerateIndirectObjects()) if (!reached.has(ref)) doc.context.delete(ref);
 }
 
 /** Copy a PDF's title, author, subject, keywords, creator, creation date and language. */
@@ -1225,12 +1299,16 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const notes = [];
   // New field appearances use fonts that PDF/A requires to be embedded.
   added ||= formFilled;
-  if (pdfa && (added || password)) {
-    removePdfaIdentification(doc);
+  const properties = state.properties;
+  if (pdfa && (added || password || properties)) {
+    // Changed properties remove the XMP metadata, and with it the PDF/A claim.
+    if (!properties) removePdfaIdentification(doc);
     pdfa = null;
     if (added) notes.push('pdfa-removed');
     if (password) notes.push('pdfa-removed-password');
+    if (properties) notes.push('pdfa-removed-properties');
   }
+  if (properties) applyProperties(doc, properties);
   if (password) protectDocument(doc, password);
   // Object streams keep files small, but PDF/A-1 forbids them. Field appearances
   // are made above, in fonts that have their characters.
@@ -1249,6 +1327,16 @@ const PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
  * large as fits but not enlarged past 96 pixels per inch. margin is in points.
  * JPEG data is embedded as it is.
  */
+/** A PDF of one blank page, `width` by `height` points (Insert a blank page). */
+export async function blankPdf(width, height) {
+  const lib = await loadPdfLib();
+  if (!(width >= 1 && height >= 1 && width <= 14400 && height <= 14400)) throw new Error('A blank page must be between 1 and 14,400 points wide and high.');
+  const doc = await lib.PDFDocument.create();
+  doc.setProducer('QFT PDF');
+  doc.addPage([width, height]);
+  return doc.save();
+}
+
 export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
   const lib = await loadPdfLib();
   if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');
