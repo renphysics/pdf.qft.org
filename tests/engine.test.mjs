@@ -404,7 +404,19 @@ for (const [part, conformance, attributeForm] of [[1, 'B', false], [1, 'A', fals
   withInfo.setKeywords(['archive, 2026']);
   withInfo.setCreator('Writer 7');
   withInfo.setLanguage('de-DE');
+  // Something the file no longer refers to, which pdf-lib would still write out.
+  withInfo.context.register(withInfo.context.stream(new TextEncoder().encode('LEFTOVER-SECRET'), {}));
   const bytes = await withInfo.save();
+  // Every object in a file, linked or not, as text (streams decoded).
+  const everything = async (pdfBytes) => {
+    const pdf = await PDFDocument.load(pdfBytes, { updateMetadata: false });
+    const { PDFRawStream, decodePDFRawStream } = globalThis.PDFLib;
+    return pdf.context
+      .enumerateIndirectObjects()
+      .map(([, object]) => (object instanceof PDFRawStream ? new TextDecoder().decode(decodePDFRawStream(object).decode()) : object.toString()))
+      .join('\n');
+  };
+  assert.match(await everything(bytes), /LEFTOVER-SECRET/);
   const opened = await openPdf(bytes);
   assert.deepEqual({ ...opened.details, producer: '', created: '' }, { title: 'Archiv für Berichte', author: 'A. Author', subject: 'Reports', keywords: 'archive, 2026', language: 'de-DE', creator: 'Writer 7', producer: '', created: '' });
   assert.match(opened.details.created, /^\d{4}-\d\d-\d\dT/, 'the creation date');
@@ -416,12 +428,16 @@ for (const [part, conformance, attributeForm] of [[1, 'B', false], [1, 'A', fals
   assert.equal(doc.getAuthor(), undefined, 'an emptied property is removed');
   assert.equal(doc.getCreator(), 'Writer 7', 'other details stay');
   assert.equal(doc.catalog.get(PDFName.of('Metadata')), undefined, 'the XMP copy is removed');
+  assert.doesNotMatch(await everything(edited.bytes), /x:xmpmeta/, 'the XMP stream itself, not only its link');
   const read = await pdfjs.getDocument({ data: edited.bytes.slice(), verbosity: 0 }).promise;
   const { info, metadata } = await read.getMetadata();
   assert.deepEqual([info.Title, metadata], ['Annual report', null], 'PDF.js shows the new title');
   await read.loadingTask.destroy();
   // Remove all: no details at all; the language stays, for screen readers.
-  const cleaned = await PDFDocument.load(await buildPdf({ ...one, properties: { title: '', author: '', subject: '', keywords: '', language: 'de-DE', clean: true } }), { updateMetadata: false });
+  const cleanedBytes = await buildPdf({ ...one, properties: { title: '', author: '', subject: '', keywords: '', language: 'de-DE', clean: true } });
+  const cleaned = await PDFDocument.load(cleanedBytes, { updateMetadata: false });
+  const left = await everything(cleanedBytes);
+  for (const detail of ['Archiv für Berichte', 'x:xmpmeta', 'LEFTOVER-SECRET', 'Writer 7']) assert.ok(!left.includes(detail), `Remove all leaves nothing of ${detail} in the file`);
   assert.deepEqual(cleaned.getInfoDict().keys(), [], 'no document information left');
   assert.equal(cleaned.getLanguage(), 'de-DE');
   // Combined with another PDF (pages copied into a new one): the properties set win.

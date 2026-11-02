@@ -1020,7 +1020,34 @@ function applyProperties(doc, properties) {
   const language = String(properties.language ?? '').trim();
   if (language) doc.setLanguage(language);
   else doc.catalog.delete(PDFName.of('Lang'));
+  // The XMP stream itself goes: pdf-lib writes every object it holds, so a stream
+  // only unlinked from the catalog would still be in the file.
+  const metadata = doc.catalog.get(PDFName.of('Metadata'));
+  if (metadata instanceof library().PDFRef) doc.context.delete(metadata);
   doc.catalog.delete(PDFName.of('Metadata'));
+  // Remove all: nothing the document no longer refers to (earlier versions of its
+  // details, say) travels with it either.
+  if (properties.clean) dropUnreachable(doc);
+}
+
+/** Delete the objects nothing in the document refers to, which pdf-lib would still write. */
+function dropUnreachable(doc) {
+  const { PDFArray, PDFDict, PDFRef, PDFStream } = library();
+  const { Root, Info, Encrypt } = doc.context.trailerInfo;
+  const reached = new Set();
+  const pending = [Root, Info, Encrypt];
+  while (pending.length) {
+    let value = pending.pop();
+    if (value instanceof PDFRef) {
+      if (reached.has(value)) continue;
+      reached.add(value);
+      value = doc.context.lookup(value);
+    }
+    if (value instanceof PDFStream) value = value.dict;
+    if (value instanceof PDFDict) for (const [, entry] of value.entries()) pending.push(entry);
+    else if (value instanceof PDFArray) for (const entry of value.asArray()) pending.push(entry);
+  }
+  for (const [ref] of doc.context.enumerateIndirectObjects()) if (!reached.has(ref)) doc.context.delete(ref);
 }
 
 /** Copy a PDF's title, author, subject, keywords, creator, creation date and language. */
