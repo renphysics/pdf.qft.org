@@ -377,6 +377,23 @@ dropdowns and lists. A PDF with fields opened from the home page opens in it.
 - Calculations and checks built into a form do not run. A form that also has an
   XFA version loses it once fields are filled here.
 
+## Draw
+
+Draw (`/draw-on-pdf/`) adds pen strokes, lines, arrows, rectangles and ellipses
+with a colour and a line width. A drawing is an item like an image: a box on its
+page (fractions of the page, so it turns and crops with it) and, for pen strokes,
+lines and arrows, its points as fractions of that box, so moving and resizing it
+work as for other items. `drawingPath` in `layout.js` turns it into SVG path data
+(ellipses as the same four Bézier curves pdf-lib uses); the preview draws that
+path, and the export gives the same data to pdf-lib's `drawSvgPath` with round
+ends and corners, so the download matches the preview and stays vector.
+
+Pen strokes are not selected when drawn, so writing goes on, and a stroke may
+start over another drawing; a tap selects a drawing. A new line, arrow, rectangle
+or ellipse is selected, to adjust it, and the panel has a button that adds one
+without dragging. On touch screens one finger draws and two fingers scroll
+(`touch-action: pinch-zoom`).
+
 ## Document properties
 
 Properties (`/edit-pdf-metadata/`) shows the title, author, subject, keywords and

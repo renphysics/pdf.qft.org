@@ -29,7 +29,7 @@ export const tapOrClick = (text) =>
   touch() ? text.replace(/\bClick\b/g, 'Tap').replace(/\bclick\b/g, 'tap') : text;
 
 // Tools that place items on a page; their items can be selected, dragged and resized.
-export const ANNOTATION_TOOLS = ['text', 'image', 'highlight', 'signature'];
+export const ANNOTATION_TOOLS = ['text', 'image', 'highlight', 'signature', 'draw'];
 // Tools that show a repeated setting on pages, and the state key each one edits.
 export const SETTINGS = { watermark: 'watermark', footer: 'headerFooter', numbers: 'pageNumbers' };
 const SETTING_TOOL = { watermark: 'watermark', headerFooter: 'footer', pageNumbers: 'numbers' };
@@ -39,6 +39,7 @@ export const HANDLES = {
   image: ['nw', 'ne', 'sw', 'se'],
   signature: ['nw', 'ne', 'sw', 'se'],
   highlight: ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'],
+  drawing: ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'],
 };
 export const THUMB_WIDTH = 172; // canvas pixels: sharp at 86 CSS pixels on high-density screens
 export const THUMB_CACHE = 60;
@@ -78,7 +79,12 @@ export const ui = {
   busy: false,
   append: false,
   image: null,
-  styles: { text: { size: 18, color: '#244e41' }, highlight: { color: '#f6ce53', opacity: 0.35 } },
+  styles: {
+    text: { size: 18, color: '#244e41' },
+    highlight: { color: '#f6ce53', opacity: 0.35 },
+    // Draw: the shape new drawings take, their colour and line width (points).
+    draw: { shape: 'pen', color: '#d0342c', width: 2 },
+  },
   dragId: null,
   gesture: null,
   toastTimer: null,
@@ -152,6 +158,7 @@ export const names = {
   pdftojpg: 'PDF to JPG',
   form: 'Fill form',
   properties: 'Properties',
+  draw: 'Draw',
 };
 export const descriptions = {
   text: 'Click the page where your text should start, then type. Drag text to move it.',
@@ -175,6 +182,7 @@ export const descriptions = {
   pdftojpg: 'Save pages as JPG or PNG pictures, exactly as they look with your edits.',
   form: 'Click a field to type in it, or tick its box. Tab moves to the next field.',
   properties: 'The title, author and other details saved in your PDF. Change them, or remove them before you share it.',
+  draw: 'Draw on the page with a pen, or drag to add a line, an arrow, a rectangle or an ellipse.',
 };
 export const settingDefaults = {
   watermark: () => ({

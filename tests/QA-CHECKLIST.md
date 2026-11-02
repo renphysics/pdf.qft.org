@@ -420,3 +420,26 @@ source review does not replace the owner’s browser verification.
 - Known limits: page labels, file attachments, tags and layer settings are not
   carried over to copied pages; content on a hidden layer shows in the copy
   (checked by rendering with PDF.js; the same before this change).
+
+## Modules, blank pages, Properties and Draw — 2026-11-02
+
+- `app.js` (5,261 lines) is split into eight modules, moved verbatim by a script:
+  every import resolves to an export, and no module uses a name the original file
+  did not have in scope (both checked by scripts); the release script versions
+  every module's imports by rule. The Test workflow passed in Chromium, WebKit and
+  Firefox on the split alone.
+- Organize pages: "Add a blank page after it" adds a page the size and shape the
+  current page shows at (a turned page gives a landscape blank page); one undo step.
+- Properties: the first PDF's title, author, subject, keywords and language, and
+  the app that made it and when; changes and Remove all reach the download (engine
+  and browser tests); the XMP copy is removed so PDF.js shows the new title; a
+  PDF/A file then stops declaring PDF/A, with its own reason in the message.
+- Draw: pen, line, arrow, rectangle and ellipse; strokes over other drawings; tap
+  to select; move, resize, colour, width, delete, undo; the add button. The download
+  matches the preview (pixel comparison, under 0.2% of pixels) and is vector (engine
+  test: paths with round ends and corners, no text or pictures). On the iPhone
+  emulation one finger draws and the page does not scroll.
+- Known limits: drawings are opaque lines (no fill or transparency); a pen stroke
+  is straight segments between points two screen pixels apart; layer settings and
+  the other copy limits above still apply.
+

@@ -48,6 +48,7 @@ import {
 import { onStageScroll, renderStage, revealItem, scheduleOverlays, setZoom } from './page-view.js';
 import { clearForm, focusField, initFormInputs, nextEmptyField } from './form-ui.js';
 import {
+  addDrawing,
   addHighlight,
   baselines,
   createText,
@@ -411,6 +412,10 @@ export async function action(name, element) {
     const page = currentPage(),
       geometry = geometryOf(state, page);
     createText(page, { x: geometry.width * 0.1, y: geometry.height * 0.1 });
+  }
+  if (name === 'add-drawing') {
+    addDrawing(currentPage());
+    revealItem(ui.item);
   }
   if (name === 'add-highlight') {
     const page = currentPage(),

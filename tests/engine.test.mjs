@@ -436,6 +436,34 @@ for (const [part, conformance, attributeForm] of [[1, 'B', false], [1, 'A', fals
   assert.ok((await PDFDocument.load((await buildPdfWithNotes(one)).bytes)).catalog.get(PDFName.of('Metadata')));
 }
 
+// Drawings: vector paths with round ends and corners, from the same path data as
+// the preview (drawingPath), so they stay sharp and land where the preview shows them.
+{
+  const { PDFName, PDFArray, decodePDFRawStream } = globalThis.PDFLib;
+  const blank = await PDFDocument.create();
+  blank.addPage([400, 300]);
+  const one = { sources: [{ id: 's', bytes: await blank.save() }], pages: [{ id: 'p', sourceId: 's', index: 0 }] };
+  const drawn = await PDFDocument.load(
+    await buildPdf({
+      ...one,
+      annotations: [
+        { id: 'r', type: 'drawing', shape: 'rect', pageId: 'p', pageRotation: 0, x: 0.25, y: 0.5, width: 0.5, height: 0.25, color: '#d0342c', strokeWidth: 4 },
+        { id: 'a', type: 'drawing', shape: 'arrow', pageId: 'p', pageRotation: 0, x: 0.1, y: 0.1, width: 0.3, height: 0.2, points: [[0, 1], [1, 0]], color: '#2255cc', strokeWidth: 2 },
+      ],
+    }),
+  );
+  const contents = drawn.getPage(0).node.lookup(PDFName.of('Contents'));
+  const streams = contents instanceof PDFArray ? contents.asArray().map((ref) => drawn.context.lookup(ref)) : [contents];
+  const content = streams.map((stream) => new TextDecoder().decode(decodePDFRawStream(stream).decode())).join('\n');
+  assert.match(content, /0\.81\d* 0\.20\d* 0\.17\d* RG/, 'the rectangle’s colour');
+  assert.match(content, /\b1 j\b/, 'round corners');
+  assert.match(content, /\b1 J\b/, 'round ends');
+  // The rectangle's corners, in its frame from the top left (the export flips it, as drawSvgPath does).
+  assert.match(content, /100 150 m\s+300 150 l\s+300 225 l\s+100 225 l/, 'the rectangle where the preview draws it');
+  assert.equal((await extract(await drawn.save()))[0].items.length, 0, 'no text: lines and curves only');
+  assert.equal(drawn.getPage(0).node.Resources().lookup(PDFName.of('XObject'))?.entries().length ?? 0, 0, 'no pictures');
+}
+
 // Passwords. The fixtures were encrypted by pypdf (scripts/make-encrypted-fixtures.py),
 // not by the library under test; each has two pages, "Secret page 1" and "Secret page 2".
 const fixturePath = (name) => path.join(outputDir, '../fixtures', name);

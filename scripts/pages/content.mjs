@@ -104,6 +104,29 @@ export const PAGES = [
     ],
   },
   {
+    tool: 'draw',
+    name: 'Draw on PDF',
+    title: 'Draw on a PDF for free, in your browser — QFT PDF',
+    description:
+      'Draw on PDF pages with a pen, or add lines, arrows, rectangles and ellipses in any colour. Free, and your PDF never leaves your device.',
+    eyebrow: 'DRAW ON PDF',
+    heading: ['Draw on a PDF.', 'Mark it up your way.'],
+    intro: 'Circle what matters, point at it with an arrow, or write a note by hand, right on the page.',
+    upload: { text: 'Drop a PDF here to draw on it.' },
+    how: ['How to draw', 'on a PDF.'],
+    steps: [
+      OPEN_STEP,
+      ['Draw.', 'Choose the pen or a shape, a colour and a line width, then drag on the page. Drag a drawing to move it, or a handle to resize it.'],
+      ['Download.', 'Your drawings become part of the pages, exactly as you see them.'],
+    ],
+    faqs: [
+      ['Can I draw with a finger or a pen?', 'Yes. On a touch screen one finger draws and two fingers scroll; a stylus works like a pen.'],
+      ['Can I change a drawing afterwards?', 'Yes. Select it to move it, resize it, change its colour or line width, or delete it. Undo takes back each stroke.'],
+      ['Do drawings stay sharp?', 'Yes. They are saved as lines and curves, not pictures, so they stay sharp at any zoom and when printed.'],
+      ['Is my PDF uploaded?', 'No. You draw in your browser, and the PDF never leaves your device.'],
+    ],
+  },
+  {
     tool: 'watermark',
     name: 'Add watermark to PDF',
     title: 'Add a watermark to a PDF for free — QFT PDF',

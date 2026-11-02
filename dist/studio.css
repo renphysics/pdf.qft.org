@@ -1093,6 +1093,12 @@ summary:focus-visible {
   cursor: crosshair;
   touch-action: none;
 }
+/* Draw: one finger draws; two fingers still scroll and zoom where pinch-zoom is supported. */
+.page-stack[data-tool='draw'] .page-view {
+  cursor: crosshair;
+  touch-action: none;
+  touch-action: pinch-zoom;
+}
 .page-stack.dragging,
 .page-stack.dragging .page-view,
 .page-stack.dragging .item-box {
@@ -1139,6 +1145,12 @@ summary:focus-visible {
 .edit-layer.interactive .item-box {
   pointer-events: auto;
   cursor: move;
+}
+/* A thin line's box is almost flat: grab it a little beyond its edges. */
+.item-box[data-type='drawing']::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
 }
 .edit-layer.interactive .item-box:hover {
   outline-color: var(--color-border-input);

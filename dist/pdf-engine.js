@@ -24,7 +24,7 @@
  * Geometry and text layout live in layout.js, shared with the editor preview.
  */
 import {
-  applies, boxGeometry, fontKind, hexColor, headerFooterItems, layoutMarginText, layoutRect,
+  applies, boxGeometry, drawingPath, fontKind, hexColor, headerFooterItems, layoutMarginText, layoutRect,
   layoutTextAnnotation, layoutWatermark, number, pageGeometry, pageNumberItem, placementGeometry, rotation, textValue,
   unsupportedCharacter, unsupportedMessage, visibleBox, watermarkText, wrapText,
 } from './layout.js';
@@ -760,6 +760,14 @@ function embeddedImage(doc, annotation) {
 
 async function drawAnnotation(doc, page, geometry, annotation, getFont, pageIndex) {
   if (annotation.type === 'text') return drawTextAnnotation(page, geometry, annotation, getFont, pageIndex);
+  if (annotation.type === 'drawing') {
+    // The preview's path, from the top left of the frame; round ends and corners as in the preview.
+    const { LineCapStyle, LineJoinStyle, setLineJoin } = library();
+    const { d, strokeWidth } = drawingPath(annotation, geometry);
+    page.pushOperators(setLineJoin(LineJoinStyle.Round));
+    page.drawSvgPath(d, { x: 0, y: geometry.height, borderColor: color(annotation.color, '#d0342c'), borderWidth: strokeWidth, borderLineCap: LineCapStyle.Round });
+    return true;
+  }
   const rect = layoutRect(annotation, geometry);
   if (!rect) return false;
   const options = { ...rect, opacity: number(annotation.opacity, 1, 0, 1) };

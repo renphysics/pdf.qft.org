@@ -264,6 +264,74 @@ export function layoutRect(annotation, geometry) {
   return { x, y: geometry.height - top - height, width, height };
 }
 
+// ---- Drawings ------------------------------------------------------------------
+// Pen strokes, lines, arrows, rectangles and ellipses (Draw). A drawing keeps
+// its box like other items, and its points (pen, line, arrow) as fractions of
+// that box, so moving and resizing it work as they do for images.
+
+export const DRAWING_SHAPES = ['pen', 'line', 'arrow', 'rect', 'ellipse'];
+// The Bézier constant for quarter ellipses, as pdf-lib uses.
+const KAPPA = 4 * ((Math.SQRT2 - 1) / 3);
+const round2 = (value) => Math.round(value * 100) / 100;
+
+/** A drawing's box in display coordinates from the top left of its frame (not clipped to the page). */
+export function drawingBox(annotation, geometry) {
+  return {
+    x: number(annotation.x, 0.1, 0, 1) * geometry.width,
+    top: number(annotation.y, 0.1, 0, 1) * geometry.height,
+    width: number(annotation.width, 0.2, 0.0001, 2) * geometry.width,
+    height: number(annotation.height, 0.1, 0.0001, 2) * geometry.height,
+  };
+}
+
+/**
+ * A drawing as SVG path data in its frame, from the top left (y down), and its
+ * stroke width. The preview draws it as a <path>; the export gives the same
+ * data to pdf-lib's drawSvgPath, so the download matches the preview.
+ */
+export function drawingPath(annotation, geometry) {
+  const { x, top, width, height } = drawingBox(annotation, geometry);
+  const strokeWidth = number(annotation.strokeWidth, 2, 0.25, 48);
+  const point = ([u, v]) => [x + number(u, 0, 0, 1) * width, top + number(v, 0, 0, 1) * height];
+  const text = ([px, py]) => round2(px) + ' ' + round2(py);
+  if (annotation.shape === 'rect') {
+    const corners = [[x, top], [x + width, top], [x + width, top + height], [x, top + height]];
+    return { d: 'M' + corners.map(text).join('L') + 'Z', strokeWidth };
+  }
+  if (annotation.shape === 'ellipse') {
+    const rx = width / 2,
+      ry = height / 2,
+      cx = x + rx,
+      cy = top + ry,
+      ox = rx * KAPPA,
+      oy = ry * KAPPA;
+    const curves = [
+      [[cx - rx, cy - oy], [cx - ox, cy - ry], [cx, cy - ry]],
+      [[cx + ox, cy - ry], [cx + rx, cy - oy], [cx + rx, cy]],
+      [[cx + rx, cy + oy], [cx + ox, cy + ry], [cx, cy + ry]],
+      [[cx - ox, cy + ry], [cx - rx, cy + oy], [cx - rx, cy]],
+    ];
+    return { d: 'M' + text([cx - rx, cy]) + curves.map((curve) => 'C' + curve.map(text).join(' ')).join('') + 'Z', strokeWidth };
+  }
+  // Pen, line and arrow: through their points (a single point is a dot).
+  const points = (Array.isArray(annotation.points) && annotation.points.length ? annotation.points : [[0, 0], [1, 1]]).map(point);
+  let d = 'M' + text(points[0]) + (points.length > 1 ? points.slice(1).map((p) => 'L' + text(p)).join('') : 'L' + text(points[0]));
+  if (annotation.shape === 'arrow' && points.length > 1) {
+    // An open head at the end, along the last segment.
+    const tip = points.at(-1),
+      from = points.at(-2),
+      length = Math.hypot(from[0] - tip[0], from[1] - tip[1]) || 1,
+      back = [(from[0] - tip[0]) / length, (from[1] - tip[1]) / length],
+      size = Math.min(strokeWidth * 3 + 6, length * 0.6),
+      side = (angle) => [
+        tip[0] + size * (back[0] * Math.cos(angle) - back[1] * Math.sin(angle)),
+        tip[1] + size * (back[0] * Math.sin(angle) + back[1] * Math.cos(angle)),
+      ];
+    d += 'M' + text(side(0.5)) + 'L' + text(tip) + 'L' + text(side(-0.5));
+  }
+  return { d, strokeWidth };
+}
+
 /** Whether a repeated setting (watermark, headers and footers, page numbers) is shown on a page. */
 export function applies(setting, pageId) {
   return Boolean(setting) && setting.enabled !== false && (!setting.pages || setting.pages === 'all' || setting.pages.includes(pageId));

@@ -299,6 +299,87 @@ export function addHighlight(page, point) {
   change(() => state.annotations.push(annotation));
   selectItem(annotation.id);
 }
+/** Draw: a pen stroke follows the pointer; other shapes stretch from where the drag started. */
+function sketch(gesture, point) {
+  const page = pageById(gesture.pageId);
+  if (!page) return;
+  const geometry = geometryOf(state, page),
+    style = ui.styles.draw,
+    inside = ({ x, y }) => ({ x: clamp(x, 0, geometry.width), y: clamp(y, 0, geometry.height) }),
+    end = inside(point);
+  gesture.shape ||= style.shape;
+  if (gesture.shape === 'pen') {
+    gesture.points ||= [inside(gesture.start)];
+    const last = gesture.points.at(-1),
+      scale = ui.stage.byId.get(gesture.pageId)?.scale || 1;
+    // Points two screen pixels apart make a smooth line.
+    if (Math.hypot(end.x - last.x, end.y - last.y) * scale < 2) return;
+    gesture.points.push(end);
+  } else gesture.points = [inside(gesture.start), end];
+  let left = Infinity,
+    top = Infinity,
+    right = -Infinity,
+    bottom = -Infinity;
+  for (const { x, y } of gesture.points) {
+    left = Math.min(left, x);
+    top = Math.min(top, y);
+    right = Math.max(right, x);
+    bottom = Math.max(bottom, y);
+  }
+  // A straight line has no height (or width): its box gets a little.
+  const width = Math.max(right - left, 0.5),
+    height = Math.max(bottom - top, 0.5),
+    fraction = (value) => Math.round(value * 1e4) / 1e4;
+  const fields = {
+    x: left / geometry.width,
+    y: top / geometry.height,
+    width: width / geometry.width,
+    height: height / geometry.height,
+  };
+  if (gesture.shape !== 'rect' && gesture.shape !== 'ellipse')
+    fields.points = gesture.points.map(({ x, y }) => [fraction((x - left) / width), fraction((y - top) / height)]);
+  if (!gesture.id) {
+    gesture.id = uid();
+    const annotation = {
+      id: gesture.id,
+      pageId: page.id,
+      pageRotation: page.rotation,
+      pageCrop: page.crop ? { ...page.crop } : undefined,
+      type: 'drawing',
+      shape: gesture.shape,
+      color: style.color,
+      strokeWidth: style.width,
+      ...fields,
+    };
+    change(() => state.annotations.push(annotation), { key: gesture.key });
+    return;
+  }
+  const annotation = annotationById(gesture.id);
+  if (annotation) change(() => Object.assign(annotation, fields), { key: gesture.key });
+}
+/** Add a line, arrow, rectangle or ellipse to a page (keyboard and touch alternative to dragging). */
+export function addDrawing(page) {
+  const style = ui.styles.draw,
+    shape = style.shape === 'pen' ? 'line' : style.shape,
+    straight = shape === 'line' || shape === 'arrow';
+  const annotation = {
+    id: uid(),
+    pageId: page.id,
+    pageRotation: page.rotation,
+    pageCrop: page.crop ? { ...page.crop } : undefined,
+    type: 'drawing',
+    shape,
+    color: style.color,
+    strokeWidth: style.width,
+    x: 0.3,
+    y: 0.2,
+    width: 0.4,
+    height: straight ? 0.1 : 0.15,
+    ...(straight ? { points: [[0, 1], [1, 0]] } : {}),
+  };
+  change(() => state.annotations.push(annotation));
+  selectItem(annotation.id);
+}
 export function placeImage(image, point = null) {
   const page = currentPage(),
     geometry = geometryOf(state, page);
@@ -374,10 +455,12 @@ export function selectItem(id, { focus = true, reveal = false } = {}) {
   const annotation = annotationById(id);
   if (!annotation) return;
   if (ui.editing && ui.editing !== id) stopEditing();
-  const changedTool = ui.tool !== annotation.type;
+  // Each item belongs to the tool named after its type; drawings belong to Draw.
+  const tool = annotation.type === 'drawing' ? 'draw' : annotation.type;
+  const changedTool = ui.tool !== tool;
   ui.item = id;
   if (changedTool) {
-    ui.tool = annotation.type;
+    ui.tool = tool;
     $('#page-stack').dataset.tool = ui.tool;
     recordView('editor');
   }
@@ -391,7 +474,7 @@ export function selectItem(id, { focus = true, reveal = false } = {}) {
   if (focus) focusItem(id);
   if (reveal) revealItem(id);
 }
-function deselect() {
+export function deselect() {
   stopEditing();
   if (!ui.item) return;
   ui.item = null;
@@ -450,9 +533,19 @@ export function initPageItems() {
       return;
     }
     if (!ANNOTATION_TOOLS.includes(ui.tool)) return;
-    const box = event.target.closest('[data-item-id]'),
-      handle = event.target.closest('[data-handle]'),
+    const handle = event.target.closest('[data-handle]'),
       point = pagePoint(event, view);
+    let box = event.target.closest('[data-item-id]');
+    // Draw: a stroke may start over another drawing; a tap on one selects it (pointerup).
+    const under =
+      ui.tool === 'draw' &&
+      box &&
+      !handle &&
+      box.dataset.itemId !== ui.item &&
+      annotationById(box.dataset.itemId)?.type === 'drawing'
+        ? box.dataset.itemId
+        : null;
+    if (under) box = null;
     const wasEditing = Boolean(ui.editing),
       wasSelected = box && box.dataset.itemId === ui.item;
     // Typing ends with a tap elsewhere (see pointerup), not when a finger starts to scroll.
@@ -468,9 +561,10 @@ export function initPageItems() {
       };
     } else {
       ui.gesture = {
-        type: ui.tool === 'highlight' ? 'draw' : 'tap',
+        type: ui.tool === 'highlight' ? 'draw' : ui.tool === 'draw' ? 'sketch' : 'tap',
         wasEditing,
         hadSelection: Boolean(ui.item),
+        under,
       };
     }
     Object.assign(ui.gesture, {
@@ -499,6 +593,7 @@ export function initPageItems() {
     if (gesture.type === 'move' && gesture.item?.frame) moveItem(gesture, point);
     if (gesture.type === 'resize' && gesture.item?.frame) resizeItem(gesture, point);
     if (gesture.type === 'draw') drawHighlight(gesture, point);
+    if (gesture.type === 'sketch') sketch(gesture, point);
   });
   stack.addEventListener('pointerup', (event) => {
     const gesture = ui.gesture;
@@ -506,8 +601,16 @@ export function initPageItems() {
     endGesture();
     if (gesture.moved) {
       if (gesture.type === 'draw' && gesture.id) selectItem(gesture.id);
-      else if (gesture.id) focusItem(gesture.id);
+      // A new shape is selected, to adjust it; pen strokes are not, so writing goes on.
+      else if (gesture.type === 'sketch' && gesture.id) {
+        if (gesture.shape === 'pen') deselect();
+        else selectItem(gesture.id);
+      } else if (gesture.id) focusItem(gesture.id);
       renderTool();
+      return;
+    }
+    if (gesture.under) {
+      selectItem(gesture.under, { focus: true });
       return;
     }
     if (gesture.type === 'move' || gesture.type === 'resize') {

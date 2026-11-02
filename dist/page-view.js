@@ -663,6 +663,8 @@ export function itemLabel(annotation) {
     const text = textValue(annotation.text).trim().replace(/\s+/g, ' ');
     return 'Text: ' + (text ? '“' + (text.length > 40 ? text.slice(0, 40) + '…' : text) + '”' : 'empty');
   }
+  if (annotation.type === 'drawing')
+    return { line: 'Line', arrow: 'Arrow', rect: 'Rectangle', ellipse: 'Ellipse' }[annotation.shape] || 'Drawing';
   return { image: 'Image', signature: 'Signature' }[annotation.type] || 'Highlight';
 }
 export function renderEditLayers() {
@@ -814,6 +816,10 @@ export function updateStageHint() {
       ? 'Drag the image to move it. Drag a corner to resize it.'
       : 'Choose an image to add it to this page.';
   if (ui.tool === 'highlight') hint = 'Drag across the page to highlight an area.';
+  if (ui.tool === 'draw')
+    hint = selectedItem()
+      ? 'Drag the drawing to move it. Drag a handle to resize it.'
+      : 'Drag on the page to draw.';
   if (ui.tool === 'signature')
     hint = selectedItem()
       ? 'Drag the signature to move it. Drag a corner to resize it.'
