@@ -266,8 +266,9 @@ source review does not replace the owner’s browser verification.
 - The bundle is half the size (387 KB instead of 758 KB). The export worker loads it
   through its CommonJS export; both the worker and the no-worker fallback produce
   the same download.
-- Not checked here: Adobe Acrobat and Apple Preview. Please open a download with
-  Chinese and Korean text in both before relying on it.
+- Adobe Acrobat and Apple Preview (checked by the site owner, 2026-11-02): a download
+  with Simplified and Traditional Chinese, Japanese kana, Korean and mixed text (the
+  engine test's `tests/output/cjk-subset-export.pdf`) displays properly in both.
 - Known limit: Han characters are drawn with the font's Simplified Chinese shapes (the
   preview and the export use none of its language-specific `locl` forms), so some
   Japanese kanji and Traditional Chinese characters, such as 骨 and 令, look slightly
