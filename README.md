@@ -222,14 +222,31 @@ such text typically adds 50–150 KB to a download. The font itself (16 MB) is
 downloaded once, the first time such text is typed, and then comes from the browser
 cache.
 
+Deleting, extracting, combining, duplicating and splitting pages copy them into a
+new PDF (`copyPagesWithLinks`, `copyDocumentInfo` and `copyBookmarks` in
+`pdf-engine.js`). Links and bookmarks that lead to a page still in it keep working
+(named destinations become explicit ones); those that lead to a page left out are
+removed, and nothing on a copied page brings another page along hidden in the
+file, as pdf-lib's own copying would. A bookmark whose page was left out leads to
+its first remaining sub-bookmark instead. The title, author, subject, keywords,
+creator, creation date and language come from the first PDF, and combined PDFs
+keep each PDF's bookmarks, one after another. Not carried over: page labels, file
+attachments, tags (the structure screen readers use) and layer settings, so
+content on a hidden layer shows in the copy. Edits that keep every page of one
+PDF exactly once (adding content, reordering, rotating, cropping) change the
+original document instead, so all of these stay.
+
 ## Validation
 
 tests/engine.test.mjs exercises exported output with independent PDF.js text
 and geometry checks: cropping, rotation, numbering, annotation types, Unicode,
 merge/extract/reorder, password-protected input and output, and form handling.
 tests/forms.test.mjs fills and flattens a two-page form
-(`tests/fixtures/form-fields.pdf`, made by `scripts/make-form-fixture.mjs`). They
-use the development dependencies installed by `npm ci`.
+(`tests/fixtures/form-fields.pdf`, made by `scripts/make-form-fixture.mjs`).
+tests/copy.test.mjs deletes, extracts, combines, duplicates and splits pages of a
+document with links, named destinations, bookmarks and details, and checks with
+PDF.js where each link and bookmark leads, and that no page is hidden in the file.
+They use the development dependencies installed by `npm ci`.
 
 Browser tests in `tests/browser/` drive the real site with
 [Playwright](https://playwright.dev) in Chromium, WebKit (Safari's engine) and
