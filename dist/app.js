@@ -662,7 +662,6 @@ document.addEventListener('click', (event) => {
   }
   if (target.dataset.tool) chooseTool(target.dataset.tool);
   if (target.dataset.pageOpen) choosePage(target.dataset.pageOpen);
-  if (target.dataset.movePage) movePage(target.dataset.movePage, Number(target.dataset.direction));
   if (target.dataset.selectItem) selectItem(target.dataset.selectItem, { reveal: true });
   if (target.dataset.removeAnnotation) deleteItem(target.dataset.removeAnnotation);
 });

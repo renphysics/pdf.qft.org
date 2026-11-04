@@ -75,15 +75,16 @@ test('reports characters the fonts cannot draw, on their page', async ({ page })
 
 test('watermark, headers and footers and page numbers: the download matches the preview', async ({ page, baseURL }) => {
   await openSample(page);
+  // Watermark and Page numbers are on as soon as they open.
   await useTool(page, 'watermark');
-  await page.click('[data-action="toggle-setting"]');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   await page.selectOption('#tool-form [name="scope"]', 'pages');
   await page.fill('#tool-form [name="scopePages"]', '2-3');
   await useTool(page, 'footer');
   await page.fill('#tool-form [name="footerLeft"]', 'Left {page}');
   await page.fill('#tool-form [name="headerRight"]', 'Header right');
   await useTool(page, 'numbers');
-  await page.click('[data-action="toggle-setting"]');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   await useTool(page, 'text');
   const surface = await page.locator('.page-view.current').boundingBox();
   await page.mouse.click(surface.x + surface.width * 0.15, surface.y + surface.height * 0.3);
@@ -137,6 +138,8 @@ test('Chinese, Korean and kana text: a small download that matches the preview',
 test('organizes pages: reorder, rotate, delete and extract', async ({ page }) => {
   await openSample(page, 'organize-pdf/');
   await expect(page.locator('#tool-select')).toHaveValue('pages');
+  // Pages move by dragging in the strip, or with Move earlier and Move later here.
+  await expect(page.locator('#page-list button[data-move-page]')).toHaveCount(0);
   await page.locator('[data-page-open]').nth(2).click();
   await page.click('[data-action="move-earlier"]');
   await page.click('[data-action="select-none"]');

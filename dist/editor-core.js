@@ -98,6 +98,8 @@ export const ui = {
   cancelOperation: false,
   cancelExport: null,
   lastCropPreset: null,
+  // Watermark and Page numbers whose defaults were shown for this document (showSettingDefaults).
+  shownSettings: new Set(),
   shownDepth: 0,
   landingFocus: null,
   // The page stack (see "The page preview"): its layout, the pages shown, and the reading position.
@@ -281,15 +283,6 @@ export function focusKey(element = document.activeElement) {
   const esc = (value) => CSS.escape(String(value));
   const pageId = element.closest('[data-page-id]')?.dataset.pageId;
   const pageFallback = pageId ? '[data-page-open="' + esc(pageId) + '"]' : null;
-  if (element.dataset.movePage)
-    return [
-      '[data-move-page="' +
-        esc(element.dataset.movePage) +
-        '"][data-direction="' +
-        esc(element.dataset.direction) +
-        '"]',
-      pageFallback,
-    ];
   if (element.dataset.pageOpen) return [pageFallback];
   if (element.dataset.pageSelect) return ['[data-page-select="' + esc(pageId) + '"]', pageFallback];
   if (element.dataset.itemId)

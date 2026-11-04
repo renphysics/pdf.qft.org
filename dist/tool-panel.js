@@ -137,8 +137,23 @@ function alignField() {
     '</div></fieldset>'
   );
 }
+/** A setting not made yet counts as on: headers and footers draw nothing until text is typed. */
+function settingOn(key) {
+  return state[key] ? state[key].enabled !== false : key === 'headerFooter';
+}
+/**
+ * Watermark and Page numbers show their defaults the first time they are the
+ * tool in use for a document (one undo step). Switched off or undone, they stay
+ * off when the tool opens again.
+ */
+export function showSettingDefaults() {
+  const key = SETTINGS[ui.tool];
+  if (!state.pages.length || (key !== 'watermark' && key !== 'pageNumbers') || state[key] || ui.shownSettings.has(key)) return;
+  ui.shownSettings.add(key);
+  change(() => (state[key] = settingDefaults[key]()));
+}
 function switchField(key, label) {
-  const on = Boolean(state[key]) && state[key].enabled !== false;
+  const on = settingOn(key);
   return (
     '<button type="button" class="switch wide" role="switch" aria-checked="' +
     on +
@@ -314,7 +329,7 @@ function panelFields() {
     case 'footer':
       return (
         switchField('headerFooter', 'Show headers & footers') +
-        '<div class="scope-note wide">Use <strong>{page}</strong> and <strong>{total}</strong> for automatic page numbering.</div><div class="field-section wide">HEADER</div>' +
+        '<div class="scope-note wide">Type <strong>{page}</strong> for the page number and <strong>{total}</strong> for the number of pages: “Page {page} of {total}” shows as “Page 2 of 5”.</div><div class="field-section wide">HEADER</div>' +
         textField('Left', 'headerLeft', 'e.g. Project name') +
         textField('Center', 'headerCenter') +
         textField('Right', 'headerRight') +
@@ -326,7 +341,7 @@ function panelFields() {
         numberField('Text size (pt)', 'size', 6, 24) +
         colorField() +
         '</div>' +
-        numberField('Edge margin (pt)', 'margin', 12, 100) +
+        numberField('Edge margin (pt)', 'margin', 0, 100) +
         scopeFields() +
         batchLink()
       );
@@ -351,7 +366,7 @@ function panelFields() {
         '</div>' +
         '<div class="field-row">' +
         colorField() +
-        numberField('Edge margin (pt)', 'margin', 12, 100) +
+        numberField('Edge margin (pt)', 'margin', 0, 100) +
         '</div>' +
         scopeFields() +
         batchLink()
@@ -1127,7 +1142,7 @@ export function fillForm({ all = false } = {}) {
   const toggle = $('[role="switch"]', form);
   if (toggle) {
     const key = SETTINGS[ui.tool];
-    toggle.setAttribute('aria-checked', String(Boolean(state[key]) && state[key].enabled !== false));
+    toggle.setAttribute('aria-checked', String(settingOn(key)));
   }
 }
 export function renderTool() {
@@ -1158,8 +1173,23 @@ export function renderTool() {
   });
   form.addEventListener('input', onPanelInput);
   form.addEventListener('change', (event) => {
-    // A number left empty or out of range goes back to the value in use.
-    if (event.target.type === 'number' && !event.target.checkValidity()) fillForm({ all: true });
+    const field = event.target;
+    if (field.type !== 'number' || field.checkValidity()) return;
+    // A number left empty goes back to the value in use; one out of range is set
+    // to the nearest value allowed, and used.
+    const value = Number(field.value);
+    if (field.value.trim() === '' || !Number.isFinite(value)) {
+      fillForm({ all: true });
+      return;
+    }
+    const min = Number(field.min),
+      max = Number(field.max),
+      step = Number(field.step) || 1,
+      nearest = Number(Math.min(max, Math.max(min, min + Math.round((value - min) / step) * step)).toFixed(4));
+    field.value = String(nearest);
+    onPanelInput({ target: field });
+    const label = field.closest('label')?.querySelector('span')?.textContent || 'This number';
+    toast('“' + label + '” can be ' + min + ' to ' + max + ', so it’s set to ' + nearest + '.');
   });
   fillForm({ all: true });
   updateProblems(currentOverlay()?.problems || []);
@@ -1359,12 +1389,12 @@ function updateSetting(key, name, value) {
 export function toggleSetting() {
   const key = SETTINGS[ui.tool];
   if (!key) return;
+  const on = !settingOn(key);
   change(() => {
-    if (!state[key]) state[key] = settingDefaults[key]();
-    else state[key].enabled = state[key].enabled === false;
+    state[key] ||= settingDefaults[key]();
+    state[key].enabled = on;
   });
   fillForm();
-  const on = state[key].enabled !== false;
   announceMessage(names[ui.tool] + (on ? ' shown.' : ' hidden.'));
 }
 export function cropDraftActive() {

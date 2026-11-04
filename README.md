@@ -133,6 +133,10 @@ shows it without building a PDF:
   their page, or selected and changed in the panel; with an item selected,
   arrow keys nudge it, Delete removes it and Enter edits text. Watermarks, headers and
   footers, and page numbers update on every page as their settings change.
+  Watermark and Page numbers show their defaults the first time they open for a
+  document (one undo step; once undone or switched off, they stay off), and
+  Headers & footers is on until it is switched off. Edge margins go from 0 to
+  100 pt; a number typed out of range is set to the nearest value allowed.
   Turning, moving and removing pages only changes the page list.
 - Every change is one undo step (typing, dragging and sliders merge into one
   step), with redo. Problems the export would report, such as a character the

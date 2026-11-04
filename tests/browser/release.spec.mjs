@@ -26,8 +26,9 @@ test('builds downloads on the page where module workers are missing', async ({ p
   await page.addInitScript(() => {
     delete window.Worker;
   });
+  // Opened on Add page numbers: they are on at once.
   await openSample(page, 'add-page-numbers-to-pdf/');
-  await page.click('[data-action="toggle-setting"]');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   const { bytes } = await download(page, () => page.click('#download-button'));
   expect((await pdfText(bytes))[2]).toContain('Page 3 of 3');
 });

@@ -19,7 +19,7 @@ test('a PDF/A-1 file downloads, and stops claiming PDF/A once content is added',
   expect(await opensWith(unchanged.bytes)).toBe('open');
   expect(await toastText(page)).toBe('Your edited PDF has been downloaded.');
   await useTool(page, 'watermark');
-  await page.click('[data-action="toggle-setting"]');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   const marked = await download(page, () => page.click('#download-button'));
   expect((await pdfText(marked.bytes))[0]).toContain('DRAFT');
   expect(await toastText(page)).toContain('no longer marked as PDF/A');
