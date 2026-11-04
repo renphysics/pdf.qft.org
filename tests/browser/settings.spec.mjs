@@ -41,12 +41,14 @@ test('Headers & footers are on before anything is typed, without counting as an 
 test('the edge margin goes down to 0; a number out of range is set to the nearest allowed', async ({ page }) => {
   await openSample(page, 'add-page-numbers-to-pdf/');
   const number = overlay(page).locator('text', { hasText: 'Page 1 of 3' });
-  // How far the page number sits above the bottom of the page, in screen pixels.
-  const gap = async () => {
-    const sheet = await page.locator('.page-view.current').boundingBox();
-    const box = await number.boundingBox();
-    return sheet.y + sheet.height - (box.y + box.height);
-  };
+  // How far the page number sits above the bottom of the page, in points. It is read from the
+  // drawing (getBBox): WebKit gives Playwright the box of SVG text at the page's top left, wherever
+  // the text is drawn.
+  const gap = () =>
+    number.evaluate((text) => {
+      const box = text.getBBox();
+      return text.ownerSVGElement.viewBox.baseVal.height - (box.y + box.height);
+    });
   const before = await gap();
   const margin = page.locator('#tool-form [name="margin"]');
   await margin.fill('5');
