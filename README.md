@@ -178,8 +178,10 @@ pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
 maintained fork with the same API (the original project's last release was
 1.17.1, in 2021). To update it, copy the new release's `dist/pdf-lib.min.js`
 to `dist/assets/vendor/`, update the version in `package.json`,
-`dist/assets/vendor/versions.json` and `scripts/asset-checksums.json`, then
-regenerate and check its notices and provenance:
+`dist/assets/vendor/versions.json` and `scripts/asset-checksums.json` (`npm run
+check` verifies every file under `dist/assets/vendor/` and `dist/assets/fonts/`
+against its size and SHA-256 there), then regenerate and check its notices and
+provenance:
 
 ```sh
 npm pack @cantoo/pdf-lib@<version>    # in an empty directory
@@ -227,7 +229,8 @@ requests are still handled by the hosting platform.
   [Forms](#forms). Forms made only in XFA are not supported.
 
 Existing paragraphs are not rewritten. Highlighting is not secure redaction.
-Existing digital signatures may be invalidated by changes. Merging, duplicating,
+A digitally signed PDF's signature is not valid in a download, as the file it
+covers has changed; the download message says so. Merging, duplicating,
 or subsetting pages from a PDF with form fields needs its fields flattened
 first; otherwise it is rejected, rather than silently dropping fields. Chinese, Japanese kana and Korean Hangul use Noto
 Sans CJK SC, drawn with its Simplified Chinese shapes (the preview and the export
@@ -246,11 +249,19 @@ removed, and nothing on a copied page brings another page along hidden in the
 file, as pdf-lib's own copying would. A bookmark whose page was left out leads to
 its first remaining sub-bookmark instead. The title, author, subject, keywords,
 creator, creation date and language come from the first PDF, and combined PDFs
-keep each PDF's bookmarks, one after another. Not carried over: page labels, file
-attachments, tags (the structure screen readers use) and layer settings, so
-content on a hidden layer shows in the copy. Edits that keep every page of one
-PDF exactly once (adding content, reordering, rotating, cropping) change the
-original document instead, so all of these stay.
+keep each PDF's bookmarks, one after another. Layer settings come along too, so
+content on a hidden layer stays hidden, and combined PDFs list every PDF's layers.
+Each copy of a duplicated page is a page of its own (`separatePages`): what is
+added to one copy shows on that copy only, and each has its own annotations. Not
+carried over: page labels other than plain numbers from 1, file attachments and
+tags (the structure screen readers use); the download message says when a copy
+leaves any of these out. Edits that keep every page of one PDF exactly once
+(adding content, reordering, rotating, cropping) change the original document
+instead, so all of these stay.
+
+A page whose PDF sets a larger unit (`/UserUnit`) is shown and edited in the
+PDF's own units, as its download is drawn: sizes such as 10 pt text are in those
+units.
 
 ## Validation
 
@@ -261,7 +272,10 @@ tests/forms.test.mjs fills and flattens a two-page form
 (`tests/fixtures/form-fields.pdf`, made by `scripts/make-form-fixture.mjs`).
 tests/copy.test.mjs deletes, extracts, combines, duplicates and splits pages of a
 document with links, named destinations, bookmarks and details, and checks with
-PDF.js where each link and bookmark leads, and that no page is hidden in the file.
+PDF.js where each link and bookmark leads, and that no page is hidden in the file;
+that each copy of a duplicated page shows only its own additions; that hidden
+layers stay hidden (by rendering with PDF.js); and the download notes about page
+labels, attachments, tags and digital signatures.
 They use the development dependencies installed by `npm ci`.
 
 Browser tests in `tests/browser/` drive the real site with
@@ -276,7 +290,8 @@ scrolling, swiping between pages; an iPhone in Chromium and in WebKit) and axe
 accessibility checks. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
-before every deployment. Locally:
+before every deployment; when one fails, the run keeps its screenshots, traces
+and HTML report for 14 days (an artifact on the run's summary page). Locally:
 
 ```sh
 npm ci

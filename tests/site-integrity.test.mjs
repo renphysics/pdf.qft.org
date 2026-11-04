@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -141,4 +142,21 @@ async function inspectDirectory(directory) {
   }
 }
 await inspectDirectory(site);
-console.log(`Static site verified: ${Object.keys(PAGES).length} pages; ${references.length} references work at the custom domain and GitHub project path; metadata, notices and distribution files are present.`);
+
+// The bundled libraries, fonts and sample are the files recorded in
+// scripts/asset-checksums.json (size and SHA-256), and every file under
+// assets/vendor and assets/fonts is recorded there.
+const checksums = JSON.parse(await readFile(path.join(root, 'scripts/asset-checksums.json'), 'utf8'));
+for (const [name, expected] of Object.entries(checksums)) {
+  const data = await readFile(path.join(site, name));
+  assert.equal(data.length, expected.bytes, `${name}: ${data.length} bytes; scripts/asset-checksums.json records ${expected.bytes}`);
+  assert.equal(createHash('sha256').update(data).digest('hex'), expected.sha256, `${name}: its SHA-256 differs from scripts/asset-checksums.json`);
+}
+for (const folder of ['assets/vendor', 'assets/fonts']) {
+  for (const entry of await readdir(path.join(site, folder), { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const name = path.relative(site, path.join(entry.parentPath, entry.name)).split(path.sep).join('/');
+    assert(name in checksums, `${name} is not recorded in scripts/asset-checksums.json`);
+  }
+}
+console.log(`Static site verified: ${Object.keys(PAGES).length} pages; ${references.length} references work at the custom domain and GitHub project path; metadata, notices and distribution files are present; ${Object.keys(checksums).length} bundled files match their checksums.`);

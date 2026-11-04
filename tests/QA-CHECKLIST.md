@@ -462,3 +462,33 @@ source review does not replace the owner’s browser verification.
 - Browser tests (`settings.spec.mjs`) for each; the tests that switched these
   settings on now check they start on.
 
+## Duplicated pages, layers, download notes — 2026-11-04
+
+- Duplicated pages: copies of a page shared one list of content streams (pdf-lib
+  copies a page's objects once), so text added to one copy, and every page number,
+  showed on all copies. It happened whenever a page's content is a list of
+  streams, as in every PDF that pdf-lib writes (including pdf.qft.org downloads);
+  the sample, one stream per page, did not show it. Now each copy has its own list
+  and its own annotations (/P, /Popup, /Parent and /IRT pointing at its own copies).
+  Engine test: different text and page numbers on two copies, read back with
+  PDF.js; it fails without the fix.
+- `/UserUnit`: PDF.js draws such a page that many times larger, so the preview
+  showed only part of it, enlarged. The preview now draws it at the editor's scale.
+  Browser test with a UserUnit 2 page (canvas pixels); fails without the fix.
+- Layers: copied pages (delete, extract, combine, duplicate, split) bring their
+  PDF's layer settings, copied with the same object copier as the pages; combined
+  PDFs' settings are merged, keeping each one's hidden layers hidden (also when a
+  PDF starts every layer off). Engine tests render with PDF.js: the hidden layer's
+  square is not drawn in any of these copies.
+- Download notes: when pages are copied into a new PDF, the download (and Extract
+  and Split) message says if it leaves out page labels (other than plain numbers
+  from 1), attached files or accessibility tags; downloading a digitally signed
+  PDF says the signature isn't valid in the copy. Long messages stay up longer
+  (60 ms per character, at least 5 seconds). Engine and browser tests.
+- `npm run check` verifies `scripts/asset-checksums.json` (208 files: sizes and
+  SHA-256), and that every file under `dist/assets/vendor` and `dist/assets/fonts`
+  is recorded; checked against a stamped release copy too. CI keeps the Playwright
+  report, screenshots and traces for 14 days when browser tests fail.
+- Known limits: page labels, attachments and tags are still not carried into
+  copies (the message says so); a combined PDF's alternate layer configurations
+  are the first PDF's only.

@@ -829,6 +829,71 @@ async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, f
 // brings another page along. Document details and bookmarks, which belong to the
 // document rather than its pages, are copied separately.
 
+/** Whether a name tree (such as /EmbeddedFiles) has any entry. */
+function nameTreeHasEntries(node, seen = new Set()) {
+  const { PDFArray, PDFDict, PDFName } = library();
+  if (!(node instanceof PDFDict) || seen.has(node)) return false;
+  seen.add(node);
+  const names = node.lookup(PDFName.of('Names'));
+  if (names instanceof PDFArray && names.size() >= 2) return true;
+  const kids = node.lookup(PDFName.of('Kids'));
+  return kids instanceof PDFArray && kids.asArray().some((_, index) => nameTreeHasEntries(kids.lookup(index), seen));
+}
+
+/** A number tree's values (such as /PageLabels), as [number, value] pairs. */
+function numberTreeEntries(node, entries = [], seen = new Set()) {
+  const { PDFArray, PDFDict, PDFName, PDFNumber } = library();
+  if (!(node instanceof PDFDict) || seen.has(node)) return entries;
+  seen.add(node);
+  const nums = node.lookup(PDFName.of('Nums'));
+  for (let index = 0; nums instanceof PDFArray && index + 1 < nums.size(); index += 2) {
+    const key = nums.lookup(index);
+    if (key instanceof PDFNumber) entries.push([key.asNumber(), nums.lookup(index + 1)]);
+  }
+  const kids = node.lookup(PDFName.of('Kids'));
+  for (let index = 0; kids instanceof PDFArray && index < kids.size(); index++) numberTreeEntries(kids.lookup(index), entries, seen);
+  return entries;
+}
+
+/**
+ * What a PDF made from copied pages leaves out of `doc` (see the notes of
+ * buildPdfWithNotes): page labels other than plain numbers from 1
+ * ('labels-dropped'), attached files ('attachments-dropped'), and tags, the
+ * structure screen readers use ('tags-dropped').
+ */
+export function copyLosses(doc) {
+  const { PDFDict, PDFName, PDFNumber } = library();
+  const losses = [];
+  const labels = numberTreeEntries(doc.catalog.lookup(PDFName.of('PageLabels')));
+  const plain = (label) =>
+    label instanceof PDFDict &&
+    label.get(PDFName.of('S')) === PDFName.of('D') &&
+    !label.has(PDFName.of('P')) &&
+    [undefined, 1].includes(label.lookupMaybe(PDFName.of('St'), PDFNumber)?.asNumber());
+  if (labels.length && !(labels.length === 1 && labels[0][0] === 0 && plain(labels[0][1]))) losses.push('labels-dropped');
+  const names = doc.catalog.lookup(PDFName.of('Names'));
+  if (names instanceof PDFDict && nameTreeHasEntries(names.lookup(PDFName.of('EmbeddedFiles')))) losses.push('attachments-dropped');
+  if (doc.catalog.lookup(PDFName.of('StructTreeRoot')) instanceof PDFDict) losses.push('tags-dropped');
+  return losses;
+}
+
+/** Whether a PDF has a digital signature: a signature field (/FT /Sig) with a value. */
+function isSigned(doc) {
+  const { PDFArray, PDFDict, PDFName } = library();
+  const form = doc.catalog.lookup(PDFName.of('AcroForm'));
+  const seen = new Set();
+  const signed = (field, type) => {
+    if (!(field instanceof PDFDict) || seen.has(field)) return false;
+    seen.add(field);
+    const fieldType = field.get(PDFName.of('FT')) || type;
+    if (fieldType === PDFName.of('Sig') && field.lookup(PDFName.of('V')) instanceof PDFDict) return true;
+    const kids = field.lookup(PDFName.of('Kids'));
+    return kids instanceof PDFArray && kids.asArray().some((_, index) => signed(kids.lookup(index), fieldType));
+  };
+  const fields = form instanceof PDFDict ? form.lookup(PDFName.of('Fields')) : null;
+  return fields instanceof PDFArray && fields.asArray().some((_, index) => signed(fields.lookup(index)));
+}
+
 const destinationNames = new WeakMap();
 
 /** A PDF's named destinations (its /Dests dictionary and /Names tree), by name. */
@@ -929,7 +994,7 @@ function rewriteFromPages(context, pages, change, set) {
  * copying and then restored, so the same source can be copied again (Split).
  */
 export async function copyPagesWithLinks(doc, source, indices) {
-  const { PDFArray, PDFDict, PDFName, PDFNull, PDFRef } = library();
+  const { PDFArray, PDFDict, PDFName, PDFNull, PDFObjectCopier, PDFPage, PDFRef } = library();
   const sourcePages = source.getPages();
   const kept = new Set(indices.map((index) => sourcePages[index].ref));
   // Decide first, as links may share one action: links to a copied page get an
@@ -974,10 +1039,23 @@ export async function copyPagesWithLinks(doc, source, indices) {
     standIns.set(name, value);
     return name;
   };
-  rewriteFromPages(source.context, [...kept].map((ref) => source.context.lookup(ref)), standIn, set);
+  // The layer settings (optional content) go with the pages: without them, every
+  // layer would show, including those hidden in this PDF.
+  const layers = source.catalog.lookup(PDFName.of('OCProperties'));
+  const roots = [...kept].map((ref) => source.context.lookup(ref));
+  rewriteFromPages(source.context, layers instanceof PDFDict ? [...roots, layers] : roots, standIn, set);
   let pages;
+  let copiedLayers = null;
   try {
-    pages = await doc.copyPages(source, indices);
+    // pdf-lib's copyPages, with a copier of our own, so that the layer settings
+    // are copied with the same one and name the layers the copied pages use.
+    await source.flush();
+    const copier = PDFObjectCopier.for(source.context, doc.context);
+    pages = indices.map((index) => {
+      const node = copier.copy(sourcePages[index].node);
+      return PDFPage.of(node, doc.context.register(node), doc);
+    });
+    if (layers instanceof PDFDict) copiedLayers = copier.copy(layers);
   } finally {
     for (const step of undo.reverse()) step();
   }
@@ -986,8 +1064,100 @@ export async function copyPagesWithLinks(doc, source, indices) {
     if (!refs.has(sourcePages[index].ref)) refs.set(sourcePages[index].ref, pages[position].ref);
   });
   const copyOf = (value) => (standIns.has(value) ? refs.get(standIns.get(value)) : undefined);
-  rewriteFromPages(doc.context, pages.map((page) => page.node), copyOf, (holder, key, value) => holder.set(key, value));
+  const copies = pages.map((page) => page.node);
+  rewriteFromPages(doc.context, copiedLayers ? [...copies, copiedLayers] : copies, copyOf, (holder, key, value) => holder.set(key, value));
+  if (copiedLayers) addLayers(doc, copiedLayers);
   return { pages, refs };
+}
+
+/**
+ * Add copied layer settings (/OCProperties) to `doc`, together with those of
+ * pages copied before from other PDFs: every layer stays listed, in each PDF's
+ * order, and a layer hidden in its PDF stays hidden. The first PDF's other
+ * settings apply.
+ */
+function addLayers(doc, layers) {
+  const { PDFArray, PDFDict, PDFName } = library();
+  const { context } = doc;
+  const key = PDFName.of('OCProperties');
+  const existing = doc.catalog.lookup(key);
+  if (!(existing instanceof PDFDict)) {
+    doc.catalog.set(key, layers);
+    return;
+  }
+  const list = (dict, name) => {
+    const value = dict instanceof PDFDict ? dict.lookup(PDFName.of(name)) : null;
+    return value instanceof PDFArray ? value.asArray() : [];
+  };
+  const join = (...arrays) => [...new Set(arrays.flat())];
+  // A layer is hidden when it is listed as off, or, in settings that start with
+  // every layer off (/BaseState /OFF), when it is not listed as on.
+  const hidden = (config, groups) => (config instanceof PDFDict && config.get(PDFName.of('BaseState')) === PDFName.of('OFF') ? groups.filter((group) => !list(config, 'ON').includes(group)) : list(config, 'OFF'));
+  const groups = [list(existing, 'OCGs'), list(layers, 'OCGs')];
+  const configs = [existing.lookup(PDFName.of('D')), layers.lookup(PDFName.of('D'))];
+  const config = configs[0] instanceof PDFDict ? configs[0] : context.obj({});
+  const off = join(hidden(configs[0], groups[0]), hidden(configs[1], groups[1]));
+  config.delete(PDFName.of('BaseState'));
+  config.delete(PDFName.of('ON'));
+  if (off.length) config.set(PDFName.of('OFF'), context.obj(off));
+  for (const name of ['Order', 'RBGroups', 'Locked', 'AS']) {
+    const values = join(list(configs[0], name), list(configs[1], name));
+    if (values.length) config.set(PDFName.of(name), context.obj(values));
+  }
+  existing.set(PDFName.of('OCGs'), context.obj(join(...groups)));
+  existing.set(PDFName.of('D'), config);
+}
+
+/**
+ * Give each page its own list of content streams and its own annotations when
+ * it shares them with an earlier page. Copies of one page do: pdf-lib copies the
+ * objects of a page once, however often the page is copied. Content added to a
+ * page goes on the end of its list, so with a shared list it would show on every
+ * copy. The streams themselves stay shared, as nothing changes them. Shared
+ * annotations are copied, each copy pointing at its own page (/P) and at the
+ * copies of its pop-up, parent and reply (/Popup, /Parent, /IRT). Form widgets
+ * stay as they are: they belong to their field.
+ */
+function separatePages(doc, pages) {
+  const { PDFArray, PDFDict, PDFName, PDFRef } = library();
+  const { context } = doc;
+  const lists = new Set();
+  const claimed = new Set();
+  for (const page of pages) {
+    const contents = page.node.lookup(PDFName.of('Contents'));
+    if (contents instanceof PDFArray) {
+      if (lists.has(contents)) page.node.set(PDFName.of('Contents'), context.obj(contents.asArray()));
+      else lists.add(contents);
+    }
+    const annots = page.node.lookup(PDFName.of('Annots'));
+    if (!(annots instanceof PDFArray)) continue;
+    const entries = annots.asArray();
+    const dictOf = (entry) => (entry instanceof PDFRef ? context.lookup(entry) : entry);
+    const shared = (entry) => {
+      const annotation = dictOf(entry);
+      return annotation instanceof PDFDict && claimed.has(annotation) && annotation.get(PDFName.of('Subtype')) !== PDFName.of('Widget');
+    };
+    if (entries.some(shared)) {
+      // The copies, by the reference (or direct dictionary) they replace.
+      const copies = new Map();
+      for (const entry of entries.filter(shared)) {
+        const copy = dictOf(entry).clone(context);
+        copy.set(PDFName.of('P'), page.ref);
+        copies.set(entry, entry instanceof PDFRef ? { copy, entry: context.register(copy) } : { copy, entry: copy });
+      }
+      for (const { copy } of copies.values()) {
+        for (const key of ['Popup', 'Parent', 'IRT']) {
+          const target = copies.get(copy.get(PDFName.of(key)));
+          if (target) copy.set(PDFName.of(key), target.entry);
+        }
+      }
+      page.node.set(PDFName.of('Annots'), context.obj(entries.map((entry) => copies.get(entry)?.entry ?? entry)));
+    }
+    for (const entry of page.node.lookup(PDFName.of('Annots')).asArray()) {
+      const annotation = dictOf(entry);
+      if (annotation instanceof PDFDict) claimed.add(annotation);
+    }
+  }
 }
 
 /** Read a document detail, or nothing when it is damaged. */
@@ -1165,8 +1335,12 @@ function protectionPassword(protection) {
  * The source declared PDF/A, and the copy no longer does: 'pdfa-removed'
  * because of the added content (PDF/A forbids standard fonts that are not
  * embedded, and PDF/A-1 also forbids transparency), 'pdfa-removed-password'
- * because PDF/A forbids encryption. state.protection, when on, makes the copy
- * need its password ({ enabled, password }).
+ * because PDF/A forbids encryption. When pages are copied into a new PDF
+ * (deleting, extracting, combining, duplicating), what the new PDF leaves out
+ * of the sources: 'labels-dropped', 'attachments-dropped', 'tags-dropped' (see
+ * copyLosses). 'signature-invalid': a source was digitally signed, and the
+ * signature does not match the changed file. state.protection, when on, makes
+ * the copy need its password ({ enabled, password }).
  */
 export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const lib = await loadPdfLib();
@@ -1189,6 +1363,9 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     }
     rotation(descriptor.rotation || 0);
   }
+  // Before flattening, which removes signature fields with the others.
+  const signed = needed.some((id) => isSigned(loaded.get(id)));
+  const losses = new Set();
   // Forms: the values typed in Fill form, and flattening (fields become page
   // content, so their pages can also be combined with others).
   const fontManagers = new Map();
@@ -1262,7 +1439,9 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     // The first PDF's details, and every PDF's bookmarks to pages that are kept.
     copyDocumentInfo(doc, loaded.get(descriptors[0].sourceId));
     copyBookmarks(doc, parts);
+    for (const id of needed) copyLosses(loaded.get(id)).forEach((loss) => losses.add(loss));
   }
+  separatePages(doc, outputPages);
   const getFont = fontsFor(doc);
   const annotations = state.annotations || [];
   const total = outputPages.length;
@@ -1296,7 +1475,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  const notes = [];
+  const notes = [...losses];
   // New field appearances use fonts that PDF/A requires to be embedded.
   added ||= formFilled;
   const properties = state.properties;
@@ -1310,6 +1489,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   }
   if (properties) applyProperties(doc, properties);
   if (password) protectDocument(doc, password);
+  if (signed) notes.push('signature-invalid');
   // Object streams keep files small, but PDF/A-1 forbids them. Field appearances
   // are made above, in fonts that have their characters.
   const output = await doc.save({ useObjectStreams: pdfa !== 1, updateFieldAppearances: false });

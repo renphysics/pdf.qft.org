@@ -1,5 +1,5 @@
 /** Reusable, browser-local PDF workflows. No document data is persisted here. */
-import { inspectPdf, buildPdf, parsePageRange, loadPdfLib, loadPdf, protectDocument, passwordProblem, copyPagesWithLinks, copyDocumentInfo, copyBookmarks } from './pdf-engine.js';
+import { inspectPdf, buildPdf, parsePageRange, loadPdfLib, loadPdf, protectDocument, passwordProblem, copyPagesWithLinks, copyDocumentInfo, copyBookmarks, copyLosses } from './pdf-engine.js';
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -147,7 +147,8 @@ function cancelled(shouldCancel) {
 }
 
 /** Copy already-edited page contents. Printed page numbers are not regenerated.
- * `password`: protect every output PDF with it.
+ * `password`: protect every output PDF with it. Returns { parts, notes }: the
+ * PDFs, and what they leave out of the PDF split (see copyLosses).
  */
 export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCancel = () => false, password = null } = {}) {
   cancelled(shouldCancel);
@@ -184,7 +185,7 @@ export async function splitPdf(bytes, groups, { onProgress = () => {}, shouldCan
     if (index < groups.length - 1) await new Promise(resolve => setTimeout(resolve, 0));
   }
   cancelled(shouldCancel);
-  return outputs;
+  return { parts: outputs, notes: copyLosses(source) };
 }
 
 /** Process one file using a repeatable recipe, resetting numbering per file. */

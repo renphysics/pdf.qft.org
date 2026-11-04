@@ -60,7 +60,7 @@ import {
 import { formPanel, updateFormSummary } from './form-ui.js';
 import { deselect, inlineEditor, selectItem, setFrame } from './page-items.js';
 import { setSheet, splitFormProblem } from './pages.js';
-import { downloadBytes, exportDocument, outputName, relayoutPictures, showExportError } from './documents.js';
+import { downloadBytes, exportDocument, exportNotes, outputName, relayoutPictures, showExportError } from './documents.js';
 import { action, change } from './app.js';
 
 // ---- The tool panel ---------------------------------------------------------------
@@ -1610,11 +1610,11 @@ async function generateSplit() {
     if (problem) throw new Error(problem);
     // Each part is protected on its own, so the document is split unprotected.
     const password = protectedDownload() ? state.protection.password : null;
-    const { bytes } = await exportDocument(password ? { ...snapshot(), protection: null } : null);
+    const { bytes, notes } = await exportDocument(password ? { ...snapshot(), protection: null } : null);
     ui.cancelOperation = false;
     busy(true, 'Creating split PDFs…');
     cancellable('Cancel splitting', null);
-    const outputs = await splitPdf(bytes, groups, {
+    const { parts: outputs, notes: losses } = await splitPdf(bytes, groups, {
       password,
       onProgress: (value) => {
         $('#busy-message').textContent = 'Creating split PDFs… ' + Math.round(value * 100) + '%';
@@ -1633,7 +1633,9 @@ async function generateSplit() {
         ' PDF' +
         (outputs.length === 1 ? ' is' : 's are') +
         ' ready to download.' +
-        (password ? (outputs.length === 1 ? ' It needs' : ' Each needs') + ' your password to open.' : ''),
+        (password ? (outputs.length === 1 ? ' It needs' : ' Each needs') + ' your password to open.' : '') +
+        // PDF/A: split parts are new PDFs, which never declare it.
+        exportNotes([...notes.filter((note) => note === 'signature-invalid'), ...losses], { several: outputs.length > 1 }),
     );
   } catch (error) {
     if (error.name === 'AbortError') toast('Splitting cancelled. Your document is unchanged.');
