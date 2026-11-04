@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const runtime = path.resolve(here, '../node_modules');
 globalThis.PDFLib = require(path.join(runtime, '@cantoo/pdf-lib'));
 globalThis.fontkit = require(path.join(runtime, '@cantoo/fontkit'));
-const { DOMMatrix, ImageData, Path2D } = require(path.join(runtime, '@napi-rs/canvas'));
+const { DOMMatrix, ImageData, Path2D, createCanvas } = require(path.join(runtime, '@napi-rs/canvas'));
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 const nativeFetch = globalThis.fetch;
 globalThis.fetch = async (url, options) => {
@@ -27,7 +27,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { buildPdf } = await import('../dist/pdf-engine.js');
+const { buildPdf, buildPdfWithNotes } = await import('../dist/pdf-engine.js');
 const { splitPdf } = await import('../dist/workflows.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, PDFDict, PDFHexString, PDFName, PDFNull, PDFNumber, PDFString, StandardFonts, decodePDFRawStream, PDFRawStream } = globalThis.PDFLib;
@@ -236,9 +236,52 @@ const duplicated = await build([0, 0, 1, 2, 3, 4, 5].map((index) => ['lecture', 
 assert.deepEqual(await pageObjects(duplicated), { stored: 7, pages: 7 });
 assert.deepEqual((await read(duplicated)).outline.map((item) => [item.title, item.to]), [['1 Introduction', 2], ['2 Fields', 5], ['Website', WEB]], 'bookmarks lead to the first copy');
 
+// Each copy of a duplicated page is a page of its own: what is added to one copy,
+// and its page number, show on that copy only; each has its own link, note and
+// pop-up. (pdf-lib writes a page's content as a list of streams, which pdf-lib's
+// copying shares between the copies, so this page shows the problem.)
+const single = await (async () => {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([400, 500]);
+  page.drawText('ORIGINAL', { x: 40, y: 440, size: 16 });
+  const { context } = doc;
+  const [link, note, popup] = [0, 1, 2].map(() => context.nextRef());
+  context.assign(link, context.obj({ Type: 'Annot', Subtype: 'Link', Rect: [40, 300, 200, 312], Border: [0, 0, 0], A: { S: 'URI', URI: PDFString.of(WEB) } }));
+  context.assign(note, context.obj({ Type: 'Annot', Subtype: 'Text', Rect: [300, 400, 320, 420], Contents: PDFHexString.fromText('Note'), P: page.ref, Popup: popup }));
+  context.assign(popup, context.obj({ Type: 'Annot', Subtype: 'Popup', Rect: [320, 320, 400, 400], Parent: note, P: page.ref }));
+  page.node.set(PDFName.of('Annots'), context.obj([link, note, popup]));
+  return doc.save();
+})();
+const twice = await buildPdf({
+  sources: [{ id: 'single', bytes: single }],
+  pages: [{ id: 'first', sourceId: 'single', index: 0 }, { id: 'second', sourceId: 'single', index: 0 }],
+  annotations: [{ id: 'mark', pageId: 'second', type: 'text', text: 'ONLY-SECOND', fontSize: 14, color: '#000000', x: 0.1, y: 0.3, opacity: 1, align: 'left', autoWidth: true }],
+  pageNumbers: { enabled: true, format: 'Number {page}', start: 1, size: 10, color: '#000000', margin: 28, position: 'bottom-right', pages: 'all' },
+});
+{
+  const doc = await pdfjs.getDocument({ data: twice.slice(), verbosity: 0 }).promise;
+  const texts = [];
+  for (let number = 1; number <= doc.numPages; number++) texts.push((await (await doc.getPage(number)).getTextContent()).items.map((item) => item.str).filter((text) => text.trim()));
+  await doc.loadingTask.destroy();
+  assert.deepEqual(texts, [['ORIGINAL', 'Number 1'], ['ORIGINAL', 'ONLY-SECOND', 'Number 2']], 'each copy shows its own additions only');
+}
+assert.deepEqual((await read(twice)).links, [[WEB], [WEB]], 'each copy keeps the link');
+{
+  const doc = await PDFDocument.load(twice);
+  const annots = doc.getPages().map((page) => page.node.Annots().asArray());
+  assert.equal(new Set(annots.flat()).size, 6, 'each copy has its own three annotations');
+  doc.getPages().forEach((page, index) => {
+    const [, note, popup] = annots[index];
+    assert.equal(doc.context.lookup(note).get(PDFName.of('P')), page.ref, `the note on copy ${index + 1} belongs to it`);
+    assert.equal(doc.context.lookup(note).get(PDFName.of('Popup')), popup, `the note on copy ${index + 1} opens its own pop-up`);
+    assert.equal(doc.context.lookup(popup).get(PDFName.of('Parent')), note);
+    assert.equal(doc.context.lookup(popup).get(PDFName.of('P')), page.ref);
+  });
+}
+
 // ---- Splitting, with parts that share a page --------------------------------------------------
 
-const [first, second] = await splitPdf(lecture, [[0, 1], [1, 2, 3, 5]]);
+const { parts: [first, second] } = await splitPdf(lecture, [[0, 1], [1, 2, 3, 5]]);
 assert.deepEqual(await pageObjects(first), { stored: 2, pages: 2 });
 assert.deepEqual(await pageObjects(second), { stored: 4, pages: 4 });
 assert.equal((await PDFDocument.load(first)).getTitle(), 'Lecture notes — part 1');
@@ -259,6 +302,102 @@ assert.deepEqual(await read(second), {
 });
 assert.equal(await fileHas(first, 'PAGE-3-TEXT'), false, 'part 1 does not carry page 3');
 
+// ---- Layers: what is hidden stays hidden -----------------------------------------------------
+
+/**
+ * A two-page PDF whose pages each have a square on a shown layer and one on a
+ * hidden layer: hidden by being listed as off, or (baseOff) by every layer
+ * starting off but the shown one.
+ */
+async function layeredPdf([shownName, hiddenName], { baseOff = false } = {}) {
+  const doc = await PDFDocument.create();
+  const { context } = doc;
+  const [shown, hidden] = [shownName, hiddenName].map((name) => context.register(context.obj({ Type: 'OCG', Name: PDFHexString.fromText(name) })));
+  for (let number = 0; number < 2; number++) {
+    const page = doc.addPage([400, 500]);
+    page.node.set(PDFName.of('Resources'), context.obj({ Properties: { shown, hidden } }));
+    page.node.set(PDFName.of('Contents'), context.register(context.stream('/OC /shown BDC 0 g 40 340 100 100 re f EMC /OC /hidden BDC 0 g 240 340 100 100 re f EMC')));
+  }
+  const config = baseOff ? { BaseState: 'OFF', ON: [shown], Order: [shown, hidden] } : { OFF: [hidden], Order: [shown, hidden] };
+  doc.catalog.set(PDFName.of('OCProperties'), context.obj({ OCGs: [shown, hidden], D: config }));
+  return doc.save();
+}
+
+/** For each page, as PDF.js draws it: whether its shown and its hidden square are drawn. */
+async function drawnSquares(bytes) {
+  const doc = await pdfjs.getDocument({ data: bytes.slice(), verbosity: 0 }).promise;
+  const result = [];
+  for (let number = 1; number <= doc.numPages; number++) {
+    const page = await doc.getPage(number);
+    const viewport = page.getViewport({ scale: 1 });
+    const surface = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+    await page.render({ canvasContext: surface.getContext('2d'), viewport, canvas: surface }).promise;
+    const dark = (x, y) => {
+      const [red, , , alpha] = surface.getContext('2d').getImageData(x, viewport.height - y, 1, 1).data;
+      return alpha > 128 && red < 128;
+    };
+    result.push([dark(90, 390), dark(290, 390)]);
+  }
+  await doc.loadingTask.destroy();
+  return result;
+}
+
+const questions = await layeredPdf(['Questions', 'Answers']);
+const solutions = await layeredPdf(['Hints', 'Key'], { baseOff: true });
+assert.deepEqual(await drawnSquares(questions), [[true, false], [true, false]], 'PDF.js draws the shown layer only');
+assert.deepEqual(await drawnSquares(solutions), [[true, false], [true, false]]);
+const buildLayers = (pageList) =>
+  buildPdf({
+    sources: [{ id: 'questions', bytes: questions }, { id: 'solutions', bytes: solutions }],
+    pages: pageList.map(([sourceId, index], position) => ({ id: `page${position}`, sourceId, index })),
+  });
+assert.deepEqual(await drawnSquares(await buildLayers([['questions', 1]])), [[true, false]], 'a page deleted: the hidden layer stays hidden');
+assert.deepEqual(await drawnSquares(await buildLayers([['questions', 0], ['questions', 0]])), [[true, false], [true, false]], 'a page duplicated');
+const layersCombined = await buildLayers([['questions', 0], ['solutions', 0], ['solutions', 1]]);
+assert.deepEqual(await drawnSquares(layersCombined), [[true, false], [true, false], [true, false]], 'two PDFs combined: each one’s hidden layer stays hidden');
+{
+  const doc = await pdfjs.getDocument({ data: layersCombined.slice(), verbosity: 0 }).promise;
+  const config = await doc.getOptionalContentConfig();
+  assert.deepEqual([...config].map(([, group]) => [group.name, group.visible]), [['Questions', true], ['Answers', false], ['Hints', true], ['Key', false]], 'every layer is listed, as it was');
+  await doc.loadingTask.destroy();
+}
+const { parts: [layerPart] } = await splitPdf(questions, [[1]]);
+assert.deepEqual(await drawnSquares(layerPart), [[true, false]], 'a split part');
+
+// ---- Notes: what a copy leaves out, and digital signatures -----------------------------------
+
+/** A three-page PDF with `extra` set in its catalog, and a file attached if `attach`. */
+async function catalogPdf(extra, { attach = false } = {}) {
+  const doc = await PDFDocument.create();
+  for (let number = 1; number <= 3; number++) doc.addPage([300, 300]).drawText(`PAGE-${number}`, { x: 40, y: 150, size: 16 });
+  for (const [key, value] of Object.entries(extra)) doc.catalog.set(PDFName.of(key), doc.context.obj(value));
+  if (attach) await doc.attach(new TextEncoder().encode('x,y\n1,2\n'), 'data.csv', { mimeType: 'text/csv' });
+  return doc.save();
+}
+const notesOf = async (bytes, indices) =>
+  (await buildPdfWithNotes({ sources: [{ id: 'source', bytes }], pages: indices.map((index) => ({ id: `page${index}`, sourceId: 'source', index })) })).notes.sort();
+const front = { PageLabels: { Nums: [0, { S: 'r' }, 2, { S: 'D' }] } };
+const everything = await catalogPdf({ ...front, StructTreeRoot: { Type: 'StructTreeRoot' }, MarkInfo: { Marked: true } }, { attach: true });
+assert.deepEqual(await notesOf(everything, [0, 1]), ['attachments-dropped', 'labels-dropped', 'tags-dropped'], 'a page deleted: the copy says what it leaves out');
+assert.deepEqual(await notesOf(everything, [2, 1, 0]), [], 'pages only reordered: the PDF itself is kept, with all of these');
+assert.deepEqual(await notesOf(await catalogPdf({ PageLabels: { Nums: [0, { S: 'D' }] } }), [0, 1]), [], 'labels that are plain numbers from 1 are not missed');
+assert.deepEqual(await notesOf(await catalogPdf({ PageLabels: { Nums: [0, { S: 'D', St: 5 }] } }), [0, 1]), ['labels-dropped'], 'numbers starting at 5 are');
+assert.deepEqual(await notesOf(await catalogPdf({ PageLabels: { Nums: [0, { S: 'D', St: PDFString.of('one') }] } }), [0, 1]), ['labels-dropped'], 'a damaged label is noted, and does not stop the download');
+assert.deepEqual((await splitPdf(everything, [[0], [1, 2]])).notes.sort(), ['attachments-dropped', 'labels-dropped', 'tags-dropped'], 'split parts say it too');
+/** A one-page PDF with a signature field, signed (with a value) or not. */
+async function signaturePdf(signed) {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([300, 300]);
+  const { context } = doc;
+  const value = context.register(context.obj({ Type: 'Sig', Filter: 'Adobe.PPKLite', SubFilter: 'adbe.pkcs7.detached', ByteRange: [0, 10, 20, 30], Contents: PDFHexString.of('00') }));
+  const field = context.register(context.obj({ Type: 'Annot', Subtype: 'Widget', FT: 'Sig', T: PDFString.of('Signature1'), Rect: [0, 0, 0, 0], F: 132, P: page.ref, ...(signed ? { V: value } : {}) }));
+  page.node.set(PDFName.of('Annots'), context.obj([field]));
+  doc.catalog.set(PDFName.of('AcroForm'), context.obj({ Fields: [field], SigFlags: 3 }));
+  return doc.save();
+}
+assert.deepEqual(await notesOf(await signaturePdf(true), [0]), ['signature-invalid'], 'a signed PDF: its signature no longer matches the file');
+assert.deepEqual(await notesOf(await signaturePdf(false), [0]), [], 'an empty signature field is not a signature');
+
 assert.deepEqual([fingerprint(lecture), fingerprint(appendix)], before, 'the source PDFs are untouched');
 
-console.log(JSON.stringify({ status: 'passed', checks: ['deleted page: details, language, viewer settings and bookmarks kept; links to kept pages work, named destinations resolved; the deleted page is not in the file', 'extracted page: no other page hidden in the file (links, page actions)', 'combined: each linked page stored once, links and bookmarks lead to the right pages, bookmarks of both PDFs, details from the first', 'reordered and duplicated pages', 'split parts with a shared page: each part has its own links and bookmarks'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['deleted page: details, language, viewer settings and bookmarks kept; links to kept pages work, named destinations resolved; the deleted page is not in the file', 'extracted page: no other page hidden in the file (links, page actions)', 'combined: each linked page stored once, links and bookmarks lead to the right pages, bookmarks of both PDFs, details from the first', 'reordered and duplicated pages; each copy of a duplicated page shows only its own additions and has its own annotations', 'split parts with a shared page: each part has its own links and bookmarks', 'layers hidden in a PDF stay hidden when pages are deleted, duplicated, combined or split', 'notes: page labels, attached files and tags a copy leaves out; a digital signature no longer valid'] }, null, 2));

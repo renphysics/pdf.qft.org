@@ -63,3 +63,13 @@ jobs:
         run: npm run test:browser
         env:
           BROWSERS: ${{ matrix.browser }}
+      # When a test fails: its screenshots and traces, and the HTML report, to
+      # download from the run's summary page.
+      - name: Keep the test report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: tests/output/
+          retention-days: 14
+          if-no-files-found: ignore

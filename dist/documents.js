@@ -165,14 +165,29 @@ export function outputName(
   const base = sources.length === 1 ? sources[0].name.replace(/\.(pdf|jpe?g|png)$/i, '') : 'combined';
   return base + '-' + suffix + '.pdf';
 }
-/** What a download message adds about the file, from the build's notes. */
-function exportNotes(notes) {
+/**
+ * What a download message adds about the file, or the files of a split
+ * (`several`), from the build's notes (see buildPdfWithNotes).
+ */
+export function exportNotes(notes, { several = false } = {}) {
   const reasons = [
     notes.includes('pdfa-removed-password') && 'PDF/A files can’t have a password',
     notes.includes('pdfa-removed') && 'added text and marks don’t meet PDF/A rules',
     notes.includes('pdfa-removed-properties') && 'changing its details removes the metadata that declares PDF/A',
   ].filter(Boolean);
-  return reasons.length ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.' : '';
+  const left = [
+    notes.includes('labels-dropped') && 'page labels (such as i, ii, iii)',
+    notes.includes('attachments-dropped') && 'attached files',
+    notes.includes('tags-dropped') && 'accessibility tags',
+  ].filter(Boolean);
+  let text = reasons.length ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.' : '';
+  if (left.length) {
+    const list = left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left.at(-1) : left[0];
+    text += (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') + ', without the original’s ' + list + '.';
+  }
+  if (notes.includes('signature-invalid'))
+    text += ' The original was digitally signed: its signature isn’t valid in ' + (several ? 'these copies.' : 'this copy.');
+  return text;
 }
 export async function downloadDocument() {
   try {
@@ -214,14 +229,15 @@ export async function downloadSelected() {
     extraction.pages = extraction.pages.filter((p) => ids.has(p.id));
     const problem = formProblem(extraction.pages);
     if (problem) throw new Error(problem);
-    const { bytes } = await exportDocument(extraction, 'Preparing selected pages…');
+    const { bytes, notes } = await exportDocument(extraction, 'Preparing selected pages…');
     downloadBytes(bytes, outputName('selected'));
     toast(
       extraction.pages.length +
         ' selected page' +
         (extraction.pages.length === 1 ? '' : 's') +
         ' downloaded.' +
-        (protectedDownload() ? ' The PDF needs your password to open.' : ''),
+        (protectedDownload() ? ' The PDF needs your password to open.' : '') +
+        exportNotes(notes),
     );
   } catch (error) {
     showExportError(error);

@@ -129,7 +129,7 @@ await writeFile(path.join(outputDir, 'workflow-batch.pdf'), processed);
 const processedCopy = processed.slice();
 const groups = planSplit({ mode: 'ranges', ranges: '3,1;2,4-5' }, 5);
 const splitProgress = [];
-const outputs = await splitPdf(processed, groups, { onProgress: fraction => splitProgress.push(fraction) });
+const { parts: outputs } = await splitPdf(processed, groups, { onProgress: fraction => splitProgress.push(fraction) });
 assert.equal(outputs.length, 2);
 assert.deepEqual(processed, processedCopy, 'Splitting does not mutate edited PDF input');
 assert.equal(splitProgress.at(-1), 1);
@@ -156,7 +156,7 @@ await assert.rejects(splitPdf(source, [[0], [1]], { onProgress: fraction => { if
 
 // Split parts can need a password; batches open PDFs that only restrict changes,
 // and explain that a PDF needing a password must be unlocked in the editor first.
-const protectedParts = await splitPdf(processed, [[0], [1, 2]], { password: 'part secret' });
+const { parts: protectedParts } = await splitPdf(processed, [[0], [1, 2]], { password: 'part secret' });
 for (const part of protectedParts) {
   assert.equal(await PDFDocument.load(part).then(() => 'opened', (error) => error.constructor.name), 'EncryptedPDFError', 'Each part is encrypted');
   const task = pdfjs.getDocument({ data: part.slice(), verbosity: 0 });

@@ -343,7 +343,8 @@ export function positionToast() {
 export function scheduleToastHide() {
   clearTimeout(ui.toastTimer);
   if ($('#toast').hidden || $('#toast').classList.contains('error')) return;
-  ui.toastTimer = setTimeout(hideToast, 5000);
+  // Five seconds, and longer for longer messages (about 17 characters a second).
+  ui.toastTimer = setTimeout(hideToast, Math.max(5000, $('#toast-message').textContent.length * 60));
 }
 export function hideToast() {
   clearTimeout(ui.toastTimer);

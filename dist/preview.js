@@ -260,8 +260,11 @@ export function renderPage(state, descriptor, scale, { forms = false } = {}) {
     const geometry = pageGeometry(info, descriptor);
     const full = boxGeometry(info.box, angle);
     const margins = cropMarginsForRotation(descriptor.crop, descriptorRotation);
+    // PDF.js draws a page whose PDF sets a larger unit (/UserUnit) that much
+    // larger. The editor measures pages in the PDF's own units, as the export
+    // draws on them, so the page is drawn at the editor's scale.
     const viewport = page.getViewport({
-      scale,
+      scale: scale / (page.userUnit || 1),
       rotation: angle,
       offsetX: -margins.left * full.width * scale,
       offsetY: -margins.top * full.height * scale,

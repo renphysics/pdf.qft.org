@@ -132,3 +132,45 @@ test('on Unlock PDF, a file opened with its password downloads without one', asy
   expect(await opensWith(copy.bytes)).toBe('open');
   expect(await pdfText(copy.bytes)).toEqual(['Secret page 1', 'Secret page 2']);
 });
+
+test('a page whose PDF sets a larger unit (UserUnit) shows whole', async ({ page }) => {
+  // 400 × 500 units of 2 points: a black square fills the bottom right corner.
+  const pdf = await PDFLib.PDFDocument.create();
+  const sheet = pdf.addPage([400, 500]);
+  sheet.node.set(PDFLib.PDFName.of('UserUnit'), PDFLib.PDFNumber.of(2));
+  sheet.drawRectangle({ x: 300, y: 0, width: 100, height: 100, color: PDFLib.rgb(0, 0, 0) });
+  await openFiles(page, await writeTemporary('user-unit.pdf', await pdf.save()));
+  const canvas = page.locator('.page-view.current canvas');
+  const red = (x, y) => canvas.evaluate((node, [x, y]) => node.getContext('2d').getImageData(Math.floor(node.width * x), Math.floor(node.height * y), 1, 1).data[0], [x, y]);
+  expect(await red(0.9, 0.9), 'the corner square').toBeLessThan(60);
+  expect(await red(0.6, 0.9), 'beside the square').toBeGreaterThan(200);
+  expect(await red(0.25, 0.25), 'the top left').toBeGreaterThan(200);
+});
+
+test('the download says what a copy leaves out, and that a signature no longer holds', async ({ page }) => {
+  // Roman page labels for the first page, and tags: deleting a page copies the others into a new PDF.
+  const labelled = await PDFLib.PDFDocument.create();
+  for (const text of ['Contents', 'Chapter 1', 'Chapter 2']) labelled.addPage([400, 300]).drawText(text, { x: 40, y: 200, size: 18 });
+  labelled.catalog.set(PDFLib.PDFName.of('PageLabels'), labelled.context.obj({ Nums: [0, { S: 'r' }, 1, { S: 'D' }] }));
+  labelled.catalog.set(PDFLib.PDFName.of('StructTreeRoot'), labelled.context.obj({ Type: 'StructTreeRoot' }));
+  await openFiles(page, await writeTemporary('labelled.pdf', await labelled.save()));
+  await useTool(page, 'delete');
+  await page.click('[data-action="select-none"]');
+  await page.locator('[data-page-select]').nth(0).check();
+  await page.click('[data-action="delete-pages"]');
+  await download(page, () => page.click('#download-button'));
+  expect(await toastText(page)).toBe('Your edited PDF has been downloaded. Its pages were copied into a new PDF, without the original’s page labels (such as i, ii, iii) and accessibility tags.');
+
+  // A signed PDF: any download changes the file its signature covers.
+  const signed = await PDFLib.PDFDocument.create();
+  const sheet = signed.addPage([400, 300]);
+  sheet.drawText('Signed agreement', { x: 40, y: 200, size: 18 });
+  const { context } = signed;
+  const value = context.register(context.obj({ Type: 'Sig', Filter: 'Adobe.PPKLite', SubFilter: 'adbe.pkcs7.detached', ByteRange: [0, 10, 20, 30], Contents: PDFLib.PDFHexString.of('00') }));
+  const field = context.register(context.obj({ Type: 'Annot', Subtype: 'Widget', FT: 'Sig', T: PDFLib.PDFString.of('Signature1'), Rect: [0, 0, 0, 0], F: 132, P: sheet.ref, V: value }));
+  sheet.node.set(PDFLib.PDFName.of('Annots'), context.obj([field]));
+  signed.catalog.set(PDFLib.PDFName.of('AcroForm'), context.obj({ Fields: [field], SigFlags: 3 }));
+  await openFiles(page, await writeTemporary('signed.pdf', await signed.save()));
+  await download(page, () => page.click('#download-button'));
+  expect(await toastText(page)).toBe('Your edited PDF has been downloaded. The original was digitally signed: its signature isn’t valid in this copy.');
+});
