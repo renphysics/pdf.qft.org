@@ -29,7 +29,7 @@ test('the page comes first, and tapping it adds text', async ({ page }) => {
   await page.keyboard.press('Escape');
   expect(await overlayLines(page)).toEqual(['Signed on site']);
   await page.locator('.tool-tabs [data-tool="watermark"]').click();
-  await page.click('[data-action="toggle-setting"]');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('.page-view.current .page-overlay')).toContainText('DRAFT');
 });
 

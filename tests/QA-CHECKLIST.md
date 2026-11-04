@@ -443,3 +443,22 @@ source review does not replace the owner’s browser verification.
   is straight segments between points two screen pixels apart; layer settings and
   the other copy limits above still apply.
 
+## Page strip, settings defaults and margins — 2026-11-04
+
+- The page strip no longer has Move earlier/Move later arrows under each thumbnail
+  (phones already hid them). Pages move by dragging in the strip, or with Move
+  earlier and Move later under Current page in Organize pages.
+- Watermark and Page numbers are on when they first open for a document: the
+  default watermark and page numbers show at once, as one undo step. Undone or
+  switched off, they stay off when the tool opens again. Opening a PDF on Add page
+  numbers or Add watermark shows them at once. Headers & footers reads On before
+  anything is typed, without counting as an edit (it draws nothing until then).
+- The {page}/{total} note gives an example: “Page {page} of {total}” shows as
+  “Page 2 of 5”.
+- Edge margins for headers, footers and page numbers go from 0 to 100 pt (they
+  started at 12 in the panel and batch presets, and 4 in the layout). A number
+  typed out of range used to go back silently to the value in use; it is now set
+  to the nearest value allowed, with a message.
+- Browser tests (`settings.spec.mjs`) for each; the tests that switched these
+  settings on now check they start on.
+

@@ -370,7 +370,7 @@ export function layoutWatermark(setting, geometry, font, text) {
 }
 
 function edgeMargin(setting, geometry) {
-  return number(setting.margin, 28, 4, Math.min(geometry.width, geometry.height) / 3);
+  return number(setting.margin, 28, 0, Math.min(geometry.width, geometry.height) / 3);
 }
 
 /** The header and footer texts for one page, before measuring. */

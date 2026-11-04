@@ -853,9 +853,6 @@ textarea:focus-visible {
   .page-sidebar {
     padding: 15px 16px;
   }
-  .page-move .icon-button {
-    min-height: 36px;
-  }
   .split-result strong {
     font-size: var(--text-base);
   }
@@ -1459,10 +1456,6 @@ summary:focus-visible {
   width: 18px;
   height: 18px;
 }
-.page-move .icon-button {
-  width: 32px;
-  height: 28px;
-}
 /* Phone-only controls. */
 .tool-tabs,
 .sheet-toggle,
@@ -1645,10 +1638,6 @@ summary:focus-visible {
   .page-item-foot input {
     width: 20px;
     height: 20px;
-  }
-  /* Pages move with the panel's Move earlier and Move later buttons. */
-  .page-move {
-    display: none;
   }
   .tool-sidebar {
     order: 3;

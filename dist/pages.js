@@ -27,7 +27,7 @@ import {
 import { renderEditLayers, renderStage, scrollToPage, updateCurrentPage } from './page-view.js';
 import { sourceOf } from './form-ui.js';
 import { endGesture, stopEditing } from './page-items.js';
-import { renderTool, updateDeletionMarks } from './tool-panel.js';
+import { renderTool, showSettingDefaults, updateDeletionMarks } from './tool-panel.js';
 import { change, recordView } from './app.js';
 
 // ---- Pages -------------------------------------------------------------------------
@@ -172,23 +172,7 @@ export function renderPages() {
         (ui.selected.has(page.id) ? ' checked' : '') +
         '><span>' +
         (index + 1) +
-        '</span></label></div><span class="delete-badge" hidden>Delete</span><div class="page-move"><button class="icon-button" data-move-page="' +
-        page.id +
-        '" data-direction="-1" aria-label="Move page ' +
-        (index + 1) +
-        ' earlier"' +
-        (index === 0 ? ' disabled' : '') +
-        '>' +
-        icon('up') +
-        '</button><button class="icon-button" data-move-page="' +
-        page.id +
-        '" data-direction="1" aria-label="Move page ' +
-        (index + 1) +
-        ' later"' +
-        (index === state.pages.length - 1 ? ' disabled' : '') +
-        '>' +
-        icon('down') +
-        '</button></div></div>',
+        '</span></label></div><span class="delete-badge" hidden>Delete</span></div>',
     )
     .join('');
   updateDeletionMarks();
@@ -346,6 +330,7 @@ export function chooseTool(tool) {
   endGesture();
   if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
   ui.tool = tool;
+  showSettingDefaults();
   if (tool === 'crop') ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
   if (phone()) setSheet(true);
   renderTool();

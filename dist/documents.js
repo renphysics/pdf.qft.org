@@ -26,7 +26,7 @@ import {
 import { resetStage } from './page-view.js';
 import { documentFields, focusField } from './form-ui.js';
 import { selectItem, stopEditing } from './page-items.js';
-import { protectedDownload, renderTool, unlockedDownload, updateProtectionStatus } from './tool-panel.js';
+import { protectedDownload, renderTool, showSettingDefaults, unlockedDownload, updateProtectionStatus } from './tool-panel.js';
 import { choosePage, chooseTool, formProblem, selectedIds, setSheet } from './pages.js';
 import { addImageFile, batch, change, documentChanged, recordView } from './app.js';
 
@@ -541,6 +541,7 @@ export async function openFiles(files, append = false) {
       ui.scopeErrors = {};
       ui.splitResults = null;
       ui.lastCropPreset = null;
+      ui.shownSettings = new Set();
       ui.image = null;
       ui.zoom = 1;
       resetStage();
@@ -550,6 +551,8 @@ export async function openFiles(files, append = false) {
       if (phone()) setSheet(!['text', 'highlight', 'draw'].includes(ui.tool));
       showWorkspace();
       documentChanged(true);
+      // Opened on Watermark or Page numbers: theirs show at once.
+      showSettingDefaults();
       renderTool();
       ui.focusKey = '#document-name';
       recordView('editor');

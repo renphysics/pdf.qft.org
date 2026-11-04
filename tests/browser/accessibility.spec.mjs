@@ -31,7 +31,7 @@ test('every editor tool, with items selected and settings shown', async ({ page 
   expect(await violations(page), 'highlight selected').toEqual([]);
   for (const tool of ['watermark', 'footer', 'numbers']) {
     await useTool(page, tool);
-    await page.click('[data-action="toggle-setting"]');
+    await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
     await page.selectOption('#tool-form [name="scope"]', 'pages');
     expect(await violations(page), `${tool}, on some pages`).toEqual([]);
   }

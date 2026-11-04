@@ -35,7 +35,7 @@ test('settings from the editor open in batch as a preset', async ({ page }) => {
   await page.locator('[data-action="sample"]').first().click();
   await expect(page.locator('#workspace')).toBeVisible();
   await page.selectOption('#tool-select', 'watermark');
-  await page.click('[data-action="toggle-setting"]');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   await page.fill('#tool-form [name="text"]', 'CONFIDENTIAL');
   await page.click('[data-action="batch-from-editor"]');
   await expect(page.locator('body')).toHaveClass(/batching/);

@@ -80,7 +80,7 @@ export function normalizePreset(input) {
     Object.assign(result.headerFooter, {
       size: decimal(headerFooter.size, 10, 'Header/footer size', 6, 24),
       color: color(headerFooter.color, '#53635d', 'Header/footer color'),
-      margin: decimal(headerFooter.margin, 28, 'Header/footer margin', 12, 100),
+      margin: decimal(headerFooter.margin, 28, 'Header/footer margin', 0, 100),
     });
   }
   const pageNumbers = operation(input.pageNumbers, 'Page numbers');
@@ -90,7 +90,7 @@ export function normalizePreset(input) {
       start: decimal(pageNumbers.start, 1, 'First page number', 1, 1000000, true),
       size: decimal(pageNumbers.size, 10, 'Page number size', 6, 24),
       color: color(pageNumbers.color, '#53635d', 'Page number color'),
-      margin: decimal(pageNumbers.margin, 28, 'Page number margin', 12, 100),
+      margin: decimal(pageNumbers.margin, 28, 'Page number margin', 0, 100),
       position: choice(pageNumbers.position, 'bottom-right', 'Page number position', ['bottom-left', 'bottom-center', 'bottom-right']),
     };
   }
