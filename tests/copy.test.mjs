@@ -382,6 +382,7 @@ assert.deepEqual(await notesOf(everything, [0, 1]), ['attachments-dropped', 'lab
 assert.deepEqual(await notesOf(everything, [2, 1, 0]), [], 'pages only reordered: the PDF itself is kept, with all of these');
 assert.deepEqual(await notesOf(await catalogPdf({ PageLabels: { Nums: [0, { S: 'D' }] } }), [0, 1]), [], 'labels that are plain numbers from 1 are not missed');
 assert.deepEqual(await notesOf(await catalogPdf({ PageLabels: { Nums: [0, { S: 'D', St: 5 }] } }), [0, 1]), ['labels-dropped'], 'numbers starting at 5 are');
+assert.deepEqual(await notesOf(await catalogPdf({ PageLabels: { Nums: [0, { S: 'D', St: PDFString.of('one') }] } }), [0, 1]), ['labels-dropped'], 'a damaged label is noted, and does not stop the download');
 assert.deepEqual((await splitPdf(everything, [[0], [1, 2]])).notes.sort(), ['attachments-dropped', 'labels-dropped', 'tags-dropped'], 'split parts say it too');
 /** A one-page PDF with a signature field, signed (with a value) or not. */
 async function signaturePdf(signed) {

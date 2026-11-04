@@ -180,12 +180,14 @@ export function exportNotes(notes, { several = false } = {}) {
     notes.includes('attachments-dropped') && 'attached files',
     notes.includes('tags-dropped') && 'accessibility tags',
   ].filter(Boolean);
-  const list = left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left.at(-1) : left[0];
-  return (
-    (reasons.length ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.' : '') +
-    (left.length ? (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') + ', without the original’s ' + list + '.' : '') +
-    (notes.includes('signature-invalid') ? ' The original was digitally signed: its signature isn’t valid in ' + (several ? 'these copies.' : 'this copy.') : '')
-  );
+  let text = reasons.length ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.' : '';
+  if (left.length) {
+    const list = left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left.at(-1) : left[0];
+    text += (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') + ', without the original’s ' + list + '.';
+  }
+  if (notes.includes('signature-invalid'))
+    text += ' The original was digitally signed: its signature isn’t valid in ' + (several ? 'these copies.' : 'this copy.');
+  return text;
 }
 export async function downloadDocument() {
   try {

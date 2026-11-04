@@ -859,22 +859,27 @@ function numberTreeEntries(node, entries = [], seen = new Set()) {
  * What a PDF made from copied pages leaves out of `doc` (see the notes of
  * buildPdfWithNotes): page labels other than plain numbers from 1
  * ('labels-dropped'), attached files ('attachments-dropped'), and tags, the
- * structure screen readers use ('tags-dropped').
+ * structure screen readers use ('tags-dropped'). A part it cannot read is not
+ * reported, rather than stopping the download.
  */
 export function copyLosses(doc) {
   const { PDFDict, PDFName, PDFNumber } = library();
-  const losses = [];
-  const labels = numberTreeEntries(doc.catalog.lookup(PDFName.of('PageLabels')));
-  const plain = (label) =>
-    label instanceof PDFDict &&
-    label.get(PDFName.of('S')) === PDFName.of('D') &&
-    !label.has(PDFName.of('P')) &&
-    [undefined, 1].includes(label.lookupMaybe(PDFName.of('St'), PDFNumber)?.asNumber());
-  if (labels.length && !(labels.length === 1 && labels[0][0] === 0 && plain(labels[0][1]))) losses.push('labels-dropped');
-  const names = doc.catalog.lookup(PDFName.of('Names'));
-  if (names instanceof PDFDict && nameTreeHasEntries(names.lookup(PDFName.of('EmbeddedFiles')))) losses.push('attachments-dropped');
-  if (doc.catalog.lookup(PDFName.of('StructTreeRoot')) instanceof PDFDict) losses.push('tags-dropped');
-  return losses;
+  const { catalog } = doc;
+  const labelled = () => {
+    const labels = numberTreeEntries(catalog.lookup(PDFName.of('PageLabels')));
+    if (!labels.length) return false;
+    const [[first, label]] = labels;
+    if (labels.length > 1 || first !== 0 || !(label instanceof PDFDict)) return true;
+    const start = label.lookup(PDFName.of('St'));
+    const plain = label.get(PDFName.of('S')) === PDFName.of('D') && !label.has(PDFName.of('P')) && (start === undefined || (start instanceof PDFNumber && start.asNumber() === 1));
+    return !plain;
+  };
+  const attached = () => {
+    const names = catalog.lookup(PDFName.of('Names'));
+    return names instanceof PDFDict && nameTreeHasEntries(names.lookup(PDFName.of('EmbeddedFiles')));
+  };
+  const tagged = () => catalog.lookup(PDFName.of('StructTreeRoot')) instanceof PDFDict;
+  return [detail(labelled) && 'labels-dropped', detail(attached) && 'attachments-dropped', detail(tagged) && 'tags-dropped'].filter(Boolean);
 }
 
 /** Whether a PDF has a digital signature: a signature field (/FT /Sig) with a value. */
@@ -1364,7 +1369,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     rotation(descriptor.rotation || 0);
   }
   // Before flattening, which removes signature fields with the others.
-  const signed = needed.some((id) => isSigned(loaded.get(id)));
+  const signed = needed.some((id) => detail(() => isSigned(loaded.get(id))));
   const losses = new Set();
   // Forms: the values typed in Fill form, and flattening (fields become page
   // content, so their pages can also be combined with others).
