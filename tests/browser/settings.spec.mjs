@@ -40,15 +40,19 @@ test('Headers & footers are on before anything is typed, without counting as an 
 
 test('the edge margin goes down to 0; a number out of range is set to the nearest allowed', async ({ page }) => {
   await openSample(page, 'add-page-numbers-to-pdf/');
-  const number = overlay(page).locator('text', { hasText: 'Page 1 of 3' });
   // How far the page number sits above the bottom of the page, in points. It is read from the
   // drawing (getBBox): WebKit gives Playwright the box of SVG text at the page's top left, wherever
-  // the text is drawn.
+  // the text is drawn. Found and measured in one step, as the overlay may be drawn again between
+  // two steps; null until it is drawn.
   const gap = () =>
-    number.evaluate((text) => {
+    page.evaluate(() => {
+      const texts = document.querySelectorAll('.page-view.current .page-overlay text');
+      const text = [...texts].find((node) => node.textContent.includes('Page 1 of 3'));
+      if (!text) return null;
       const box = text.getBBox();
       return text.ownerSVGElement.viewBox.baseVal.height - (box.y + box.height);
     });
+  await expect.poll(gap).not.toBeNull();
   const before = await gap();
   const margin = page.locator('#tool-form [name="margin"]');
   await margin.fill('5');
@@ -65,18 +69,20 @@ test('the edge margin goes down to 0; a number out of range is set to the neares
 
 test('page numbers swap sides on even pages, for printing on both sides, and Batch keeps it', async ({ page }) => {
   await openSample(page, 'add-page-numbers-to-pdf/');
-  // Whether a page's number is on the left half of the page (measured in the drawing, as above).
+  // Whether a page's number is on the left half of the page (found and measured in one step, as above).
   const onLeft = (number) =>
-    page
-      .locator(`.page-view[data-number="${number}"] .page-overlay text`, { hasText: `Page ${number} of 3` })
-      .evaluate((text) => text.getBBox().x < text.ownerSVGElement.viewBox.baseVal.width / 2);
+    page.evaluate((number) => {
+      const texts = document.querySelectorAll(`.page-view[data-number="${number}"] .page-overlay text`);
+      const text = [...texts].find((node) => node.textContent.includes(`Page ${number} of 3`));
+      return text ? text.getBBox().x < text.ownerSVGElement.viewBox.baseVal.width / 2 : null;
+    }, number);
   await page.locator('.page-view[data-number="2"]').scrollIntoViewIfNeeded();
-  expect(await onLeft(2)).toBe(false);
+  await expect.poll(() => onLeft(2)).toBe(false);
   await page.locator('#tool-form [name="mirror"]').check();
   await expect.poll(() => onLeft(2)).toBe(true);
-  expect(await onLeft(1)).toBe(false);
+  await expect.poll(() => onLeft(1)).toBe(false);
   await page.locator('.page-view[data-number="3"]').scrollIntoViewIfNeeded();
-  expect(await onLeft(3)).toBe(false);
+  await expect.poll(() => onLeft(3)).toBe(false);
   await page.click('#undo-button');
   await expect(page.locator('#tool-form [name="mirror"]')).not.toBeChecked();
   await page.locator('#tool-form [name="mirror"]').check();
