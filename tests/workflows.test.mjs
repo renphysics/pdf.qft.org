@@ -19,7 +19,7 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { planSplit, splitPdf, normalizePreset, applyPreset, createZip, safeBaseName, uniqueFilename } = await import('../dist/workflows.js');
+const { planSplit, splitPdf, normalizePreset, applyPreset, createZip, safeBaseName, uniqueFilename, interleaveOrder } = await import('../dist/workflows.js');
 const { inspectPdf } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
@@ -59,6 +59,15 @@ function approx(actual, expected, message) {
   assert.ok(Math.abs(actual - expected) < .01, `${message}: ${actual} != ${expected}`);
 }
 
+// Interleave: fronts 1-3 scanned, then backs: from the last sheet (6 is the back of 1), or from the first.
+assert.deepEqual(interleaveOrder(6), [0, 5, 1, 4, 2, 3]);
+assert.deepEqual(interleaveOrder(6, false), [0, 3, 1, 4, 2, 5]);
+// An odd count: the last sheet's back was left out, so the last front ends the document.
+assert.deepEqual(interleaveOrder(5), [0, 4, 1, 3, 2]);
+assert.deepEqual(interleaveOrder(5, false), [0, 3, 1, 4, 2]);
+assert.deepEqual(interleaveOrder(2), [0, 1]);
+assert.deepEqual(interleaveOrder(1), [0]);
+for (const count of [3, 8, 11]) assert.deepEqual([...interleaveOrder(count)].sort((a, b) => a - b), [...Array(count).keys()], 'every page once');
 assert.deepEqual(planSplit({ mode: 'each' }, 3), [[0], [1], [2]]);
 assert.deepEqual(planSplit({ mode: 'chunks', size: '2' }, 5), [[0, 1], [2, 3], [4]]);
 assert.deepEqual(planSplit({ mode: 'chunks', size: 20 }, 3), [[0, 1, 2]]);
@@ -90,6 +99,11 @@ assert.equal(preset.crop.left, .1);
 assert.equal(preset.pageNumbers.start, 10);
 assert.ok(!('ignored' in preset));
 assert.deepEqual(normalizePreset(JSON.parse(JSON.stringify(preset))), preset, 'Canonical preset survives JSON persistence');
+assert.equal(preset.pageNumbers.mirror, false, 'Not mirrored unless asked');
+const mirroredPreset = normalizePreset({ name: 'Two-sided', headerFooter: { footerRight: 'Notes', mirror: true }, pageNumbers: { format: '{page}', mirror: true } });
+assert.equal(mirroredPreset.headerFooter.mirror, true);
+assert.equal(mirroredPreset.pageNumbers.mirror, true);
+assert.equal(normalizePreset({ name: 'Odd', pageNumbers: { format: '{page}', mirror: 'yes' } }).pageNumbers.mirror, false, 'Only true mirrors');
 const disabled = normalizePreset({ name: 'Only numbering', watermark: false, headerFooter: { enabled: false }, crop: null, pageNumbers: { format: '{page}' } });
 assert.equal(disabled.watermark, null);
 assert.equal(disabled.headerFooter, null);
@@ -215,5 +229,5 @@ console.log(JSON.stringify({ status: 'passed', checks: [
   'preset validation', 'batch crop geometry and annotations', 'per-file numbering reset',
   'split text, page order, crop, and rotation', 'printed numbering retained', 'password-protected split parts', 'batch with owner-password and password PDFs',
   'source immutability', 'cancellation', 'interactive form handling',
-  'safe unique filenames', 'independent ZIP CRC and Unicode verification',
+  'safe unique filenames', 'independent ZIP CRC and Unicode verification', 'interleaving double-sided scans', 'mirrored presets',
 ], artifacts: ['workflow-batch.pdf', 'workflow-download.zip'] }, null, 2));

@@ -137,7 +137,13 @@ shows it without building a PDF:
   document (one undo step; once undone or switched off, they stay off), and
   Headers & footers is on until it is switched off. Edge margins go from 0 to
   100 pt; a number typed out of range is set to the nearest value allowed.
-  Turning, moving and removing pages only changes the page list.
+  For printing on both sides, Swap left and right on even pages (headers and
+  footers, page numbers, and their batch presets) puts what is on the right of
+  odd pages on the left of even pages, by position in the document.
+  Turning, moving and removing pages only changes the page list. Organize pages
+  can also reverse the order of all pages, and interleave a double-sided scan:
+  the first half of the pages are the fronts and the rest the backs, scanned
+  from the last sheet or the first (`interleaveOrder` in `workflows.js`).
 - Every change is one undo step (typing, dragging and sliders merge into one
   step), with redo. Problems the export would report, such as a character the
   fonts cannot draw or a header too long for its page, are shown on the page
@@ -249,7 +255,10 @@ removed, and nothing on a copied page brings another page along hidden in the
 file, as pdf-lib's own copying would. A bookmark whose page was left out leads to
 its first remaining sub-bookmark instead. The title, author, subject, keywords,
 creator, creation date and language come from the first PDF, and combined PDFs
-keep each PDF's bookmarks, one after another. Layer settings come along too, so
+keep each PDF's bookmarks, one after another. In the editor, combining two or
+more PDF files also gives each file a bookmark (Add a bookmark for each file,
+in Merge; on by default), named after it, leading to its first page, with its
+own bookmarks under it; blank pages and pictures get none. Layer settings come along too, so
 content on a hidden layer stays hidden, and combined PDFs list every PDF's layers.
 Each copy of a duplicated page is a page of its own (`separatePages`): what is
 added to one copy shows on that copy only, and each has its own annotations. Not

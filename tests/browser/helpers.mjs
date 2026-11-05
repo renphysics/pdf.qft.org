@@ -40,6 +40,23 @@ export async function pdfText(bytes, password) {
   return pages;
 }
 
+/** A downloaded PDF's bookmarks, as PDF.js reads them: [{ title, page (index), items? }]. */
+export async function pdfOutline(bytes) {
+  const lib = await pdfjsLib();
+  const doc = await lib.getDocument({ data: bytes.slice(), verbosity: 0 }).promise;
+  const read = (items = []) =>
+    Promise.all(
+      items.map(async (item) => {
+        const destination = typeof item.dest === 'string' ? await doc.getDestination(item.dest) : item.dest;
+        const page = destination ? await doc.getPageIndex(destination[0]) : null;
+        return { title: item.title, page, ...(item.items.length ? { items: await read(item.items) } : {}) };
+      }),
+    );
+  const outline = await read((await doc.getOutline()) || []);
+  await doc.loadingTask.destroy();
+  return outline;
+}
+
 /** How a downloaded PDF opens: 'open', 'password' (needs one) or 'invalid'. */
 export async function opensWith(bytes, password) {
   try {

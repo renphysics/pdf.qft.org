@@ -228,6 +228,30 @@ const appendixFirst = await build([['appendix', 0], ['lecture', 0]], [{ id: 'app
 assert.equal((await PDFDocument.load(appendixFirst)).getTitle(), 'Appendix');
 assert.deepEqual((await read(appendixFirst)).outline.map((item) => [item.title, item.to]), [['Appendix A', 0], ['Website', WEB]]);
 
+// A bookmark for each file (fileBookmarks, on in the editor): named after the
+// file, leading to its first page, closed, with the file's own bookmarks under
+// it. A blank page added in the editor has none.
+const blankBytes = await (async () => {
+  const doc = await PDFDocument.create();
+  doc.addPage([300, 300]);
+  return doc.save();
+})();
+const named = (pageList, fileBookmarks = true) =>
+  buildPdf({
+    sources: [{ id: 'lecture', name: 'Lecture notes.pdf', bytes: lecture }, { id: 'appendix', name: 'appendix.PDF', bytes: appendix }, { id: 'blank', name: 'Blank page', blank: true, bytes: blankBytes }],
+    pages: pageList.map(([sourceId, index], position) => ({ id: `page${position}`, sourceId, index })),
+    fileBookmarks,
+  });
+{
+  const { outline } = await read(await named([['lecture', 0], ['lecture', 1], ['blank', 0], ['appendix', 0], ['lecture', 5]]));
+  // Closed: -3, the three bookmarks it shows when opened (1.1 and 1.2 led to pages left out).
+  assert.deepEqual(outline.map(({ title, to, count }) => [title, to, count]), [['Lecture notes', 0, -3], ['appendix', 3, -1]], 'one closed bookmark per file, at its first page');
+  assert.deepEqual(outline[0].items.map((item) => [item.title, item.to]), [['1 Introduction', 1], ['2 Fields', 4], ['Website', WEB]], 'the file’s own bookmarks under it');
+  assert.deepEqual(outline[1].items, [{ title: 'Appendix A', to: 3 }]);
+  assert.deepEqual((await read(await named([['lecture', 0], ['lecture', 1], ['blank', 0]]))).outline.map((item) => item.title), ['1 Introduction', 'Website'], 'one file and a blank page: no file bookmarks');
+  assert.deepEqual((await read(await named([['lecture', 1], ['appendix', 0]], false))).outline.map((item) => item.title), ['1 Introduction', 'Website', 'Appendix A'], 'turned off');
+}
+
 // ---- Reordering (the document is edited in place) and duplicating --------------------------
 
 const reordered = await build([5, 4, 3, 2, 1, 0].map((index) => ['lecture', index]));
@@ -400,4 +424,4 @@ assert.deepEqual(await notesOf(await signaturePdf(false), [0]), [], 'an empty si
 
 assert.deepEqual([fingerprint(lecture), fingerprint(appendix)], before, 'the source PDFs are untouched');
 
-console.log(JSON.stringify({ status: 'passed', checks: ['deleted page: details, language, viewer settings and bookmarks kept; links to kept pages work, named destinations resolved; the deleted page is not in the file', 'extracted page: no other page hidden in the file (links, page actions)', 'combined: each linked page stored once, links and bookmarks lead to the right pages, bookmarks of both PDFs, details from the first', 'reordered and duplicated pages; each copy of a duplicated page shows only its own additions and has its own annotations', 'split parts with a shared page: each part has its own links and bookmarks', 'layers hidden in a PDF stay hidden when pages are deleted, duplicated, combined or split', 'notes: page labels, attached files and tags a copy leaves out; a digital signature no longer valid'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['deleted page: details, language, viewer settings and bookmarks kept; links to kept pages work, named destinations resolved; the deleted page is not in the file', 'extracted page: no other page hidden in the file (links, page actions)', 'combined: each linked page stored once, links and bookmarks lead to the right pages, bookmarks of both PDFs, details from the first', 'reordered and duplicated pages; each copy of a duplicated page shows only its own additions and has its own annotations', 'split parts with a shared page: each part has its own links and bookmarks', 'layers hidden in a PDF stay hidden when pages are deleted, duplicated, combined or split', 'a bookmark for each combined file', 'notes: page labels, attached files and tags a copy leaves out; a digital signature no longer valid'] }, null, 2));

@@ -1251,10 +1251,12 @@ export function copyDocumentInfo(doc, source) {
  * copyPagesWithLinks), one part after another, nested as they were. A bookmark
  * whose page was left behind leads to its first remaining sub-bookmark's page
  * instead, and is dropped when none remains. Web-address bookmarks are kept.
- * Damaged outlines (loops) are read as far as they go.
+ * Damaged outlines (loops) are read as far as they go. A part with a `title`
+ * gets a bookmark of its own, leading to its page `first` (a reference), with
+ * its bookmarks under it, closed.
  */
 export function copyBookmarks(doc, parts) {
-  const { PDFArray, PDFDict, PDFHexString, PDFName, PDFNumber, PDFString } = library();
+  const { PDFArray, PDFDict, PDFHexString, PDFName, PDFNull, PDFNumber, PDFString } = library();
   const read = (source, refs, first, seen) => {
     const items = [];
     for (let item = first; item instanceof PDFDict && !seen.has(item); item = item.lookup(PDFName.of('Next'))) {
@@ -1284,9 +1286,11 @@ export function copyBookmarks(doc, parts) {
     }
     return items;
   };
-  const items = parts.flatMap(({ source, refs }) => {
+  const items = parts.flatMap(({ source, refs, title, first }) => {
     const outlines = source.catalog.lookup(PDFName.of('Outlines'));
-    return outlines instanceof PDFDict ? read(source, refs, outlines.lookup(PDFName.of('First')), new Set()) : [];
+    const own = outlines instanceof PDFDict ? read(source, refs, outlines.lookup(PDFName.of('First')), new Set()) : [];
+    if (title === undefined) return own;
+    return [{ title, leadsTo: [first, PDFName.of('XYZ'), PDFNull, PDFNull, PDFNull], uri: null, open: false, color: null, flags: 0, children: own }];
   });
   if (!items.length) return;
   // Count: how many bookmarks show under an open one (negative when it is closed).
@@ -1433,11 +1437,20 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     doc.setProducer('QFT PDF');
     const copies = new Map();
     const parts = [];
+    // With state.fileBookmarks, combining two or more PDF files gives each file
+    // a bookmark, named after it (pages added blank or made from pictures have none).
+    const files = needed.filter((id) => !sourceMap.get(id).blank && !sourceMap.get(id).picture);
+    const fileBookmarks = state.fileBookmarks === true && files.length > 1;
     for (const id of needed) {
       const selected = descriptors.filter((descriptor) => descriptor.sourceId === id);
       const { pages, refs } = await copyPagesWithLinks(doc, loaded.get(id), selected.map((page) => page.index));
       selected.forEach((descriptor, index) => copies.set(descriptor.id, pages[index]));
-      parts.push({ source: loaded.get(id), refs });
+      const part = { source: loaded.get(id), refs };
+      if (fileBookmarks && files.includes(id)) {
+        part.title = String(sourceMap.get(id).name || '').replace(/\.pdf$/i, '').trim() || 'PDF ' + (files.indexOf(id) + 1);
+        part.first = pages[0].ref;
+      }
+      parts.push(part);
     }
     outputPages = descriptors.map((descriptor) => copies.get(descriptor.id));
     outputPages.forEach((page) => doc.addPage(page));

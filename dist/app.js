@@ -81,9 +81,11 @@ import {
   chooseTool,
   deletePages,
   insertBlankPage,
+  interleavePages,
   movePage,
   renderPages,
   renderThumbnails,
+  reversePages,
   rotateSelected,
   setSheet,
 } from './pages.js';
@@ -508,6 +510,8 @@ export async function action(name, element) {
   if (name === 'extract') await downloadSelected();
   if (name === 'move-earlier' || name === 'move-later')
     movePage(ui.activeId, name === 'move-earlier' ? -1 : 1);
+  if (name === 'reverse-pages') reversePages();
+  if (name === 'interleave-pages') interleavePages();
   if (name === 'choose-image') $('#image-input').click();
   if (name === 'signature-use') await useSignature();
   if (name === 'signature-clear') pad?.clear();

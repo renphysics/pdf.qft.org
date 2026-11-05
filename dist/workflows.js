@@ -81,6 +81,8 @@ export function normalizePreset(input) {
       size: decimal(headerFooter.size, 10, 'Header/footer size', 6, 24),
       color: color(headerFooter.color, '#53635d', 'Header/footer color'),
       margin: decimal(headerFooter.margin, 28, 'Header/footer margin', 0, 100),
+      // Left and right change places on even pages (printing on both sides).
+      mirror: headerFooter.mirror === true,
     });
   }
   const pageNumbers = operation(input.pageNumbers, 'Page numbers');
@@ -92,6 +94,7 @@ export function normalizePreset(input) {
       color: color(pageNumbers.color, '#53635d', 'Page number color'),
       margin: decimal(pageNumbers.margin, 28, 'Page number margin', 0, 100),
       position: choice(pageNumbers.position, 'bottom-right', 'Page number position', ['bottom-left', 'bottom-center', 'bottom-right']),
+      mirror: pageNumbers.mirror === true,
     };
   }
   const crop = operation(input.crop, 'Crop');
@@ -106,6 +109,20 @@ export function normalizePreset(input) {
     throw new Error('Enable at least one operation: watermark, header/footer, page numbers, or crop.');
   }
   return result;
+}
+
+/**
+ * The order that puts paper printed on both sides, scanned one side at a time,
+ * in reading order. Of `count` pages, the first half (the larger half when the
+ * count is odd) are the fronts and the rest are the backs; `backsReversed` when
+ * the backs were scanned from the last sheet, as when the stack is turned over.
+ * Returns the zero-based page indexes in their new order.
+ */
+export function interleaveOrder(count, backsReversed = true) {
+  const fronts = Math.ceil(count / 2);
+  const backs = Array.from({ length: count - fronts }, (_, index) => fronts + index);
+  if (backsReversed) backs.reverse();
+  return Array.from({ length: fronts }, (_, index) => (index < backs.length ? [index, backs[index]] : [index])).flat();
 }
 
 /** Return groups of zero-based page indexes. A semicolon starts a new output. */

@@ -1,7 +1,7 @@
 // Editing journeys on a desktop screen (tests/QA-CHECKLIST.md).
 import {
   test, expect, fixture, openSample, openFiles, ready, useTool, toastText, download, overlayLines, pdfText,
-  previewDifference, lineWidths, writeTemporary, PDFLib,
+  pdfOutline, previewDifference, lineWidths, writeTemporary, PDFLib,
 } from './helpers.mjs';
 
 test('opens the sample from the home page', async ({ page }) => {
@@ -199,6 +199,27 @@ test('adds a blank page after the current one, shaped as that page shows', async
   await expect(page.locator('#document-info')).toHaveText(/^4 pages/);
 });
 
+test('reverses the pages, and interleaves the fronts and backs of a double-sided scan', async ({ page }) => {
+  // Two sheets scanned one side at a time: fronts F1, F2, then the backs from the last sheet, B2, B1.
+  const pdf = await PDFLib.PDFDocument.create();
+  for (const text of ['F1', 'F2', 'B2', 'B1']) pdf.addPage([300, 300]).drawText(text, { x: 40, y: 150, size: 24 });
+  await openFiles(page, await writeTemporary('scan.pdf', await pdf.save()), 'organize-pdf/');
+  const order = async () => (await pdfText((await download(page, () => page.click('#download-button'))).bytes)).map((text) => text.trim());
+  await page.click('[data-action="interleave-pages"]');
+  expect(await order()).toEqual(['F1', 'B1', 'F2', 'B2']);
+  await page.click('#undo-button');
+  expect(await order()).toEqual(['F1', 'F2', 'B2', 'B1']);
+  // Backs scanned from the first sheet: the third page is the back of the first.
+  await page.locator('#tool-form [name="backsReversed"]').uncheck();
+  await page.click('[data-action="interleave-pages"]');
+  expect(await order()).toEqual(['F1', 'B2', 'F2', 'B1']);
+  await expect(page.locator('#tool-form [name="backsReversed"]')).not.toBeChecked();
+  await page.click('[data-action="reverse-pages"]');
+  expect(await order()).toEqual(['B1', 'F2', 'B2', 'F1']);
+  await page.click('#undo-button');
+  expect(await order()).toEqual(['F1', 'B2', 'F2', 'B1']);
+});
+
 test('crops by dragging, and restores the original boundary', async ({ page }) => {
   await openSample(page, 'crop-pdf/');
   // Half size, so that the drag stays on screen (Playwright's Firefox drops mouse moves outside the window).
@@ -237,6 +258,15 @@ test('merges another PDF, undoes and redoes it, and splits into a ZIP', async ({
   const merged = await download(page, () => page.click('#download-button'));
   expect(merged.name).toBe('combined-edited.pdf');
   expect((await pdfText(merged.bytes))[3]).toContain('ROTATION 0');
+  // A bookmark for each file, at its first page; turned off, none.
+  expect(await pdfOutline(merged.bytes)).toEqual([
+    { title: 'A little room to create', page: 0 },
+    { title: 'rotated-cropped', page: 3 },
+  ]);
+  await page.locator('#tool-form [name="fileBookmarks"]').uncheck();
+  expect(await pdfOutline((await download(page, () => page.click('#download-button'))).bytes)).toEqual([]);
+  await page.click('#undo-button');
+  await expect(page.locator('#tool-form [name="fileBookmarks"]')).toBeChecked();
 
   await useTool(page, 'split');
   await page.selectOption('#tool-form [name="mode"]', 'chunks');

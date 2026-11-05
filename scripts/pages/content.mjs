@@ -168,6 +168,7 @@ export const PAGES = [
     ],
     faqs: [
       ['Can I include page numbers?', 'Yes. Type {page} and {total} anywhere, for example Page {page} of {total}.'],
+      ['What if I print on both sides?', 'Turn on Swap left and right on even pages. Text on the right of odd pages then goes on the left of even pages, so it stays on the outer edge.'],
       ['Can I add headers and footers to many PDFs?', 'Yes. [Batch & presets](tool:batch) applies the same headers and footers to several PDFs and numbers each file separately.'],
       ['Is my PDF uploaded?', 'No. Everything happens in your browser and the file never leaves your device.'],
     ],
@@ -191,7 +192,7 @@ export const PAGES = [
     ],
     faqs: [
       ['Can I start from a number other than 1?', 'Yes. Set any starting number, for example 5 for a document that continues an earlier one.'],
-      ['Where can the numbers go?', 'At the bottom left, centre or right of the page, with your choice of size, colour and margin.'],
+      ['Where can the numbers go?', 'At the bottom left, centre or right of the page, with your choice of size, colour and margin. For printing on both sides, Swap left and right on even pages keeps them on the outer edge.'],
       ['Can I number several PDFs at once?', 'Yes. [Batch & presets](tool:batch) numbers each file separately, starting again for every PDF.'],
       ['Is my PDF uploaded?', 'No. Numbering happens in your browser and the file never leaves your device.'],
     ],
@@ -217,6 +218,7 @@ export const PAGES = [
       ['Can I extract pages into a new PDF?', 'Yes. Select the pages, or type a range such as 1-3, 5, and choose Download selected pages.'],
       ['Can I reorder pages without dragging?', 'Yes. In Organize pages, Move earlier and Move later move the current page, with the keyboard and on touch screens.'],
       ['Can I add a blank page?', 'Yes. Go to the page it should follow and choose Add a blank page after it. The new page has the same size and shape as that page.'],
+      ['Can I fix the order of a double-sided scan?', 'Yes. If you scanned the fronts of the sheets and then their backs, choose Interleave under Page order: each front is then followed by its back. Keep Backs scanned from the last sheet ticked if you turned the stack over to scan them. Reverse puts all the pages in reverse order.'],
       ['Can I combine pages from several PDFs?', 'Yes. Use Add PDF to bring in more files and arrange all the pages together, or start with [Merge PDF](tool:merge).'],
       ['Is my PDF uploaded?', 'No. Pages are rearranged in your browser and the file never leaves your device.'],
     ],
@@ -291,6 +293,7 @@ export const PAGES = [
     faqs: [
       ['Is merging PDFs free?', 'Yes. There is no sign-up and no fixed limit on file size or page count; very large files depend on your device’s memory.'],
       ['Are my files uploaded?', 'No. The PDFs are combined in your browser and never sent to a server.'],
+      ['Does the merged PDF keep bookmarks?', 'Yes. Each PDF keeps its bookmarks, and each file gets a bookmark of its own, named after it, that leads to its first page. Untick Add a bookmark for each file if you don’t want those.'],
       ['Can I merge PDFs with fillable form fields?', 'Yes, once the fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then add the other PDFs: the answers become part of the pages. While its fields stay fillable, a form isn’t combined, so the fields are never lost silently.'],
       ['What about password-protected PDFs?', 'Add them as usual and enter each password when asked. The merged PDF is protected with the first password you entered; change it in [Protect PDF](tool:protect) or remove it in [Unlock PDF](tool:unlock).'],
     ],

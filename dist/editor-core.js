@@ -56,6 +56,8 @@ export const emptyState = () => ({
   // Values typed into form fields, by source and field name, and whether downloads flatten the fields.
   formValues: {},
   flattenForms: false,
+  // Combining PDF files: each file gets a bookmark, named after it.
+  fileBookmarks: true,
   // Document properties set in the editor ({ title, author, subject, keywords,
   // language, clean }), or null to keep the first PDF's own.
   properties: null,
@@ -98,6 +100,8 @@ export const ui = {
   cancelOperation: false,
   cancelExport: null,
   lastCropPreset: null,
+  // Organize pages: the backs of a double-sided scan came from the last sheet first (Interleave).
+  backsReversed: true,
   // Watermark and Page numbers whose defaults were shown for this document (showSettingDefaults).
   shownSettings: new Set(),
   shownDepth: 0,
@@ -208,6 +212,7 @@ export const settingDefaults = {
     size: 10,
     color: '#53635d',
     margin: 28,
+    mirror: false,
     pages: 'all',
   }),
   pageNumbers: () => ({
@@ -218,6 +223,7 @@ export const settingDefaults = {
     color: '#53635d',
     margin: 28,
     position: 'bottom-right',
+    mirror: false,
     pages: 'all',
   }),
 };
@@ -248,6 +254,7 @@ export function snapshot(current = state) {
       ]),
     ),
     flattenForms: Boolean(current.flattenForms),
+    fileBookmarks: current.fileBookmarks !== false,
     properties: current.properties ? { ...current.properties } : null,
   };
 }

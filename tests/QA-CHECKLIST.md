@@ -492,3 +492,23 @@ source review does not replace the owner’s browser verification.
 - Known limits: page labels, attachments and tags are still not carried into
   copies (the message says so); a combined PDF's alternate layer configurations
   are the first PDF's only.
+
+## Page order, file bookmarks, two-sided printing — 2026-11-05
+
+- Organize pages, Page order: Reverse puts every page in reverse order; Interleave
+  puts a double-sided scan in reading order (fronts first, then backs; "Backs
+  scanned from the last sheet", on by default, for a turned-over stack). Each is
+  one undo step. Unit test of the order (`interleaveOrder`: even and odd counts,
+  every page once); browser test downloads after each and after undo.
+- Merge: "Add a bookmark for each file" (on by default, undoable): combining two
+  or more PDF files gives each a closed bookmark named after the file (without
+  .pdf), leading to its first page, with its own bookmarks under it. Blank pages
+  and pictures get none; one file gets none. Engine test with PDF.js (titles,
+  pages, counts, off); browser test in Merge.
+- Headers & footers and Page numbers: "Swap left and right on even pages" (by
+  position in the document) for printing on both sides; also in Batch presets and
+  the Batch form, and carried from the editor to Batch. Engine test (text sides on
+  three pages, the even page's number at the left margin); browser test of the
+  preview and the Batch form. Batch's margin fields now start at 0 too (they
+  still said 12).
+

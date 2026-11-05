@@ -373,6 +373,16 @@ function edgeMargin(setting, geometry) {
   return number(setting.margin, 28, 0, Math.min(geometry.width, geometry.height) / 3);
 }
 
+/**
+ * With setting.mirror, left and right change places on even pages (the 2nd, 4th
+ * and so on in the document), for printing on both sides: what is on the right of
+ * odd pages stays on the outer edge.
+ */
+function side(align, setting, pageNumber) {
+  if (!setting.mirror || pageNumber % 2) return align;
+  return align === 'left' ? 'right' : align === 'right' ? 'left' : align;
+}
+
 /** The header and footer texts for one page, before measuring. */
 export function headerFooterItems(setting, geometry, pageNumber, total) {
   const size = number(setting.size, 10, 4, 48);
@@ -386,7 +396,7 @@ export function headerFooterItems(setting, geometry, pageNumber, total) {
       items.push({
         key: edge + slot,
         text: variables(setting[edge + slot], pageNumber, total),
-        size, margin, maxWidth, align: slot.toLowerCase(), top: edge === 'header',
+        size, margin, maxWidth, align: side(slot.toLowerCase(), setting, pageNumber), top: edge === 'header',
         problem: 'The header or footer is too long. Shorten it or use more than one text position.',
       });
     }
@@ -401,7 +411,7 @@ export function pageNumberItem(setting, geometry, pageNumber, total) {
     key: 'pageNumber',
     text: variables(setting.format || 'Page {page} of {total}', pageNumber + number(setting.start, 1, 0, 1000000) - 1, total),
     size: number(setting.size, 10, 4, 48), margin, maxWidth: geometry.width - margin * 2,
-    align: position.endsWith('right') ? 'right' : position.endsWith('left') ? 'left' : 'center',
+    align: side(position.endsWith('right') ? 'right' : position.endsWith('left') ? 'left' : 'center', setting, pageNumber),
     top: position.startsWith('top'),
     problem: 'The page number text is too long for the page. Shorten it or use a smaller size.',
   };
