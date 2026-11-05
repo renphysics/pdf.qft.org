@@ -124,6 +124,21 @@ assert.ok(mergedText[0].items.some((item) => item.text === 'Second document'));
 assert.ok(!mergedText[0].items.some((item) => item.text === 'Selected only'));
 assert.ok(mergedText[1].items.some((item) => item.text === 'Selected only'));
 
+// Mirrored for printing on both sides: on the 2nd page, left and right change places.
+const twoSided = await PDFDocument.create();
+for (let number = 0; number < 3; number++) twoSided.addPage([400, 500]);
+const mirrored = await extract(await buildPdf({
+  sources: [{ id: 'm', bytes: await twoSided.save() }],
+  pages: [0, 1, 2].map((index) => ({ id: `m${index}`, sourceId: 'm', index })),
+  headerFooter: { headerLeft: 'Course', headerRight: 'Chapter', margin: 30, size: 10, mirror: true },
+  pageNumbers: { format: 'p{page}', position: 'bottom-right', margin: 30, size: 10, mirror: true },
+}));
+assert.deepEqual(
+  mirrored.map((sheet) => Object.fromEntries(sheet.items.filter((item) => item.text.trim()).map((item) => [item.text, item.transform[4] < sheet.width / 2 ? 'left' : 'right']))),
+  [{ Course: 'left', Chapter: 'right', p1: 'right' }, { Course: 'right', Chapter: 'left', p2: 'left' }, { Course: 'left', Chapter: 'right', p3: 'right' }],
+);
+approx(mirrored[1].items.find((item) => item.text === 'p2').transform[4], 30, 'An even page’s number starts at the left margin');
+
 const subset = await buildPdf({ sources: [{ id: 'a', bytes: fixtureBytes }], pages: [{ id: 'selected', sourceId: 'a', index: 1 }] });
 const subsetDoc = await PDFDocument.load(subset);
 assert.equal(subsetDoc.getPageCount(), 1);
@@ -605,4 +620,4 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
-console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'signatures on every page stored once', 'pictures as pages: own size, A4 and Letter, JPEG unchanged', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'headers, footers and page numbers mirrored on even pages', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'signatures on every page stored once', 'pictures as pages: own size, A4 and Letter, JPEG unchanged', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));

@@ -29,6 +29,7 @@ import { sourceOf } from './form-ui.js';
 import { endGesture, stopEditing } from './page-items.js';
 import { renderTool, showSettingDefaults, updateDeletionMarks } from './tool-panel.js';
 import { change, recordView } from './app.js';
+import { interleaveOrder } from './workflows.js';
 
 // ---- Pages -------------------------------------------------------------------------
 
@@ -72,6 +73,33 @@ export function movePage(id, offset, targetId = null) {
   renderTool();
   announceMessage('Page moved to position ' + (to + 1) + '.');
 }
+/** Put the pages in reverse order (one undo step). */
+export function reversePages() {
+  if (ui.busy || state.pages.length < 2) return;
+  stopEditing();
+  change(() => state.pages.reverse(), { layout: true });
+  renderTool();
+  announceMessage('The pages are in reverse order.');
+}
+/**
+ * Put paper printed on both sides, scanned one side at a time, in reading order:
+ * the fronts are the first half of the pages and the backs the rest, scanned
+ * from the last sheet when ui.backsReversed (see interleaveOrder). One undo step.
+ */
+export function interleavePages() {
+  if (ui.busy || state.pages.length < 3) return;
+  stopEditing();
+  const order = interleaveOrder(state.pages.length, ui.backsReversed);
+  change(
+    () => {
+      const pages = [...state.pages];
+      state.pages.splice(0, pages.length, ...order.map((index) => pages[index]));
+    },
+    { layout: true },
+  );
+  renderTool();
+  announceMessage('Fronts and backs are interleaved: each front is followed by its back.');
+}
 /** Add a blank page after the current one, the size and shape it shows at (one undo step). */
 export async function insertBlankPage() {
   const page = currentPage();
@@ -92,6 +120,7 @@ export async function insertBlankPage() {
       id: blank.sourceId,
       bytes: info.bytes,
       name: 'Blank page',
+      blank: true,
       pageCount: 1,
       hasForm: false,
       pages: info.pages.map((sheet) => ({ box: sheet.cropBox, rotation: sheet.rotation })),

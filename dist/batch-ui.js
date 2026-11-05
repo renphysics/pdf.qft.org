@@ -23,6 +23,10 @@ function field(label, name, type = 'text', options = '') {
 function select(label, name, options) {
   return `<label class="batch-field"><span>${label}</span><select name="${name}">${options.map(([value, title]) => `<option value="${value}">${title}</option>`).join('')}</select></label>`;
 }
+/** Left and right change places on even pages (printing on both sides). */
+function mirror(name) {
+  return `<label class="batch-check"><input type="checkbox" name="${name}"> Swap left and right on even pages</label>`;
+}
 function operation(name, title, description, contents, checked = false) {
   return `<section class="batch-operation"><label class="batch-operation-toggle"><input type="checkbox" name="enable-${name}" ${checked ? 'checked' : ''}><span><strong>${title}</strong><small>${description}</small></span></label><fieldset class="batch-operation-fields" data-operation="${name}" aria-label="${title} settings">${contents}</fieldset></section>`;
 }
@@ -55,14 +59,16 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
                 <p class="batch-field-note">Use {page} and {total} for page numbers within each file.</p>
                 <div class="batch-subheading">Header</div>${field('Header left', 'headerLeft', 'text', 'maxlength="300"')}${field('Header center', 'headerCenter', 'text', 'maxlength="300"')}${field('Header right', 'headerRight', 'text', 'maxlength="300"')}
                 <div class="batch-subheading">Footer</div>${field('Footer left', 'footerLeft', 'text', 'maxlength="300"')}${field('Footer center', 'footerCenter', 'text', 'maxlength="300"')}${field('Footer right', 'footerRight', 'text', 'maxlength="300"')}
-                <div class="batch-fields-3">${field('Size (pt)', 'footer-size', 'number', 'min="6" max="24" step="1" required')}${field('Margin (pt)', 'footer-margin', 'number', 'min="12" max="100" step="1" required')}${field('Text color', 'footer-color', 'color')}</div>
+                <div class="batch-fields-3">${field('Size (pt)', 'footer-size', 'number', 'min="6" max="24" step="1" required')}${field('Margin (pt)', 'footer-margin', 'number', 'min="0" max="100" step="1" required')}${field('Text color', 'footer-color', 'color')}</div>
+                ${mirror('footer-mirror')}
               `)}
               ${operation('numbers', 'Page numbers', 'Number each document independently.', `
                 ${field('Number format', 'numbers-format', 'text', 'maxlength="300" required')}
                 <p class="batch-field-note">Use {page} for the number and {total} for each file’s page count.</p>
                 ${select('Number position', 'numbers-position', [['bottom-right', 'Bottom right'], ['bottom-center', 'Bottom center'], ['bottom-left', 'Bottom left']])}
                 <div class="batch-fields-2">${field('Start numbering at', 'numbers-start', 'number', 'min="1" max="1000000" step="1" required')}${field('Number size (pt)', 'numbers-size', 'number', 'min="6" max="24" step="1" required')}</div>
-                <div class="batch-fields-2">${field('Number margin (pt)', 'numbers-margin', 'number', 'min="12" max="100" step="1" required')}${field('Number color', 'numbers-color', 'color')}</div>
+                <div class="batch-fields-2">${field('Number margin (pt)', 'numbers-margin', 'number', 'min="0" max="100" step="1" required')}${field('Number color', 'numbers-color', 'color')}</div>
+                ${mirror('numbers-mirror')}
               `)}
               ${operation('crop', 'Crop margins', 'Trim the same percentage from each page.', `
                 <div class="batch-fields-2">${field('Top margin (%)', 'crop-top', 'number', 'min="0" max="99" step="0.1" required')}${field('Bottom margin (%)', 'crop-bottom', 'number', 'min="0" max="99" step="0.1" required')}${field('Left margin (%)', 'crop-left', 'number', 'min="0" max="99" step="0.1" required')}${field('Right margin (%)', 'crop-right', 'number', 'min="0" max="99" step="0.1" required')}</div>
@@ -142,7 +148,9 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     for (const [key, value] of Object.entries(wm)) input(`watermark-${key}`).value = key === 'opacity' ? Math.round(value * 100) : value;
     for (const key of ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight']) input(key).value = hf[key] || '';
     for (const key of ['size', 'color', 'margin']) input(`footer-${key}`).value = hf[key];
-    for (const [key, value] of Object.entries(pn)) input(`numbers-${key}`).value = value;
+    input('footer-mirror').checked = hf.mirror === true;
+    for (const [key, value] of Object.entries(pn)) if (key !== 'mirror') input(`numbers-${key}`).value = value;
+    input('numbers-mirror').checked = pn.mirror === true;
     for (const [key, value] of Object.entries(crop)) if (['left', 'top', 'right', 'bottom'].includes(key)) input(`crop-${key}`).value = Math.round(value * 1000) / 10;
     input('enable-watermark').checked = !!normalized.watermark;
     input('enable-footer').checked = !!normalized.headerFooter;
@@ -157,8 +165,8 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     return normalizePreset({
       version: 1, name: value('preset-name').trim() || 'Custom preset',
       watermark: input('enable-watermark').checked ? { text: value('watermark-text'), size: number('watermark-size'), color: value('watermark-color'), opacity: number('watermark-opacity') / 100, angle: number('watermark-angle'), position: value('watermark-position') } : null,
-      headerFooter: input('enable-footer').checked ? { ...Object.fromEntries(['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].map(key => [key, value(key)])), size: number('footer-size'), color: value('footer-color'), margin: number('footer-margin') } : null,
-      pageNumbers: input('enable-numbers').checked ? { format: value('numbers-format'), start: number('numbers-start'), size: number('numbers-size'), color: value('numbers-color'), margin: number('numbers-margin'), position: value('numbers-position') } : null,
+      headerFooter: input('enable-footer').checked ? { ...Object.fromEntries(['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].map(key => [key, value(key)])), size: number('footer-size'), color: value('footer-color'), margin: number('footer-margin'), mirror: input('footer-mirror').checked } : null,
+      pageNumbers: input('enable-numbers').checked ? { format: value('numbers-format'), start: number('numbers-start'), size: number('numbers-size'), color: value('numbers-color'), margin: number('numbers-margin'), position: value('numbers-position'), mirror: input('numbers-mirror').checked } : null,
       crop: input('enable-crop').checked ? Object.fromEntries(['left', 'top', 'right', 'bottom'].map(key => [key, number(`crop-${key}`) / 100])) : null,
     });
   }

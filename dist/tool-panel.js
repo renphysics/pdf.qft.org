@@ -163,6 +163,13 @@ function switchField(key, label) {
     '</button>'
   );
 }
+/** Headers & footers and Page numbers: left and right change places on even pages. */
+function mirrorField() {
+  return (
+    '<label class="check-field wide"><input type="checkbox" name="mirror" aria-describedby="mirror-hint"> Swap left and right on even pages</label>' +
+    '<p class="field-hint wide" id="mirror-hint">For printing on both sides: text on the right of odd pages goes on the left of even pages, so it stays on the outer edge.</p>'
+  );
+}
 function scopeFields() {
   return (
     selectField(
@@ -342,6 +349,7 @@ function panelFields() {
         colorField() +
         '</div>' +
         numberField('Edge margin (pt)', 'margin', 0, 100) +
+        mirrorField() +
         scopeFields() +
         batchLink()
       );
@@ -368,6 +376,7 @@ function panelFields() {
         colorField() +
         numberField('Edge margin (pt)', 'margin', 0, 100) +
         '</div>' +
+        mirrorField() +
         scopeFields() +
         batchLink()
       );
@@ -397,7 +406,17 @@ function panelFields() {
         icon('down') +
         'Move later</button></div><button type="button" class="button secondary" data-action="insert-blank">' +
         icon('plus') +
-        'Add a blank page after it</button>'
+        'Add a blank page after it</button><div class="field-section wide">PAGE ORDER</div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="reverse-pages"' +
+        (state.pages.length < 2 ? ' disabled' : '') +
+        '>' +
+        icon('reverse') +
+        'Reverse</button><button type="button" class="button secondary" data-action="interleave-pages" aria-describedby="interleave-hint"' +
+        (state.pages.length < 3 ? ' disabled' : '') +
+        '>' +
+        icon('interleave') +
+        'Interleave</button></div><label class="check-field wide"><input type="checkbox" name="backsReversed"' +
+        (ui.backsReversed ? ' checked' : '') +
+        '> Backs scanned from the last sheet</label><p class="field-hint wide" id="interleave-hint">For pages printed on both sides and scanned one side at a time: the first half are the fronts, the rest the backs. Interleave puts each back after its front.</p>'
       );
     case 'delete':
       return (
@@ -467,7 +486,9 @@ function panelFields() {
           .join('') +
         '</div><button type="button" class="button primary" data-action="add-files">' +
         icon('plus') +
-        'Add another PDF</button><div class="scope-note wide">New pages are added at the end. Use <strong>Organize pages</strong> to change their order, then download the combined PDF.</div><button type="button" class="button secondary" data-action="organize">' +
+        'Add another PDF</button><div class="scope-note wide">New pages are added at the end. Use <strong>Organize pages</strong> to change their order, then download the combined PDF.</div><label class="check-field wide"><input type="checkbox" name="fileBookmarks" aria-describedby="file-bookmarks-hint"' +
+        (state.fileBookmarks !== false ? ' checked' : '') +
+        '> Add a bookmark for each file</label><p class="field-hint wide" id="file-bookmarks-hint">Named after the file, it leads to the file’s first page; the file’s own bookmarks go under it.</p><button type="button" class="button secondary" data-action="organize">' +
         icon('pages') +
         'Organize pages</button>'
       );
@@ -1120,7 +1141,9 @@ export function fillForm({ all = false } = {}) {
     if (!(input.name in values) || (!all && input === document.activeElement)) continue;
     const value = values[input.name] ?? '';
     if (input.type === 'radio') input.checked = input.value === String(value);
-    else if (input.value !== String(value)) input.value = value;
+    else if (input.type === 'checkbox') {
+      if (typeof value === 'boolean') input.checked = value;
+    } else if (input.value !== String(value)) input.value = value;
     input.removeAttribute('aria-invalid');
   }
   updateOutputs();
@@ -1218,6 +1241,15 @@ function onPanelInput(event) {
     $('#tool-form [name="password"]').type = field.checked ? 'text' : 'password';
     return;
   }
+  if (name === 'backsReversed') {
+    ui.backsReversed = field.checked;
+    return;
+  }
+  if (name === 'fileBookmarks') {
+    change(() => (state.fileBookmarks = field.checked));
+    announceMessage(field.checked ? 'Each file will have a bookmark.' : 'Files won’t have bookmarks of their own.');
+    return;
+  }
   if (name === 'flattenForms') {
     change(() => (state.flattenForms = field.checked));
     announceMessage(field.checked ? 'Fields will be flattened on download.' : 'Fields will stay fillable.');
@@ -1276,7 +1308,7 @@ function onPanelInput(event) {
     return;
   }
   if (SETTINGS[ui.tool]) {
-    updateSetting(SETTINGS[ui.tool], name, value);
+    updateSetting(SETTINGS[ui.tool], name, field.type === 'checkbox' ? field.checked : value);
     return;
   }
   if (ui.tool === 'crop') {

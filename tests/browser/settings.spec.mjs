@@ -62,3 +62,28 @@ test('the edge margin goes down to 0; a number out of range is set to the neares
   await expect(page.locator('#toast-message')).toHaveText('“Edge margin (pt)” can be 0 to 100, so it’s set to 100.');
   await expect.poll(gap).toBeGreaterThan(before + 40);
 });
+
+test('page numbers swap sides on even pages, for printing on both sides, and Batch keeps it', async ({ page }) => {
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  // Whether a page's number is on the left half of the page (measured in the drawing, as above).
+  const onLeft = (number) =>
+    page
+      .locator(`.page-view[data-number="${number}"] .page-overlay text`, { hasText: `Page ${number} of 3` })
+      .evaluate((text) => text.getBBox().x < text.ownerSVGElement.viewBox.baseVal.width / 2);
+  await page.locator('.page-view[data-number="2"]').scrollIntoViewIfNeeded();
+  expect(await onLeft(2)).toBe(false);
+  await page.locator('#tool-form [name="mirror"]').check();
+  await expect.poll(() => onLeft(2)).toBe(true);
+  expect(await onLeft(1)).toBe(false);
+  await page.locator('.page-view[data-number="3"]').scrollIntoViewIfNeeded();
+  expect(await onLeft(3)).toBe(false);
+  await page.click('#undo-button');
+  await expect(page.locator('#tool-form [name="mirror"]')).not.toBeChecked();
+  await page.locator('#tool-form [name="mirror"]').check();
+  await page.click('[data-action="batch-from-editor"]');
+  await expect(page.locator('input[name="numbers-mirror"]')).toBeChecked();
+  await expect(page.locator('input[name="footer-mirror"]')).not.toBeChecked();
+  // Batch margins go down to 0 too, as in the editor.
+  await expect(page.locator('input[name="numbers-margin"]')).toHaveAttribute('min', '0');
+  await expect(page.locator('input[name="footer-margin"]')).toHaveAttribute('min', '0');
+});

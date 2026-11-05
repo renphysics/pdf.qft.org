@@ -249,6 +249,24 @@
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0 9px;
 }
+/* A checkbox among the fields: Swap left and right on even pages. */
+.batch-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  margin: -4px 0 10px;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.batch-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+  margin: 0;
+  flex-shrink: 0;
+}
 .batch-field-note {
   font-size: var(--text-sm);
   line-height: 1.65;
