@@ -65,10 +65,12 @@ import {
   cropDraftActive,
   cropValues,
   fillForm,
+  notesMargin,
   pad,
   placeSignature,
   placeSignatureEverywhere,
   protectedDownload,
+  removeMargins,
   renderTool,
   scopedPages,
   setSignature,
@@ -511,6 +513,8 @@ export async function action(name, element) {
   if (name === 'move-earlier' || name === 'move-later')
     movePage(ui.activeId, name === 'move-earlier' ? -1 : 1);
   if (name === 'reverse-pages') reversePages();
+  if (name === 'margins-notes') notesMargin();
+  if (name === 'margins-remove') removeMargins();
   if (name === 'interleave-pages') interleavePages();
   if (name === 'choose-image') $('#image-input').click();
   if (name === 'signature-use') await useSignature();

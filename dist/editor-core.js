@@ -96,6 +96,16 @@ export const ui = {
   splitDraft: { mode: 'each', size: 2, ranges: '' },
   rangeDraft: '',
   cropDraft: { left: 0, top: 0, right: 0, bottom: 0, scope: 'current' },
+  // Add margins, in millimetres.
+  marginDraft: { top: 0, bottom: 0, left: 0, right: 0, scope: 'all' },
+  // Pages per sheet: margin and gap in millimetres; Letter paper where it is the usual size.
+  sheetDraft: {
+    perSheet: 2,
+    paper: ['US', 'CA', 'MX', 'PH'].includes(String(globalThis.navigator?.language || '').split('-')[1]) ? 'letter' : 'a4',
+    margin: 10,
+    gap: 5,
+    border: false,
+  },
   scopeErrors: {},
   cancelOperation: false,
   cancelExport: null,
@@ -156,7 +166,9 @@ export const names = {
   merge: 'Merge PDFs',
   delete: 'Delete Pages',
   crop: 'Crop PDF',
+  margins: 'Add margins',
   split: 'Split PDF',
+  sheets: 'Pages per sheet',
   protect: 'Protect PDF',
   unlock: 'Unlock PDF',
   signature: 'Sign PDF',
@@ -178,7 +190,9 @@ export const descriptions = {
   merge: 'Add PDF files, then arrange their pages in the strip.',
   delete: 'Select the pages to remove using their checkboxes or a page range. Undo brings them back.',
   crop: 'Drag across the page to choose the area to keep, or set the margins below.',
+  margins: 'Add blank space around your pages: room for notes, binding or punching. Nothing on the page moves.',
   split: 'Create separate PDFs from this document, including your edits.',
+  sheets: 'Put 2 or 4 pages on each sheet, for handouts or to save paper. The sheets download as a new PDF; your document stays as it is.',
   protect: 'Choose a password. Anyone who opens the PDF you download will need it.',
   unlock: 'Download a copy of your PDF that opens without a password.',
   signature:

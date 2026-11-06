@@ -512,3 +512,26 @@ source review does not replace the owner’s browser verification.
   preview and the Batch form. Batch's margin fields now start at 0 too (they
   still said 12).
 
+## Add margins and Pages per sheet — 2026-11-06
+
+- Add margins: top, bottom, left and right in millimetres on every page, the current
+  page or selected pages; "A wide right margin for notes" (60 mm); one undo step;
+  Remove added margins. The page grows and its content stays put (engine: text at
+  the same place on the paper, an item placed before stays on its content, page
+  numbers at the new edge, turned pages turn their margins). The margins are blank
+  even where the PDF has content: outside its CropBox (engine, PDF.js pixels; fails
+  without the clip) and outside an earlier crop. The preview paints them white
+  (browser test with a hidden red square; fails without the fill) and matches the
+  download (pixel comparison). Download sizes in a browser test.
+- Pages per sheet: 2 or 4 to a sheet, A4 or Letter (Letter by default where it is
+  usual), margin and gap, border; a summary of sheets and layout in the panel.
+  Engine tests with PDF.js: sheet count, size and orientation, reading order, a
+  turned and cropped page shown as on screen, hidden layers stay hidden, no pages
+  hidden in the file, the details kept, border, password, forms refused until
+  flattened (the editor flattens them for the sheets). Browser test: the panel's
+  summary, both counts and papers, the file name, the document unchanged.
+- Both tools have their own pages (`/add-margins-to-pdf/`, `/pdf-pages-per-sheet/`),
+  cards, menu entries and tabs; axe finds no violations in either panel.
+- Known limits: links and comments are not on the sheets; margins can make a page
+  at most 14,400 points (5 m) on a side.
+

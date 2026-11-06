@@ -86,29 +86,57 @@ export function boxGeometry(box, angle = 0) {
   };
 }
 
+// A page can grow by added margins up to this many times its own size on each side.
+const MAX_GROWTH = 20;
+
+/** Margins chosen at rotation `from`, in the axes of rotation `to`. */
+function turnMargins(margins, from, to) {
+  const turns = rotation(rotation(to) - rotation(from)) / 90;
+  for (let turn = 0; turn < turns; turn++) {
+    margins = { left: margins.bottom, top: margins.left, right: margins.top, bottom: margins.right };
+  }
+  return margins;
+}
+
 /**
  * Crop margins (fractions of the original visible box) expressed in the axes
  * of the current page rotation. A crop records the descriptor rotation it was
- * chosen in, so a later rotation keeps the same rectangle of paper.
+ * chosen in, so a later rotation keeps the same rectangle of paper. A negative
+ * margin makes the page larger on that side: blank space added around it
+ * (Add margins), which keeps what it shows in crop.content (see contentMargins).
  */
 export function cropMarginsForRotation(crop, currentRotation = 0) {
-  let margins = { left: 0, top: 0, right: 0, bottom: 0 };
+  const margins = { left: 0, top: 0, right: 0, bottom: 0 };
   if (!crop) return margins;
   for (const edge of Object.keys(margins)) {
     const value = crop[edge] === undefined ? 0 : Number(crop[edge]);
-    if (!Number.isFinite(value) || value < 0 || value >= 1) {
-      throw new Error('Crop margins must be between 0% and less than 100%.');
+    if (!Number.isFinite(value) || value <= -MAX_GROWTH || value >= 1) {
+      throw new Error('Crop margins must be less than 100% of the page, and added margins less than ' + MAX_GROWTH + ' times its size.');
     }
     margins[edge] = value;
   }
   if (margins.left + margins.right >= 1 || margins.top + margins.bottom >= 1) {
     throw new Error('Crop margins must leave some of the page visible.');
   }
-  const turns = rotation(rotation(currentRotation) - rotation(crop.rotation ?? currentRotation)) / 90;
-  for (let turn = 0; turn < turns; turn++) {
-    margins = { left: margins.bottom, top: margins.left, right: margins.top, bottom: margins.right };
+  return turnMargins(margins, crop.rotation ?? currentRotation, currentRotation);
+}
+
+/**
+ * The part of the original visible box a page still shows the content of, as
+ * margins like crop margins (fractions, in the axes of the current rotation).
+ * When margins are added around a page, crop.content records what it showed
+ * then; the added space is blank, even where the PDF has content (outside an
+ * earlier crop, or outside its own visible box). Without margins: all of it.
+ */
+export function contentMargins(crop, currentRotation = 0) {
+  const margins = { left: 0, top: 0, right: 0, bottom: 0 };
+  if (!crop?.content) return margins;
+  for (const edge of Object.keys(margins)) {
+    const value = Number(crop.content[edge] ?? 0);
+    if (!Number.isFinite(value) || value < 0 || value >= 1) throw new Error('Crop margins must leave some of the page visible.');
+    margins[edge] = value;
   }
-  return margins;
+  return turnMargins(margins, crop.rotation ?? currentRotation, currentRotation);
 }
 
 /**
@@ -144,6 +172,19 @@ export function croppedGeometry(originalBox, angle, crop, descriptorRotation) {
 export function pageGeometry(source, descriptor) {
   const descriptorRotation = descriptor.rotation || 0;
   return croppedGeometry(source.box, rotation(source.rotation + rotation(descriptorRotation)), descriptor.crop, descriptorRotation);
+}
+
+/**
+ * Where a page shows its source's content, in user space: its source's visible
+ * box, or the part of it recorded when margins were added (crop.content).
+ * Added margins outside it are blank.
+ */
+export function contentBox(source, descriptor) {
+  const descriptorRotation = descriptor.rotation || 0;
+  const angle = rotation(source.rotation + rotation(descriptorRotation));
+  const crop = descriptor.crop;
+  if (!crop?.content) return boxGeometry(source.box, angle).cropBox;
+  return croppedGeometry(source.box, angle, { ...contentMargins(crop, descriptorRotation), rotation: descriptorRotation }, descriptorRotation).cropBox;
 }
 
 export function placementGeometry(source, descriptor, annotation) {

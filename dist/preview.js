@@ -7,6 +7,7 @@
 import {
   applies,
   boxGeometry,
+  contentMargins,
   cropMarginsForRotation,
   drawingBox,
   drawingPath,
@@ -176,6 +177,8 @@ export function renderKey(descriptor) {
     descriptor.index,
     rotation(descriptor.rotation || 0),
     crop ? [crop.left, crop.top, crop.right, crop.bottom, crop.rotation].join(',') : '',
+    // Added margins are painted blank outside the content area.
+    crop?.content ? [crop.content.left, crop.content.top, crop.content.right, crop.content.bottom].join(',') : '',
   ].join(':');
 }
 
@@ -285,6 +288,18 @@ export function renderPage(state, descriptor, scale, { forms = false } = {}) {
     task = page.render({ canvasContext: context, viewport, annotationMode });
     if (cancelled) task.cancel();
     await task.promise;
+    // Margins added around the page are blank, even where the PDF has content
+    // there (as the export clips it; see contentMargins).
+    const shown = contentMargins(descriptor.crop, descriptorRotation);
+    const left = (shown.left - margins.left) * full.width * scale,
+      right = (1 - shown.right - margins.left) * full.width * scale,
+      top = (shown.top - margins.top) * full.height * scale,
+      bottom = (1 - shown.bottom - margins.top) * full.height * scale;
+    context.fillStyle = '#ffffff';
+    if (left > 0.5) context.fillRect(0, 0, left, canvas.height);
+    if (right < canvas.width - 0.5) context.fillRect(right, 0, canvas.width - right, canvas.height);
+    if (top > 0.5) context.fillRect(0, 0, canvas.width, top);
+    if (bottom < canvas.height - 0.5) context.fillRect(0, bottom, canvas.width, canvas.height - bottom);
     return canvas;
   })();
   return {

@@ -3,7 +3,7 @@
  * the document state, signatures, protection and the Split panel.
  */
 
-import { cropMarginsForRotation, parsePageRange, passwordProblem } from './pdf-engine.js';
+import { contentMargins, cropMarginsForRotation, pagesPerSheet, parsePageRange, passwordProblem, sheetLayout } from './pdf-engine.js';
 import { createZip, planSplit, safeBaseName, splitPdf } from './workflows.js';
 import { pagesToImages } from './convert.js';
 import {
@@ -494,6 +494,10 @@ function panelFields() {
       );
     case 'split':
       return splitFields();
+    case 'sheets':
+      return sheetFields();
+    case 'margins':
+      return marginFields();
     case 'protect':
       return protectFields();
     case 'unlock':
@@ -1119,6 +1123,26 @@ function panelValues() {
         pictureDpi: String(ui.pictureExport.dpi),
         pictureScope: ui.pictureExport.scope,
       };
+    case 'sheets': {
+      const draft = ui.sheetDraft;
+      return {
+        sheetCount: String(draft.perSheet),
+        sheetPaper: draft.paper,
+        sheetMargin: draft.margin,
+        sheetGap: draft.gap,
+        sheetBorder: draft.border,
+      };
+    }
+    case 'margins': {
+      const draft = ui.marginDraft;
+      return {
+        marginTop: draft.top,
+        marginBottom: draft.bottom,
+        marginLeft: draft.left,
+        marginRight: draft.right,
+        marginScope: draft.scope,
+      };
+    }
     case 'signature': {
       if (item?.type !== 'signature') return { signatureText: ui.signatureDraft.text };
       const frame = overlayItem(item.id)?.frame,
@@ -1191,6 +1215,8 @@ export function renderTool() {
     event.preventDefault();
     if (['delete', 'pages'].includes(ui.tool)) action('select-range');
     else if (ui.tool === 'split') generateSplit();
+    else if (ui.tool === 'sheets') saveSheets();
+    else if (ui.tool === 'margins') addMargins();
     else if (ui.tool === 'pdftojpg') savePictures();
     else if (ui.tool === 'crop') applyCrop();
   });
@@ -1219,6 +1245,7 @@ export function renderTool() {
   updateCropOverlays();
   updateDeletionMarks();
   if (ui.tool === 'split') updateSplitSummary();
+  if (ui.tool === 'sheets') updateSheetSummary();
   if (ui.tool === 'signature') attachSignatureTools();
   if (ui.tool === 'form') updateFormSummary();
   updateSelectionCaption();
@@ -1327,6 +1354,22 @@ function onPanelInput(event) {
     if (name === 'pictureFormat') ui.pictureExport.format = value;
     if (name === 'pictureDpi') ui.pictureExport.dpi = Number(value);
     if (name === 'pictureScope') ui.pictureExport.scope = value;
+    return;
+  }
+  if (ui.tool === 'sheets') {
+    const draft = ui.sheetDraft;
+    if (name === 'sheetCount') draft.perSheet = Number(value);
+    if (name === 'sheetPaper') draft.paper = value;
+    if (name === 'sheetMargin') draft.margin = Number(value);
+    if (name === 'sheetGap') draft.gap = Number(value);
+    if (name === 'sheetBorder') draft.border = field.checked;
+    updateSheetSummary();
+    return;
+  }
+  if (ui.tool === 'margins') {
+    const edges = { marginTop: 'top', marginBottom: 'bottom', marginLeft: 'left', marginRight: 'right' };
+    if (edges[name]) ui.marginDraft[edges[name]] = Number(value);
+    if (name === 'marginScope') ui.marginDraft.scope = value;
     return;
   }
   if (ui.tool === 'signature') {
@@ -1515,6 +1558,8 @@ function applyCrop() {
       () => {
         for (const p of targets) {
           const old = cropMarginsForRotation(p.crop, p.rotation),
+            // Margins added before stay blank (see contentMargins).
+            shown = p.crop?.content ? contentMargins(p.crop, p.rotation) : null,
             width = 1 - old.left - old.right,
             height = 1 - old.top - old.bottom;
           p.crop = {
@@ -1523,6 +1568,7 @@ function applyCrop() {
             top: old.top + margins.top * height,
             bottom: old.bottom + margins.bottom * height,
             rotation: p.rotation,
+            ...(shown ? { content: shown } : {}),
           };
         }
       },
@@ -1534,6 +1580,196 @@ function applyCrop() {
     toast(targets.length === 1 ? 'Page cropped.' : targets.length + ' pages cropped.');
   } catch (error) {
     toast(friendly(error), true);
+  }
+}
+
+// ---- Add margins and Pages per sheet ------------------------------------------------
+
+const MM = 72 / 25.4; // points in a millimetre
+
+function marginFields() {
+  return (
+    '<div class="field-row">' +
+    numberField('Top (mm)', 'marginTop', 0, 100) +
+    numberField('Bottom (mm)', 'marginBottom', 0, 100) +
+    '</div><div class="field-row">' +
+    numberField('Left (mm)', 'marginLeft', 0, 100) +
+    numberField('Right (mm)', 'marginRight', 0, 100) +
+    '</div><button type="button" class="button secondary" data-action="margins-notes">' +
+    icon('margins') +
+    'A wide right margin for notes</button>' +
+    selectField(
+      'Apply to',
+      'marginScope',
+      [
+        ['all', 'Every page'],
+        ['current', 'Current page'],
+        ['selected', 'Selected pages'],
+      ],
+      true,
+    ) +
+    '<button type="submit" class="button primary">' +
+    icon('plus') +
+    'Add margins</button><button type="button" class="button subtle" data-action="margins-remove">Remove added margins</button>' +
+    '<p class="field-hint wide">The margins are blank space around each page: nothing on it moves or shrinks. Page numbers, headers and footers go to the new edges.</p>'
+  );
+}
+/** A wide right margin for notes: 60 mm, the others none. */
+export function notesMargin() {
+  ui.marginDraft = { ...ui.marginDraft, top: 0, bottom: 0, left: 0, right: 60 };
+  fillForm({ all: true });
+}
+/**
+ * Add the margins in ui.marginDraft (millimetres) around the pages in scope, as
+ * one undo step: their crop grows outwards (negative crop margins), and what
+ * they show now becomes their content area, so the new space is blank.
+ */
+function addMargins() {
+  try {
+    const draft = ui.marginDraft,
+      added = Object.fromEntries(['top', 'bottom', 'left', 'right'].map((edge) => [edge, draft[edge] * MM])),
+      scope = scopedPages(draft.scope);
+    if (!Object.values(added).some((value) => value > 0)) throw new Error('Enter the margins to add, in millimetres.');
+    const targets = state.pages.filter((p) => scope === 'all' || scope.includes(p.id));
+    for (const page of targets) {
+      const geometry = geometryOf(state, page);
+      if (geometry.width + added.left + added.right > 14400 || geometry.height + added.top + added.bottom > 14400)
+        throw new Error('A page can’t be larger than 5 metres (200 inches).');
+    }
+    change(
+      () => {
+        for (const p of targets) {
+          const geometry = geometryOf(state, p),
+            old = cropMarginsForRotation(p.crop, p.rotation),
+            shown = contentMargins(p.crop, p.rotation),
+            width = 1 - old.left - old.right,
+            height = 1 - old.top - old.bottom;
+          p.crop = {
+            left: old.left - (added.left / geometry.width) * width,
+            right: old.right - (added.right / geometry.width) * width,
+            top: old.top - (added.top / geometry.height) * height,
+            bottom: old.bottom - (added.bottom / geometry.height) * height,
+            rotation: p.rotation,
+            // What the page shows now, within what it showed before margins were added.
+            content: Object.fromEntries(['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])])),
+          };
+        }
+      },
+      { layout: true },
+    );
+    ui.marginDraft = { top: 0, bottom: 0, left: 0, right: 0, scope: draft.scope };
+    renderTool();
+    toast(targets.length === 1 ? 'Margins added to the page.' : 'Margins added to ' + targets.length + ' pages.');
+  } catch (error) {
+    toast(friendly(error), true);
+  }
+}
+/** Take away the margins added to the pages in scope (one undo step); a crop made since stays. */
+export function removeMargins() {
+  try {
+    const scope = scopedPages(ui.marginDraft.scope),
+      targets = state.pages.filter((p) => (scope === 'all' || scope.includes(p.id)) && p.crop?.content);
+    if (!targets.length) throw new Error('These pages have no added margins.');
+    change(
+      () => {
+        for (const p of targets) {
+          const old = cropMarginsForRotation(p.crop, p.rotation),
+            shown = contentMargins(p.crop, p.rotation),
+            crop = Object.fromEntries(['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])]));
+          if (Object.values(crop).every((value) => Math.abs(value) < 1e-9)) delete p.crop;
+          else p.crop = { ...crop, rotation: p.rotation };
+        }
+      },
+      { layout: true },
+    );
+    renderTool();
+    toast(targets.length === 1 ? 'The added margins are removed.' : 'Added margins removed from ' + targets.length + ' pages.');
+  } catch (error) {
+    toast(friendly(error), true);
+  }
+}
+
+function sheetFields() {
+  return (
+    '<fieldset class="segmented wide"><legend>Pages per sheet</legend><div>' +
+    ['2', '4'].map((value) => '<label><input type="radio" name="sheetCount" value="' + value + '"><span>' + value + '</span></label>').join('') +
+    '</div></fieldset>' +
+    selectField(
+      'Paper',
+      'sheetPaper',
+      [
+        ['a4', 'A4'],
+        ['letter', 'Letter'],
+      ],
+      true,
+    ) +
+    '<div class="field-row">' +
+    numberField('Margin (mm)', 'sheetMargin', 0, 30) +
+    numberField('Gap (mm)', 'sheetGap', 0, 30) +
+    '</div><label class="check-field wide"><input type="checkbox" name="sheetBorder"> A thin border around each page</label>' +
+    '<p id="sheet-summary" class="field-hint wide" aria-live="polite"></p>' +
+    '<button type="submit" class="button primary">' +
+    icon('download') +
+    'Download the sheets</button>' +
+    '<p class="field-hint wide">Each page goes on its sheet as it looks with your edits, as large as fits, and text and drawings stay sharp. Links and comments don’t carry over; form fields are flattened, so their answers do.' +
+    (protectedDownload() ? ' The PDF needs your password to open.' : '') +
+    '</p>'
+  );
+}
+/** How the pages go on sheets, from the first page's shape (see sheetLayout). */
+function updateSheetSummary() {
+  const node = $('#sheet-summary');
+  if (!node || !state.pages.length) return;
+  const draft = ui.sheetDraft,
+    count = state.pages.length,
+    sheets = Math.ceil(count / draft.perSheet);
+  try {
+    const layout = sheetLayout(draft.perSheet, draft.paper, geometryOf(state, state.pages[0]), draft.margin * MM, draft.gap * MM);
+    node.textContent =
+      count +
+      (count === 1 ? ' page on ' : ' pages on ') +
+      sheets +
+      (layout.width > layout.height ? ' landscape ' : ' portrait ') +
+      (draft.paper === 'a4' ? 'A4' : 'Letter') +
+      (sheets === 1 ? ' sheet' : ' sheets') +
+      ': ' +
+      layout.columns +
+      ' across, ' +
+      layout.rows +
+      ' down.';
+    node.classList.remove('invalid');
+  } catch (error) {
+    node.textContent = error.message;
+    node.classList.add('invalid');
+  }
+}
+/** Download the document with 2 or 4 pages to a sheet (see pagesPerSheet). */
+async function saveSheets() {
+  if (ui.busy) return;
+  const draft = ui.sheetDraft;
+  try {
+    // From the PDF as it downloads, with its fields flattened (their answers become part of the pages).
+    const { bytes } = await exportDocument({ ...snapshot(), flattenForms: true, protection: null });
+    busy(true, 'Putting the pages on sheets…');
+    const password = protectedDownload() ? state.protection.password : null;
+    const sheets = await pagesPerSheet(bytes, {
+      perSheet: draft.perSheet,
+      paper: draft.paper,
+      margin: draft.margin * MM,
+      gap: draft.gap * MM,
+      border: draft.border,
+      password,
+    });
+    const base = safeBaseName(outputName()).replace(/-(edited|converted|protected|unlocked)$/, '');
+    downloadBytes(sheets, base + '-' + draft.perSheet + '-per-sheet.pdf');
+    const count = Math.ceil(state.pages.length / draft.perSheet);
+    toast(
+      'Your ' + (count === 1 ? 'sheet has' : count + ' sheets have') + ' been downloaded.' + (password ? ' The PDF needs your password to open.' : ''),
+    );
+  } catch (error) {
+    showExportError(error);
+  } finally {
+    busy(false);
   }
 }
 

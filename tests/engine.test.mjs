@@ -20,7 +20,7 @@ globalThis.fetch = async (url, options) => {
 };
 const { inspectPdf, openPdf, buildPdf, buildPdfWithNotes, parsePageRange, cropMarginsForRotation, measuringFont, imagesToPdf, blankPdf } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
-const { PDFDocument, StandardFonts, degrees } = globalThis.PDFLib;
+const { PDFDocument, StandardFonts, degrees, rgb } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
 await mkdir(outputDir, { recursive: true });
 
@@ -365,10 +365,71 @@ assert.deepEqual(cropMarginsForRotation(margins, 90), { left: .05, top: .1, righ
 assert.deepEqual(cropMarginsForRotation(margins, 180), { left: .2, top: .05, right: .1, bottom: .15 });
 assert.deepEqual(cropMarginsForRotation(margins, 270), { left: .15, top: .2, right: .05, bottom: .1 });
 assert.deepEqual(cropMarginsForRotation(null, 90), { left: 0, top: 0, right: 0, bottom: 0 });
-for (const crop of [{ left: -.1 }, { top: NaN }, { right: Infinity }, { left: .8, right: .2 }, { top: .6, bottom: .5 }, { bottom: 1 }]) {
+for (const crop of [{ left: -25 }, { top: NaN }, { right: Infinity }, { left: .8, right: .2 }, { top: .6, bottom: .5 }, { bottom: 1 }]) {
   await assert.rejects(buildPdf({ sources: cropState.sources, pages: [{ id: 'p', sourceId: 'a', index: 0, crop }] }), /Crop margins/);
 }
 await assert.rejects(buildPdf({ sources: cropState.sources, pages: [{ id: 'p', sourceId: 'a', index: 0, crop: { left: .999 } }] }), /at least 1 PDF point/);
+
+// Added margins (negative crop margins, with the area that shows content in
+// crop.content): the page grows, nothing on it moves, the margins are blank even
+// where the PDF has content there, and repeated settings go to the new edges.
+/** Red pixels on the first page, drawn by PDF.js at 72 dpi. */
+async function redPixels(data) {
+  const doc = await pdfjs.getDocument({ data: data.slice(), verbosity: 0, standardFontDataUrl: path.join(runtime, 'pdfjs-dist/standard_fonts/') }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 1 });
+  const surface = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+  await page.render({ canvasContext: surface.getContext('2d'), viewport, canvas: surface }).promise;
+  const { data: pixels } = surface.getContext('2d').getImageData(0, 0, surface.width, surface.height);
+  let count = 0;
+  for (let index = 0; index < pixels.length; index += 4) if (pixels[index + 3] > 128 && pixels[index] > 200 && pixels[index + 1] < 80 && pixels[index + 2] < 80) count++;
+  await doc.loadingTask.destroy();
+  return count;
+}
+// A 400 × 300 page whose CropBox hides its right 100 points, where a red square is.
+const redSquarePage = async (hidden) => {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([400, 300]);
+  page.drawText('INSIDE', { x: 40, y: 150, size: 16 });
+  page.drawRectangle({ x: 320, y: 100, width: 60, height: 100, color: rgb(1, 0, 0) });
+  if (hidden) page.setCropBox(0, 0, 300, 300);
+  return pdf.save();
+};
+const hiddenRight = await redSquarePage(true);
+assert.ok((await redPixels(await redSquarePage(false))) > 5000, 'the red square shows where it is not hidden (the check below can see it)');
+assert.equal(await redPixels(await buildPdf({ sources: [{ id: 'h', bytes: hiddenRight }], pages: [{ id: 'h', sourceId: 'h', index: 0, crop: { right: -1 / 3, rotation: 0 } }] })), 0, 'a page grown past its visible box shows nothing new, even without crop.content');
+const widened = await buildPdf({
+  sources: [{ id: 'h', bytes: hiddenRight }],
+  // 30 points on the left and 60 on the right of the 300-point visible page.
+  pages: [{ id: 'h', sourceId: 'h', index: 0, crop: { left: -0.1, right: -0.2, top: 0, bottom: 0, rotation: 0, content: { left: 0, right: 0, top: 0, bottom: 0 } } }],
+  annotations: [{ type: 'text', pageId: 'h', text: 'Placed before', x: .5, y: .5, fontSize: 12 }],
+  pageNumbers: { format: 'N{page}', position: 'bottom-right', margin: 10, size: 10 },
+});
+{
+  const [page] = await extract(widened);
+  approx(page.width, 390, 'The page grows by its margins');
+  approx(page.height, 300, 'and only where they were added');
+  approx(page.items.find((item) => item.text === 'INSIDE').transform[4], 70, 'Its content stays put on the paper, now 30 points from the edge');
+  approx(page.items.find((item) => item.text === 'Placed before').transform[4], 30 + 150, 'An item placed before the margins stays on its content');
+  assert.ok(page.items.find((item) => item.text === 'N1').transform[4] > 360, 'Page numbers go to the new edge');
+  const doc = await PDFDocument.load(widened);
+  const [media, crop] = [doc.getPage(0).getMediaBox(), doc.getPage(0).getCropBox()];
+  assert.ok(media.x <= crop.x && media.x + media.width >= crop.x + crop.width, 'The MediaBox holds the page');
+}
+assert.equal(await redPixels(widened), 0, 'The margins are blank: what the PDF hid there stays hidden');
+// Margins after a crop: the crop's edge is the edge of the content, and what the crop hid stays hidden.
+const croppedThenWidened = await buildPdf({
+  sources: [{ id: 'h', bytes: hiddenRight }],
+  pages: [{ id: 'h', sourceId: 'h', index: 0, crop: { left: 0, right: -0.1, rotation: 0, content: { left: 0, right: 0.2, top: 0, bottom: 0 } } }],
+});
+approx((await extract(croppedThenWidened))[0].width, 330, 'Cropped by 60 points, then 90 added: 330 points wide');
+assert.equal(await redPixels(croppedThenWidened), 0, 'Content the crop hid does not show in the margin');
+// Turned after the margins were added: the margins turn with the page.
+{
+  const [page] = await extract(await buildPdf({ sources: [{ id: 'h', bytes: hiddenRight }], pages: [{ id: 'h', sourceId: 'h', index: 0, rotation: 90, crop: { left: -0.1, right: -0.2, rotation: 0, content: { left: 0, right: 0, top: 0, bottom: 0 } } }] }));
+  approx(page.width, 300, 'Turned: 300 wide');
+  approx(page.height, 390, 'and 390 high');
+}
 
 // PDF/A: a declared PDF/A file exports unchanged (PDF/A-1 forbids object
 // streams), keeps its declaration while only pages change, and stops claiming
@@ -620,4 +681,4 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
-console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'headers, footers and page numbers mirrored on even pages', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'signatures on every page stored once', 'pictures as pages: own size, A4 and Letter, JPEG unchanged', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['mixed-page-size', 'CropBox origin', 'all intrinsic rotations', 'added rotation', 'rotation before and after annotation placement', 'reordering', 'positioned annotations', 'image embedding', 'highlights', 'watermark', 'repeated headers and footers', 'headers, footers and page numbers mirrored on even pages', 'added margins: the page grows, content stays put and the margins are blank', 'page-number sequence', 'page scope', 'merge', 'source immutability', 'form preservation', 'unicode and CJK', 'CJK, kana and Hangul fonts subset, read without warnings, widths as measured', 'signatures on every page stored once', 'pictures as pages: own size, A4 and Letter, JPEG unchanged', 'unsupported character errors', 'invalid input', 'page-range validation', 'crop dimensions at all source rotations', 'crop preserves annotation locations', 'annotations after crop', 'crop before and after rotation', 'crop reset', 'repeat crop export', 'invalid and empty crop rejection', 'PDF/A-1 export and declaration handling', 'owner-password PDFs open without asking', 'AES-128, RC4 and AES-256 passwords', 'wrong and missing passwords', 'unlocked copies without password hashes', 'AES-256 protection read by pdf.js', 'strings outside object streams encrypted', 'SASLprep password preparation', 'password validation', 'protected PDF/A copies'], outputs: ['geometry-export.pdf', 'merged-export.pdf', 'unicode-export.pdf', 'rotation-after-edit.pdf', 'cropped-export.pdf'] }, null, 2));

@@ -24,12 +24,12 @@
  * Geometry and text layout live in layout.js, shared with the editor preview.
  */
 import {
-  applies, boxGeometry, drawingPath, fontKind, hexColor, headerFooterItems, layoutMarginText, layoutRect,
+  applies, boxGeometry, contentBox, drawingPath, fontKind, hexColor, headerFooterItems, invert, layoutMarginText, layoutRect,
   layoutTextAnnotation, layoutWatermark, number, pageGeometry, pageNumberItem, placementGeometry, rotation, textValue,
   unsupportedCharacter, unsupportedMessage, visibleBox, watermarkText, wrapText,
 } from './layout.js';
 
-export { cropMarginsForRotation } from './layout.js';
+export { contentMargins, cropMarginsForRotation } from './layout.js';
 
 const fontBytes = new Map();
 const VENDOR_SCRIPTS = {
@@ -1165,6 +1165,24 @@ function separatePages(doc, pages) {
   }
 }
 
+/**
+ * Let a page reach out to `box` (user space) with blank margins: its content
+ * shows only inside `content`, even where the PDF has more, and the MediaBox
+ * grows to hold the box. Trim, bleed and art boxes go, so they follow the page.
+ */
+function addBlankMargins(page, content, box) {
+  const lib = library();
+  const { context } = page.doc;
+  page.node.normalize();
+  const start = context.register(context.contentStream([lib.pushGraphicsState(), lib.rectangle(content.x, content.y, content.width, content.height), lib.clip(), lib.endPath()]));
+  const end = context.register(context.contentStream([lib.popGraphicsState()]));
+  page.node.wrapContentStreams(start, end);
+  const media = page.getMediaBox();
+  const left = Math.min(media.x, box.x), bottom = Math.min(media.y, box.y);
+  page.setMediaBox(left, bottom, Math.max(media.x + media.width, box.x + box.width) - left, Math.max(media.y + media.height, box.y + box.height) - bottom);
+  for (const name of ['TrimBox', 'BleedBox', 'ArtBox']) page.node.delete(lib.PDFName.of(name));
+}
+
 /** Read a document detail, or nothing when it is damaged. */
 function detail(read) {
   try {
@@ -1471,8 +1489,11 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     const geometry = pageGeometry(source, descriptor);
     page.setRotation(lib.degrees(geometry.rotation));
     if (descriptor.crop) {
-      const { x, y, width, height } = geometry.cropBox;
-      page.setCropBox(x, y, width, height);
+      const box = geometry.cropBox;
+      const content = contentBox(source, descriptor);
+      const beyond = box.x < content.x - 0.01 || box.y < content.y - 0.01 || box.x + box.width > content.x + content.width + 0.01 || box.y + box.height > content.y + content.height + 0.01;
+      if (beyond) addBlankMargins(page, content, box);
+      page.setCropBox(box.x, box.y, box.width, box.height);
     }
     for (const annotation of annotations.filter((item) => item.pageId === descriptor.id)) {
       const placement = placementGeometry(source, descriptor, annotation);
@@ -1518,13 +1539,6 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
 // Paper sizes in points, portrait.
 const PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
 
-/**
- * A PDF with one page per picture ({ bytes, type: 'jpg' | 'png' }), centred.
- * size 'fit' makes each page the picture's size (96 pixels per inch); 'a4' and
- * 'letter' use that paper, turned to match the picture, with the picture as
- * large as fits but not enlarged past 96 pixels per inch. margin is in points.
- * JPEG data is embedded as it is.
- */
 /** A PDF of one blank page, `width` by `height` points (Insert a blank page). */
 export async function blankPdf(width, height) {
   const lib = await loadPdfLib();
@@ -1535,6 +1549,13 @@ export async function blankPdf(width, height) {
   return doc.save();
 }
 
+/**
+ * A PDF with one page per picture ({ bytes, type: 'jpg' | 'png' }), centred.
+ * size 'fit' makes each page the picture's size (96 pixels per inch); 'a4' and
+ * 'letter' use that paper, turned to match the picture, with the picture as
+ * large as fits but not enlarged past 96 pixels per inch. margin is in points.
+ * JPEG data is embedded as it is.
+ */
 export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
   const lib = await loadPdfLib();
   if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');
@@ -1561,6 +1582,86 @@ export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
     const width = natural.width * scale, height = natural.height * scale;
     doc.addPage([pageWidth, pageHeight]).drawImage(picture, { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height });
   }
+  return doc.save();
+}
+
+// ---- Pages per sheet -------------------------------------------------------------
+
+/**
+ * How `count` pages go on a sheet of `paper` ('a4' | 'letter'): the grid
+ * (columns × rows) and the sheet's orientation where pages of `shape` ({ width,
+ * height }, as they are shown) come out largest, with `margin` around the sheet
+ * and `gap` between pages, in points. Returns { width, height, columns, rows,
+ * cellWidth, cellHeight, scale }.
+ */
+export function sheetLayout(count, paper, shape, margin, gap) {
+  let best = null;
+  for (const landscape of [false, true]) {
+    const [short, long] = PAPER[paper];
+    const [width, height] = landscape ? [long, short] : [short, long];
+    for (let columns = 1; columns <= count; columns++) {
+      if (count % columns) continue;
+      const rows = count / columns;
+      const cellWidth = (width - 2 * margin - (columns - 1) * gap) / columns;
+      const cellHeight = (height - 2 * margin - (rows - 1) * gap) / rows;
+      if (!(cellWidth > 0 && cellHeight > 0)) continue;
+      const scale = Math.min(cellWidth / shape.width, cellHeight / shape.height);
+      if (!best || scale > best.scale + 1e-9) best = { width, height, columns, rows, cellWidth, cellHeight, scale };
+    }
+  }
+  if (!best) throw new Error('The margins leave no room for the pages. Make them smaller.');
+  return best;
+}
+
+/**
+ * A handout: the pages of the PDF `bytes`, `perSheet` (2 or 4) to a sheet, in
+ * reading order (along each row, then down), each turned and cropped as it is
+ * shown and as large as fits its cell (see sheetLayout). Pages are embedded as
+ * they are, so text and drawings stay sharp; layer settings and the document's
+ * details come along. Links, comments and form fields stay behind (flatten
+ * the fields first: a PDF with fields is refused). `border` draws a thin frame
+ * around each page; `password` protects the handout.
+ */
+export async function pagesPerSheet(bytes, { perSheet = 2, paper = 'a4', margin = 28.35, gap = 14.17, border = false, password = null } = {}) {
+  const lib = await loadPdfLib();
+  if (![2, 4].includes(perSheet)) throw new Error('Choose 2 or 4 pages per sheet.');
+  if (!PAPER[paper]) throw new Error('Choose A4 or Letter paper.');
+  if (!(margin >= 0 && gap >= 0)) throw new Error('Margins and gaps can’t be negative.');
+  const source = await loadPdf(bytes);
+  if (hasAcroForm(source) && source.getForm().getFields().length) throw new Error('A PDF with form fields goes on sheets once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.');
+  const doc = await lib.PDFDocument.create();
+  doc.setProducer('QFT PDF');
+  copyDocumentInfo(doc, source);
+  // Copied with their layer settings and without the pages they link to; only
+  // their content is used, and what is left over is removed before saving.
+  const { pages } = await copyPagesWithLinks(doc, source, source.getPageIndices());
+  // A page with nothing on it (a blank page added in the editor) has no content to embed.
+  for (const page of pages) if (!page.node.Contents()) page.node.set(lib.PDFName.of('Contents'), doc.context.obj([]));
+  const shown = pages.map((page) => boxGeometry(visibleBox(page.getMediaBox(), page.getCropBox()), page.getRotation().angle));
+  // Each page as it is shown: clipped to its visible box, and turned upright.
+  const embedded = await doc.embedPages(
+    pages,
+    shown.map(({ cropBox: { x, y, width, height } }) => ({ left: x, bottom: y, right: x + width, top: y + height })),
+    shown.map((geometry) => invert(geometry.matrix)),
+  );
+  const layout = sheetLayout(perSheet, paper, shown[0], margin, gap);
+  for (let first = 0; first < pages.length; first += perSheet) {
+    const sheet = doc.addPage([layout.width, layout.height]);
+    for (let cell = 0; cell < perSheet && first + cell < pages.length; cell++) {
+      const page = shown[first + cell];
+      const scale = Math.min(layout.cellWidth / page.width, layout.cellHeight / page.height);
+      const width = page.width * scale, height = page.height * scale;
+      const column = cell % layout.columns, row = Math.floor(cell / layout.columns);
+      const x = margin + column * (layout.cellWidth + gap) + (layout.cellWidth - width) / 2;
+      const y = layout.height - margin - row * (layout.cellHeight + gap) - layout.cellHeight + (layout.cellHeight - height) / 2;
+      const name = sheet.node.newXObject('Page', embedded[first + cell].ref);
+      sheet.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(scale, 0, 0, scale, x, y), lib.drawObject(name), lib.popGraphicsState());
+      if (border) sheet.drawRectangle({ x, y, width, height, borderColor: lib.grayscale(0.6), borderWidth: 0.5 });
+    }
+  }
+  await doc.flush();
+  dropUnreachable(doc);
+  if (password !== null) protectDocument(doc, password);
   return doc.save();
 }
 

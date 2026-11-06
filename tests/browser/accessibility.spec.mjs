@@ -35,7 +35,7 @@ test('every editor tool, with items selected and settings shown', async ({ page 
     await page.selectOption('#tool-form [name="scope"]', 'pages');
     expect(await violations(page), `${tool}, on some pages`).toEqual([]);
   }
-  for (const tool of ['image', 'pages', 'delete', 'crop', 'merge', 'split', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'properties', 'draw', 'form', 'signature']) {
+  for (const tool of ['image', 'pages', 'delete', 'crop', 'margins', 'merge', 'split', 'sheets', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'properties', 'draw', 'form', 'signature']) {
     await useTool(page, tool);
     await ready(page);
     expect(await violations(page), tool).toEqual([]);
