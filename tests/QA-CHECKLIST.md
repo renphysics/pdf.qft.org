@@ -584,9 +584,11 @@ source review does not replace the owner’s browser verification.
   Storage only when its bytes hash to the version in its URL, so a captive
   portal's page (a 200 with HTML) is neither drawn with nor kept (release test);
   the release stamp says to run prepare-assets when the CJK font is missing, and
-  the release test server runs it first. The comparison test's highlight is dark
-  and 80% opaque: the default changes a pixel by at most 60, the comparison's
-  tolerance, so a missing highlight passed it. The Test workflow's concurrency
+  the release test server runs it first. The comparison test's highlight changes
+  a pixel by about 100: the default changes one by at most 60, the comparison's
+  tolerance, so a missing highlight passed it, while a darker one made Firefox
+  fail on the highlight's own anti-aliased edges (half-covered pixels differing
+  from both neighbours by more than 60). The Test workflow's concurrency
   group is keyed by the calling workflow and cancels only pull-request runs, so a
   run of Test on main cannot cancel the tests a deploy waits for.
 

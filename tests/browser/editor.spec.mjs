@@ -115,12 +115,15 @@ test('watermark, headers and footers and page numbers: the download matches the 
   await page.keyboard.type('Placed note');
   await page.keyboard.press('Escape');
   // A highlight and a picture on page 1 too: both must be in the download. The
-  // default highlight (a pale yellow at 35%) changes a pixel by less than the
-  // comparison's tolerance, so this one is dark and as opaque as it goes.
+  // comparison treats pixels within 60 of each other as the same, and the default
+  // highlight (a pale yellow at 35%) changes a pixel by at most 60, so a missing
+  // one would pass. This one changes the red channel by about 100: enough to be
+  // seen, but not so much that its half-covered edge pixels differ from both
+  // neighbours by more than 60, which would count each engine's own anti-aliasing.
   await useTool(page, 'highlight');
   await page.click('[data-action="add-highlight"]');
   await page.fill('#tool-form [name="color"]', '#1b4fa0');
-  await page.fill('#tool-form [name="opacity"]', '80');
+  await page.fill('#tool-form [name="opacity"]', '44');
   await page.keyboard.press('Escape');
   await useTool(page, 'image');
   const logo = createCanvas(120, 60);
