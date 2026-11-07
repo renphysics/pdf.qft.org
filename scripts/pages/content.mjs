@@ -270,6 +270,29 @@ export const PAGES = [
     batchShortcut: true,
   },
   {
+    tool: 'margins',
+    name: 'Add margins to PDF',
+    title: 'Add margins to a PDF, such as room for notes — QFT PDF',
+    description:
+      'Add blank margins around PDF pages: a wide margin for handwritten notes, or room for binding and punching. Nothing on the page shrinks. Free, in your browser.',
+    eyebrow: 'ADD MARGINS',
+    heading: ['Add margins to a PDF.', 'A little more room around the edges.'],
+    intro: 'Make pages larger with blank space on any side, for notes, binding or hole punching, without shrinking what is on them.',
+    upload: { text: 'Drop a PDF here to add margins.' },
+    how: ['How to add margins', 'to a PDF.'],
+    steps: [
+      OPEN_STEP,
+      ['Set the margins.', 'Enter the space to add at the top, bottom, left and right in millimetres, or choose a wide right margin for notes.'],
+      ['Add and download.', 'Add them to every page, the current page or selected pages, check the preview, then save your copy.'],
+    ],
+    faqs: [
+      ['Does anything on the page get smaller?', 'No. The page grows: its content stays the same size and in the same place, with blank space around it.'],
+      ['What happens to page numbers, headers and footers?', 'They go to the edges of the larger page, so they sit in the new margins.'],
+      ['Can I take the margins away again?', 'Yes. Undo, or choose Remove added margins. A crop made since stays.'],
+      ['Is my PDF uploaded?', 'No. The margins are added in your browser and the file never leaves your device.'],
+    ],
+  },
+  {
     tool: 'merge',
     name: 'Merge PDF',
     title: 'Merge PDF files for free, in your browser — QFT PDF',
@@ -319,6 +342,29 @@ export const PAGES = [
       ['Can I split a PDF that has fillable form fields?', 'Yes, once its fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then split: each part keeps the answers as part of its pages. While the fields stay fillable, the PDF isn’t split, so they are never lost silently.'],
       ['Is there a page limit?', 'No fixed limit. Very large documents depend on your device’s memory.'],
       ['Is my PDF uploaded?', 'No. The parts are created in your browser and never leave your device.'],
+    ],
+  },
+  {
+    tool: 'sheets',
+    name: 'Pages per sheet',
+    title: 'Print 2 or 4 PDF pages per sheet, for handouts — QFT PDF',
+    description:
+      'Put 2 or 4 PDF pages on each sheet of A4 or Letter, such as lecture slides as handouts. Text stays sharp. Free, and your file stays on your device.',
+    eyebrow: 'PAGES PER SHEET',
+    heading: ['Put PDF pages on sheets.', 'Two or four to a page.'],
+    intro: 'Make handouts and save paper: 2 or 4 pages on each A4 or Letter sheet, as large as they fit, with text and drawings still sharp.',
+    upload: { text: 'Drop a PDF here to put its pages on sheets.' },
+    how: ['How to put pages', 'on sheets.'],
+    steps: [
+      OPEN_STEP,
+      ['Choose the layout.', 'Pick 2 or 4 pages per sheet, the paper, the margin and gap, and a border if you like. The sheets turn to fit the pages.'],
+      ['Download the sheets.', 'Your document stays as it is; the sheets download as a new PDF, ready to print.'],
+    ],
+    faqs: [
+      ['Do my edits carry over?', 'Yes. Each page goes on its sheet as it looks with your text, numbers, crops and other edits.'],
+      ['Will the text stay sharp?', 'Yes. Pages are placed as they are, not as pictures, so text and drawings stay sharp at any size.'],
+      ['What about links and form fields?', 'Links and comments don’t carry over to the sheets. Form fields are flattened, so their answers become part of the pages.'],
+      ['Is my PDF uploaded?', 'No. The sheets are made in your browser and the file never leaves your device.'],
     ],
   },
   {

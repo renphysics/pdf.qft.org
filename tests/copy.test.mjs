@@ -27,10 +27,10 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { buildPdf, buildPdfWithNotes } = await import('../dist/pdf-engine.js');
+const { buildPdf, buildPdfWithNotes, pagesPerSheet, sheetLayout } = await import('../dist/pdf-engine.js');
 const { splitPdf } = await import('../dist/workflows.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
-const { PDFDocument, PDFDict, PDFHexString, PDFName, PDFNull, PDFNumber, PDFString, StandardFonts, decodePDFRawStream, PDFRawStream } = globalThis.PDFLib;
+const { PDFDocument, PDFDict, PDFHexString, PDFName, PDFNull, PDFNumber, PDFString, StandardFonts, decodePDFRawStream, PDFRawStream, degrees, rgb } = globalThis.PDFLib;
 
 // ---- A six-page document with links, bookmarks and details --------------------------
 
@@ -422,6 +422,98 @@ async function signaturePdf(signed) {
 assert.deepEqual(await notesOf(await signaturePdf(true), [0]), ['signature-invalid'], 'a signed PDF: its signature no longer matches the file');
 assert.deepEqual(await notesOf(await signaturePdf(false), [0]), [], 'an empty signature field is not a signature');
 
+// ---- Pages per sheet -------------------------------------------------------------------------
+
+/** Each sheet's size and its text, with where each piece starts and which way it reads. */
+async function sheetTexts(bytes) {
+  const doc = await pdfjs.getDocument({ data: bytes.slice(), verbosity: 0 }).promise;
+  const result = [];
+  for (let number = 1; number <= doc.numPages; number++) {
+    const page = await doc.getPage(number);
+    const [, , width, height] = page.view;
+    const items = (await page.getTextContent()).items.filter((item) => item.str.trim()).map(({ str, transform: [a, b, , , x, y] }) => ({ text: str, a, b, x, y }));
+    result.push({ width, height, items });
+  }
+  await doc.loadingTask.destroy();
+  return result;
+}
+
+/** How many pixels of a sheet, drawn at 72 dpi, pass `test(red, green, blue)`. */
+async function countPixels(bytes, number, test) {
+  const doc = await pdfjs.getDocument({ data: bytes.slice(), verbosity: 0 }).promise;
+  const page = await doc.getPage(number);
+  const viewport = page.getViewport({ scale: 1 });
+  const surface = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+  await page.render({ canvasContext: surface.getContext('2d'), viewport, canvas: surface }).promise;
+  const { data } = surface.getContext('2d').getImageData(0, 0, surface.width, surface.height);
+  let count = 0;
+  for (let index = 0; index < data.length; index += 4) if (data[index + 3] > 128 && test(data[index], data[index + 1], data[index + 2])) count++;
+  await doc.loadingTask.destroy();
+  return count;
+}
+const dark = (red, green, blue) => red < 100 && green < 100 && blue < 100;
+const pure = (red, green, blue) => red > 200 && green < 80 && blue < 80;
+const MARGIN = 28.35, GAP = 14.17; // 10 mm and 5 mm, the defaults
+
+// Two per sheet: the lecture's six 400 × 500 pages on three landscape A4 sheets, side by side.
+const twoUp = await pagesPerSheet(lecture, { perSheet: 2 });
+{
+  const sheets = await sheetTexts(twoUp);
+  assert.deepEqual(sheets.map(({ width, height }) => [Math.round(width), Math.round(height)]), [[842, 595], [842, 595], [842, 595]]);
+  const at = (text) => sheets[0].items.find((item) => item.text === text);
+  assert.ok(at('PAGE-1-TEXT').x < sheets[0].width / 2 && at('PAGE-2-TEXT').x > sheets[0].width / 2, 'pages 1 and 2 side by side');
+  assert.equal(Math.round(at('PAGE-1-TEXT').y), Math.round(at('PAGE-2-TEXT').y));
+}
+assert.deepEqual(await pageObjects(twoUp), { stored: 3, pages: 3 }, 'only the sheets: no page hidden in the file');
+assert.equal((await PDFDocument.load(twoUp)).getTitle(), 'Lecture notes', 'the document’s details come along');
+// Four per sheet, on Letter: along each row, then down; portrait pages make a portrait sheet.
+{
+  const sheets = await sheetTexts(await pagesPerSheet(lecture, { perSheet: 4, paper: 'letter' }));
+  assert.deepEqual(sheets.map(({ width, height, items }) => [width, height, items.length]), [[612, 792, 4], [612, 792, 2]]);
+  const at = (text) => sheets[0].items.find((item) => item.text === text);
+  assert.ok(at('PAGE-1-TEXT').x < at('PAGE-2-TEXT').x && Math.abs(at('PAGE-1-TEXT').y - at('PAGE-2-TEXT').y) < 0.01, 'pages 1 and 2 on the top row');
+  assert.ok(at('PAGE-3-TEXT').y < at('PAGE-1-TEXT').y && Math.abs(at('PAGE-3-TEXT').x - at('PAGE-1-TEXT').x) < 0.01, 'page 3 under page 1');
+}
+// Landscape slides: two to a portrait sheet, one above the other; four to a landscape sheet, two by two.
+assert.deepEqual((({ width, height, columns, rows }) => [Math.round(width), Math.round(height), columns, rows])(sheetLayout(2, 'a4', { width: 720, height: 405 }, MARGIN, GAP)), [595, 842, 1, 2]);
+assert.deepEqual((({ width, height, columns, rows }) => [Math.round(width), Math.round(height), columns, rows])(sheetLayout(4, 'a4', { width: 720, height: 405 }, MARGIN, GAP)), [842, 595, 2, 2]);
+
+// A page turned (/Rotate 90) and cropped goes on the sheet as it shows: turned, and without
+// what the crop hides (a red square outside the crop; another inside it shows).
+const turned = await (async () => {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([400, 300]);
+  page.drawText('TURNED', { x: 40, y: 40, size: 20 });
+  page.drawRectangle({ x: 100, y: 200, width: 50, height: 50, color: rgb(1, 0, 0) });
+  page.drawRectangle({ x: 250, y: 150, width: 100, height: 100, color: rgb(1, 0, 0) });
+  page.setCropBox(0, 0, 200, 300);
+  page.setRotation(degrees(90));
+  return doc.save();
+})();
+const turnedSheet = await pagesPerSheet(turned, { perSheet: 2 });
+{
+  const [sheet] = await sheetTexts(turnedSheet);
+  const text = sheet.items.find((item) => item.text === 'TURNED');
+  assert.ok(Math.abs(text.a) < 1e-6 && text.b < 0, 'the text reads downwards, as the turned page shows it');
+  const { scale } = sheetLayout(2, 'a4', { width: 300, height: 200 }, MARGIN, GAP);
+  const red = await countPixels(turnedSheet, 1, pure);
+  const square = (50 * scale) ** 2;
+  assert.ok(red > 0.8 * square && red < 1.2 * square, `only the square inside the crop shows (${red} red pixels, ${Math.round(square)} expected)`);
+}
+// Layers hidden in the PDF stay hidden on the sheet: each page shows only its square on the shown layer.
+{
+  const sheet = await pagesPerSheet(questions, { perSheet: 2 });
+  const { scale } = sheetLayout(2, 'a4', { width: 400, height: 500 }, MARGIN, GAP);
+  const shown = 2 * (100 * scale) ** 2;
+  const drawn = await countPixels(sheet, 1, dark);
+  assert.ok(drawn > 0.8 * shown && drawn < 1.2 * shown, `the hidden layer stays hidden (${drawn} dark pixels, ${Math.round(shown)} expected)`);
+}
+// A thin border around each page, a password, and fields that must be flattened first.
+assert.ok((await countPixels(await pagesPerSheet(blankBytes, { perSheet: 2, border: true }), 1, (red, green, blue) => red < 230 && red === green && green === blue)) > 100, 'a grey border around the page');
+await assert.rejects(PDFDocument.load(await pagesPerSheet(lecture, { password: 'secret' })), /encrypted/i, 'the handout keeps the password');
+await assert.rejects(pagesPerSheet(await readFile(path.join(here, 'fixtures/form-fields.pdf'))), /flattened/);
+await assert.rejects(pagesPerSheet(lecture, { perSheet: 3 }), /2 or 4/);
+
 assert.deepEqual([fingerprint(lecture), fingerprint(appendix)], before, 'the source PDFs are untouched');
 
-console.log(JSON.stringify({ status: 'passed', checks: ['deleted page: details, language, viewer settings and bookmarks kept; links to kept pages work, named destinations resolved; the deleted page is not in the file', 'extracted page: no other page hidden in the file (links, page actions)', 'combined: each linked page stored once, links and bookmarks lead to the right pages, bookmarks of both PDFs, details from the first', 'reordered and duplicated pages; each copy of a duplicated page shows only its own additions and has its own annotations', 'split parts with a shared page: each part has its own links and bookmarks', 'layers hidden in a PDF stay hidden when pages are deleted, duplicated, combined or split', 'a bookmark for each combined file', 'notes: page labels, attached files and tags a copy leaves out; a digital signature no longer valid'] }, null, 2));
+console.log(JSON.stringify({ status: 'passed', checks: ['deleted page: details, language, viewer settings and bookmarks kept; links to kept pages work, named destinations resolved; the deleted page is not in the file', 'extracted page: no other page hidden in the file (links, page actions)', 'combined: each linked page stored once, links and bookmarks lead to the right pages, bookmarks of both PDFs, details from the first', 'reordered and duplicated pages; each copy of a duplicated page shows only its own additions and has its own annotations', 'split parts with a shared page: each part has its own links and bookmarks', 'layers hidden in a PDF stay hidden when pages are deleted, duplicated, combined or split', 'a bookmark for each combined file', 'notes: page labels, attached files and tags a copy leaves out; a digital signature no longer valid', 'pages per sheet: 2 and 4 to a sheet, in reading order, turned and cropped as shown, layers hidden, no hidden pages, border, password'] }, null, 2));

@@ -299,8 +299,11 @@ scrolling, swiping between pages; an iPhone in Chromium and in WebKit) and axe
 accessibility checks. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
-before every deployment; when one fails, the run keeps its screenshots, traces
-and HTML report for 14 days (an artifact on the run's summary page). Locally:
+before every deployment, on Ubuntu 24.04 (pinned: `ubuntu-latest` became 26.04
+in November 2026, and its libsoup 3.6 rewrites spaces in download file names as
+underscores in WebKit, which the file-name checks catch); when one fails, the
+run keeps its screenshots, traces and HTML report for 14 days (an artifact on
+the run's summary page). Locally:
 
 ```sh
 npm ci
@@ -344,6 +347,32 @@ It hides outside content, **not secure redaction**. Existing crop-box offsets,
 native and added rotations, mixed sizes, and placed annotations are supported.
 Watermarks, headers, footers, and page numbers follow the resulting visible
 page bounds. Files continue to be processed entirely in the browser.
+
+## Add margins and Pages per sheet
+
+Add margins (`/add-margins-to-pdf/`) makes pages larger with blank space at the
+top, bottom, left or right, in millimetres (up to 100 mm a side), on every page,
+the current page or selected pages; "A wide right margin for notes" fills in
+60 mm on the right. Nothing on the page moves or shrinks, and edits made before
+stay on the content. In the page list, margins are crop margins below zero, and
+`crop.content` records what the page showed when they were added; the margins
+are blank even where the PDF has content (outside an earlier crop, or outside its
+own visible box). The export clips the page's content to that area and grows the
+MediaBox; the preview paints the margins white (`contentMargins` and `contentBox`
+in `layout.js`). Watermarks, headers, footers and page numbers go to the new
+edges. Remove added margins takes them away again, keeping any crop made since;
+Restore original crop in Crop PDF removes both.
+
+Pages per sheet (`/pdf-pages-per-sheet/`) downloads a new PDF with 2 or 4 pages on
+each A4 or Letter sheet (Letter where it is the usual paper), with a margin and a
+gap in millimetres and an optional thin border; the document itself is unchanged.
+`pagesPerSheet` in `pdf-engine.js` places each page as it shows (turned and
+cropped) and as large as fits; `sheetLayout` picks the grid and the sheet's
+orientation that make pages largest (portrait pages side by side on a landscape
+sheet, two slides one above the other). Pages are embedded as they are, so text
+and drawings stay vector; layer settings and the document's details come along.
+Links and comments do not carry over; form fields are flattened first, so their
+answers do. A password set in Protect PDF protects the sheets too.
 
 ## JPG to PDF and PDF to JPG
 
