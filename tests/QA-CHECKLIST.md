@@ -382,7 +382,7 @@ source review does not replace the owner’s browser verification.
   axe and a turned page (/Rotate 90) whose inputs turn with it.
 - Known limits: calculations and checks built into a form do not run; XFA-only forms
   are not supported; signature fields stay empty (Sign PDF places a picture of a
-  signature). On phones, fields are small at Fit: zoom in to fill them comfortably.
+  signature). On phones, the page zooms to the field you tap (see the 2026-11-07 section).
 
 ## Split and forms; help and FAQs — 2026-11-02
 
@@ -620,3 +620,14 @@ source review does not replace the owner’s browser verification.
   site-integrity test fails when `package.json` and `versions.json` disagree;
   a monthly workflow compares the bundles with npm and opens or updates one
   issue (`scripts/check-vendored-versions.mjs`, also runnable locally).
+- Forms on phones: at Fit, the fixture's fields were 9 px tall (6 px on the
+  iPhone 13 project) and the 300% zoom cap could not reach 44 px. A field that
+  gets focus now folds the sheet, lays the pages out again and zooms the page
+  so the field is 44 px tall (boxes 24 px, with a 44 px `::before` tap area on
+  coarse pointers), anchored on the field, then brings it into the top third of
+  the view; the zoom buttons step down from there, Fit shows the whole page,
+  leaving Fill form restores the zoom, and a refit (the keyboard, a turn)
+  re-asserts the size. Phone test (Chromium and WebKit): a tapped field reaches
+  44 px inside the stage with the sheet folded, Tab keeps the next field in
+  view, a check box toggles from a tap, and Fit returns. Desktop: the zoom stays
+  at Fit (forms test guard).

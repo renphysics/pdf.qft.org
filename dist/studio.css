@@ -1991,6 +1991,19 @@ input.form-checkbox:checked {
 input.form-radio:checked {
   background-image: radial-gradient(circle, #111111 0 34%, transparent 37%);
 }
+/* Touch screens: a check box or radio can be tapped with a finger, whatever its drawn size. */
+@media (pointer: coarse) {
+  input.form-checkbox::before,
+  input.form-radio::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
 select.form-dropdown {
   padding-right: 1.1em;
   cursor: pointer;

@@ -19,7 +19,15 @@ import {
   touch,
   ui,
 } from './editor-core.js';
-import { inView, pageById, revealElement, scrollToPage, setCurrentPage } from './page-view.js';
+import {
+  inView,
+  pageById,
+  renderStage,
+  revealElement,
+  scrollToPage,
+  setCurrentPage,
+  setZoom,
+} from './page-view.js';
 import { rememberThumb, setSheet, thumbKey } from './pages.js';
 import { usedSources } from './documents.js';
 import { change } from './history.js';
@@ -259,6 +267,49 @@ export function focusField({ source, field, pageId }) {
   control.focus({ preventScroll: true });
   revealElement(control);
 }
+// ---- Fields on phones --------------------------------------------------------------
+// At Fit a phone shows a form's fields 6 to 13 px tall, and 300% is not enough for
+// the 44 px a finger needs, so a field zooms the page to itself when it gets focus.
+
+const TOUCH_TARGET = 44, // px: a field tall enough to tap and to read
+  TOUCH_BOX = 24, // px: a check box or radio as drawn (its tap area is 44 px: studio.css)
+  FIELD_ZOOM_MAX = 8;
+/**
+ * Phones: zoom the page so the focused field is large enough to tap and read,
+ * then bring it into the upper part of the view (room for the keyboard). Does
+ * nothing on desktop, without a focused field, or when it is already large
+ * enough, so it can run again after any relayout.
+ */
+export function fitFieldForTouch(control = document.activeElement) {
+  if (!phone() || !control?.classList?.contains('form-field') || !control.isConnected) return;
+  // The tool sheet may just have folded: lay the pages out for the stage as it is now.
+  renderStage();
+  const scroll = $('#canvas-scroll'),
+    area = scroll.getBoundingClientRect(),
+    box = control.getBoundingClientRect(),
+    target = control.type === 'checkbox' || control.type === 'radio' ? TOUCH_BOX : TOUCH_TARGET;
+  if (box.height > 0 && box.height < target - 0.5) {
+    // Sizes scale with the zoom; the field's centre stays put while the page grows around it.
+    const zoom = Math.min(FIELD_ZOOM_MAX, (ui.zoom * target) / box.height);
+    ui.formZoom ??= { before: ui.zoom };
+    setZoom(
+      zoom,
+      {
+        x: box.left + box.width / 2 - area.left - scroll.clientLeft,
+        y: box.top + box.height / 2 - area.top - scroll.clientTop,
+      },
+      { max: FIELD_ZOOM_MAX, across: true },
+    );
+    ui.formZoom.zoom = ui.zoom;
+  }
+  revealElement(control, { upper: true });
+}
+/** Leaving Fill form: back to the zoom from before the first field zoom, unless the user zoomed since. */
+export function restoreFormZoom() {
+  const kept = ui.formZoom;
+  ui.formZoom = null;
+  if (kept && Math.abs(ui.zoom - kept.zoom) < 0.0001) setZoom(kept.before, null, { across: true });
+}
 /** The first empty field from the current page on, or from the start. */
 export function nextEmptyField() {
   const { empty } = formSummary(),
@@ -381,8 +432,14 @@ export function initFormInputs() {
     if (!control) return;
     const view = control.closest('.page-view');
     if (view) setCurrentPage(view.dataset.viewId);
-    // Phones: fold the tool sheet away so the field stays visible above the keyboard.
-    if (phone() && control.matches('input[type="text"], input[type="password"], textarea')) setSheet(false);
+    if (!phone()) return;
+    // Phones: the tool sheet folds away (room for the keyboard), then the page zooms
+    // to the field, once the tap that focused it has been delivered in full: a box
+    // that moved under the finger before its click would not toggle.
+    setSheet(false);
+    requestAnimationFrame(() => {
+      if (document.activeElement === control) fitFieldForTouch(control);
+    });
   });
   // Tab moves through the fields in reading order, also to pages not shown yet.
   stageStack.addEventListener('keydown', (event) => {

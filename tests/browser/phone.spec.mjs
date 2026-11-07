@@ -1,6 +1,6 @@
 // Phones (iPhone 13 size, touch): the document comes first, tools sit in a
 // bottom bar, controls are large enough to tap, and nothing scrolls sideways.
-import { test, expect, openSample, ready, overlayLines } from './helpers.mjs';
+import { test, expect, fixture, openFiles, openSample, ready, overlayLines } from './helpers.mjs';
 
 const TOOLS = [
   'text',
@@ -166,4 +166,43 @@ test('nothing scrolls sideways from 320 px to 414 px', async ({ page }) => {
       expect(await overflow(page), `${tool} at ${width} px`).toEqual({ page: 0, wide: [] });
     }
   }
+});
+
+test('Fill form zooms the page to the field you tap, and Fit shows it whole again', async ({ page }) => {
+  await openFiles(page, fixture('form-fields.pdf'));
+  await page
+    .locator('[data-action="dismiss-toast"]')
+    .click({ timeout: 2000 })
+    .catch(() => {});
+  const name = page.locator('.form-field[data-field="applicant.name"]').first();
+  expect((await name.boundingBox()).height).toBeLessThan(20);
+  await name.tap();
+  await expect(name).toBeFocused();
+  await expect.poll(async () => (await name.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  const stage = await page.locator('#canvas-scroll').boundingBox();
+  const within = async (locator) => {
+    const box = await locator.boundingBox();
+    return box.y >= stage.y && box.y + box.height <= stage.y + stage.height;
+  };
+  expect(await within(name)).toBe(true);
+  await expect(page.locator('#zoom-label')).not.toHaveText('Fit');
+  await expect(page.locator('.tool-sidebar')).toHaveClass(/collapsed/);
+  // Tab: the next field is in view, as large.
+  await page.keyboard.press('Tab');
+  const next = page.locator('.form-field:focus');
+  await expect(next).toHaveCount(1);
+  await expect.poll(() => within(next)).toBe(true);
+  expect((await next.boundingBox()).height).toBeGreaterThanOrEqual(24);
+  // A check box: finger-sized tap area, and a tap toggles it.
+  const box = page.locator('.form-field[type="checkbox"]').first();
+  await box.scrollIntoViewIfNeeded();
+  expect(
+    await box.evaluate((input) => parseFloat(getComputedStyle(input, '::before').height)),
+  ).toBeGreaterThanOrEqual(44);
+  await box.tap();
+  await expect(box).toBeChecked();
+  await expect.poll(async () => (await box.boundingBox()).height).toBeGreaterThanOrEqual(24);
+  // Fit shows the whole page again; leaving Fill form returns to it too.
+  await page.click('[data-action="zoom-fit"]');
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
 });

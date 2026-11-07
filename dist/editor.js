@@ -51,7 +51,7 @@ import {
   ui,
 } from './editor-core.js';
 import { onStageScroll, renderStage, revealItem, scheduleOverlays, setZoom } from './page-view.js';
-import { clearForm, focusField, initFormInputs, nextEmptyField } from './form-ui.js';
+import { clearForm, fitFieldForTouch, focusField, initFormInputs, nextEmptyField } from './form-ui.js';
 import {
   addDrawing,
   addHighlight,
@@ -308,7 +308,7 @@ export async function action(name, element) {
   if (name === 'zoom-in' || name === 'zoom-out' || name === 'zoom-fit') {
     // Steps of 25% of Fit; from a zoom set with the wheel, to the next step.
     const quarters = name === 'zoom-in' ? Math.ceil(ui.zoom * 4 + 0.01) : Math.floor(ui.zoom * 4 - 0.01);
-    setZoom(name === 'zoom-fit' ? 1 : quarters / 4);
+    setZoom(name === 'zoom-fit' ? 1 : quarters / 4, null, { max: Math.max(3, ui.zoom) });
   }
   if (name === 'undo') undo();
   if (name === 'redo') redo();
@@ -629,6 +629,8 @@ const refit = () => {
   resizeTimer = setTimeout(() => {
     if ($('#workspace').hidden) return;
     renderStage();
+    // A phone's keyboard or a turn changes Fit: a focused form field keeps its size.
+    fitFieldForTouch();
     // The page strip scrolls in a different container on phones.
     if (phoneLayout !== phone()) {
       phoneLayout = phone();

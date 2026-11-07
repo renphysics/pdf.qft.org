@@ -57,6 +57,7 @@ test('a form opens in Fill form, its fields fill in on the page, and the downloa
   // The next empty field, and Tab on to the next page's fields.
   await page.click('[data-action="form-next"]');
   await expect(field(page, 'applicant.email')).toBeFocused();
+  await expect(page.locator('#zoom-label'), 'the field zoom is for phones').toHaveText('Fit');
   await page.keyboard.type('zoe@example.org');
   await field(page, 'interests').focus();
   await page.keyboard.press('Tab');

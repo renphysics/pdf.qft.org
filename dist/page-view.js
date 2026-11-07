@@ -593,11 +593,14 @@ async function renderView(view, wanted) {
   // Drawn at an earlier zoom, the image stands in until the page is drawn again.
   view.el.classList.toggle('render-pending', wantedRender(entry).key !== view.key);
 }
-/** Change the zoom, keeping a point of the view (the middle of its top edge, or the pointer) in place. */
-export function setZoom(zoom, at = null) {
-  zoom = clamp(zoom, 0.5, 3);
-  // Zooming across Fit stops at Fit.
-  if ((ui.zoom - 1) * (zoom - 1) < 0) zoom = 1;
+/**
+ * Change the zoom, keeping a point of the view (the middle of its top edge, or
+ * the pointer) in place. The buttons and the wheel stop at 300% and at Fit on
+ * their way across it; zooming to a form field (form-ui.js) may go further.
+ */
+export function setZoom(zoom, at = null, { max = 3, across = false } = {}) {
+  zoom = clamp(zoom, 0.5, max);
+  if (!across && (ui.zoom - 1) * (zoom - 1) < 0) zoom = 1;
   if (Math.abs(zoom - ui.zoom) < 0.0001 || !state.pages.length) return;
   const point = at || readingPoint(),
     position = positionAt(point.x, point.y);
@@ -721,8 +724,12 @@ export function focusItem(id) {
   if (node) node.focus({ preventScroll: true });
   else $('#canvas-scroll').focus({ preventScroll: true });
 }
-/** Scroll the view just enough to show an element on a page (an item added with a button may be out of view). */
-export function revealElement(node) {
+/**
+ * Scroll the view just enough to show an element on a page (an item added with
+ * a button may be out of view). `upper`: an element in the lower half comes up
+ * to the top third, leaving room for a phone's keyboard below it.
+ */
+export function revealElement(node, { upper = false } = {}) {
   const scroll = $('#canvas-scroll');
   if (!node?.isConnected) return;
   const area = scroll.getBoundingClientRect(),
@@ -739,6 +746,7 @@ export function revealElement(node) {
     dy = Math.min(rect.bottom - bottom + margin, rect.top - top - margin);
   if (rect.left < left + margin) dx = rect.left - left - margin;
   else if (rect.right > right - margin) dx = Math.min(rect.right - right + margin, rect.left - left - margin);
+  if (upper && rect.top > top + scroll.clientHeight / 2) dy = rect.top - top - scroll.clientHeight / 3;
   if (!dx && !dy) return;
   scroll.scrollTop += dy;
   scroll.scrollLeft += dx;
@@ -830,9 +838,11 @@ export function updateStageHint() {
         : 'Make your signature in the panel, then click the page to place it.';
   if (ui.tool === 'crop') hint = 'Drag across the page to choose the area to keep.';
   if (ui.tool === 'form')
-    hint = documentFields().length
-      ? 'Click a field to fill it in. Tab moves to the next one.'
-      : 'This PDF has no form fields to fill in.';
+    hint = !documentFields().length
+      ? 'This PDF has no form fields to fill in.'
+      : phone()
+        ? 'Tap a field to fill it in. The page zooms to it; Fit shows it whole.'
+        : 'Click a field to fill it in. Tab moves to the next one.';
   if (ui.tool === 'pages' || ui.tool === 'delete')
     hint = 'Choose pages with the checkboxes in the page strip.';
   if (problems.length) hint = 'Check this page: ' + problems[0].message;

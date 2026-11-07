@@ -573,6 +573,7 @@ export async function openFiles(files, append = false) {
       ui.shownSettings = new Set();
       ui.image = null;
       ui.zoom = 1;
+      ui.formZoom = null;
       resetStage();
       // A PDF with fields to fill in, opened from the home page, opens in Fill form.
       if (!pageTool && documentFields().length) ui.tool = 'form';

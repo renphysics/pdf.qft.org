@@ -109,7 +109,7 @@ export const PAGES = [
       OPEN_STEP,
       [
         'Fill in the fields.',
-        'Click a field and type, tick check boxes, and choose options. Tab takes you to the next field, and Go to the next empty field finds what is left.',
+        'Click a field and type, tick check boxes, and choose options. Tab takes you to the next field, and Go to the next empty field finds what is left. On a phone, the page zooms in to the field you tap.',
       ],
       [
         'Download.',

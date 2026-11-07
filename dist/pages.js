@@ -27,7 +27,7 @@ import {
   uid,
 } from './editor-core.js';
 import { renderEditLayers, renderStage, scrollToPage, updateCurrentPage } from './page-view.js';
-import { sourceOf } from './form-ui.js';
+import { restoreFormZoom, sourceOf } from './form-ui.js';
 import { endGesture, stopEditing } from './page-items.js';
 import { fillForm, renderTool } from './tool-panel.js';
 import { showSettingDefaults } from './panel-settings.js';
@@ -363,6 +363,7 @@ export function chooseTool(tool) {
   stopEditing();
   endGesture();
   if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
+  if (ui.tool === 'form' && tool !== 'form') restoreFormZoom();
   ui.tool = tool;
   // Watermark and Page numbers show their defaults when chosen. Arrowing through
   // the menu to see what there is changes the tool with every key; then they

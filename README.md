@@ -181,7 +181,8 @@ shows it without building a PDF:
 
 On phones the document comes first: the page fills the screen under a compact
 document bar, tools sit in a bottom bar, and each tool's settings open in a
-sheet that folds away. Controls are at least 44 px.
+sheet that folds away. Controls are at least 44 px, and in Fill form the page
+zooms in to the field you tap (below).
 
 The editor's code is split by what it does. `app.js` runs on every page and is
 all a page needs before a file is opened: the tool search, opening files and the
@@ -477,6 +478,12 @@ dropdowns and lists. A PDF with fields opened from the home page opens in it.
   through them in reading order, on to the next page. In the other tools and
   the page strip, PDF.js draws the fields with the values typed (its annotation
   storage), as readers will show the download.
+- On phones (the layout under 720 px), a field that gets focus folds the tool
+  sheet away and zooms the page so the field is at least 44 px tall (check
+  boxes and radios 24 px, with a 44 px tap area), in the upper part of the view
+  above the keyboard; Tab and Go to the next empty field keep the field in
+  view, Fit shows the whole page, and leaving Fill form returns to the zoom
+  from before. The zoom buttons step down from a field zoom.
 - Values are part of the document state (`state.formValues`), so each change is
   an undo step. On export they are written to the fields, and changed fields get
   new appearances in a font that has their characters (Helvetica, Noto Sans or
