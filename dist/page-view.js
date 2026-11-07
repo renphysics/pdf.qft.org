@@ -30,7 +30,8 @@ import {
 } from './editor-core.js';
 import { documentFields, fillingForm, renderFormLayer, updateFormSummary } from './form-ui.js';
 import { positionInlineEditor, stack } from './page-items.js';
-import { annotationList, updateCropOverlays } from './tool-panel.js';
+import { annotationList } from './tool-panel.js';
+import { updateCropOverlays } from './panel-crop.js';
 import { refreshThumbOverlays, revealThumbnail, syncPageNavigation, thumbKey } from './pages.js';
 
 // ---- The page preview ----------------------------------------------------------

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOL_PAGES } from '../dist/routes.js';
+import { TOOL_PAGES, TOOLS } from '../dist/routes.js';
 
 // No package installation is needed: this validates exactly the shipped files.
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -80,6 +80,36 @@ for (const name of ['style.css', 'studio.css', 'batch.css']) {
     [...shell].sort(),
     'index.html preloads exactly the modules app.js imports',
   );
+}
+
+// Each tool's panel is a module (panel-*.js; form-ui.js for Fill form) that
+// exports fields() and is registered once in tool-panel.js's PANELS, which
+// covers exactly the tools with a tab in routes.js.
+{
+  const toolPanel = await readFile(path.join(site, 'tool-panel.js'), 'utf8');
+  const registry = toolPanel.match(/const PANELS = \{([^}]*)\}/)?.[1];
+  assert(registry, 'tool-panel.js registers the panels in PANELS');
+  const keys = [...registry.matchAll(/^\s*(\w+)/gm)].map((match) => match[1]).sort();
+  assert.deepEqual(
+    keys,
+    TOOLS.filter((item) => item.tab)
+      .map((item) => item.id)
+      .sort(),
+    'PANELS covers every tool with a tab, and no other',
+  );
+  const panels = (await readdir(site)).filter((name) => /^panel-[\w-]+\.js$/.test(name));
+  assert(panels.length >= 10, 'the panel modules are in dist/');
+  for (const name of [...panels, 'form-ui.js']) {
+    assert(
+      /^export function fields\(/m.test(await readFile(path.join(site, name), 'utf8')),
+      `${name} exports fields()`,
+    );
+    assert.equal(
+      toolPanel.match(new RegExp(`import \\* as \\w+ from '\\./${name}'`, 'g'))?.length,
+      1,
+      `tool-panel.js imports ${name} once, as a namespace`,
+    );
+  }
 }
 
 for (const base of ['https://pdf.qft.org/', 'https://renphysics.github.io/pdf.qft.org/']) {

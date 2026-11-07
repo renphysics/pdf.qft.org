@@ -8,6 +8,7 @@ import { applyMatrix, fontKind, hexColor, invert, number, TEXT_LINE_HEIGHT, text
 import { FONT_FAMILIES, geometryOf, warmFont } from './preview.js';
 import {
   $,
+  activeIndex,
   ANNOTATION_TOOLS,
   annotationById,
   announceMessage,
@@ -35,7 +36,8 @@ import {
   syncViews,
   updateStageHint,
 } from './page-view.js';
-import { fillForm, placeSignature, renderTool, updateCropOverlays } from './tool-panel.js';
+import { fillForm, renderTool } from './tool-panel.js';
+import { updateCropOverlays } from './panel-crop.js';
 import { chooseTool, refreshThumbOverlays, setSheet } from './pages.js';
 import { change, documentChanged, record } from './history.js';
 import { recordView } from './views.js';
@@ -758,4 +760,89 @@ export async function addImageFile(file) {
   } catch (error) {
     toast(friendly(error), true);
   }
+}
+
+// ---- Signatures on pages (made in panel-signature.js) -----------------------------
+
+/** A signature's size and place: at a click, or near the lower right of the page. */
+function signatureFrame(geometry, point = null) {
+  const ratio = ui.signature.width / ui.signature.height;
+  let width = Math.min(geometry.width * 0.32, 160),
+    height = width / ratio;
+  if (height > geometry.height * 0.12) {
+    height = geometry.height * 0.12;
+    width = height * ratio;
+  }
+  const margin = Math.min(geometry.width, geometry.height) * 0.08;
+  return {
+    x: point ? clamp(point.x - width / 2, 0, geometry.width - width) : geometry.width - margin - width,
+    y: point
+      ? clamp(point.y - height / 2, 0, geometry.height - height)
+      : geometry.height - margin * 1.5 - height,
+    width,
+    height,
+  };
+}
+function signatureAnnotation(page, geometry, frame, bytes = ui.signature.bytes) {
+  return {
+    id: uid(),
+    pageId: page.id,
+    pageRotation: page.rotation,
+    pageCrop: page.crop ? { ...page.crop } : undefined,
+    type: 'signature',
+    x: frame.x / geometry.width,
+    y: frame.y / geometry.height,
+    width: frame.width / geometry.width,
+    height: frame.height / geometry.height,
+    opacity: 1,
+    // Shared by every copy, so the PDF stores the picture once.
+    imageBytes: bytes,
+    imageType: 'png',
+  };
+}
+/** Place the signature at a point on a page, or (from the panel) in the corner of the current page. */
+export function placeSignature(point = null, page = currentPage()) {
+  if (!ui.signature) {
+    toast('Make your signature first: draw, type or upload it in the panel.');
+    if (phone()) setSheet(true);
+    return;
+  }
+  const geometry = geometryOf(state, page),
+    annotation = signatureAnnotation(page, geometry, signatureFrame(geometry, point));
+  change(() => state.annotations.push(annotation));
+  // Placed with a button, it may be out of view.
+  selectItem(annotation.id, { reveal: !point });
+}
+export function placeSignatureEverywhere() {
+  const added = state.pages.map((page) => {
+    const geometry = geometryOf(state, page);
+    return signatureAnnotation(page, geometry, signatureFrame(geometry));
+  });
+  change(() => state.annotations.push(...added));
+  selectItem(added[activeIndex()].id, { reveal: true });
+  toast('Your signature is on all ' + added.length + ' pages. Drag any of them to adjust it.');
+}
+/** Copy a placed signature to the same place, at the same size, on every other page. */
+export function copySignature(item) {
+  const own = pageById(item.pageId),
+    from = geometryOf(state, own);
+  const width = item.width * from.width,
+    height = item.height * from.height;
+  const added = state.pages
+    .filter((page) => page.id !== own.id)
+    .map((page) => {
+      const geometry = geometryOf(state, page),
+        w = Math.min(width, geometry.width),
+        h = Math.min(height, geometry.height);
+      const frame = {
+        x: clamp(item.x * geometry.width, 0, geometry.width - w),
+        y: clamp(item.y * geometry.height, 0, geometry.height - h),
+        width: w,
+        height: h,
+      };
+      return signatureAnnotation(page, geometry, frame, item.imageBytes);
+    });
+  if (!added.length) return;
+  change(() => state.annotations.push(...added));
+  toast('Signature added to ' + added.length + ' more page' + (added.length === 1 ? '' : 's') + '.');
 }

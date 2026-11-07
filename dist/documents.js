@@ -17,23 +17,21 @@ import {
   friendly,
   pageTool,
   phone,
+  protectedDownload,
   setState,
   snapshot,
   state,
   toast,
   ui,
   uid,
+  unlockedDownload,
 } from './editor-core.js';
 import { resetStage } from './page-view.js';
 import { documentFields, focusField } from './form-ui.js';
 import { addImageFile, selectItem, stopEditing } from './page-items.js';
-import {
-  protectedDownload,
-  renderTool,
-  showSettingDefaults,
-  unlockedDownload,
-  updateProtectionStatus,
-} from './tool-panel.js';
+import { renderTool } from './tool-panel.js';
+import { showSettingDefaults } from './panel-settings.js';
+import { updateProtectionStatus } from './panel-protect.js';
 import { choosePage, chooseTool, formProblem, selectedIds, setSheet } from './pages.js';
 import { change, documentChanged } from './history.js';
 import { recordView } from './views.js';

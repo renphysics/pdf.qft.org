@@ -9,7 +9,7 @@
  *   page-view.js    the page preview
  *   page-items.js   typing, moving and resizing items; crop drag
  *   form-ui.js      Fill form
- *   tool-panel.js   the tool panel
+ *   tool-panel.js   the tool panel's frame, and panel-*.js, one per tool
  *   pages.js        pages, the page strip and choosing tools
  *   documents.js    opening, building and downloading PDFs
  */
@@ -38,6 +38,7 @@ import {
   pageTool,
   phone,
   positionToast,
+  protectedDownload,
   selectedItem,
   setState,
   settingDefaults,
@@ -55,33 +56,23 @@ import {
   addHighlight,
   addImageFile,
   baselines,
+  copySignature,
   createText,
   deleteItem,
   endGesture,
   initPageItems,
   placeImage,
+  placeSignature,
+  placeSignatureEverywhere,
   selectItem,
   stopEditing,
 } from './page-items.js';
-import {
-  clearProperties,
-  copySignature,
-  cropDraftActive,
-  cropValues,
-  fillForm,
-  notesMargin,
-  pad,
-  placeSignature,
-  placeSignatureEverywhere,
-  protectedDownload,
-  removeMargins,
-  renderTool,
-  scopedPages,
-  setSignature,
-  toggleSetting,
-  updateCropOverlays,
-  useSignature,
-} from './tool-panel.js';
+import { fillForm, renderTool } from './tool-panel.js';
+import { cropDraftActive, cropValues, scopedPages, updateCropOverlays } from './panel-crop.js';
+import { notesMargin, removeMargins } from './panel-margins.js';
+import { clearProperties } from './panel-properties.js';
+import { pad, setSignature, useSignature } from './panel-signature.js';
+import { toggleSetting } from './panel-settings.js';
 import {
   choosePage,
   chooseTool,

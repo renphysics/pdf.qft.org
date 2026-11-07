@@ -436,3 +436,20 @@ export function setState(next) {
 /** Whether keystrokes on this element are text being typed (so shortcuts leave them alone). */
 export const typing = (element) =>
   ['INPUT', 'TEXTAREA', 'SELECT'].includes(element?.tagName) || element?.isContentEditable;
+
+// ---- Protection ----------------------------------------------------------------
+
+/** Whether downloads will need a password to open. */
+export function protectedDownload() {
+  return Boolean(state.protection && state.protection.enabled !== false && state.protection.password);
+}
+/** Protected PDFs in use: opened with a password, or limiting printing, copying or changes. */
+export function lockedSources() {
+  return state.sources.filter(
+    (source) => source.protection && state.pages.some((page) => page.sourceId === source.id),
+  );
+}
+/** Whether Unlock PDF is giving a protected PDF back without its password. */
+export function unlockedDownload() {
+  return ui.tool === 'unlock' && !protectedDownload() && lockedSources().length > 0;
+}

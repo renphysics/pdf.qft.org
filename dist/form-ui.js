@@ -9,6 +9,7 @@ import {
   $,
   $$,
   activeIndex,
+  announceMessage,
   icon,
   pageIndexOf,
   phone,
@@ -420,4 +421,18 @@ export function initFormInputs() {
       return;
     }
   });
+}
+
+// ---- The Fill form panel (tool-panel.js describes the panel interface) ------------
+
+export function fields() {
+  return formPanel();
+}
+export function afterRender() {
+  updateFormSummary();
+}
+export function onInput(name, value) {
+  if (name !== 'flattenForms') return;
+  change(() => (state.flattenForms = value));
+  announceMessage(value ? 'Fields will be flattened on download.' : 'Fields will stay fillable.');
 }

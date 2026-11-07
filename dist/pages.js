@@ -29,7 +29,9 @@ import {
 import { renderEditLayers, renderStage, scrollToPage, updateCurrentPage } from './page-view.js';
 import { sourceOf } from './form-ui.js';
 import { endGesture, stopEditing } from './page-items.js';
-import { fillForm, renderTool, showSettingDefaults, updateDeletionMarks } from './tool-panel.js';
+import { fillForm, renderTool } from './tool-panel.js';
+import { showSettingDefaults } from './panel-settings.js';
+import { updateDeletionMarks } from './panel-pages.js';
 import { change } from './history.js';
 import { recordView } from './views.js';
 import { interleaveOrder } from './workflows.js';

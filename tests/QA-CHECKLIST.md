@@ -602,3 +602,13 @@ source review does not replace the owner’s browser verification.
   that the dynamic import and the preloads carry the release id. Opening the
   file picker stays synchronous with the click (browsers require it) while the
   editor loads; files dropped or picked before it arrives are opened once it has.
+- `tool-panel.js` (2,000 lines) is now the panel's frame (317 lines: the field
+  builders, `renderTool`, `fillForm`, the input prologue and the `PANELS`
+  registry) plus twelve `panel-*.js` modules, one per tool or family, behind
+  one interface (`fields`, `values`, `onInput`, `onSubmit`, `afterRender`,
+  `afterFill`, `title`); Fill form's panel is `form-ui.js`. The code moved
+  verbatim; the protection queries moved to `editor-core.js` and signature
+  placement to `page-items.js`. A scripted check confirmed every named import
+  is exported and every call resolves; the site-integrity test checks the
+  registry covers exactly the tools with a tab and that each module exports
+  `fields()`. Browser suites in Chromium, WebKit and Firefox.

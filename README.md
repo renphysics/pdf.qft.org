@@ -120,9 +120,12 @@ page's canonical address, metadata and FAQ data.
 
 To add a tool: add it to `TOOLS` (and an icon symbol to `index.html` if it needs
 a new one); add its page's copy to `scripts/pages/content.mjs`; add its panel's
-description in `editor-core.js` and its panel (fields, values, input and submit)
-in `tool-panel.js`, with any button actions in `app.js`; run `npm run pages`;
-add a browser test and a QA checklist entry.
+description in `editor-core.js`; write its panel as a module, `panel-<tool>.js`,
+exporting `fields(item, index)` and, as needed, `values`, `onInput`, `onSubmit`,
+`afterRender`, `afterFill` and `title` (the interface is described at the top of
+`tool-panel.js`), and register it in `PANELS` there, with any button actions in
+`editor.js`; run `npm run pages`; add a browser test and a QA checklist entry.
+`npm test` checks that every tool with a tab has a panel module.
 
 Inside a page, the editor and the batch workspace are browser history entries,
 so Back and Forward move between views, the address names the tool in use, and
@@ -194,9 +197,14 @@ module, so every module can use it as they load), `history.js` (edit history:
 registers what to redraw, so any module can record a change without importing
 an entry module back), `views.js` (addresses and browser history, built the same
 way), `page-view.js` (the page preview), `page-items.js` (typing, moving and
-resizing items, crop drag), `form-ui.js` (Fill form), `tool-panel.js` (the tool
-panel), `pages.js` (pages, the page strip and choosing tools) and `documents.js`
-(opening, building and downloading PDFs). The editor's modules import each
+resizing items, crop drag, placing signatures), `form-ui.js` (Fill form),
+`tool-panel.js` (the tool panel's frame: field builders, `renderTool()`,
+`fillForm()` and the panel registry) with one `panel-*.js` module per tool or
+family of tools (text, image and highlight; draw; watermark, headers and
+footers and page numbers; organize, delete and merge; crop; margins; sheets;
+split; protect and unlock; sign; convert; properties), `pages.js` (pages, the
+page strip and choosing tools) and `documents.js` (opening, building and
+downloading PDFs). The editor's modules import each
 other's functions freely; code that runs as a module loads uses only
 `editor-core.js` and the libraries, and no module imports `app.js` or
 `editor.js` (`tests/site-integrity.test.mjs` checks the graph). The release
