@@ -1,7 +1,18 @@
 // The pages scroll continuously, one under another: the page in view is the
 // current page, every page can be edited where it is, and long documents keep
 // only the pages near the view.
-import { test, expect, openSample, openFiles, ready, useTool, download, pdfText, writeTemporary, PDFLib } from './helpers.mjs';
+import {
+  test,
+  expect,
+  openSample,
+  openFiles,
+  ready,
+  useTool,
+  download,
+  pdfText,
+  writeTemporary,
+  PDFLib,
+} from './helpers.mjs';
 
 /** Scroll the stage so that a page's top edge is at the top of the view. */
 async function scrollToTop(page, number) {
@@ -117,7 +128,9 @@ test('zooming keeps the page in view, with the buttons and with Control and the 
   await ready(page);
 });
 
-test('crop outlines the pages it applies to, and Delete pages marks the pages to delete', async ({ page }) => {
+test('crop outlines the pages it applies to, and Delete pages marks the pages to delete', async ({
+  page,
+}) => {
   await openSample(page, 'crop-pdf/');
   const shown = () => page.locator('.page-view:has(.crop-overlay:not([hidden]))');
   await expect(shown()).toHaveCount(1);
@@ -130,7 +143,10 @@ test('crop outlines the pages it applies to, and Delete pages marks the pages to
   await page.locator('[data-page-select]').nth(1).check();
   await expect(page.locator('.page-view[data-number="2"]')).toHaveClass(/marked-delete/);
   await expect(page.locator('.page-view[data-number="1"]')).not.toHaveClass(/marked-delete/);
-  await expect(page.locator('.page-view[data-number="2"] canvas')).toHaveAttribute('aria-label', 'Page 2 of 3, marked for deletion');
+  await expect(page.locator('.page-view[data-number="2"] canvas')).toHaveAttribute(
+    'aria-label',
+    'Page 2 of 3, marked for deletion',
+  );
   await page.click('[data-action="delete-pages"]');
   await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
   await expect(page.locator('.page-view.marked-delete')).toHaveCount(0);

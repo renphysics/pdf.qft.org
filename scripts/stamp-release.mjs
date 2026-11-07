@@ -31,7 +31,15 @@ const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 // Every module beside index.html (app.js and the editor's modules, the engine...).
 const MODULES = (await readdir(site)).filter((name) => name.endsWith('.js')).sort();
-const FIRST_PARTY = ['index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, ...MODULES, 'style.css', 'studio.css', 'batch.css'];
+const FIRST_PARTY = [
+  'index.html',
+  'licenses/index.html',
+  ...TOOL_PAGE_FILES,
+  ...MODULES,
+  'style.css',
+  'studio.css',
+  'batch.css',
+];
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const sources = Object.fromEntries(
   await Promise.all(FIRST_PARTY.map(async (name) => [name, await readFile(path.join(site, name), 'utf8')])),
@@ -93,7 +101,8 @@ for (const [name, rules] of Object.entries(RULES)) {
   let text = sources[name];
   for (const [pattern, replacement, expected] of rules) {
     const found = text.match(pattern)?.length ?? 0;
-    if (expected !== null && found !== expected) throw new Error(`${name}: expected ${expected} match(es) for ${pattern}, found ${found}.`);
+    if (expected !== null && found !== expected)
+      throw new Error(`${name}: expected ${expected} match(es) for ${pattern}, found ${found}.`);
     text = text.replace(pattern, replacement);
   }
   // Every relative import must be versioned: an unversioned URL could load a
@@ -104,4 +113,6 @@ for (const [name, rules] of Object.entries(RULES)) {
   if (unversioned.length) throw new Error(`${name}: unversioned import(s): ${unversioned.join(', ')}`);
   await writeFile(path.join(site, name), text);
 }
-console.log(`Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${cjkFont}) in ${site}.`);
+console.log(
+  `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${cjkFont}) in ${site}.`,
+);

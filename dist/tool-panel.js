@@ -3,7 +3,14 @@
  * the document state, signatures, protection and the Split panel.
  */
 
-import { contentMargins, cropMarginsForRotation, pagesPerSheet, parsePageRange, passwordProblem, sheetLayout } from './pdf-engine.js';
+import {
+  contentMargins,
+  cropMarginsForRotation,
+  pagesPerSheet,
+  parsePageRange,
+  passwordProblem,
+  sheetLayout,
+} from './pdf-engine.js';
 import { createZip, planSplit, safeBaseName, splitPdf } from './workflows.js';
 import { pagesToImages } from './convert.js';
 import {
@@ -60,7 +67,14 @@ import {
 import { formPanel, updateFormSummary } from './form-ui.js';
 import { deselect, inlineEditor, selectItem, setFrame } from './page-items.js';
 import { setSheet, splitFormProblem } from './pages.js';
-import { downloadBytes, exportDocument, exportNotes, outputName, relayoutPictures, showExportError } from './documents.js';
+import {
+  downloadBytes,
+  exportDocument,
+  exportNotes,
+  outputName,
+  relayoutPictures,
+  showExportError,
+} from './documents.js';
 import { action, change } from './app.js';
 
 // ---- The tool panel ---------------------------------------------------------------
@@ -148,10 +162,20 @@ function settingOn(key) {
  */
 export function showSettingDefaults() {
   const key = SETTINGS[ui.tool];
-  if (!state.pages.length || (key !== 'watermark' && key !== 'pageNumbers') || state[key] || ui.shownSettings.has(key)) return;
+  if (
+    !state.pages.length ||
+    (key !== 'watermark' && key !== 'pageNumbers') ||
+    state[key] ||
+    ui.shownSettings.has(key)
+  )
+    return;
   ui.shownSettings.add(key);
   change(() => (state[key] = settingDefaults[key]()));
-  toast(key === 'watermark' ? 'Watermark “DRAFT” shown on every page. Undo takes it away.' : 'Page numbers shown on every page. Undo takes them away.');
+  toast(
+    key === 'watermark'
+      ? 'Watermark “DRAFT” shown on every page. Undo takes it away.'
+      : 'Page numbers shown on every page. Undo takes them away.',
+  );
 }
 function switchField(key, label) {
   const on = settingOn(key);
@@ -534,7 +558,12 @@ function drawFields(item, index) {
     next = SHAPES.find(([value]) => value === ui.styles.draw.shape) || SHAPES[0];
   return (
     // Always shown: choosing a shape ends a selection, ready to draw.
-    selectField('Draw with', 'shape', SHAPES.map(([value, label]) => [value, label]), true) +
+    selectField(
+      'Draw with',
+      'shape',
+      SHAPES.map(([value, label]) => [value, label]),
+      true,
+    ) +
     '<div class="field-row">' +
     colorField() +
     rangeField('Line width', 'width', 1, 16, ' pt') +
@@ -601,7 +630,17 @@ function propertiesPanel() {
 }
 /** Remove all: keep only the language, for privacy before sharing (one undo step). */
 export function clearProperties() {
-  change(() => (state.properties = { ...currentProperties(), title: '', author: '', subject: '', keywords: '', clean: true }));
+  change(
+    () =>
+      (state.properties = {
+        ...currentProperties(),
+        title: '',
+        author: '',
+        subject: '',
+        keywords: '',
+        clean: true,
+      }),
+  );
   renderTool();
   toast('Details removed. Your download won’t include them.');
 }
@@ -1060,7 +1099,8 @@ function panelValues() {
     case 'properties':
       return currentProperties();
     case 'draw': {
-      const source = item?.type === 'drawing' ? { color: item.color, width: item.strokeWidth } : ui.styles.draw;
+      const source =
+        item?.type === 'drawing' ? { color: item.color, width: item.strokeWidth } : ui.styles.draw;
       return {
         shape: ui.styles.draw.shape,
         color: hexColor(source.color, '#d0342c'),
@@ -1235,7 +1275,9 @@ export function renderTool() {
     const min = Number(field.min),
       max = Number(field.max),
       step = Number(field.step) || 1,
-      nearest = Number(Math.min(max, Math.max(min, min + Math.round((value - min) / step) * step)).toFixed(4));
+      nearest = Number(
+        Math.min(max, Math.max(min, min + Math.round((value - min) / step) * step)).toFixed(4),
+      );
     field.value = String(nearest);
     onPanelInput({ target: field });
     const label = field.closest('label')?.querySelector('span')?.textContent || 'This number';
@@ -1275,7 +1317,9 @@ function onPanelInput(event) {
   }
   if (name === 'fileBookmarks') {
     change(() => (state.fileBookmarks = field.checked));
-    announceMessage(field.checked ? 'Each file will have a bookmark.' : 'Files won’t have bookmarks of their own.');
+    announceMessage(
+      field.checked ? 'Each file will have a bookmark.' : 'Files won’t have bookmarks of their own.',
+    );
     return;
   }
   if (name === 'flattenForms') {
@@ -1284,7 +1328,9 @@ function onPanelInput(event) {
     return;
   }
   if (ui.tool === 'properties' && PROPERTY_FIELDS.includes(name)) {
-    change(() => (state.properties = { ...currentProperties(), [name]: field.value }), { key: 'properties:' + name });
+    change(() => (state.properties = { ...currentProperties(), [name]: field.value }), {
+      key: 'properties:' + name,
+    });
     return;
   }
   if (!name) return;
@@ -1327,7 +1373,9 @@ function onPanelInput(event) {
     if (name !== 'width' && name !== 'color') return;
     ui.styles.draw[name] = parsed;
     if (item?.type === 'drawing')
-      change(() => (item[name === 'width' ? 'strokeWidth' : 'color'] = parsed), { key: name + ':' + item.id });
+      change(() => (item[name === 'width' ? 'strokeWidth' : 'color'] = parsed), {
+        key: name + ':' + item.id,
+      });
     return;
   }
   if (ui.tool === 'image' && item?.type === 'image') {
@@ -1630,11 +1678,15 @@ function addMargins() {
     const draft = ui.marginDraft,
       added = Object.fromEntries(['top', 'bottom', 'left', 'right'].map((edge) => [edge, draft[edge] * MM])),
       scope = scopedPages(draft.scope);
-    if (!Object.values(added).some((value) => value > 0)) throw new Error('Enter the margins to add, in millimetres.');
+    if (!Object.values(added).some((value) => value > 0))
+      throw new Error('Enter the margins to add, in millimetres.');
     const targets = state.pages.filter((p) => scope === 'all' || scope.includes(p.id));
     for (const page of targets) {
       const geometry = geometryOf(state, page);
-      if (geometry.width + added.left + added.right > 14400 || geometry.height + added.top + added.bottom > 14400)
+      if (
+        geometry.width + added.left + added.right > 14400 ||
+        geometry.height + added.top + added.bottom > 14400
+      )
         throw new Error('A page can’t be larger than 5 metres (200 inches).');
     }
     change(
@@ -1652,7 +1704,9 @@ function addMargins() {
             bottom: old.bottom - (added.bottom / geometry.height) * height,
             rotation: p.rotation,
             // What the page shows now, within what it showed before margins were added.
-            content: Object.fromEntries(['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])])),
+            content: Object.fromEntries(
+              ['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])]),
+            ),
           };
         }
       },
@@ -1660,7 +1714,9 @@ function addMargins() {
     );
     ui.marginDraft = { top: 0, bottom: 0, left: 0, right: 0, scope: draft.scope };
     renderTool();
-    toast(targets.length === 1 ? 'Margins added to the page.' : 'Margins added to ' + targets.length + ' pages.');
+    toast(
+      targets.length === 1 ? 'Margins added to the page.' : 'Margins added to ' + targets.length + ' pages.',
+    );
   } catch (error) {
     toast(friendly(error), true);
   }
@@ -1676,7 +1732,9 @@ export function removeMargins() {
         for (const p of targets) {
           const old = cropMarginsForRotation(p.crop, p.rotation),
             shown = contentMargins(p.crop, p.rotation),
-            crop = Object.fromEntries(['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])]));
+            crop = Object.fromEntries(
+              ['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])]),
+            );
           if (Object.values(crop).every((value) => Math.abs(value) < 1e-9)) delete p.crop;
           else p.crop = { ...crop, rotation: p.rotation };
         }
@@ -1684,7 +1742,11 @@ export function removeMargins() {
       { layout: true },
     );
     renderTool();
-    toast(targets.length === 1 ? 'The added margins are removed.' : 'Added margins removed from ' + targets.length + ' pages.');
+    toast(
+      targets.length === 1
+        ? 'The added margins are removed.'
+        : 'Added margins removed from ' + targets.length + ' pages.',
+    );
   } catch (error) {
     toast(friendly(error), true);
   }
@@ -1693,7 +1755,16 @@ export function removeMargins() {
 function sheetFields() {
   return (
     '<fieldset class="segmented wide"><legend>Pages per sheet</legend><div>' +
-    ['2', '4'].map((value) => '<label><input type="radio" name="sheetCount" value="' + value + '"><span>' + value + '</span></label>').join('') +
+    ['2', '4']
+      .map(
+        (value) =>
+          '<label><input type="radio" name="sheetCount" value="' +
+          value +
+          '"><span>' +
+          value +
+          '</span></label>',
+      )
+      .join('') +
     '</div></fieldset>' +
     selectField(
       'Paper',
@@ -1725,7 +1796,13 @@ function updateSheetSummary() {
     count = state.pages.length,
     sheets = Math.ceil(count / draft.perSheet);
   try {
-    const layout = sheetLayout(draft.perSheet, draft.paper, geometryOf(state, state.pages[0]), draft.margin * MM, draft.gap * MM);
+    const layout = sheetLayout(
+      draft.perSheet,
+      draft.paper,
+      geometryOf(state, state.pages[0]),
+      draft.margin * MM,
+      draft.gap * MM,
+    );
     node.textContent =
       count +
       (count === 1 ? ' page on ' : ' pages on ') +
@@ -1765,7 +1842,10 @@ async function saveSheets() {
     downloadBytes(sheets, base + '-' + draft.perSheet + '-per-sheet.pdf');
     const count = Math.ceil(state.pages.length / draft.perSheet);
     toast(
-      'Your ' + (count === 1 ? 'sheet has' : count + ' sheets have') + ' been downloaded.' + (password ? ' The PDF needs your password to open.' : ''),
+      'Your ' +
+        (count === 1 ? 'sheet has' : count + ' sheets have') +
+        ' been downloaded.' +
+        (password ? ' The PDF needs your password to open.' : ''),
     );
   } catch (error) {
     showExportError(error);
@@ -1860,7 +1940,9 @@ function updateSplitSummary() {
         ' of ' +
         state.pages.length +
         ' pages included.' +
-        (omitted ? ' ' + omitted + ' page' + (omitted === 1 ? ' is' : 's are') + ' outside these groups.' : '');
+        (omitted
+          ? ' ' + omitted + ' page' + (omitted === 1 ? ' is' : 's are') + ' outside these groups.'
+          : '');
     node.classList.toggle('invalid', Boolean(problem));
   } catch (error) {
     node.textContent = error.message;
@@ -1904,7 +1986,9 @@ async function generateSplit() {
         ' ready to download.' +
         (password ? (outputs.length === 1 ? ' It needs' : ' Each needs') + ' your password to open.' : '') +
         // PDF/A: split parts are new PDFs, which never declare it.
-        exportNotes([...notes.filter((note) => note === 'signature-invalid'), ...losses], { several: outputs.length > 1 }),
+        exportNotes([...notes.filter((note) => note === 'signature-invalid'), ...losses], {
+          several: outputs.length > 1,
+        }),
     );
   } catch (error) {
     if (error.name === 'AbortError') toast('Splitting cancelled. Your document is unchanged.');

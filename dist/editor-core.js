@@ -101,7 +101,9 @@ export const ui = {
   // Pages per sheet: margin and gap in millimetres; Letter paper where it is the usual size.
   sheetDraft: {
     perSheet: 2,
-    paper: ['US', 'CA', 'MX', 'PH'].includes(String(globalThis.navigator?.language || '').split('-')[1]) ? 'letter' : 'a4',
+    paper: ['US', 'CA', 'MX', 'PH'].includes(String(globalThis.navigator?.language || '').split('-')[1])
+      ? 'letter'
+      : 'a4',
     margin: 10,
     gap: 5,
     border: false,
@@ -173,9 +175,11 @@ export const descriptions = {
   merge: 'Add PDF files, then arrange their pages in the strip.',
   delete: 'Select the pages to remove using their checkboxes or a page range. Undo brings them back.',
   crop: 'Drag across the page to choose the area to keep, or set the margins below.',
-  margins: 'Add blank space around your pages: room for notes, binding or punching. Nothing on the page moves.',
+  margins:
+    'Add blank space around your pages: room for notes, binding or punching. Nothing on the page moves.',
   split: 'Create separate PDFs from this document, including your edits.',
-  sheets: 'Put 2 or 4 pages on each sheet, for handouts or to save paper. The sheets download as a new PDF; your document stays as it is.',
+  sheets:
+    'Put 2 or 4 pages on each sheet, for handouts or to save paper. The sheets download as a new PDF; your document stays as it is.',
   protect: 'Choose a password. Anyone who opens the PDF you download will need it.',
   unlock: 'Download a copy of your PDF that opens without a password.',
   signature:
@@ -184,7 +188,8 @@ export const descriptions = {
     'Your JPG and PNG pictures are pages. Choose their paper size, put them in order in the page strip, then download one PDF.',
   pdftojpg: 'Save pages as JPG or PNG pictures, exactly as they look with your edits.',
   form: 'Click a field to type in it, or tick its box. Tab moves to the next field.',
-  properties: 'The title, author and other details saved in your PDF. Change them, or remove them before you share it.',
+  properties:
+    'The title, author and other details saved in your PDF. Change them, or remove them before you share it.',
   draw: 'Draw on the page with a pen, or drag to add a line, an arrow, a rectangle or an ellipse.',
 };
 export const settingDefaults = {

@@ -82,18 +82,35 @@ const byName = Object.fromEntries(opened.form.fields.map((field) => [field.name,
 assert.deepEqual(Object.keys(byName).sort(), Object.keys(values).sort());
 assert.equal(byName['applicant.name'].kind, 'text');
 assert.equal(byName['applicant.name'].label, 'Full name', 'the tooltip names a field');
-assert.deepEqual(byName['applicant.name'].widgets.map((widget) => widget.pageIndex), [0, 1], 'a field shown on two pages');
+assert.deepEqual(
+  byName['applicant.name'].widgets.map((widget) => widget.pageIndex),
+  [0, 1],
+  'a field shown on two pages',
+);
 assert.match(byName['applicant.name'].widgets[0].id, /^\d+R\d*$/, 'widget IDs as PDF.js names them');
-assert.deepEqual(byName['applicant.name'].widgets[0].rect, [179.5, 689.5, 301, 23], 'the rectangle as stored (pdf-lib adds half its border)');
+assert.deepEqual(
+  byName['applicant.name'].widgets[0].rect,
+  [179.5, 689.5, 301, 23],
+  'the rectangle as stored (pdf-lib adds half its border)',
+);
 assert.equal(byName['applicant.address'].multiline, true);
 assert.deepEqual([byName['applicant.postcode'].maxLength, byName['applicant.postcode'].comb], [5, true]);
 assert.deepEqual([byName['applicant.email'].required, byName['applicant.email'].fontSize], [true, 11]);
 assert.equal(byName['applicant.name'].fontSize, 0, 'automatic text size');
 assert.deepEqual([byName.member.kind, byName.member.value], ['checkbox', false]);
 assert.deepEqual(byName.plan.options, ['Basic', 'Plus', 'Pro']);
-assert.deepEqual(byName.plan.widgets.map((widget) => widget.option), ['Basic', 'Plus', 'Pro']);
-assert.deepEqual([byName.country.kind, byName.country.options.length, byName.country.value], ['dropdown', 4, '']);
-assert.deepEqual([byName.interests.kind, byName.interests.multiple, byName.interests.value], ['list', true, []]);
+assert.deepEqual(
+  byName.plan.widgets.map((widget) => widget.option),
+  ['Basic', 'Plus', 'Pro'],
+);
+assert.deepEqual(
+  [byName.country.kind, byName.country.options.length, byName.country.value],
+  ['dropdown', 4, ''],
+);
+assert.deepEqual(
+  [byName.interests.kind, byName.interests.multiple, byName.interests.value],
+  ['list', true, []],
+);
 assert.deepEqual([byName.reference.readOnly, byName.reference.value], [true, 'QFT-1001']);
 assert.equal(byName.date.label, 'Date (DD/MM/YYYY)');
 assert.equal(byName.agree.required, true);
@@ -116,10 +133,16 @@ await writeFile(path.join(outputDir, 'form-filled.pdf'), filled);
   assert.deepEqual(form.getOptionList('interests').getSelected(), ['Music', 'Travel']);
   assert.equal(form.getTextField('reference').getText(), 'QFT-1001', 'read-only fields are not changed');
   assert.equal(form.getTextField('comments').getText(), 'Thank you 谢谢');
-  assert.equal(form.getTextField('applicant.name').acroField.getDefaultAppearance(), '/Helv 0 Tf 0 g', 'automatic size kept for readers');
+  assert.equal(
+    form.getTextField('applicant.name').acroField.getDefaultAppearance(),
+    '/Helv 0 Tf 0 g',
+    'automatic size kept for readers',
+  );
   // Changed fields look changed in every reader: their appearance draws the new text.
   const appearance = (name) => {
-    const stream = doc.context.lookup(form.getTextField(name).acroField.getWidgets()[0].getNormalAppearance());
+    const stream = doc.context.lookup(
+      form.getTextField(name).acroField.getWidgets()[0].getNormalAppearance(),
+    );
     return new TextDecoder('latin1').decode(PDFLib.decodePDFRawStream(stream).decode());
   };
   const shows = (text) => `<${Buffer.from(text, 'latin1').toString('hex').toUpperCase()}> Tj`;
@@ -127,11 +150,17 @@ await writeFile(path.join(outputDir, 'form-filled.pdf'), filled);
   assert.ok(appearance('applicant.address').includes(shows('Kingston')), 'each line of a multiline field');
   // Check boxes and radio buttons show their own on and off looks.
   const plus = form.getRadioGroup('plan').acroField.getWidgets()[1];
-  assert.equal(plus.getAppearanceState()?.decodeText(), form.getRadioGroup('plan').acroField.getWidgets()[1].getOnValue().decodeText());
+  assert.equal(
+    plus.getAppearanceState()?.decodeText(),
+    form.getRadioGroup('plan').acroField.getWidgets()[1].getOnValue().decodeText(),
+  );
 }
 // A value only changes what was changed.
 const untouched = await buildPdf(state({ formValues: { form: { 'applicant.email': 'a@b.c' } } }));
-assert.equal((await PDFDocument.load(untouched)).getForm().getTextField('applicant.name').getText(), undefined);
+assert.equal(
+  (await PDFDocument.load(untouched)).getForm().getTextField('applicant.name').getText(),
+  undefined,
+);
 
 // ---- Flattening ------------------------------------------------------------------
 
@@ -143,13 +172,17 @@ await writeFile(path.join(outputDir, 'form-flattened.pdf'), flat.bytes);
   for (const page of doc.getPages()) {
     const annots = page.node.Annots();
     const widgets = annots
-      ? annots.asArray().filter((ref) => doc.context.lookup(ref)?.lookup?.(PDFName.of('Subtype')) === PDFName.of('Widget'))
+      ? annots
+          .asArray()
+          .filter((ref) => doc.context.lookup(ref)?.lookup?.(PDFName.of('Subtype')) === PDFName.of('Widget'))
       : [];
     assert.equal(widgets.length, 0, 'no widgets left on the page');
   }
   const [first, second] = await pageTexts(flat.bytes);
-  for (const text of ['Zoë Łukasz', '12 Harbour Road', 'Kingston', 'zoe@example.org', 'QFT-1001', 'Japan']) assert.ok(first.includes(text), `page 1 shows ${text}: ${first}`);
-  for (const text of ['Thank you 谢谢', '01/11/2026', 'Zoë Łukasz']) assert.ok(second.includes(text), `page 2 shows ${text}: ${second}`);
+  for (const text of ['Zoë Łukasz', '12 Harbour Road', 'Kingston', 'zoe@example.org', 'QFT-1001', 'Japan'])
+    assert.ok(first.includes(text), `page 1 shows ${text}: ${first}`);
+  for (const text of ['Thank you 谢谢', '01/11/2026', 'Zoë Łukasz'])
+    assert.ok(second.includes(text), `page 2 shows ${text}: ${second}`);
 }
 
 // Flattening lets a form's pages be combined with other PDFs and extracted.
@@ -182,22 +215,49 @@ assert.ok(combinedText[1].includes('Other page'));
   form.getTextField('applicant.address').acroField.getWidgets()[0].dict.delete(PDFName.of('AP'));
   const variant = await doc.save({ updateFieldAppearances: false });
   const described = await openPdf(variant);
-  assert.equal(described.form.fields.some((field) => field.name === 'date'), false);
+  assert.equal(
+    described.form.fields.some((field) => field.name === 'date'),
+    false,
+  );
   assert.equal(described.form.count, 12);
-  const variantState = { sources: [{ id: 'form', bytes: variant }], pages: [{ id: 'a', sourceId: 'form', index: 0 }, { id: 'b', sourceId: 'form', index: 1 }], flattenForms: true };
+  const variantState = {
+    sources: [{ id: 'form', bytes: variant }],
+    pages: [
+      { id: 'a', sourceId: 'form', index: 0 },
+      { id: 'b', sourceId: 'form', index: 1 },
+    ],
+    flattenForms: true,
+  };
   const [first, second] = await pageTexts(await buildPdf(variantState));
   assert.ok(!second.includes('HIDDEN-VALUE'), 'a hidden field is not drawn');
   assert.ok(first.includes('No appearance yet'), 'a field without an appearance gets one');
 }
 
 // Characters no font has are reported on the field's page.
-await assert.rejects(
-  buildPdf(state({ formValues: { form: { comments: 'Unicorn 🦄' } } })),
-  (error) => {
-    assert.match(error.message, /^Page 2: “Comments”: The available font cannot display/);
-    assert.deepEqual([error.pageIndex, error.itemId], [1, 'form:comments']);
-    return true;
-  },
-);
+await assert.rejects(buildPdf(state({ formValues: { form: { comments: 'Unicorn 🦄' } } })), (error) => {
+  assert.match(error.message, /^Page 2: “Comments”: The available font cannot display/);
+  assert.deepEqual([error.pageIndex, error.itemId], [1, 'form:comments']);
+  return true;
+});
 
-console.log(JSON.stringify({ status: 'passed', checks: ['fields described with widgets, pages, labels, settings and PDF.js IDs', 'values written, fields kept, default appearances kept', 'read-only fields unchanged', 'maximum length', 'flattened: no fields or widgets, values drawn on their pages (Latin, Polish, Chinese)', 'flattened forms combine with other PDFs', 'hidden fields not drawn', 'fields without appearances drawn', 'unsupported characters reported on the field page'], outputs: ['form-filled.pdf', 'form-flattened.pdf'] }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      status: 'passed',
+      checks: [
+        'fields described with widgets, pages, labels, settings and PDF.js IDs',
+        'values written, fields kept, default appearances kept',
+        'read-only fields unchanged',
+        'maximum length',
+        'flattened: no fields or widgets, values drawn on their pages (Latin, Polish, Chinese)',
+        'flattened forms combine with other PDFs',
+        'hidden fields not drawn',
+        'fields without appearances drawn',
+        'unsupported characters reported on the field page',
+      ],
+      outputs: ['form-filled.pdf', 'form-flattened.pdf'],
+    },
+    null,
+    2,
+  ),
+);

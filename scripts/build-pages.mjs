@@ -28,7 +28,10 @@ const site = fileURLToPath(new URL('../dist/', import.meta.url));
 const checkOnly = process.argv.includes('--check');
 
 const escapeHtml = (text) =>
-  String(text).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
+  String(text).replace(
+    /[&<>"]/g,
+    (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char],
+  );
 const LINK = /\[([^\]]+)\]\(tool:([a-z]+)\)/g;
 // [label](tool:id) becomes a link to that tool's page (written relative to the
 // site root here; the depth rewrite below adjusts it for the page's directory).
@@ -40,8 +43,10 @@ const rich = (text) =>
 const plain = (text) => text.replace(LINK, '$1');
 
 function region(html, name) {
-  const open = `<!-- page:${name} -->\n`, close = `<!-- /page:${name} -->`;
-  const start = html.indexOf(open), end = html.indexOf(close);
+  const open = `<!-- page:${name} -->\n`,
+    close = `<!-- /page:${name} -->`;
+  const start = html.indexOf(open),
+    end = html.indexOf(close);
   if (start < 0 || end < start) throw new Error(`index.html is missing the page:${name} region.`);
   return { start: start + open.length, end: html.lastIndexOf('\n', end) + 1 };
 }
@@ -61,8 +66,10 @@ const line = (block, pattern) => {
 
 /** The text between two inline comments, replaced. */
 function replaceBetween(html, name, content) {
-  const open = `<!-- tools:${name} -->`, close = `<!-- /tools:${name} -->`;
-  const start = html.indexOf(open), end = html.indexOf(close);
+  const open = `<!-- tools:${name} -->`,
+    close = `<!-- /tools:${name} -->`;
+  const start = html.indexOf(open),
+    end = html.indexOf(close);
   if (start < 0 || end < start) throw new Error(`index.html is missing the tools:${name} region.`);
   return html.slice(0, start + open.length) + content + html.slice(end);
 }
@@ -75,7 +82,12 @@ function withTools(html) {
   });
   const menu = TOOLS.filter((item) => item.tab);
   const options = menu.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
-  const tabs = menu.map((item) => `<button type="button" data-tool="${item.id}" aria-pressed="false">${svg(item.icon)}<span>${escapeHtml(item.tab)}</span></button>`).join('');
+  const tabs = menu
+    .map(
+      (item) =>
+        `<button type="button" data-tool="${item.id}" aria-pressed="false">${svg(item.icon)}<span>${escapeHtml(item.tab)}</span></button>`,
+    )
+    .join('');
   html = replaceBetween(html, 'cards', `\n${cards.join('\n')}\n        `);
   html = replaceBetween(html, 'menu', options);
   return replaceBetween(html, 'tabs', tabs);
@@ -163,8 +175,7 @@ function toolPage(template, page) {
   const extras = read(template, 'upload-extras');
   const shortcut = extras.slice(0, extras.indexOf('<div class="sample-row">'));
   const sample = extras.slice(extras.indexOf('<div class="sample-row">')).trimEnd();
-  const extrasBlock =
-    (page.batchShortcut ? shortcut : '          ') + (page.sample === false ? '' : sample);
+  const extrasBlock = (page.batchShortcut ? shortcut : '          ') + (page.sample === false ? '' : sample);
 
   const tools = [
     '        <div class="section-heading"><div><div class="eyebrow">MORE TOOLS</div><h2 id="tools-title" tabindex="-1">More PDF tools.</h2></div><p>Free, private, and right in your browser.</p></div>',
@@ -177,7 +188,10 @@ function toolPage(template, page) {
     )
     .join('\n');
   const faqs = page.faqs
-    .map(([question, answer]) => `          <details class="faq-item"><summary>${escapeHtml(question)}</summary><p>${rich(answer)}</p></details>`)
+    .map(
+      ([question, answer]) =>
+        `          <details class="faq-item"><summary>${escapeHtml(question)}</summary><p>${rich(answer)}</p></details>`,
+    )
     .join('\n');
   const sections = [
     '      <section class="how-section tool-how section-wrap" aria-labelledby="how-title">',
@@ -213,15 +227,22 @@ function toolPage(template, page) {
 
 const template = withTools(await readFile(path.join(site, 'index.html'), 'utf8'));
 const outputs = PAGES.map((page) => toolPage(template, page));
-if (new Set(outputs.map((output) => output.file)).size !== outputs.length) throw new Error('Two pages share an address.');
+if (new Set(outputs.map((output) => output.file)).size !== outputs.length)
+  throw new Error('Two pages share an address.');
 const sitemap = [
   '<?xml version="1.0" encoding="UTF-8"?>',
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-  ...[ORIGIN, ...outputs.map((output) => output.url), `${ORIGIN}licenses/`].map((url) => `  <url><loc>${url}</loc></url>`),
+  ...[ORIGIN, ...outputs.map((output) => output.url), `${ORIGIN}licenses/`].map(
+    (url) => `  <url><loc>${url}</loc></url>`,
+  ),
   '</urlset>',
   '',
 ].join('\n');
-const files = [['index.html', template], ...outputs.map(({ file, html }) => [file, html]), ['sitemap.xml', sitemap]];
+const files = [
+  ['index.html', template],
+  ...outputs.map(({ file, html }) => [file, html]),
+  ['sitemap.xml', sitemap],
+];
 
 const stale = [];
 for (const [file, content] of files) {
@@ -238,4 +259,8 @@ if (checkOnly && stale.length) {
   console.error(`Generated pages are out of date: ${stale.join(', ')}.\nRun: npm run pages`);
   process.exit(1);
 }
-console.log(checkOnly ? `Tool pages are up to date (${outputs.length} pages and the sitemap).` : `Wrote ${outputs.length} tool pages and the sitemap.`);
+console.log(
+  checkOnly
+    ? `Tool pages are up to date (${outputs.length} pages and the sitemap).`
+    : `Wrote ${outputs.length} tool pages and the sitemap.`,
+);

@@ -606,7 +606,10 @@ export const batch = initBatch({
 // Arrow keys move through the closed menu, changing the tool with every press:
 // looking at the tools, not choosing one (see chooseTool).
 $('#tool-select').addEventListener('keydown', (event) => {
-  if (['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key) || event.key.length === 1) {
+  if (
+    ['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key) ||
+    event.key.length === 1
+  ) {
     ui.menuTraversal = performance.now();
   }
 });
@@ -629,7 +632,8 @@ function filterTools() {
   $$('.tool-card').forEach((card) => {
     const text = (card.textContent + ' ' + (card.dataset.keywords || '')).toLowerCase();
     const visible =
-      (toolFilter === 'all' || card.dataset.category === toolFilter) && words.every((word) => text.includes(word));
+      (toolFilter === 'all' || card.dataset.category === toolFilter) &&
+      words.every((word) => text.includes(word));
     card.hidden = !visible;
     if (visible) count++;
   });

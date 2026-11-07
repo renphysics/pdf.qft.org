@@ -25,7 +25,8 @@ export function number(value, fallback, min = -Infinity, max = Infinity) {
 
 export function rotation(value = 0) {
   const angle = Number(value);
-  if (!Number.isFinite(angle) || angle % 90 !== 0) throw new Error('Page rotation must be a multiple of 90 degrees.');
+  if (!Number.isFinite(angle) || angle % 90 !== 0)
+    throw new Error('Page rotation must be a multiple of 90 degrees.');
   return ((angle % 360) + 360) % 360;
 }
 
@@ -37,7 +38,9 @@ export function hexColor(value, fallback = '#142c28') {
 }
 
 export function textValue(value) {
-  return String(value ?? '').replace(/\r\n?/g, '\n').replace(/\t/g, '    ');
+  return String(value ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t/g, '    ');
 }
 
 /** Which bundled font draws this text: the standard Helvetica for plain ASCII, Noto Sans CJK, or Noto Sans. */
@@ -48,7 +51,9 @@ export function fontKind(value) {
 
 /** The first character a font cannot draw, if any. `supported` is a Set of code points. */
 export function unsupportedCharacter(value, supported) {
-  return [...textValue(value)].find((character) => character !== '\n' && !supported.has(character.codePointAt(0)));
+  return [...textValue(value)].find(
+    (character) => character !== '\n' && !supported.has(character.codePointAt(0)),
+  );
 }
 
 export function unsupportedMessage(character) {
@@ -111,7 +116,11 @@ export function cropMarginsForRotation(crop, currentRotation = 0) {
   for (const edge of Object.keys(margins)) {
     const value = crop[edge] === undefined ? 0 : Number(crop[edge]);
     if (!Number.isFinite(value) || value <= -MAX_GROWTH || value >= 1) {
-      throw new Error('Crop margins must be less than 100% of the page, and added margins less than ' + MAX_GROWTH + ' times its size.');
+      throw new Error(
+        'Crop margins must be less than 100% of the page, and added margins less than ' +
+          MAX_GROWTH +
+          ' times its size.',
+      );
     }
     margins[edge] = value;
   }
@@ -133,7 +142,8 @@ export function contentMargins(crop, currentRotation = 0) {
   if (!crop?.content) return margins;
   for (const edge of Object.keys(margins)) {
     const value = Number(crop.content[edge] ?? 0);
-    if (!Number.isFinite(value) || value < 0 || value >= 1) throw new Error('Crop margins must leave some of the page visible.');
+    if (!Number.isFinite(value) || value < 0 || value >= 1)
+      throw new Error('Crop margins must leave some of the page visible.');
     margins[edge] = value;
   }
   return turnMargins(margins, crop.rotation ?? currentRotation, currentRotation);
@@ -153,14 +163,19 @@ export function croppedGeometry(originalBox, angle, crop, descriptorRotation) {
   const right = (1 - margins.right) * original.width;
   const bottom = margins.bottom * original.height;
   const top = (1 - margins.top) * original.height;
-  const xs = [], ys = [];
-  for (const x of [left, right]) for (const y of [bottom, top]) {
-    xs.push(a * x + c * y + e);
-    ys.push(b * x + d * y + f);
-  }
-  const x = Math.min(...xs), y = Math.min(...ys);
-  const width = Math.max(...xs) - x, height = Math.max(...ys) - y;
-  if (!(width >= 1 && height >= 1)) throw new Error('The cropped page must be at least 1 PDF point wide and high.');
+  const xs = [],
+    ys = [];
+  for (const x of [left, right])
+    for (const y of [bottom, top]) {
+      xs.push(a * x + c * y + e);
+      ys.push(b * x + d * y + f);
+    }
+  const x = Math.min(...xs),
+    y = Math.min(...ys);
+  const width = Math.max(...xs) - x,
+    height = Math.max(...ys) - y;
+  if (!(width >= 1 && height >= 1))
+    throw new Error('The cropped page must be at least 1 PDF point wide and high.');
   return boxGeometry({ x, y, width, height }, angle);
 }
 
@@ -171,7 +186,12 @@ export function croppedGeometry(originalBox, angle, crop, descriptorRotation) {
  */
 export function pageGeometry(source, descriptor) {
   const descriptorRotation = descriptor.rotation || 0;
-  return croppedGeometry(source.box, rotation(source.rotation + rotation(descriptorRotation)), descriptor.crop, descriptorRotation);
+  return croppedGeometry(
+    source.box,
+    rotation(source.rotation + rotation(descriptorRotation)),
+    descriptor.crop,
+    descriptorRotation,
+  );
 }
 
 /**
@@ -183,11 +203,18 @@ export function pageGeometry(source, descriptor) {
 export function rescaledMargins(crop, from, to) {
   if (!crop?.content) return crop;
   const turned = rotation(crop.rotation || 0) % 180 !== 0;
-  const size = (box) => ({ left: turned ? box.height : box.width, right: turned ? box.height : box.width, top: turned ? box.width : box.height, bottom: turned ? box.width : box.height });
-  const before = size(from), after = size(to);
+  const size = (box) => ({
+    left: turned ? box.height : box.width,
+    right: turned ? box.height : box.width,
+    top: turned ? box.width : box.height,
+    bottom: turned ? box.width : box.height,
+  });
+  const before = size(from),
+    after = size(to);
   const next = { ...crop };
   for (const edge of ['left', 'top', 'right', 'bottom']) {
-    const content = Number(crop.content[edge] ?? 0), value = Number(crop[edge] ?? 0);
+    const content = Number(crop.content[edge] ?? 0),
+      value = Number(crop[edge] ?? 0);
     if (value < content) next[edge] = content - ((content - value) * before[edge]) / after[edge];
   }
   return next;
@@ -203,7 +230,12 @@ export function contentBox(source, descriptor) {
   const angle = rotation(source.rotation + rotation(descriptorRotation));
   const crop = descriptor.crop;
   if (!crop?.content) return boxGeometry(source.box, angle).cropBox;
-  return croppedGeometry(source.box, angle, { ...contentMargins(crop, descriptorRotation), rotation: descriptorRotation }, descriptorRotation).cropBox;
+  return croppedGeometry(
+    source.box,
+    angle,
+    { ...contentMargins(crop, descriptorRotation), rotation: descriptorRotation },
+    descriptorRotation,
+  ).cropBox;
 }
 
 export function placementGeometry(source, descriptor, annotation) {
@@ -240,7 +272,10 @@ export function applyMatrix([a, b, c, d, e, f], x, y) {
 export function wrapText(text, font, size, maxWidth) {
   const lines = [];
   for (const paragraph of text.split('\n')) {
-    if (!paragraph) { lines.push(''); continue; }
+    if (!paragraph) {
+      lines.push('');
+      continue;
+    }
     let line = '';
     let wordBreak = -1;
     for (const character of paragraph) {
@@ -276,7 +311,10 @@ export function textBox(annotation, geometry) {
   const size = number(annotation.fontSize, TEXT_SIZE.fallback, TEXT_SIZE.min, TEXT_SIZE.max);
   const x = number(annotation.x, 0.1, 0, 1) * geometry.width;
   const top = geometry.height - number(annotation.y, 0.1, 0, 1) * geometry.height;
-  const width = Math.max(1, Math.min(number(annotation.width, 0.8, 0.01, 1) * geometry.width, geometry.width - x));
+  const width = Math.max(
+    1,
+    Math.min(number(annotation.width, 0.8, 0.01, 1) * geometry.width, geometry.width - x),
+  );
   return { size, x, top, width };
 }
 
@@ -304,9 +342,15 @@ export function layoutTextAnnotation(annotation, geometry, font) {
   wrapped.forEach((line, index) => {
     if (!line) return;
     const lineWidth = font.widthOfTextAtSize(line, size);
-    const offset = annotation.align === 'right' ? width - lineWidth : annotation.align === 'center' ? (width - lineWidth) / 2 : 0;
+    const offset =
+      annotation.align === 'right'
+        ? width - lineWidth
+        : annotation.align === 'center'
+          ? (width - lineWidth) / 2
+          : 0;
     const baseline = top - ascent - index * lineHeight;
-    if (baseline < 0 && !problem) problem = 'A text annotation extends below its page. Move it up or use a smaller font.';
+    if (baseline < 0 && !problem)
+      problem = 'A text annotation extends below its page. Move it up or use a smaller font.';
     lines.push({ text: line, x: x + offset, y: baseline, width: lineWidth });
   });
   const count = Math.max(1, wrapped.length);
@@ -355,7 +399,12 @@ export function drawingPath(annotation, geometry) {
   const point = ([u, v]) => [x + number(u, 0, 0, 1) * width, top + number(v, 0, 0, 1) * height];
   const text = ([px, py]) => round2(px) + ' ' + round2(py);
   if (annotation.shape === 'rect') {
-    const corners = [[x, top], [x + width, top], [x + width, top + height], [x, top + height]];
+    const corners = [
+      [x, top],
+      [x + width, top],
+      [x + width, top + height],
+      [x, top + height],
+    ];
     return { d: 'M' + corners.map(text).join('L') + 'Z', strokeWidth };
   }
   if (annotation.shape === 'ellipse') {
@@ -366,16 +415,50 @@ export function drawingPath(annotation, geometry) {
       ox = rx * KAPPA,
       oy = ry * KAPPA;
     const curves = [
-      [[cx - rx, cy - oy], [cx - ox, cy - ry], [cx, cy - ry]],
-      [[cx + ox, cy - ry], [cx + rx, cy - oy], [cx + rx, cy]],
-      [[cx + rx, cy + oy], [cx + ox, cy + ry], [cx, cy + ry]],
-      [[cx - ox, cy + ry], [cx - rx, cy + oy], [cx - rx, cy]],
+      [
+        [cx - rx, cy - oy],
+        [cx - ox, cy - ry],
+        [cx, cy - ry],
+      ],
+      [
+        [cx + ox, cy - ry],
+        [cx + rx, cy - oy],
+        [cx + rx, cy],
+      ],
+      [
+        [cx + rx, cy + oy],
+        [cx + ox, cy + ry],
+        [cx, cy + ry],
+      ],
+      [
+        [cx - ox, cy + ry],
+        [cx - rx, cy + oy],
+        [cx - rx, cy],
+      ],
     ];
-    return { d: 'M' + text([cx - rx, cy]) + curves.map((curve) => 'C' + curve.map(text).join(' ')).join('') + 'Z', strokeWidth };
+    return {
+      d: 'M' + text([cx - rx, cy]) + curves.map((curve) => 'C' + curve.map(text).join(' ')).join('') + 'Z',
+      strokeWidth,
+    };
   }
   // Pen, line and arrow: through their points (a single point is a dot).
-  const points = (Array.isArray(annotation.points) && annotation.points.length ? annotation.points : [[0, 0], [1, 1]]).map(point);
-  let d = 'M' + text(points[0]) + (points.length > 1 ? points.slice(1).map((p) => 'L' + text(p)).join('') : 'L' + text(points[0]));
+  const points = (
+    Array.isArray(annotation.points) && annotation.points.length
+      ? annotation.points
+      : [
+          [0, 0],
+          [1, 1],
+        ]
+  ).map(point);
+  let d =
+    'M' +
+    text(points[0]) +
+    (points.length > 1
+      ? points
+          .slice(1)
+          .map((p) => 'L' + text(p))
+          .join('')
+      : 'L' + text(points[0]));
   if (annotation.shape === 'arrow' && points.length > 1) {
     // An open head at the end, along the last segment.
     const tip = points.at(-1),
@@ -394,7 +477,11 @@ export function drawingPath(annotation, geometry) {
 
 /** Whether a repeated setting (watermark, headers and footers, page numbers) is shown on a page. */
 export function applies(setting, pageId) {
-  return Boolean(setting) && setting.enabled !== false && (!setting.pages || setting.pages === 'all' || setting.pages.includes(pageId));
+  return (
+    Boolean(setting) &&
+    setting.enabled !== false &&
+    (!setting.pages || setting.pages === 'all' || setting.pages.includes(pageId))
+  );
 }
 
 export function variables(text, page, total) {
@@ -409,21 +496,32 @@ export function watermarkText(setting, pageNumber, total) {
 export function layoutWatermark(setting, geometry, font, text) {
   let size = number(setting.size, 48, 4, 240);
   const angle = number(setting.angle, -35, -180, 180);
-  const radians = angle * Math.PI / 180;
+  const radians = (angle * Math.PI) / 180;
   const originalWidth = font.widthOfTextAtSize(text, size);
   const originalHeight = font.heightAtSize(size, { descender: false });
-  const boundingWidth = Math.abs(originalWidth * Math.cos(radians)) + Math.abs(originalHeight * Math.sin(radians));
-  const boundingHeight = Math.abs(originalWidth * Math.sin(radians)) + Math.abs(originalHeight * Math.cos(radians));
-  size *= Math.min(1, geometry.width * 0.86 / Math.max(1, boundingWidth), geometry.height * 0.7 / Math.max(1, boundingHeight));
+  const boundingWidth =
+    Math.abs(originalWidth * Math.cos(radians)) + Math.abs(originalHeight * Math.sin(radians));
+  const boundingHeight =
+    Math.abs(originalWidth * Math.sin(radians)) + Math.abs(originalHeight * Math.cos(radians));
+  size *= Math.min(
+    1,
+    (geometry.width * 0.86) / Math.max(1, boundingWidth),
+    (geometry.height * 0.7) / Math.max(1, boundingHeight),
+  );
   const width = font.widthOfTextAtSize(text, size);
   const height = font.heightAtSize(size, { descender: false });
   const rotatedHeight = Math.abs(width * Math.sin(radians)) + Math.abs(height * Math.cos(radians));
   let centerY = geometry.height / 2;
-  if (setting.position === 'top') centerY = geometry.height - Math.max(28 + rotatedHeight / 2, geometry.height * 0.15);
+  if (setting.position === 'top')
+    centerY = geometry.height - Math.max(28 + rotatedHeight / 2, geometry.height * 0.15);
   if (setting.position === 'bottom') centerY = Math.max(28 + rotatedHeight / 2, geometry.height * 0.15);
   const centerX = geometry.width / 2;
   return {
-    text, size, angle, width, height,
+    text,
+    size,
+    angle,
+    width,
+    height,
     x: centerX - (width * Math.cos(radians) - height * Math.sin(radians)) / 2,
     y: centerY - (width * Math.sin(radians) + height * Math.cos(radians)) / 2,
   };
@@ -456,7 +554,11 @@ export function headerFooterItems(setting, geometry, pageNumber, total) {
       items.push({
         key: edge + slot,
         text: variables(setting[edge + slot], pageNumber, total),
-        size, margin, maxWidth, align: side(slot.toLowerCase(), setting, pageNumber), top: edge === 'header',
+        size,
+        margin,
+        maxWidth,
+        align: side(slot.toLowerCase(), setting, pageNumber),
+        top: edge === 'header',
         problem: 'The header or footer is too long. Shorten it or use more than one text position.',
       });
     }
@@ -469,9 +571,19 @@ export function pageNumberItem(setting, geometry, pageNumber, total) {
   const position = setting.position || 'bottom-center';
   return {
     key: 'pageNumber',
-    text: variables(setting.format || 'Page {page} of {total}', pageNumber + number(setting.start, 1, 0, 1000000) - 1, total),
-    size: number(setting.size, 10, 4, 48), margin, maxWidth: geometry.width - margin * 2,
-    align: side(position.endsWith('right') ? 'right' : position.endsWith('left') ? 'left' : 'center', setting, pageNumber),
+    text: variables(
+      setting.format || 'Page {page} of {total}',
+      pageNumber + number(setting.start, 1, 0, 1000000) - 1,
+      total,
+    ),
+    size: number(setting.size, 10, 4, 48),
+    margin,
+    maxWidth: geometry.width - margin * 2,
+    align: side(
+      position.endsWith('right') ? 'right' : position.endsWith('left') ? 'left' : 'center',
+      setting,
+      pageNumber,
+    ),
     top: position.startsWith('top'),
     problem: 'The page number text is too long for the page. Shorten it or use a smaller size.',
   };
@@ -484,7 +596,12 @@ export function layoutMarginText(geometry, item, font) {
   const intendedWidth = font.widthOfTextAtSize(content, item.size);
   const size = item.size * Math.min(1, item.maxWidth / Math.max(1, intendedWidth));
   const width = font.widthOfTextAtSize(content, size);
-  const x = item.align === 'right' ? geometry.width - item.margin - width : item.align === 'center' ? (geometry.width - width) / 2 : item.margin;
+  const x =
+    item.align === 'right'
+      ? geometry.width - item.margin - width
+      : item.align === 'center'
+        ? (geometry.width - width) / 2
+        : item.margin;
   const ascent = font.heightAtSize(size, { descender: false });
   const y = item.top ? geometry.height - item.margin - ascent : item.margin;
   return { text: content, x, y, size, width, ascent, problem: size < 4 ? item.problem : null };

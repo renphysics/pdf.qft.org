@@ -19,7 +19,7 @@ export const isPicture = (file) =>
 export function jpegOrientation(bytes) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return 1;
-  for (let offset = 2; offset + 4 <= view.byteLength; ) {
+  for (let offset = 2; offset + 4 <= view.byteLength;) {
     const marker = view.getUint16(offset);
     if ((marker & 0xff00) !== 0xff00 || marker === 0xffda) break;
     const length = view.getUint16(offset + 2);

@@ -5,7 +5,9 @@ import { test, expect, openSample, useTool } from './helpers.mjs';
 const toggle = (page) => page.locator('[data-action="toggle-setting"]');
 const overlay = (page) => page.locator('.page-view.current .page-overlay');
 
-test('Page numbers and Watermark are on when they open; turned off or undone, they stay off', async ({ page }) => {
+test('Page numbers and Watermark are on when they open; turned off or undone, they stay off', async ({
+  page,
+}) => {
   await openSample(page);
   await useTool(page, 'numbers');
   await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
@@ -38,7 +40,9 @@ test('Headers & footers are on before anything is typed, without counting as an 
   await expect(overlay(page)).not.toContainText('Test 1');
 });
 
-test('the edge margin goes down to 0; a number out of range is set to the nearest allowed', async ({ page }) => {
+test('the edge margin goes down to 0; a number out of range is set to the nearest allowed', async ({
+  page,
+}) => {
   await openSample(page, 'add-page-numbers-to-pdf/');
   // How far the page number sits above the bottom of the page, in points. It is read from the
   // drawing (getBBox): WebKit gives Playwright the box of SVG text at the page's top left, wherever
@@ -63,11 +67,15 @@ test('the edge margin goes down to 0; a number out of range is set to the neares
   await margin.fill('500');
   await margin.press('Tab');
   await expect(margin).toHaveValue('100');
-  await expect(page.locator('#toast-message')).toHaveText('“Edge margin (pt)” can be 0 to 100, so it’s set to 100.');
+  await expect(page.locator('#toast-message')).toHaveText(
+    '“Edge margin (pt)” can be 0 to 100, so it’s set to 100.',
+  );
   await expect.poll(gap).toBeGreaterThan(before + 40);
 });
 
-test('page numbers swap sides on even pages, for printing on both sides, and Batch keeps it', async ({ page }) => {
+test('page numbers swap sides on even pages, for printing on both sides, and Batch keeps it', async ({
+  page,
+}) => {
   await openSample(page, 'add-page-numbers-to-pdf/');
   // Whether a page's number is on the left half of the page (found and measured in one step, as above).
   const onLeft = (number) =>
@@ -94,7 +102,9 @@ test('page numbers swap sides on even pages, for printing on both sides, and Bat
   await expect(page.locator('input[name="footer-margin"]')).toHaveAttribute('min', '0');
 });
 
-test('arrowing through the tool menu does not turn settings on; settling on one does, with a notice', async ({ page }) => {
+test('arrowing through the tool menu does not turn settings on; settling on one does, with a notice', async ({
+  page,
+}) => {
   await openSample(page);
   const menu = page.locator('#tool-select');
   await menu.focus();
@@ -109,13 +119,16 @@ test('arrowing through the tool menu does not turn settings on; settling on one 
   await expect(overlay(page)).not.toContainText('Page 1 of 3');
   // Arrow to Page numbers and move on into the panel: now they show, and the notice says so.
   await menu.focus();
-  const numbers = await menu.evaluate((select) => [...select.options].findIndex((option) => option.value === 'numbers'));
+  const numbers = await menu.evaluate((select) =>
+    [...select.options].findIndex((option) => option.value === 'numbers'),
+  );
   for (let step = 0; step < numbers; step++) await page.keyboard.press('ArrowDown');
   await expect(menu).toHaveValue('numbers');
   await expect(overlay(page)).not.toContainText('Page 1 of 3');
   await page.keyboard.press('Tab');
   await expect(overlay(page)).toContainText('Page 1 of 3');
-  await expect(page.locator('#toast-message')).toHaveText('Page numbers shown on every page. Undo takes them away.');
+  await expect(page.locator('#toast-message')).toHaveText(
+    'Page numbers shown on every page. Undo takes them away.',
+  );
   await expect(page.locator('#undo-button')).toBeEnabled();
 });
-

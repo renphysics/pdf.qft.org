@@ -24,9 +24,29 @@
  * Geometry and text layout live in layout.js, shared with the editor preview.
  */
 import {
-  applies, boxGeometry, contentBox, drawingPath, fontKind, hexColor, headerFooterItems, invert, layoutMarginText, layoutRect,
-  layoutTextAnnotation, layoutWatermark, number, pageGeometry, pageNumberItem, placementGeometry, rotation, textValue,
-  unsupportedCharacter, unsupportedMessage, visibleBox, watermarkText, wrapText,
+  applies,
+  boxGeometry,
+  contentBox,
+  drawingPath,
+  fontKind,
+  hexColor,
+  headerFooterItems,
+  invert,
+  layoutMarginText,
+  layoutRect,
+  layoutTextAnnotation,
+  layoutWatermark,
+  number,
+  pageGeometry,
+  pageNumberItem,
+  placementGeometry,
+  rotation,
+  textValue,
+  unsupportedCharacter,
+  unsupportedMessage,
+  visibleBox,
+  watermarkText,
+  wrapText,
 } from './layout.js';
 
 export { contentMargins, cropMarginsForRotation } from './layout.js';
@@ -77,17 +97,21 @@ async function runScript(name, url) {
 /** Resolve a bundled UMD library's global, loading it on first use. */
 function loadGlobal(name, failure) {
   if (globalThis[name]) return Promise.resolve(globalThis[name]);
-  if (typeof document === 'undefined' && typeof WorkerGlobalScope === 'undefined') return Promise.reject(new Error(failure));
+  if (typeof document === 'undefined' && typeof WorkerGlobalScope === 'undefined')
+    return Promise.reject(new Error(failure));
   if (!scriptLoads.has(name)) {
     const loading = runScript(name, VENDOR_SCRIPTS[name].href).then(
       () => globalThis[name] || Promise.reject(new Error(failure)),
       () => Promise.reject(new Error(failure)),
     );
     // A failed download (for example while offline) can be retried later.
-    scriptLoads.set(name, loading.catch((error) => {
-      scriptLoads.delete(name);
-      throw error;
-    }));
+    scriptLoads.set(
+      name,
+      loading.catch((error) => {
+        scriptLoads.delete(name);
+        throw error;
+      }),
+    );
   }
   return scriptLoads.get(name);
 }
@@ -104,14 +128,16 @@ function loadFontkit() {
 
 /** Synchronous access for code that runs after loadPdfLib() has resolved. */
 function library() {
-  if (!globalThis.PDFLib) throw new Error('The PDF tools did not load. Check your connection, then try again.');
+  if (!globalThis.PDFLib)
+    throw new Error('The PDF tools did not load. Check your connection, then try again.');
   return globalThis.PDFLib;
 }
 
 function bytesOf(bytes) {
   if (bytes instanceof Uint8Array) return bytes.slice();
   if (bytes instanceof ArrayBuffer) return new Uint8Array(bytes.slice(0));
-  if (ArrayBuffer.isView(bytes)) return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength).slice();
+  if (ArrayBuffer.isView(bytes))
+    return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength).slice();
   throw new Error('Choose a PDF file to continue.');
 }
 
@@ -133,15 +159,19 @@ export function passwordProblem(password) {
   // Includes C1 controls, which SASLprep also prohibits.
   if (/[\u0000-\u001F\u007F-\u009F]/.test(password)) return 'Passwords can’t contain control characters.';
   // PDF readers use the first 127 bytes of a password.
-  if (new TextEncoder().encode(preparedPassword(password)).length > 127) return 'This password is too long. Use a shorter one.';
+  if (new TextEncoder().encode(preparedPassword(password)).length > 127)
+    return 'This password is too long. Use a shorter one.';
   return null;
 }
 
 /** A PDF that needs a password: error.code is 'password-required' or 'password-incorrect'. */
 function passwordError(code, cause) {
-  const error = new Error(code === 'password-incorrect'
-    ? 'That password didn’t open this PDF. Check it and try again.'
-    : 'This PDF is password-protected. Enter its password to open it.', { cause });
+  const error = new Error(
+    code === 'password-incorrect'
+      ? 'That password didn’t open this PDF. Check it and try again.'
+      : 'This PDF is password-protected. Enter its password to open it.',
+    { cause },
+  );
   error.code = code;
   return error;
 }
@@ -168,10 +198,16 @@ export async function loadPdf(bytes, password = '') {
         throw passwordError('password-incorrect', error);
       }
       if (/encrypt|key length/i.test(message)) {
-        throw new Error('This PDF is protected in a way QFT PDF can’t open, such as with a certificate. Remove the protection in the app that made it, then try again.', { cause: error });
+        throw new Error(
+          'This PDF is protected in a way QFT PDF can’t open, such as with a certificate. Remove the protection in the app that made it, then try again.',
+          { cause: error },
+        );
       }
       // Keep the parser's own error as the cause; it is logged with the message.
-      throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.', { cause: error });
+      throw new Error(
+        'This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.',
+        { cause: error },
+      );
     }
   }
   // A file can parse without a usable page tree (a header and little else).
@@ -179,7 +215,10 @@ export async function loadPdf(bytes, password = '') {
   try {
     pageCount = doc.getPageCount();
   } catch (error) {
-    throw new Error('This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.', { cause: error });
+    throw new Error(
+      'This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.',
+      { cause: error },
+    );
   }
   if (!pageCount) throw new Error('This PDF has no pages.');
   // Decrypting leaves the encryption dictionary behind with nothing referring to
@@ -187,7 +226,13 @@ export async function loadPdf(bytes, password = '') {
   if (doc.context.isDecrypted) {
     const name = (key) => lib.PDFName.of(key);
     for (const [ref, object] of doc.context.enumerateIndirectObjects()) {
-      if (object instanceof lib.PDFDict && object.get(name('Filter')) === name('Standard') && object.has(name('O')) && object.has(name('U'))) doc.context.delete(ref);
+      if (
+        object instanceof lib.PDFDict &&
+        object.get(name('Filter')) === name('Standard') &&
+        object.has(name('O')) &&
+        object.has(name('U'))
+      )
+        doc.context.delete(ref);
     }
   }
   return doc;
@@ -212,7 +257,8 @@ function encryptStringsWhenSaving(lib) {
     if (!(object instanceof lib.PDFObjectStream) && ref !== this.context.trailerInfo.Encrypt) {
       const encrypt = security.getEncryptFn(ref.objectNumber, ref.generationNumber);
       const encrypted = (value) => {
-        if (value instanceof lib.PDFString || value instanceof lib.PDFHexString) return lib.PDFHexString.fromBytes(encrypt(value.asBytes()));
+        if (value instanceof lib.PDFString || value instanceof lib.PDFHexString)
+          return lib.PDFHexString.fromBytes(encrypt(value.asBytes()));
         if (value instanceof lib.PDFArray) {
           const copy = lib.PDFArray.withContext(this.context);
           for (const item of value.asArray()) copy.push(encrypted(item));
@@ -226,8 +272,10 @@ function encryptStringsWhenSaving(lib) {
         return value;
       };
       const target = object instanceof lib.PDFStream ? object.dict : object;
-      if (target instanceof lib.PDFDict) for (const [key, value] of target.entries()) target.set(key, encrypted(value));
-      else if (target instanceof lib.PDFArray) target.asArray().forEach((value, index) => target.set(index, encrypted(value)));
+      if (target instanceof lib.PDFDict)
+        for (const [key, value] of target.entries()) target.set(key, encrypted(value));
+      else if (target instanceof lib.PDFArray)
+        target.asArray().forEach((value, index) => target.set(index, encrypted(value)));
     }
     return encryptStream.call(this, ref, object, security);
   };
@@ -248,7 +296,15 @@ export function protectDocument(doc, password) {
   doc.encrypt({
     userPassword: prepared,
     ownerPassword: prepared,
-    permissions: { printing: 'highResolution', modifying: true, copying: true, annotating: true, fillingForms: true, contentAccessibility: true, documentAssembly: true },
+    permissions: {
+      printing: 'highResolution',
+      modifying: true,
+      copying: true,
+      annotating: true,
+      fillingForms: true,
+      contentAccessibility: true,
+      documentAssembly: true,
+    },
   });
 }
 
@@ -272,7 +328,9 @@ function metadataXml(doc) {
 /** The PDF/A part (1–4) a document declares in its XMP metadata, or null. */
 function pdfaPart(doc) {
   const xml = metadataXml(doc);
-  const match = xml && (/<pdfaid:part>\s*(\d)\s*<\/pdfaid:part>/.exec(xml) || /\bpdfaid:part\s*=\s*["'](\d)["']/.exec(xml));
+  const match =
+    xml &&
+    (/<pdfaid:part>\s*(\d)\s*<\/pdfaid:part>/.exec(xml) || /\bpdfaid:part\s*=\s*["'](\d)["']/.exec(xml));
   return match ? Number(match[1]) : null;
 }
 
@@ -311,7 +369,10 @@ function decodedText(object) {
 
 /** What a field is called on screen: its tooltip, else the last part of its name. */
 function fieldLabel(field) {
-  return decodedText(field.acroField.dict.lookup(library().PDFName.of('TU')))?.trim() || field.getName().split('.').pop();
+  return (
+    decodedText(field.acroField.dict.lookup(library().PDFName.of('TU')))?.trim() ||
+    field.getName().split('.').pop()
+  );
 }
 
 /** A field's text size (0: automatic) and colour, from a default appearance such as "/Helv 0 Tf 0 g". */
@@ -319,7 +380,10 @@ function appearanceStyle(da = '') {
   const size = /(-?[\d.]+)\s+Tf\b/.exec(da);
   const gray = /(?:^|\s)([\d.]+)\s+g\b/.exec(da);
   const rgb = /([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg\b/.exec(da);
-  const hex = (value) => Math.round(Math.min(1, Math.max(0, Number(value))) * 255).toString(16).padStart(2, '0');
+  const hex = (value) =>
+    Math.round(Math.min(1, Math.max(0, Number(value))) * 255)
+      .toString(16)
+      .padStart(2, '0');
   const color = rgb ? `#${rgb.slice(1).map(hex).join('')}` : gray ? `#${hex(gray[1]).repeat(3)}` : '#000000';
   return { fontSize: size ? Math.max(0, Number(size[1])) : 0, color };
 }
@@ -393,7 +457,11 @@ function formFields(doc) {
       }
       const { x, y, width, height } = widget.getRectangle();
       if (pageIndex < 0 || !(width > 0 && height > 0)) return;
-      const entry = { id: annotationId(doc.context.getObjectRef(widget.dict)), pageIndex, rect: [x, y, width, height] };
+      const entry = {
+        id: annotationId(doc.context.getObjectRef(widget.dict)),
+        pageIndex,
+        rect: [x, y, width, height],
+      };
       // The option a radio button stands for (widgets list them in order).
       if (kind === 'radio') entry.option = options[index] ?? null;
       widgets.push(entry);
@@ -420,7 +488,8 @@ function formFields(doc) {
     if (kind === 'radio' || kind === 'dropdown' || kind === 'list') entry.options = [...new Set(options)];
     if (kind === 'list') entry.multiple = field.isMultiselect();
     if (kind === 'text' || kind === 'dropdown' || kind === 'list') {
-      const da = field.acroField.getDefaultAppearance?.() ?? decodedText(acroForm.lookup(lib.PDFName.of('DA'))) ?? '';
+      const da =
+        field.acroField.getDefaultAppearance?.() ?? decodedText(acroForm.lookup(lib.PDFName.of('DA'))) ?? '';
       Object.assign(entry, appearanceStyle(da));
     }
     fields.push(entry);
@@ -449,7 +518,10 @@ function automaticSize(kind, multiline, rect, font, text, options = []) {
   };
   let size;
   if (kind === 'list') {
-    const longest = options.reduce((best, option) => (widthAtOne(option) > widthAtOne(best) ? option : best), '');
+    const longest = options.reduce(
+      (best, option) => (widthAtOne(option) > widthAtOne(best) ? option : best),
+      '',
+    );
     size = fit((rect.height - 1) / Math.max(1, options.length), longest);
   } else if (!multiline) {
     size = fit(height, text);
@@ -544,16 +616,30 @@ async function fillForm(doc, values, { flatten, getFont, fieldError }) {
       if (error.unsupported) throw fieldError(field.getName(), `“${fieldLabel(field)}”: ${error.message}`);
       throw error;
     }
-    const kept = [field.acroField.dict, ...field.acroField.getWidgets().map((widget) => widget.dict)].map((dict) => [dict, dict.get(da)]);
+    const kept = [field.acroField.dict, ...field.acroField.getWidgets().map((widget) => widget.dict)].map(
+      (dict) => [dict, dict.get(da)],
+    );
     // An automatic size is worked out for each widget, and given to pdf-lib in the
     // widget's default appearance while it draws (the original is restored below).
-    const appearance = field.acroField.getDefaultAppearance?.() ?? decodedText(form.acroForm.dict.lookup(da)) ?? '/Helv 0 Tf 0 g';
+    const appearance =
+      field.acroField.getDefaultAppearance?.() ??
+      decodedText(form.acroForm.dict.lookup(da)) ??
+      '/Helv 0 Tf 0 g';
     if (!appearanceStyle(appearance).fontSize) {
       const text = shownText(field, kind);
       const options = kind === 'list' ? field.getOptions() : [];
       for (const widget of field.acroField.getWidgets()) {
-        const size = automaticSize(kind, kind === 'text' && field.isMultiline(), widget.getRectangle(), font, text, options);
-        const sized = /-?[\d.]+\s+Tf\b/.test(appearance) ? appearance.replace(/-?[\d.]+(\s+Tf\b)/, `${size}$1`) : `/Helv ${size} Tf 0 g`;
+        const size = automaticSize(
+          kind,
+          kind === 'text' && field.isMultiline(),
+          widget.getRectangle(),
+          font,
+          text,
+          options,
+        );
+        const sized = /-?[\d.]+\s+Tf\b/.test(appearance)
+          ? appearance.replace(/-?[\d.]+(\s+Tf\b)/, `${size}$1`)
+          : `/Helv ${size} Tf 0 g`;
         widget.dict.set(da, lib.PDFString.of(sized));
       }
     }
@@ -576,7 +662,11 @@ function flattenForm(form) {
       const flags = widget.dict.lookup(flagsName);
       if (flags instanceof lib.PDFNumber && flags.asNumber() & NOT_SHOWN) continue;
       try {
-        form.flattenWidgetOntoPage(form.findWidgetPage(widget), widget, form.findWidgetAppearanceRef(field, widget));
+        form.flattenWidgetOntoPage(
+          form.findWidgetPage(widget),
+          widget,
+          form.findWidgetAppearanceRef(field, widget),
+        );
       } catch {
         // A widget without an appearance shows nothing.
       }
@@ -592,7 +682,15 @@ function describePdf(doc) {
     return { index, width, height, rotation, cropBox };
   });
   const form = formFields(doc);
-  return { pages, pageCount: pages.length, hasForm: Boolean(form?.count), form, details: documentDetails(doc), pdfa: pdfaPart(doc), encrypted: Boolean(doc.context.isDecrypted) };
+  return {
+    pages,
+    pageCount: pages.length,
+    hasForm: Boolean(form?.count),
+    form,
+    details: documentDetails(doc),
+    pdfa: pdfaPart(doc),
+    encrypted: Boolean(doc.context.isDecrypted),
+  };
 }
 
 /** The details a PDF keeps about itself (Document properties shows them). */
@@ -631,7 +729,11 @@ export async function openPdf(bytes, { password = '' } = {}) {
   const doc = await loadPdf(bytes, password);
   if (!doc.context.isDecrypted) return { ...describePdf(doc), bytes, protection: null };
   // Saved before describePdf, whose form check can add an empty form to the document.
-  const unlocked = await doc.save({ useObjectStreams: pdfaPart(doc) !== 1, updateFieldAppearances: false, addDefaultPage: false });
+  const unlocked = await doc.save({
+    useObjectStreams: pdfaPart(doc) !== 1,
+    updateFieldAppearances: false,
+    addDefaultPage: false,
+  });
   return { ...describePdf(doc), bytes: unlocked, protection: password ? 'password' : 'owner' };
 }
 
@@ -654,7 +756,10 @@ export function fontFile(kind) {
  * copy of the site), or where Cache Storage is unavailable, it is fetched as usual.
  */
 async function fetchFont(url) {
-  const store = /[?&]v=[0-9a-f]{12}$/.test(url.search) && typeof caches !== 'undefined' ? await caches.open('qft-fonts').catch(() => null) : null;
+  const store =
+    /[?&]v=[0-9a-f]{12}$/.test(url.search) && typeof caches !== 'undefined'
+      ? await caches.open('qft-fonts').catch(() => null)
+      : null;
   const cached = store && (await store.match(url.href).catch(() => null));
   if (cached) return new Uint8Array(await cached.arrayBuffer());
   const response = await fetch(url);
@@ -662,19 +767,26 @@ async function fetchFont(url) {
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (store) {
     // Only this version of the font is kept.
-    const stale = (await store.keys().catch(() => [])).filter((request) => new URL(request.url).pathname === url.pathname);
+    const stale = (await store.keys().catch(() => [])).filter(
+      (request) => new URL(request.url).pathname === url.pathname,
+    );
     await Promise.all(stale.map((request) => store.delete(request))).catch(() => {});
-    await store.put(url.href, new Response(bytes.slice(), { headers: { 'Content-Length': String(bytes.length) } })).catch(() => {});
+    await store
+      .put(url.href, new Response(bytes.slice(), { headers: { 'Content-Length': String(bytes.length) } }))
+      .catch(() => {});
   }
   return bytes;
 }
 
 async function getFontBytes(kind) {
   if (!fontBytes.has(kind)) {
-    fontBytes.set(kind, fetchFont(FONT_FILES[kind]).catch(() => {
-      fontBytes.delete(kind);
-      throw new Error('The font for this text could not be loaded. Check your connection, then try again.');
-    }));
+    fontBytes.set(
+      kind,
+      fetchFont(FONT_FILES[kind]).catch(() => {
+        fontBytes.delete(kind);
+        throw new Error('The font for this text could not be loaded. Check your connection, then try again.');
+      }),
+    );
   }
   return fontBytes.get(kind);
 }
@@ -731,7 +843,9 @@ let measuring = null;
  */
 export async function measuringFont(kind) {
   if (!measuring) {
-    measuring = loadPdfLib().then((lib) => lib.PDFDocument.create()).then(fontLoader);
+    measuring = loadPdfLib()
+      .then((lib) => lib.PDFDocument.create())
+      .then(fontLoader);
     measuring.catch(() => (measuring = null));
   }
   return (await measuring)(kind);
@@ -757,7 +871,12 @@ async function drawTextAnnotation(page, geometry, annotation, getFont, pageIndex
   const font = await fontFor(getFont, text, pageIndex, annotation.id);
   const layout = layoutTextAnnotation(annotation, geometry, font);
   if (layout.problem) throw pageError(layout.problem, pageIndex, annotation.id);
-  const options = { font, size: layout.size, color: color(annotation.color), opacity: number(annotation.opacity, 1, 0, 1) };
+  const options = {
+    font,
+    size: layout.size,
+    color: color(annotation.color),
+    opacity: number(annotation.opacity, 1, 0, 1),
+  };
   for (const line of layout.lines) page.drawText(line.text, { ...options, x: line.x, y: line.y });
   return layout.lines.length > 0;
 }
@@ -772,9 +891,12 @@ function embeddedImage(doc, annotation) {
   if (!embeddedImages.has(doc)) embeddedImages.set(doc, new Map());
   const images = embeddedImages.get(doc);
   if (!images.has(annotation.imageBytes)) {
-    images.set(annotation.imageBytes, annotation.imageType === 'jpg' || annotation.imageType === 'jpeg'
-      ? doc.embedJpg(annotation.imageBytes)
-      : doc.embedPng(annotation.imageBytes));
+    images.set(
+      annotation.imageBytes,
+      annotation.imageType === 'jpg' || annotation.imageType === 'jpeg'
+        ? doc.embedJpg(annotation.imageBytes)
+        : doc.embedPng(annotation.imageBytes),
+    );
   }
   return images.get(annotation.imageBytes);
 }
@@ -786,14 +908,25 @@ async function drawAnnotation(doc, page, geometry, annotation, getFont, pageInde
     const { LineCapStyle, LineJoinStyle, setLineJoin } = library();
     const { d, strokeWidth } = drawingPath(annotation, geometry);
     page.pushOperators(setLineJoin(LineJoinStyle.Round));
-    page.drawSvgPath(d, { x: 0, y: geometry.height, borderColor: color(annotation.color, '#d0342c'), borderWidth: strokeWidth, borderLineCap: LineCapStyle.Round });
+    page.drawSvgPath(d, {
+      x: 0,
+      y: geometry.height,
+      borderColor: color(annotation.color, '#d0342c'),
+      borderWidth: strokeWidth,
+      borderLineCap: LineCapStyle.Round,
+    });
     return true;
   }
   const rect = layoutRect(annotation, geometry);
   if (!rect) return false;
   const options = { ...rect, opacity: number(annotation.opacity, 1, 0, 1) };
   if (annotation.type === 'highlight') {
-    page.drawRectangle({ ...options, color: color(annotation.color, '#f5d85c'), opacity: number(annotation.opacity, 0.3, 0, 1), blendMode: library().BlendMode.Multiply });
+    page.drawRectangle({
+      ...options,
+      color: color(annotation.color, '#f5d85c'),
+      opacity: number(annotation.opacity, 0.3, 0, 1),
+      blendMode: library().BlendMode.Multiply,
+    });
     return true;
   } else if (annotation.type === 'image' || annotation.type === 'signature') {
     if (!annotation.imageBytes) throw new Error('Choose a PNG or JPEG image to add to the PDF.');
@@ -813,8 +946,13 @@ async function drawWatermark(page, geometry, setting, getFont, pageIndex, total)
   const font = await fontFor(getFont, text, pageIndex, 'watermark');
   const mark = layoutWatermark(setting, geometry, font, text);
   page.drawText(text, {
-    x: mark.x, y: mark.y, size: mark.size, font, color: color(setting.color, '#85948e'),
-    opacity: number(setting.opacity, 0.15, 0, 1), rotate: library().degrees(mark.angle),
+    x: mark.x,
+    y: mark.y,
+    size: mark.size,
+    font,
+    color: color(setting.color, '#85948e'),
+    opacity: number(setting.opacity, 0.15, 0, 1),
+    rotate: library().degrees(mark.angle),
   });
   return true;
 }
@@ -826,7 +964,13 @@ async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, f
     const font = await fontFor(getFont, item.text, pageIndex, item.key);
     const placed = layoutMarginText(geometry, item, font);
     if (placed.problem) throw pageError(placed.problem, pageIndex, item.key);
-    page.drawText(placed.text, { x: placed.x, y: placed.y, size: placed.size, font, color: color(hex, fallback) });
+    page.drawText(placed.text, {
+      x: placed.x,
+      y: placed.y,
+      size: placed.size,
+      font,
+      color: color(hex, fallback),
+    });
     drew = true;
   }
   return drew;
@@ -858,7 +1002,10 @@ function nameTreeHasEntries(node, seen = new Set()) {
   const names = node.lookup(PDFName.of('Names'));
   if (names instanceof PDFArray && names.size() >= 2) return true;
   const kids = node.lookup(PDFName.of('Kids'));
-  return kids instanceof PDFArray && kids.asArray().some((_, index) => nameTreeHasEntries(kids.lookup(index), seen));
+  return (
+    kids instanceof PDFArray &&
+    kids.asArray().some((_, index) => nameTreeHasEntries(kids.lookup(index), seen))
+  );
 }
 
 /** A number tree's values (such as /PageLabels), as [number, value] pairs. */
@@ -872,7 +1019,8 @@ function numberTreeEntries(node, entries = [], seen = new Set()) {
     if (key instanceof PDFNumber) entries.push([key.asNumber(), nums.lookup(index + 1)]);
   }
   const kids = node.lookup(PDFName.of('Kids'));
-  for (let index = 0; kids instanceof PDFArray && index < kids.size(); index++) numberTreeEntries(kids.lookup(index), entries, seen);
+  for (let index = 0; kids instanceof PDFArray && index < kids.size(); index++)
+    numberTreeEntries(kids.lookup(index), entries, seen);
   return entries;
 }
 
@@ -892,7 +1040,10 @@ export function copyLosses(doc) {
     const [[first, label]] = labels;
     if (labels.length > 1 || first !== 0 || !(label instanceof PDFDict)) return true;
     const start = label.lookup(PDFName.of('St'));
-    const plain = label.get(PDFName.of('S')) === PDFName.of('D') && !label.has(PDFName.of('P')) && (start === undefined || (start instanceof PDFNumber && start.asNumber() === 1));
+    const plain =
+      label.get(PDFName.of('S')) === PDFName.of('D') &&
+      !label.has(PDFName.of('P')) &&
+      (start === undefined || (start instanceof PDFNumber && start.asNumber() === 1));
     return !plain;
   };
   const attached = () => {
@@ -900,7 +1051,11 @@ export function copyLosses(doc) {
     return names instanceof PDFDict && nameTreeHasEntries(names.lookup(PDFName.of('EmbeddedFiles')));
   };
   const tagged = () => catalog.lookup(PDFName.of('StructTreeRoot')) instanceof PDFDict;
-  return [detail(labelled) && 'labels-dropped', detail(attached) && 'attachments-dropped', detail(tagged) && 'tags-dropped'].filter(Boolean);
+  return [
+    detail(labelled) && 'labels-dropped',
+    detail(attached) && 'attachments-dropped',
+    detail(tagged) && 'tags-dropped',
+  ].filter(Boolean);
 }
 
 /** Whether a PDF has a digital signature: a signature field (/FT /Sig) with a value. */
@@ -914,7 +1069,9 @@ function isSigned(doc) {
     const fieldType = field.get(PDFName.of('FT')) || type;
     if (fieldType === PDFName.of('Sig') && field.lookup(PDFName.of('V')) instanceof PDFDict) return true;
     const kids = field.lookup(PDFName.of('Kids'));
-    return kids instanceof PDFArray && kids.asArray().some((_, index) => signed(kids.lookup(index), fieldType));
+    return (
+      kids instanceof PDFArray && kids.asArray().some((_, index) => signed(kids.lookup(index), fieldType))
+    );
   };
   const fields = form instanceof PDFDict ? form.lookup(PDFName.of('Fields')) : null;
   return fields instanceof PDFArray && fields.asArray().some((_, index) => signed(fields.lookup(index)));
@@ -928,7 +1085,8 @@ function namedDestinations(doc) {
   const { PDFArray, PDFDict, PDFName } = library();
   const names = new Map();
   const dests = doc.catalog.lookup(PDFName.of('Dests'));
-  if (dests instanceof PDFDict) for (const [key, value] of dests.entries()) names.set(key.decodeText(), value);
+  if (dests instanceof PDFDict)
+    for (const [key, value] of dests.entries()) names.set(key.decodeText(), value);
   const seen = new Set();
   const walk = (node) => {
     if (!(node instanceof PDFDict) || seen.has(node)) return;
@@ -964,7 +1122,8 @@ function destinationSlot(item) {
   const { PDFDict, PDFName } = library();
   if (item.has(PDFName.of('Dest'))) return { holder: item, key: PDFName.of('Dest') };
   const action = item.lookup(PDFName.of('A'));
-  if (action instanceof PDFDict && action.get(PDFName.of('S')) === PDFName.of('GoTo')) return { holder: action, key: PDFName.of('D') };
+  if (action instanceof PDFDict && action.get(PDFName.of('S')) === PDFName.of('GoTo'))
+    return { holder: action, key: PDFName.of('D') };
   return null;
 }
 
@@ -978,7 +1137,10 @@ function isPageObject(object) {
 /** A destination's position on its page ([/XYZ left top zoom] and so on), for a new array. */
 function destinationRest(destination) {
   const { PDFNull, PDFRef } = library();
-  return destination.asArray().slice(1).map((value) => (value instanceof PDFRef ? PDFNull : value.clone()));
+  return destination
+    .asArray()
+    .slice(1)
+    .map((value) => (value instanceof PDFRef ? PDFNull : value.clone()));
 }
 
 /**
@@ -992,7 +1154,10 @@ function rewriteFromPages(context, pages, change, set) {
   const roots = new Set(pages);
   const seen = new Set();
   const visit = (container) => {
-    const entries = container instanceof PDFArray ? container.asArray().map((value, index) => [index, value]) : container.entries();
+    const entries =
+      container instanceof PDFArray
+        ? container.asArray().map((value, index) => [index, value])
+        : container.entries();
     for (const [key, value] of entries) {
       if (key === parent && roots.has(container)) continue;
       const replacement = change(value);
@@ -1091,7 +1256,12 @@ export async function copyPagesWithLinks(doc, source, indices) {
   });
   const copyOf = (value) => (standIns.has(value) ? refs.get(standIns.get(value)) : undefined);
   const copies = pages.map((page) => page.node);
-  rewriteFromPages(doc.context, copiedLayers ? [...copies, copiedLayers] : copies, copyOf, (holder, key, value) => holder.set(key, value));
+  rewriteFromPages(
+    doc.context,
+    copiedLayers ? [...copies, copiedLayers] : copies,
+    copyOf,
+    (holder, key, value) => holder.set(key, value),
+  );
   if (copiedLayers) addLayers(doc, copiedLayers);
   return { pages, refs };
 }
@@ -1118,7 +1288,10 @@ function addLayers(doc, layers) {
   const join = (...arrays) => [...new Set(arrays.flat())];
   // A layer is hidden when it is listed as off, or, in settings that start with
   // every layer off (/BaseState /OFF), when it is not listed as on.
-  const hidden = (config, groups) => (config instanceof PDFDict && config.get(PDFName.of('BaseState')) === PDFName.of('OFF') ? groups.filter((group) => !list(config, 'ON').includes(group)) : list(config, 'OFF'));
+  const hidden = (config, groups) =>
+    config instanceof PDFDict && config.get(PDFName.of('BaseState')) === PDFName.of('OFF')
+      ? groups.filter((group) => !list(config, 'ON').includes(group))
+      : list(config, 'OFF');
   const groups = [list(existing, 'OCGs'), list(layers, 'OCGs')];
   const configs = [existing.lookup(PDFName.of('D')), layers.lookup(PDFName.of('D'))];
   const config = configs[0] instanceof PDFDict ? configs[0] : context.obj({});
@@ -1161,7 +1334,11 @@ function separatePages(doc, pages) {
     const dictOf = (entry) => (entry instanceof PDFRef ? context.lookup(entry) : entry);
     const shared = (entry) => {
       const annotation = dictOf(entry);
-      return annotation instanceof PDFDict && claimed.has(annotation) && annotation.get(PDFName.of('Subtype')) !== PDFName.of('Widget');
+      return (
+        annotation instanceof PDFDict &&
+        claimed.has(annotation) &&
+        annotation.get(PDFName.of('Subtype')) !== PDFName.of('Widget')
+      );
     };
     if (entries.some(shared)) {
       // The copies, by the reference (or direct dictionary) they replace.
@@ -1169,7 +1346,10 @@ function separatePages(doc, pages) {
       for (const entry of entries.filter(shared)) {
         const copy = dictOf(entry).clone(context);
         copy.set(PDFName.of('P'), page.ref);
-        copies.set(entry, entry instanceof PDFRef ? { copy, entry: context.register(copy) } : { copy, entry: copy });
+        copies.set(
+          entry,
+          entry instanceof PDFRef ? { copy, entry: context.register(copy) } : { copy, entry: copy },
+        );
       }
       for (const { copy } of copies.values()) {
         for (const key of ['Popup', 'Parent', 'IRT']) {
@@ -1177,7 +1357,10 @@ function separatePages(doc, pages) {
           if (target) copy.set(PDFName.of(key), target.entry);
         }
       }
-      page.node.set(PDFName.of('Annots'), context.obj(entries.map((entry) => copies.get(entry)?.entry ?? entry)));
+      page.node.set(
+        PDFName.of('Annots'),
+        context.obj(entries.map((entry) => copies.get(entry)?.entry ?? entry)),
+      );
     }
     for (const entry of page.node.lookup(PDFName.of('Annots')).asArray()) {
       const annotation = dictOf(entry);
@@ -1195,7 +1378,14 @@ function addBlankMargins(page, content, box) {
   const lib = library();
   const { context } = page.doc;
   page.node.normalize();
-  const start = context.register(context.contentStream([lib.pushGraphicsState(), lib.rectangle(content.x, content.y, content.width, content.height), lib.clip(), lib.endPath()]));
+  const start = context.register(
+    context.contentStream([
+      lib.pushGraphicsState(),
+      lib.rectangle(content.x, content.y, content.width, content.height),
+      lib.clip(),
+      lib.endPath(),
+    ]),
+  );
   const end = context.register(context.contentStream([lib.popGraphicsState()]));
   page.node.wrapContentStreams(start, end);
   // pdf-lib draws into a stream it keeps on the page once one exists (flattened
@@ -1204,8 +1394,14 @@ function addBlankMargins(page, content, box) {
   // goes into a new stream after the clip ends.
   page.getContentStream(false);
   const media = page.getMediaBox();
-  const left = Math.min(media.x, box.x), bottom = Math.min(media.y, box.y);
-  page.setMediaBox(left, bottom, Math.max(media.x + media.width, box.x + box.width) - left, Math.max(media.y + media.height, box.y + box.height) - bottom);
+  const left = Math.min(media.x, box.x),
+    bottom = Math.min(media.y, box.y);
+  page.setMediaBox(
+    left,
+    bottom,
+    Math.max(media.x + media.width, box.x + box.width) - left,
+    Math.max(media.y + media.height, box.y + box.height) - bottom,
+  );
   for (const name of ['TrimBox', 'BleedBox', 'ArtBox']) page.node.delete(lib.PDFName.of(name));
 }
 
@@ -1230,7 +1426,12 @@ function applyProperties(doc, properties) {
   const { PDFHexString, PDFName } = library();
   const info = doc.getInfoDict();
   if (properties.clean) for (const key of info.keys()) info.delete(key);
-  const fields = { Title: properties.title, Author: properties.author, Subject: properties.subject, Keywords: properties.keywords };
+  const fields = {
+    Title: properties.title,
+    Author: properties.author,
+    Subject: properties.subject,
+    Keywords: properties.keywords,
+  };
   for (const [key, value] of Object.entries(fields)) {
     const text = String(value ?? '').trim();
     if (text) info.set(PDFName.of(key), PDFHexString.fromText(text));
@@ -1273,7 +1474,8 @@ function dropUnreachable(doc) {
 export function copyDocumentInfo(doc, source) {
   const { PDFBool, PDFDict, PDFName } = library();
   const preferences = source.catalog.lookup(PDFName.of('ViewerPreferences'));
-  const showTitle = preferences instanceof PDFDict && preferences.lookup(PDFName.of('DisplayDocTitle')) === PDFBool.True;
+  const showTitle =
+    preferences instanceof PDFDict && preferences.lookup(PDFName.of('DisplayDocTitle')) === PDFBool.True;
   const title = detail(() => source.getTitle());
   if (title) doc.setTitle(title, { showInWindowTitleBar: showTitle });
   const author = detail(() => source.getAuthor());
@@ -1303,15 +1505,24 @@ export function copyBookmarks(doc, parts) {
   const { PDFArray, PDFDict, PDFHexString, PDFName, PDFNull, PDFNumber, PDFString } = library();
   const read = (source, refs, first, seen) => {
     const items = [];
-    for (let item = first; item instanceof PDFDict && !seen.has(item); item = item.lookup(PDFName.of('Next'))) {
+    for (
+      let item = first;
+      item instanceof PDFDict && !seen.has(item);
+      item = item.lookup(PDFName.of('Next'))
+    ) {
       seen.add(item);
       const children = read(source, refs, item.lookup(PDFName.of('First')), seen);
       const slot = destinationSlot(item);
       const destination = slot && explicitDestination(source, slot.holder.get(slot.key));
       const target = destination && refs.get(destination.get(0));
       const action = item.lookup(PDFName.of('A'));
-      const uri = action instanceof PDFDict && action.get(PDFName.of('S')) === PDFName.of('URI') ? action.lookup(PDFName.of('URI')) : null;
-      const leadsTo = target ? [target, ...destinationRest(destination)] : children.find((child) => child.leadsTo)?.leadsTo;
+      const uri =
+        action instanceof PDFDict && action.get(PDFName.of('S')) === PDFName.of('URI')
+          ? action.lookup(PDFName.of('URI'))
+          : null;
+      const leadsTo = target
+        ? [target, ...destinationRest(destination)]
+        : children.find((child) => child.leadsTo)?.leadsTo;
       const web = !leadsTo && (uri instanceof PDFString || uri instanceof PDFHexString) ? uri.clone() : null;
       if (!leadsTo && !web && !children.length) continue;
       const title = item.lookup(PDFName.of('Title'));
@@ -1323,7 +1534,10 @@ export function copyBookmarks(doc, parts) {
         leadsTo,
         uri: web,
         open: count instanceof PDFNumber && count.asNumber() > 0,
-        color: color instanceof PDFArray && color.size() === 3 ? color.asArray().map((value) => (value instanceof PDFNumber ? value.asNumber() : 0)) : null,
+        color:
+          color instanceof PDFArray && color.size() === 3
+            ? color.asArray().map((value) => (value instanceof PDFNumber ? value.asNumber() : 0))
+            : null,
         flags: flags instanceof PDFNumber ? flags.asNumber() : 0,
         children,
       });
@@ -1332,9 +1546,20 @@ export function copyBookmarks(doc, parts) {
   };
   const items = parts.flatMap(({ source, refs, title, first }) => {
     const outlines = source.catalog.lookup(PDFName.of('Outlines'));
-    const own = outlines instanceof PDFDict ? read(source, refs, outlines.lookup(PDFName.of('First')), new Set()) : [];
+    const own =
+      outlines instanceof PDFDict ? read(source, refs, outlines.lookup(PDFName.of('First')), new Set()) : [];
     if (title === undefined) return own;
-    return [{ title, leadsTo: [first, PDFName.of('XYZ'), PDFNull, PDFNull, PDFNull], uri: null, open: false, color: null, flags: 0, children: own }];
+    return [
+      {
+        title,
+        leadsTo: [first, PDFName.of('XYZ'), PDFNull, PDFNull, PDFNull],
+        uri: null,
+        open: false,
+        color: null,
+        flags: 0,
+        children: own,
+      },
+    ];
   });
   if (!items.length) return;
   // Count: how many bookmarks show under an open one (negative when it is closed).
@@ -1364,7 +1589,10 @@ export function copyBookmarks(doc, parts) {
   };
   const root = doc.context.nextRef();
   const top = write(items, root);
-  doc.context.assign(root, doc.context.obj({ Type: 'Outlines', First: top.refs[0], Last: top.refs.at(-1), Count: top.shown }));
+  doc.context.assign(
+    root,
+    doc.context.obj({ Type: 'Outlines', First: top.refs[0], Last: top.refs.at(-1), Count: top.shown }),
+  );
   doc.catalog.set(PDFName.of('Outlines'), root);
   if (parts.some(({ source }) => source.catalog.get(PDFName.of('PageMode')) === PDFName.of('UseOutlines'))) {
     doc.catalog.set(PDFName.of('PageMode'), PDFName.of('UseOutlines'));
@@ -1401,7 +1629,8 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const descriptors = state?.pages || [];
   if (!descriptors.length) throw new Error('Keep at least one page before exporting your PDF.');
   const password = protectionPassword(state.protection);
-  if (new Set(descriptors.map((page) => page.id)).size !== descriptors.length) throw new Error('The page list contains duplicate page IDs. Reload this document and try again.');
+  if (new Set(descriptors.map((page) => page.id)).size !== descriptors.length)
+    throw new Error('The page list contains duplicate page IDs. Reload this document and try again.');
   const sourceMap = new Map(sources.map((source) => [source.id, source]));
   const loaded = new Map();
   const needed = [...new Set(descriptors.map((page) => page.sourceId))];
@@ -1411,7 +1640,11 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     loaded.set(id, await loadPdf(sourceMap.get(id).bytes));
   }
   for (const descriptor of descriptors) {
-    if (!Number.isInteger(descriptor.index) || descriptor.index < 0 || descriptor.index >= loaded.get(descriptor.sourceId).getPageCount()) {
+    if (
+      !Number.isInteger(descriptor.index) ||
+      descriptor.index < 0 ||
+      descriptor.index >= loaded.get(descriptor.sourceId).getPageCount()
+    ) {
       throw new Error('A selected page does not exist in its source PDF. Reload the file and try again.');
     }
     rotation(descriptor.rotation || 0);
@@ -1441,15 +1674,25 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
       } catch {
         // The field is not on a page.
       }
-      const pageIndex = descriptors.findIndex((descriptor) => descriptor.sourceId === id && descriptor.index === sourceIndex);
+      const pageIndex = descriptors.findIndex(
+        (descriptor) => descriptor.sourceId === id && descriptor.index === sourceIndex,
+      );
       const itemId = `form:${name}`;
-      return pageIndex < 0 ? Object.assign(new Error(message), { itemId }) : pageError(message, pageIndex, itemId);
+      return pageIndex < 0
+        ? Object.assign(new Error(message), { itemId })
+        : pageError(message, pageIndex, itemId);
     };
-    formFilled = (await fillForm(sourceDoc, values, { flatten: Boolean(state.flattenForms), getFont: fontsFor(sourceDoc), fieldError })) || formFilled;
+    formFilled =
+      (await fillForm(sourceDoc, values, {
+        flatten: Boolean(state.flattenForms),
+        getFont: fontsFor(sourceDoc),
+        fieldError,
+      })) || formFilled;
   }
   onProgress(0.1);
   const oneSource = needed.length === 1;
-  const noDuplicates = new Set(descriptors.map((page) => `${page.sourceId}:${page.index}`)).size === descriptors.length;
+  const noDuplicates =
+    new Set(descriptors.map((page) => `${page.sourceId}:${page.index}`)).size === descriptors.length;
   let doc;
   let outputPages;
   // The PDF/A part the kept document declares. Copied pages start a fresh,
@@ -1475,7 +1718,10 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     }
   } else {
     for (const source of loaded.values()) {
-      if (hasAcroForm(source) && source.getForm().getFields().length) throw new Error('Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.');
+      if (hasAcroForm(source) && source.getForm().getFields().length)
+        throw new Error(
+          'Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
+        );
     }
     doc = await lib.PDFDocument.create();
     doc.setProducer('QFT PDF');
@@ -1487,11 +1733,18 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     const fileBookmarks = state.fileBookmarks === true && files.length > 1;
     for (const id of needed) {
       const selected = descriptors.filter((descriptor) => descriptor.sourceId === id);
-      const { pages, refs } = await copyPagesWithLinks(doc, loaded.get(id), selected.map((page) => page.index));
+      const { pages, refs } = await copyPagesWithLinks(
+        doc,
+        loaded.get(id),
+        selected.map((page) => page.index),
+      );
       selected.forEach((descriptor, index) => copies.set(descriptor.id, pages[index]));
       const part = { source: loaded.get(id), refs };
       if (fileBookmarks && files.includes(id)) {
-        part.title = String(sourceMap.get(id).name || '').replace(/\.pdf$/i, '').trim() || 'PDF ' + (files.indexOf(id) + 1);
+        part.title =
+          String(sourceMap.get(id).name || '')
+            .replace(/\.pdf$/i, '')
+            .trim() || 'PDF ' + (files.indexOf(id) + 1);
         part.first = pages[0].ref;
       }
       parts.push(part);
@@ -1511,13 +1764,20 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   for (let index = 0; index < total; index++) {
     const page = outputPages[index];
     const descriptor = descriptors[index];
-    const source = { box: visibleBox(page.getMediaBox(), page.getCropBox()), rotation: page.getRotation().angle };
+    const source = {
+      box: visibleBox(page.getMediaBox(), page.getCropBox()),
+      rotation: page.getRotation().angle,
+    };
     const geometry = pageGeometry(source, descriptor);
     page.setRotation(lib.degrees(geometry.rotation));
     if (descriptor.crop) {
       const box = geometry.cropBox;
       const content = contentBox(source, descriptor);
-      const beyond = box.x < content.x - 0.01 || box.y < content.y - 0.01 || box.x + box.width > content.x + content.width + 0.01 || box.y + box.height > content.y + content.height + 0.01;
+      const beyond =
+        box.x < content.x - 0.01 ||
+        box.y < content.y - 0.01 ||
+        box.x + box.width > content.x + content.width + 0.01 ||
+        box.y + box.height > content.y + content.height + 0.01;
       if (beyond) addBlankMargins(page, content, box);
       page.setCropBox(box.x, box.y, box.width, box.height);
     }
@@ -1528,15 +1788,34 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
       page.pushOperators(lib.popGraphicsState());
     }
     page.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(...geometry.matrix));
-    if (applies(state.watermark, descriptor.id)) added = (await drawWatermark(page, geometry, state.watermark, getFont, index, total)) || added;
+    if (applies(state.watermark, descriptor.id))
+      added = (await drawWatermark(page, geometry, state.watermark, getFont, index, total)) || added;
     if (applies(state.headerFooter, descriptor.id)) {
-      added = (await drawMarginItems(page, geometry, headerFooterItems(state.headerFooter, geometry, index + 1, total), state.headerFooter.color, getFont, index, '#53635d')) || added;
+      added =
+        (await drawMarginItems(
+          page,
+          geometry,
+          headerFooterItems(state.headerFooter, geometry, index + 1, total),
+          state.headerFooter.color,
+          getFont,
+          index,
+          '#53635d',
+        )) || added;
     }
     if (applies(state.pageNumbers, descriptor.id)) {
-      added = (await drawMarginItems(page, geometry, [pageNumberItem(state.pageNumbers, geometry, index + 1, total)], state.pageNumbers.color, getFont, index, '#53635d')) || added;
+      added =
+        (await drawMarginItems(
+          page,
+          geometry,
+          [pageNumberItem(state.pageNumbers, geometry, index + 1, total)],
+          state.pageNumbers.color,
+          getFont,
+          index,
+          '#53635d',
+        )) || added;
     }
     page.pushOperators(lib.popGraphicsState());
-    onProgress(0.1 + 0.8 * (index + 1) / total);
+    onProgress(0.1 + (0.8 * (index + 1)) / total);
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -1568,7 +1847,8 @@ const PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
 /** A PDF of one blank page, `width` by `height` points (Insert a blank page). */
 export async function blankPdf(width, height) {
   const lib = await loadPdfLib();
-  if (!(width >= 1 && height >= 1 && width <= 14400 && height <= 14400)) throw new Error('A blank page must be between 1 and 14,400 points wide and high.');
+  if (!(width >= 1 && height >= 1 && width <= 14400 && height <= 14400))
+    throw new Error('A blank page must be between 1 and 14,400 points wide and high.');
   const doc = await lib.PDFDocument.create();
   doc.setProducer('QFT PDF');
   doc.addPage([width, height]);
@@ -1585,7 +1865,8 @@ export async function blankPdf(width, height) {
 export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
   const lib = await loadPdfLib();
   if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');
-  if (size !== 'fit' && !PAPER[size]) throw new Error('Choose a page size: the picture’s own size, A4 or Letter.');
+  if (size !== 'fit' && !PAPER[size])
+    throw new Error('Choose a page size: the picture’s own size, A4 or Letter.');
   const doc = await lib.PDFDocument.create();
   doc.setProducer('QFT PDF');
   for (const image of images) {
@@ -1604,9 +1885,15 @@ export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
       const [short, long] = PAPER[size];
       [pageWidth, pageHeight] = picture.width > picture.height ? [long, short] : [short, long];
     }
-    const scale = size === 'fit' ? 1 : Math.min(1, (pageWidth - 2 * margin) / natural.width, (pageHeight - 2 * margin) / natural.height);
-    const width = natural.width * scale, height = natural.height * scale;
-    doc.addPage([pageWidth, pageHeight]).drawImage(picture, { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height });
+    const scale =
+      size === 'fit'
+        ? 1
+        : Math.min(1, (pageWidth - 2 * margin) / natural.width, (pageHeight - 2 * margin) / natural.height);
+    const width = natural.width * scale,
+      height = natural.height * scale;
+    doc
+      .addPage([pageWidth, pageHeight])
+      .drawImage(picture, { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height });
   }
   return doc.save();
 }
@@ -1632,7 +1919,8 @@ export function sheetLayout(count, paper, shape, margin, gap) {
       const cellHeight = (height - 2 * margin - (rows - 1) * gap) / rows;
       if (!(cellWidth > 0 && cellHeight > 0)) continue;
       const scale = Math.min(cellWidth / shape.width, cellHeight / shape.height);
-      if (!best || scale > best.scale + 1e-9) best = { width, height, columns, rows, cellWidth, cellHeight, scale };
+      if (!best || scale > best.scale + 1e-9)
+        best = { width, height, columns, rows, cellWidth, cellHeight, scale };
     }
   }
   if (!best) throw new Error('The margins leave no room for the pages. Make them smaller.');
@@ -1648,13 +1936,19 @@ export function sheetLayout(count, paper, shape, margin, gap) {
  * the fields first: a PDF with fields is refused). `border` draws a thin frame
  * around each page; `password` protects the handout.
  */
-export async function pagesPerSheet(bytes, { perSheet = 2, paper = 'a4', margin = 28.35, gap = 14.17, border = false, password = null } = {}) {
+export async function pagesPerSheet(
+  bytes,
+  { perSheet = 2, paper = 'a4', margin = 28.35, gap = 14.17, border = false, password = null } = {},
+) {
   const lib = await loadPdfLib();
   if (![2, 4].includes(perSheet)) throw new Error('Choose 2 or 4 pages per sheet.');
   if (!PAPER[paper]) throw new Error('Choose A4 or Letter paper.');
   if (!(margin >= 0 && gap >= 0)) throw new Error('Margins and gaps can’t be negative.');
   const source = await loadPdf(bytes);
-  if (hasAcroForm(source) && source.getForm().getFields().length) throw new Error('A PDF with form fields goes on sheets once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.');
+  if (hasAcroForm(source) && source.getForm().getFields().length)
+    throw new Error(
+      'A PDF with form fields goes on sheets once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
+    );
   const doc = await lib.PDFDocument.create();
   doc.setProducer('QFT PDF');
   copyDocumentInfo(doc, source);
@@ -1662,12 +1956,20 @@ export async function pagesPerSheet(bytes, { perSheet = 2, paper = 'a4', margin 
   // their content is used, and what is left over is removed before saving.
   const { pages } = await copyPagesWithLinks(doc, source, source.getPageIndices());
   // A page with nothing on it (a blank page added in the editor) has no content to embed.
-  for (const page of pages) if (!page.node.Contents()) page.node.set(lib.PDFName.of('Contents'), doc.context.obj([]));
-  const shown = pages.map((page) => boxGeometry(visibleBox(page.getMediaBox(), page.getCropBox()), page.getRotation().angle));
+  for (const page of pages)
+    if (!page.node.Contents()) page.node.set(lib.PDFName.of('Contents'), doc.context.obj([]));
+  const shown = pages.map((page) =>
+    boxGeometry(visibleBox(page.getMediaBox(), page.getCropBox()), page.getRotation().angle),
+  );
   // Each page as it is shown: clipped to its visible box, and turned upright.
   const embedded = await doc.embedPages(
     pages,
-    shown.map(({ cropBox: { x, y, width, height } }) => ({ left: x, bottom: y, right: x + width, top: y + height })),
+    shown.map(({ cropBox: { x, y, width, height } }) => ({
+      left: x,
+      bottom: y,
+      right: x + width,
+      top: y + height,
+    })),
     shown.map((geometry) => invert(geometry.matrix)),
   );
   const layout = sheetLayout(perSheet, paper, shown[0], margin, gap);
@@ -1676,13 +1978,26 @@ export async function pagesPerSheet(bytes, { perSheet = 2, paper = 'a4', margin 
     for (let cell = 0; cell < perSheet && first + cell < pages.length; cell++) {
       const page = shown[first + cell];
       const scale = Math.min(layout.cellWidth / page.width, layout.cellHeight / page.height);
-      const width = page.width * scale, height = page.height * scale;
-      const column = cell % layout.columns, row = Math.floor(cell / layout.columns);
+      const width = page.width * scale,
+        height = page.height * scale;
+      const column = cell % layout.columns,
+        row = Math.floor(cell / layout.columns);
       const x = margin + column * (layout.cellWidth + gap) + (layout.cellWidth - width) / 2;
-      const y = layout.height - margin - row * (layout.cellHeight + gap) - layout.cellHeight + (layout.cellHeight - height) / 2;
+      const y =
+        layout.height -
+        margin -
+        row * (layout.cellHeight + gap) -
+        layout.cellHeight +
+        (layout.cellHeight - height) / 2;
       const name = sheet.node.newXObject('Page', embedded[first + cell].ref);
-      sheet.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(scale, 0, 0, scale, x, y), lib.drawObject(name), lib.popGraphicsState());
-      if (border) sheet.drawRectangle({ x, y, width, height, borderColor: lib.grayscale(0.6), borderWidth: 0.5 });
+      sheet.pushOperators(
+        lib.pushGraphicsState(),
+        lib.concatTransformationMatrix(scale, 0, 0, scale, x, y),
+        lib.drawObject(name),
+        lib.popGraphicsState(),
+      );
+      if (border)
+        sheet.drawRectangle({ x, y, width, height, borderColor: lib.grayscale(0.6), borderWidth: 0.5 });
     }
   }
   await doc.flush();
@@ -1693,7 +2008,8 @@ export async function pagesPerSheet(bytes, { perSheet = 2, paper = 'a4', margin 
 
 /** Parse an inclusive, one-based list like "1-3, 5" into zero-based indexes. */
 export function parsePageRange(value, pageCount) {
-  if (!Number.isInteger(pageCount) || pageCount < 1) throw new Error('Open a PDF before choosing a page range.');
+  if (!Number.isInteger(pageCount) || pageCount < 1)
+    throw new Error('Open a PDF before choosing a page range.');
   if (!String(value ?? '').trim()) return Array.from({ length: pageCount }, (_, index) => index);
   const result = new Set();
   for (const token of String(value).split(',')) {
@@ -1701,7 +2017,8 @@ export function parsePageRange(value, pageCount) {
     if (!match) throw new Error('Use page numbers like 1-3, 5.');
     const first = Number(match[1]);
     const last = Number(match[2] || match[1]);
-    if (first < 1 || last < first || last > pageCount) throw new Error(`Choose page numbers between 1 and ${pageCount}, with each range in ascending order.`);
+    if (first < 1 || last < first || last > pageCount)
+      throw new Error(`Choose page numbers between 1 and ${pageCount}, with each range in ascending order.`);
     for (let page = first; page <= last; page++) result.add(page - 1);
   }
   return [...result];

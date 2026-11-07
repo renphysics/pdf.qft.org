@@ -23,15 +23,33 @@ export const PAGES = [
     how: ['How to add text', 'to a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Place your text.', 'Click the page where it belongs and type. Drag it into place and choose its size and colour. Images and highlights work the same way.'],
+      [
+        'Place your text.',
+        'Click the page where it belongs and type. Drag it into place and choose its size and colour. Images and highlights work the same way.',
+      ],
       ['Download your copy.', 'Save the edited PDF. The text you added stays selectable.'],
     ],
     faqs: [
-      ['Can I change text after adding it?', 'Yes. Drag it to move it, drag its edge to change where lines wrap, or select it to change the words, size, colour or alignment. Undo and Redo cover every change.'],
-      ['Can I edit the text that is already in my PDF?', 'No. QFT PDF adds new text, images and highlights on top of the page; it does not rewrite existing paragraphs.'],
-      ['Which languages can I type?', 'Latin-script languages and Chinese, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes, not megabytes. The Chinese font (16 MB) downloads once, the first time you type it.'],
-      ['What images can I add?', 'PNG or JPG files up to 15 MB and 30 megapixels. They keep their original proportions.'],
-      ['Can a highlight hide information?', 'No. Highlights are translucent marks, not secure redaction; the text underneath is still there.'],
+      [
+        'Can I change text after adding it?',
+        'Yes. Drag it to move it, drag its edge to change where lines wrap, or select it to change the words, size, colour or alignment. Undo and Redo cover every change.',
+      ],
+      [
+        'Can I edit the text that is already in my PDF?',
+        'No. QFT PDF adds new text, images and highlights on top of the page; it does not rewrite existing paragraphs.',
+      ],
+      [
+        'Which languages can I type?',
+        'Latin-script languages and Chinese, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes, not megabytes. The Chinese font (16 MB) downloads once, the first time you type it.',
+      ],
+      [
+        'What images can I add?',
+        'PNG or JPG files up to 15 MB and 30 megapixels. They keep their original proportions.',
+      ],
+      [
+        'Can a highlight hide information?',
+        'No. Highlights are translucent marks, not secure redaction; the text underneath is still there.',
+      ],
     ],
   },
   {
@@ -42,19 +60,38 @@ export const PAGES = [
       'Draw, type or upload your signature and place it on one page or every page of a PDF. Free, no sign-up, and your PDF and signature stay on your device.',
     eyebrow: 'SIGN PDF',
     heading: ['Sign a PDF.', 'Your signature, right where it belongs.'],
-    intro: 'Draw your signature, type your name, or use a picture of it, then place it on the page and download.',
+    intro:
+      'Draw your signature, type your name, or use a picture of it, then place it on the page and download.',
     upload: { text: 'Drop a PDF here to sign it.', cta: 'Choose a PDF to sign' },
     how: ['How to sign', 'a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Make your signature.', 'Draw it with a mouse, finger or pen, type your name in a handwriting style, or upload a picture of it.'],
-      ['Place it and download.', 'Click the page where it belongs, or add it to every page. Drag it into place, resize it, then save your copy.'],
+      [
+        'Make your signature.',
+        'Draw it with a mouse, finger or pen, type your name in a handwriting style, or upload a picture of it.',
+      ],
+      [
+        'Place it and download.',
+        'Click the page where it belongs, or add it to every page. Drag it into place, resize it, then save your copy.',
+      ],
     ],
     faqs: [
-      ['Is my signature uploaded?', 'No. It is made and placed in your browser. It stays on this device only if you choose “Keep it on this device”, and you can remove it any time.'],
-      ['Is this a legally binding signature?', 'It is an electronic signature: a picture of your signature on the page. Many everyday documents accept one, but some require a certificate-based digital signature, which QFT PDF does not create. Check what the recipient needs.'],
-      ['Can I sign every page at once?', 'Yes. Add your signature to every page in one step, or place it once and copy it to the same spot on all pages. The PDF stores the picture only once.'],
-      ['Can I use a photo of my signature?', 'Yes. Upload a PNG or JPG of your signature on light paper; QFT PDF can make the paper transparent so only the ink shows.'],
+      [
+        'Is my signature uploaded?',
+        'No. It is made and placed in your browser. It stays on this device only if you choose “Keep it on this device”, and you can remove it any time.',
+      ],
+      [
+        'Is this a legally binding signature?',
+        'It is an electronic signature: a picture of your signature on the page. Many everyday documents accept one, but some require a certificate-based digital signature, which QFT PDF does not create. Check what the recipient needs.',
+      ],
+      [
+        'Can I sign every page at once?',
+        'Yes. Add your signature to every page in one step, or place it once and copy it to the same spot on all pages. The PDF stores the picture only once.',
+      ],
+      [
+        'Can I use a photo of my signature?',
+        'Yes. Upload a PNG or JPG of your signature on light paper; QFT PDF can make the paper transparent so only the ink shows.',
+      ],
     ],
   },
   {
@@ -70,14 +107,32 @@ export const PAGES = [
     how: ['How to fill in', 'a PDF form.'],
     steps: [
       OPEN_STEP,
-      ['Fill in the fields.', 'Click a field and type, tick check boxes, and choose options. Tab takes you to the next field, and Go to the next empty field finds what is left.'],
-      ['Download.', 'Keep the form fillable, or flatten it so it looks the same in every app. Add your signature with Sign PDF if it needs one.'],
+      [
+        'Fill in the fields.',
+        'Click a field and type, tick check boxes, and choose options. Tab takes you to the next field, and Go to the next empty field finds what is left.',
+      ],
+      [
+        'Download.',
+        'Keep the form fillable, or flatten it so it looks the same in every app. Add your signature with Sign PDF if it needs one.',
+      ],
     ],
     faqs: [
-      ['Are my answers uploaded?', 'No. The form is filled in your browser, and the PDF and everything you type stay on your device.'],
-      ['What does flattening do?', 'It makes the fields part of the page: the PDF looks the same everywhere and can no longer be changed as a form. A flattened form’s pages can also be combined with other PDFs or extracted.'],
-      ['Can I sign the form?', 'Yes. Use [Sign PDF](tool:signature) to draw, type or upload your signature and place it on the page. Certificate-based signature fields are left empty.'],
-      ['Does it work with every PDF form?', 'It fills standard PDF form fields: text, check boxes, radio buttons and lists. Calculations built into a form do not run, and forms made only in Adobe’s XFA format are not supported.'],
+      [
+        'Are my answers uploaded?',
+        'No. The form is filled in your browser, and the PDF and everything you type stay on your device.',
+      ],
+      [
+        'What does flattening do?',
+        'It makes the fields part of the page: the PDF looks the same everywhere and can no longer be changed as a form. A flattened form’s pages can also be combined with other PDFs or extracted.',
+      ],
+      [
+        'Can I sign the form?',
+        'Yes. Use [Sign PDF](tool:signature) to draw, type or upload your signature and place it on the page. Certificate-based signature fields are left empty.',
+      ],
+      [
+        'Does it work with every PDF form?',
+        'It fills standard PDF form fields: text, check boxes, radio buttons and lists. Calculations built into a form do not run, and forms made only in Adobe’s XFA format are not supported.',
+      ],
     ],
   },
   {
@@ -88,19 +143,35 @@ export const PAGES = [
       'Change a PDF’s title, author, subject, keywords and language, or remove its hidden details before you share it. Free, and nothing is uploaded.',
     eyebrow: 'EDIT PDF METADATA',
     heading: ['Edit PDF metadata.', 'Or remove it before sharing.'],
-    intro: 'See the title, author and other details a PDF carries, change them, or remove them before you send it.',
+    intro:
+      'See the title, author and other details a PDF carries, change them, or remove them before you send it.',
     upload: { text: 'Drop a PDF here to see its details.' },
     how: ['How to edit', 'PDF metadata.'],
     steps: [
       OPEN_STEP,
-      ['Change the details.', 'Edit the title, author, subject, keywords and language, or choose Remove all.'],
+      [
+        'Change the details.',
+        'Edit the title, author, subject, keywords and language, or choose Remove all.',
+      ],
       ['Download.', 'Your PDF carries the new details. Pages and everything on them stay as they were.'],
     ],
     faqs: [
-      ['What does Remove all remove?', 'The title, author, subject and keywords, and what apps add without asking: which app made the PDF, when it was made and changed, and a second copy of these details (XMP metadata). The language stays, because screen readers need it.'],
-      ['Where do readers show the title?', 'Many PDF readers and browsers show it in the window or tab title instead of the file name, and search tools index it.'],
-      ['Is my PDF uploaded?', 'No. The details are changed in your browser, and the PDF never leaves your device.'],
-      ['What about PDF/A files?', 'Changing the details removes the metadata that declares PDF/A, so the download is no longer marked as PDF/A (archival).'],
+      [
+        'What does Remove all remove?',
+        'The title, author, subject and keywords, and what apps add without asking: which app made the PDF, when it was made and changed, and a second copy of these details (XMP metadata). The language stays, because screen readers need it.',
+      ],
+      [
+        'Where do readers show the title?',
+        'Many PDF readers and browsers show it in the window or tab title instead of the file name, and search tools index it.',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. The details are changed in your browser, and the PDF never leaves your device.',
+      ],
+      [
+        'What about PDF/A files?',
+        'Changing the details removes the metadata that declares PDF/A, so the download is no longer marked as PDF/A (archival).',
+      ],
     ],
   },
   {
@@ -116,13 +187,25 @@ export const PAGES = [
     how: ['How to draw', 'on a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Draw.', 'Choose the pen or a shape, a colour and a line width, then drag on the page. Drag a drawing to move it, or a handle to resize it.'],
+      [
+        'Draw.',
+        'Choose the pen or a shape, a colour and a line width, then drag on the page. Drag a drawing to move it, or a handle to resize it.',
+      ],
       ['Download.', 'Your drawings become part of the pages, exactly as you see them.'],
     ],
     faqs: [
-      ['Can I draw with a finger or a pen?', 'Yes. On a touch screen one finger draws and two fingers scroll; a stylus works like a pen.'],
-      ['Can I change a drawing afterwards?', 'Yes. Select it to move it, resize it, change its colour or line width, or delete it. Undo takes back each stroke.'],
-      ['Do drawings stay sharp?', 'Yes. They are saved as lines and curves, not pictures, so they stay sharp at any zoom and when printed.'],
+      [
+        'Can I draw with a finger or a pen?',
+        'Yes. On a touch screen one finger draws and two fingers scroll; a stylus works like a pen.',
+      ],
+      [
+        'Can I change a drawing afterwards?',
+        'Yes. Select it to move it, resize it, change its colour or line width, or delete it. Undo takes back each stroke.',
+      ],
+      [
+        'Do drawings stay sharp?',
+        'Yes. They are saved as lines and curves, not pictures, so they stay sharp at any zoom and when printed.',
+      ],
       ['Is my PDF uploaded?', 'No. You draw in your browser, and the PDF never leaves your device.'],
     ],
   },
@@ -139,14 +222,29 @@ export const PAGES = [
     how: ['How to watermark', 'a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Design the watermark.', 'It shows as soon as you choose the tool. Type your text; its size, colour, opacity, angle and position change on the page as you set them.'],
+      [
+        'Design the watermark.',
+        'It shows as soon as you choose the tool. Type your text; its size, colour, opacity, angle and position change on the page as you set them.',
+      ],
       ['Download.', 'Show it on every page or only the pages you choose, then save your copy.'],
     ],
     faqs: [
-      ['Can I watermark only some pages?', 'Yes. Type the pages it belongs on, such as 1-3, 5, or use the pages you select in the page strip.'],
-      ['Can I watermark many PDFs at once?', 'Yes. [Batch & presets](tool:batch) applies the same watermark to several PDFs and downloads them together.'],
-      ['Is my PDF uploaded?', 'No. The watermark is added in your browser and the file never leaves your device.'],
-      ['Can someone remove the watermark?', 'It becomes part of the page, but like any visible watermark it is a label, not copy protection.'],
+      [
+        'Can I watermark only some pages?',
+        'Yes. Type the pages it belongs on, such as 1-3, 5, or use the pages you select in the page strip.',
+      ],
+      [
+        'Can I watermark many PDFs at once?',
+        'Yes. [Batch & presets](tool:batch) applies the same watermark to several PDFs and downloads them together.',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. The watermark is added in your browser and the file never leaves your device.',
+      ],
+      [
+        'Can someone remove the watermark?',
+        'It becomes part of the page, but like any visible watermark it is a label, not copy protection.',
+      ],
     ],
     batchShortcut: true,
   },
@@ -163,14 +261,32 @@ export const PAGES = [
     how: ['How to add headers', 'and footers.'],
     steps: [
       OPEN_STEP,
-      ['Fill in the six positions.', 'Type text for the left, centre or right of the header and footer, then choose the size, colour and margin.'],
-      ['Check and download.', 'Your text appears on the pages as you type. Show it on every page or only some, then save your copy.'],
+      [
+        'Fill in the six positions.',
+        'Type text for the left, centre or right of the header and footer, then choose the size, colour and margin.',
+      ],
+      [
+        'Check and download.',
+        'Your text appears on the pages as you type. Show it on every page or only some, then save your copy.',
+      ],
     ],
     faqs: [
-      ['Can I include page numbers?', 'Yes. Type {page} and {total} anywhere, for example Page {page} of {total}.'],
-      ['What if I print on both sides?', 'Turn on Swap left and right on even pages. Text on the right of odd pages then goes on the left of even pages, so it stays on the outer edge.'],
-      ['Can I add headers and footers to many PDFs?', 'Yes. [Batch & presets](tool:batch) applies the same headers and footers to several PDFs and numbers each file separately.'],
-      ['Is my PDF uploaded?', 'No. Everything happens in your browser and the file never leaves your device.'],
+      [
+        'Can I include page numbers?',
+        'Yes. Type {page} and {total} anywhere, for example Page {page} of {total}.',
+      ],
+      [
+        'What if I print on both sides?',
+        'Turn on Swap left and right on even pages. Text on the right of odd pages then goes on the left of even pages, so it stays on the outer edge.',
+      ],
+      [
+        'Can I add headers and footers to many PDFs?',
+        'Yes. [Batch & presets](tool:batch) applies the same headers and footers to several PDFs and numbers each file separately.',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. Everything happens in your browser and the file never leaves your device.',
+      ],
     ],
     batchShortcut: true,
   },
@@ -187,13 +303,28 @@ export const PAGES = [
     how: ['How to number', 'PDF pages.'],
     steps: [
       OPEN_STEP,
-      ['Choose the format.', 'Use {page} and {total}, for example Page {page} of {total}, then pick the starting number and position.'],
-      ['Download.', 'Numbers update as you work and follow the final page order, even if you rearrange pages afterwards.'],
+      [
+        'Choose the format.',
+        'Use {page} and {total}, for example Page {page} of {total}, then pick the starting number and position.',
+      ],
+      [
+        'Download.',
+        'Numbers update as you work and follow the final page order, even if you rearrange pages afterwards.',
+      ],
     ],
     faqs: [
-      ['Can I start from a number other than 1?', 'Yes. Set any starting number, for example 5 for a document that continues an earlier one.'],
-      ['Where can the numbers go?', 'At the bottom left, centre or right of the page, with your choice of size, colour and margin. For printing on both sides, Swap left and right on even pages keeps them on the outer edge.'],
-      ['Can I number several PDFs at once?', 'Yes. [Batch & presets](tool:batch) numbers each file separately, starting again for every PDF.'],
+      [
+        'Can I start from a number other than 1?',
+        'Yes. Set any starting number, for example 5 for a document that continues an earlier one.',
+      ],
+      [
+        'Where can the numbers go?',
+        'At the bottom left, centre or right of the page, with your choice of size, colour and margin. For printing on both sides, Swap left and right on even pages keeps them on the outer edge.',
+      ],
+      [
+        'Can I number several PDFs at once?',
+        'Yes. [Batch & presets](tool:batch) numbers each file separately, starting again for every PDF.',
+      ],
       ['Is my PDF uploaded?', 'No. Numbering happens in your browser and the file never leaves your device.'],
     ],
     batchShortcut: true,
@@ -211,16 +342,37 @@ export const PAGES = [
     how: ['How to organize', 'PDF pages.'],
     steps: [
       OPEN_STEP,
-      ['Arrange the pages.', 'Drag pages in the page strip or use the Move buttons. Select pages to rotate or remove them.'],
+      [
+        'Arrange the pages.',
+        'Drag pages in the page strip or use the Move buttons. Select pages to rotate or remove them.',
+      ],
       ['Download.', 'Save the whole document, or only the selected pages as a new PDF.'],
     ],
     faqs: [
-      ['Can I extract pages into a new PDF?', 'Yes. Select the pages, or type a range such as 1-3, 5, and choose Download selected pages.'],
-      ['Can I reorder pages without dragging?', 'Yes. In Organize pages, Move earlier and Move later move the current page, with the keyboard and on touch screens.'],
-      ['Can I add a blank page?', 'Yes. Go to the page it should follow and choose Add a blank page after it. The new page has the same size and shape as that page.'],
-      ['Can I fix the order of a double-sided scan?', 'Yes. If you scanned the fronts of the sheets and then their backs, choose Interleave under Page order: each front is then followed by its back. Keep Backs scanned from the last sheet ticked if you turned the stack over to scan them. Reverse puts all the pages in reverse order.'],
-      ['Can I combine pages from several PDFs?', 'Yes. Use Add PDF to bring in more files and arrange all the pages together, or start with [Merge PDF](tool:merge).'],
-      ['Is my PDF uploaded?', 'No. Pages are rearranged in your browser and the file never leaves your device.'],
+      [
+        'Can I extract pages into a new PDF?',
+        'Yes. Select the pages, or type a range such as 1-3, 5, and choose Download selected pages.',
+      ],
+      [
+        'Can I reorder pages without dragging?',
+        'Yes. In Organize pages, Move earlier and Move later move the current page, with the keyboard and on touch screens.',
+      ],
+      [
+        'Can I add a blank page?',
+        'Yes. Go to the page it should follow and choose Add a blank page after it. The new page has the same size and shape as that page.',
+      ],
+      [
+        'Can I fix the order of a double-sided scan?',
+        'Yes. If you scanned the fronts of the sheets and then their backs, choose Interleave under Page order: each front is then followed by its back. Keep Backs scanned from the last sheet ticked if you turned the stack over to scan them. Reverse puts all the pages in reverse order.',
+      ],
+      [
+        'Can I combine pages from several PDFs?',
+        'Yes. Use Add PDF to bring in more files and arrange all the pages together, or start with [Merge PDF](tool:merge).',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. Pages are rearranged in your browser and the file never leaves your device.',
+      ],
     ],
   },
   {
@@ -240,7 +392,10 @@ export const PAGES = [
       ['Delete and download.', 'Remove the marked pages, check the preview, then save your copy.'],
     ],
     faqs: [
-      ['Can I undo a deletion?', 'Yes. Undo brings pages back until you download, and your original file is never changed.'],
+      [
+        'Can I undo a deletion?',
+        'Yes. Undo brings pages back until you download, and your original file is never changed.',
+      ],
       ['Can I delete every page?', 'No. At least one page has to remain in the document.'],
       ['Is my PDF uploaded?', 'No. Pages are removed in your browser and the file never leaves your device.'],
     ],
@@ -258,14 +413,29 @@ export const PAGES = [
     how: ['How to crop', 'a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Choose the area.', 'Drag a rectangle on the preview, or enter top, bottom, left and right margins in percent.'],
+      [
+        'Choose the area.',
+        'Drag a rectangle on the preview, or enter top, bottom, left and right margins in percent.',
+      ],
       ['Crop and download.', 'Crop the current page, selected pages or every page, then save your copy.'],
     ],
     faqs: [
-      ['Does cropping delete the hidden content?', 'No. Cropping changes the visible page area; content outside it is hidden, not removed, so it is not a secure way to redact.'],
-      ['Will the text stay sharp and selectable?', 'Yes. Cropping keeps text and vector graphics at their original quality.'],
-      ['Can I undo a crop?', 'Yes. Use Undo, or Restore original crop to bring back the original page boundaries.'],
-      ['Can I crop many PDFs the same way?', 'Yes. [Batch & presets](tool:batch) applies the same crop margins to several PDFs.'],
+      [
+        'Does cropping delete the hidden content?',
+        'No. Cropping changes the visible page area; content outside it is hidden, not removed, so it is not a secure way to redact.',
+      ],
+      [
+        'Will the text stay sharp and selectable?',
+        'Yes. Cropping keeps text and vector graphics at their original quality.',
+      ],
+      [
+        'Can I undo a crop?',
+        'Yes. Use Undo, or Restore original crop to bring back the original page boundaries.',
+      ],
+      [
+        'Can I crop many PDFs the same way?',
+        'Yes. [Batch & presets](tool:batch) applies the same crop margins to several PDFs.',
+      ],
     ],
     batchShortcut: true,
   },
@@ -277,19 +447,38 @@ export const PAGES = [
       'Add blank margins around PDF pages: a wide margin for handwritten notes, or room for binding and punching. Nothing on the page shrinks. Free, in your browser.',
     eyebrow: 'ADD MARGINS',
     heading: ['Add margins to a PDF.', 'A little more room around the edges.'],
-    intro: 'Make pages larger with blank space on any side, for notes, binding or hole punching, without shrinking what is on them.',
+    intro:
+      'Make pages larger with blank space on any side, for notes, binding or hole punching, without shrinking what is on them.',
     upload: { text: 'Drop a PDF here to add margins.' },
     how: ['How to add margins', 'to a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Set the margins.', 'Enter the space to add at the top, bottom, left and right in millimetres, or choose a wide right margin for notes.'],
-      ['Add and download.', 'Add them to every page, the current page or selected pages, check the preview, then save your copy.'],
+      [
+        'Set the margins.',
+        'Enter the space to add at the top, bottom, left and right in millimetres, or choose a wide right margin for notes.',
+      ],
+      [
+        'Add and download.',
+        'Add them to every page, the current page or selected pages, check the preview, then save your copy.',
+      ],
     ],
     faqs: [
-      ['Does anything on the page get smaller?', 'No. The page grows: its content stays the same size and in the same place, with blank space around it.'],
-      ['What happens to page numbers, headers and footers?', 'They go to the edges of the larger page, so they sit in the new margins.'],
-      ['Can I take the margins away again?', 'Yes. Undo, or choose Remove added margins. A crop made since stays.'],
-      ['Is my PDF uploaded?', 'No. The margins are added in your browser and the file never leaves your device.'],
+      [
+        'Does anything on the page get smaller?',
+        'No. The page grows: its content stays the same size and in the same place, with blank space around it.',
+      ],
+      [
+        'What happens to page numbers, headers and footers?',
+        'They go to the edges of the larger page, so they sit in the new margins.',
+      ],
+      [
+        'Can I take the margins away again?',
+        'Yes. Undo, or choose Remove added margins. A crop made since stays.',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. The margins are added in your browser and the file never leaves your device.',
+      ],
     ],
   },
   {
@@ -310,15 +499,30 @@ export const PAGES = [
     how: ['How to merge', 'PDF files.'],
     steps: [
       ['Choose your PDFs.', 'Select two or more files at once. You can add more later with Add PDF.'],
-      ['Put pages in order.', 'Drag pages in the page strip or use the Move buttons. Rotate or remove any page.'],
+      [
+        'Put pages in order.',
+        'Drag pages in the page strip or use the Move buttons. Rotate or remove any page.',
+      ],
       ['Download one PDF.', 'Save the combined document. Your original files stay untouched.'],
     ],
     faqs: [
-      ['Is merging PDFs free?', 'Yes. There is no sign-up and no fixed limit on file size or page count; very large files depend on your device’s memory.'],
+      [
+        'Is merging PDFs free?',
+        'Yes. There is no sign-up and no fixed limit on file size or page count; very large files depend on your device’s memory.',
+      ],
       ['Are my files uploaded?', 'No. The PDFs are combined in your browser and never sent to a server.'],
-      ['Does the merged PDF keep bookmarks?', 'Yes. Each PDF keeps its bookmarks, and each file gets a bookmark of its own, named after it, that leads to its first page. Untick Add a bookmark for each file if you don’t want those.'],
-      ['Can I merge PDFs with fillable form fields?', 'Yes, once the fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then add the other PDFs: the answers become part of the pages. While its fields stay fillable, a form isn’t combined, so the fields are never lost silently.'],
-      ['What about password-protected PDFs?', 'Add them as usual and enter each password when asked. The merged PDF is protected with the first password you entered; change it in [Protect PDF](tool:protect) or remove it in [Unlock PDF](tool:unlock).'],
+      [
+        'Does the merged PDF keep bookmarks?',
+        'Yes. Each PDF keeps its bookmarks, and each file gets a bookmark of its own, named after it, that leads to its first page. Untick Add a bookmark for each file if you don’t want those.',
+      ],
+      [
+        'Can I merge PDFs with fillable form fields?',
+        'Yes, once the fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then add the other PDFs: the answers become part of the pages. While its fields stay fillable, a form isn’t combined, so the fields are never lost silently.',
+      ],
+      [
+        'What about password-protected PDFs?',
+        'Add them as usual and enter each password when asked. The merged PDF is protected with the first password you entered; change it in [Protect PDF](tool:protect) or remove it in [Unlock PDF](tool:unlock).',
+      ],
     ],
   },
   {
@@ -334,12 +538,21 @@ export const PAGES = [
     how: ['How to split', 'a PDF.'],
     steps: [
       OPEN_STEP,
-      ['Choose how to split.', 'Every page, every N pages, or custom groups. In groups, a semicolon starts a new PDF: 1-3; 4, 6; 7-9.'],
+      [
+        'Choose how to split.',
+        'Every page, every N pages, or custom groups. In groups, a semicolon starts a new PDF: 1-3; 4, 6; 7-9.',
+      ],
       ['Download the parts.', 'Save each PDF on its own, or all of them in one ZIP.'],
     ],
     faqs: [
-      ['Do my other edits carry over?', 'Yes. Text, page numbers, crops and other edits appear in every part, exactly as previewed.'],
-      ['Can I split a PDF that has fillable form fields?', 'Yes, once its fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then split: each part keeps the answers as part of its pages. While the fields stay fillable, the PDF isn’t split, so they are never lost silently.'],
+      [
+        'Do my other edits carry over?',
+        'Yes. Text, page numbers, crops and other edits appear in every part, exactly as previewed.',
+      ],
+      [
+        'Can I split a PDF that has fillable form fields?',
+        'Yes, once its fields are flattened. Turn on “Flatten fields on download” in [Fill PDF form](tool:form), then split: each part keeps the answers as part of its pages. While the fields stay fillable, the PDF isn’t split, so they are never lost silently.',
+      ],
       ['Is there a page limit?', 'No fixed limit. Very large documents depend on your device’s memory.'],
       ['Is my PDF uploaded?', 'No. The parts are created in your browser and never leave your device.'],
     ],
@@ -352,19 +565,38 @@ export const PAGES = [
       'Put 2 or 4 PDF pages on each sheet of A4 or Letter, such as lecture slides as handouts. Text stays sharp. Free, and your file stays on your device.',
     eyebrow: 'PAGES PER SHEET',
     heading: ['Put PDF pages on sheets.', 'Two or four to a page.'],
-    intro: 'Make handouts and save paper: 2 or 4 pages on each A4 or Letter sheet, as large as they fit, with text and drawings still sharp.',
+    intro:
+      'Make handouts and save paper: 2 or 4 pages on each A4 or Letter sheet, as large as they fit, with text and drawings still sharp.',
     upload: { text: 'Drop a PDF here to put its pages on sheets.' },
     how: ['How to put pages', 'on sheets.'],
     steps: [
       OPEN_STEP,
-      ['Choose the layout.', 'Pick 2 or 4 pages per sheet, the paper, the margin and gap, and a border if you like. The sheets turn to fit the pages.'],
-      ['Download the sheets.', 'Your document stays as it is; the sheets download as a new PDF, ready to print.'],
+      [
+        'Choose the layout.',
+        'Pick 2 or 4 pages per sheet, the paper, the margin and gap, and a border if you like. The sheets turn to fit the pages.',
+      ],
+      [
+        'Download the sheets.',
+        'Your document stays as it is; the sheets download as a new PDF, ready to print.',
+      ],
     ],
     faqs: [
-      ['Do my edits carry over?', 'Yes. Each page goes on its sheet as it looks with your text, numbers, crops and other edits.'],
-      ['Will the text stay sharp?', 'Yes. Pages are placed as they are, not as pictures, so text and drawings stay sharp at any size.'],
-      ['What about links and form fields?', 'Links and comments don’t carry over to the sheets. Form fields are flattened, so their answers become part of the pages.'],
-      ['Is my PDF uploaded?', 'No. The sheets are made in your browser and the file never leaves your device.'],
+      [
+        'Do my edits carry over?',
+        'Yes. Each page goes on its sheet as it looks with your text, numbers, crops and other edits.',
+      ],
+      [
+        'Will the text stay sharp?',
+        'Yes. Pages are placed as they are, not as pictures, so text and drawings stay sharp at any size.',
+      ],
+      [
+        'What about links and form fields?',
+        'Links and comments don’t carry over to the sheets. Form fields are flattened, so their answers become part of the pages.',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. The sheets are made in your browser and the file never leaves your device.',
+      ],
     ],
   },
   {
@@ -384,15 +616,33 @@ export const PAGES = [
     },
     how: ['How to convert', 'JPG to PDF.'],
     steps: [
-      ['Choose your pictures.', 'Select one or more JPG or PNG files. Photos are turned upright automatically.'],
-      ['Arrange the pages.', 'Pick A4, Letter or the pictures’ own size and a margin, then drag pages into order. Add text or page numbers if you like.'],
+      [
+        'Choose your pictures.',
+        'Select one or more JPG or PNG files. Photos are turned upright automatically.',
+      ],
+      [
+        'Arrange the pages.',
+        'Pick A4, Letter or the pictures’ own size and a margin, then drag pages into order. Add text or page numbers if you like.',
+      ],
       ['Download one PDF.', 'Save all the pictures as pages of a single PDF.'],
     ],
     faqs: [
-      ['Are my pictures uploaded?', 'No. The PDF is made in your browser and the pictures never leave your device.'],
-      ['Does it lose quality?', 'No. JPG photos go into the PDF as they are; a photo is saved again only if it has to be turned upright.'],
-      ['Can I mix pictures and PDFs?', 'Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document.'],
-      ['Can I convert Word or PowerPoint files?', 'Not here. Converting Office files needs a server or a very large download, and QFT PDF keeps everything on your device. Save them as PDF from the app that made them.'],
+      [
+        'Are my pictures uploaded?',
+        'No. The PDF is made in your browser and the pictures never leave your device.',
+      ],
+      [
+        'Does it lose quality?',
+        'No. JPG photos go into the PDF as they are; a photo is saved again only if it has to be turned upright.',
+      ],
+      [
+        'Can I mix pictures and PDFs?',
+        'Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document.',
+      ],
+      [
+        'Can I convert Word or PowerPoint files?',
+        'Not here. Converting Office files needs a server or a very large download, and QFT PDF keeps everything on your device. Save them as PDF from the app that made them.',
+      ],
     ],
   },
   {
@@ -408,14 +658,29 @@ export const PAGES = [
     how: ['How to convert', 'PDF to JPG.'],
     steps: [
       OPEN_STEP,
-      ['Choose the pictures.', 'JPG or PNG; screen, standard or print quality; every page, the selected pages or the current one.'],
+      [
+        'Choose the pictures.',
+        'JPG or PNG; screen, standard or print quality; every page, the selected pages or the current one.',
+      ],
       ['Save them.', 'One page downloads as a picture; several download together in a ZIP.'],
     ],
     faqs: [
-      ['Which quality should I choose?', 'Standard (150 dpi) suits screens and sharing. Choose High (300 dpi) for printing, and Screen (72 dpi) for the smallest files.'],
-      ['JPG or PNG?', 'JPG makes smaller files and suits photos. PNG keeps text and lines perfectly sharp but makes larger files.'],
-      ['Is my PDF uploaded?', 'No. The pages are drawn as pictures in your browser and never leave your device.'],
-      ['Can I convert PDF to Word?', 'Not here. That needs a server or a very large download, and QFT PDF keeps everything on your device.'],
+      [
+        'Which quality should I choose?',
+        'Standard (150 dpi) suits screens and sharing. Choose High (300 dpi) for printing, and Screen (72 dpi) for the smallest files.',
+      ],
+      [
+        'JPG or PNG?',
+        'JPG makes smaller files and suits photos. PNG keeps text and lines perfectly sharp but makes larger files.',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. The pages are drawn as pictures in your browser and never leave your device.',
+      ],
+      [
+        'Can I convert PDF to Word?',
+        'Not here. That needs a server or a very large download, and QFT PDF keeps everything on your device.',
+      ],
     ],
   },
   {
@@ -426,20 +691,39 @@ export const PAGES = [
       'Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.',
     eyebrow: 'PROTECT PDF',
     heading: ['Password-protect a PDF.', 'Keep it for the right eyes.'],
-    intro: 'Choose a password, and anyone who opens your PDF will need it. The encryption happens right here in your browser.',
+    intro:
+      'Choose a password, and anyone who opens your PDF will need it. The encryption happens right here in your browser.',
     upload: { text: 'Drop a PDF here to protect it.', cta: 'Choose a PDF to protect' },
     how: ['How to password-protect', 'a PDF.'],
     steps: [
       OPEN_STEP,
       ['Choose a password.', 'Type it in Protect PDF. Show password lets you check what you typed.'],
-      ['Download the protected PDF.', 'Your copy is encrypted with AES-256 and opens only with the password. Your original file is unchanged.'],
+      [
+        'Download the protected PDF.',
+        'Your copy is encrypted with AES-256 and opens only with the password. Your original file is unchanged.',
+      ],
     ],
     faqs: [
-      ['How strong is the protection?', 'The PDF is encrypted with AES-256, the strongest encryption PDF readers support. As with any password, a long one that is hard to guess protects best.'],
-      ['What if I forget the password?', 'QFT PDF doesn’t keep it and can’t recover it, so store it somewhere safe. Your original, unprotected file is unchanged.'],
-      ['Is my password sent anywhere?', 'No. The PDF is encrypted in your browser, and neither the file nor the password leaves your device.'],
-      ['Can I edit the PDF before protecting it?', 'Yes. Add text, page numbers or a watermark, or reorder and remove pages, then download it protected. Split parts and downloaded page selections get the same password.'],
-      ['Will it open in other PDF readers?', 'Yes. Current PDF readers, including Adobe Acrobat and web browsers, ask for the password and then open it.'],
+      [
+        'How strong is the protection?',
+        'The PDF is encrypted with AES-256, the strongest encryption PDF readers support. As with any password, a long one that is hard to guess protects best.',
+      ],
+      [
+        'What if I forget the password?',
+        'QFT PDF doesn’t keep it and can’t recover it, so store it somewhere safe. Your original, unprotected file is unchanged.',
+      ],
+      [
+        'Is my password sent anywhere?',
+        'No. The PDF is encrypted in your browser, and neither the file nor the password leaves your device.',
+      ],
+      [
+        'Can I edit the PDF before protecting it?',
+        'Yes. Add text, page numbers or a watermark, or reorder and remove pages, then download it protected. Split parts and downloaded page selections get the same password.',
+      ],
+      [
+        'Will it open in other PDF readers?',
+        'Yes. Current PDF readers, including Adobe Acrobat and web browsers, ask for the password and then open it.',
+      ],
     ],
   },
   {
@@ -455,14 +739,32 @@ export const PAGES = [
     how: ['How to remove a password', 'from a PDF.'],
     steps: [
       ['Open your PDF.', 'Choose the protected file and enter its password. It is used only on your device.'],
-      ['Check the result.', 'Unlock PDF confirms that your download will open without a password. Edit the PDF too, if you like.'],
-      ['Download the unlocked copy.', 'Save a copy that opens without a password. Your original file is unchanged.'],
+      [
+        'Check the result.',
+        'Unlock PDF confirms that your download will open without a password. Edit the PDF too, if you like.',
+      ],
+      [
+        'Download the unlocked copy.',
+        'Save a copy that opens without a password. Your original file is unchanged.',
+      ],
     ],
     faqs: [
-      ['Can QFT PDF unlock a PDF without its password?', 'Only when the PDF opens without a password and just limits printing, copying or changes. A PDF that needs a password to open can’t be unlocked without it.'],
-      ['Is my password sent anywhere?', 'No. The PDF is decrypted in your browser, and the password is used only to open it. It isn’t stored.'],
-      ['Can I edit a protected PDF and keep its password?', 'Yes. Open it in any QFT PDF tool and enter its password. Your download keeps the same password unless you remove it here or change it in [Protect PDF](tool:protect).'],
-      ['Which kinds of protection are supported?', 'Passwords with AES-256, AES-128 or RC4 encryption. PDFs protected with a certificate can’t be opened.'],
+      [
+        'Can QFT PDF unlock a PDF without its password?',
+        'Only when the PDF opens without a password and just limits printing, copying or changes. A PDF that needs a password to open can’t be unlocked without it.',
+      ],
+      [
+        'Is my password sent anywhere?',
+        'No. The PDF is decrypted in your browser, and the password is used only to open it. It isn’t stored.',
+      ],
+      [
+        'Can I edit a protected PDF and keep its password?',
+        'Yes. Open it in any QFT PDF tool and enter its password. Your download keeps the same password unless you remove it here or change it in [Protect PDF](tool:protect).',
+      ],
+      [
+        'Which kinds of protection are supported?',
+        'Passwords with AES-256, AES-128 or RC4 encryption. PDFs protected with a certificate can’t be opened.',
+      ],
     ],
   },
   {
@@ -482,14 +784,26 @@ export const PAGES = [
     },
     how: ['How to batch-edit', 'PDFs.'],
     steps: [
-      ['Set up your edits.', 'Start from a ready-made preset or your own: watermark, headers and footers, page numbers and crop.'],
+      [
+        'Set up your edits.',
+        'Start from a ready-made preset or your own: watermark, headers and footers, page numbers and crop.',
+      ],
       ['Add your PDFs.', 'Choose or drop as many files as you need. Each one stays a separate document.'],
       ['Process and download.', 'Download the files one by one, or all of them in a ZIP.'],
     ],
     faqs: [
-      ['Are my presets saved?', 'Yes, in this browser. Presets keep only your settings and text; PDFs are never saved.'],
-      ['What happens if one file fails?', 'The others still finish. The file that could not be processed shows the reason.'],
-      ['Do page numbers restart for each file?', 'Yes. Each PDF is numbered on its own, starting from your chosen number.'],
+      [
+        'Are my presets saved?',
+        'Yes, in this browser. Presets keep only your settings and text; PDFs are never saved.',
+      ],
+      [
+        'What happens if one file fails?',
+        'The others still finish. The file that could not be processed shows the reason.',
+      ],
+      [
+        'Do page numbers restart for each file?',
+        'Yes. Each PDF is numbered on its own, starting from your chosen number.',
+      ],
       ['Is anything uploaded?', 'No. Every file is processed in your browser and never leaves your device.'],
     ],
     sample: false,

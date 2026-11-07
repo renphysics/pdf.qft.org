@@ -664,7 +664,9 @@ export function itemLabel(annotation) {
     return 'Text: ' + (text ? '“' + (text.length > 40 ? text.slice(0, 40) + '…' : text) + '”' : 'empty');
   }
   if (annotation.type === 'drawing')
-    return { line: 'Line', arrow: 'Arrow', rect: 'Rectangle', ellipse: 'Ellipse' }[annotation.shape] || 'Drawing';
+    return (
+      { line: 'Line', arrow: 'Arrow', rect: 'Rectangle', ellipse: 'Ellipse' }[annotation.shape] || 'Drawing'
+    );
   return { image: 'Image', signature: 'Signature' }[annotation.type] || 'Highlight';
 }
 export function renderEditLayers() {

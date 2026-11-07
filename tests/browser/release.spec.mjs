@@ -13,7 +13,10 @@ test('loads one versioned release and builds downloads in the export worker', as
   await page.keyboard.press('Escape');
   const { bytes } = await download(page, () => page.click('#download-button'));
   expect((await pdfText(bytes))[0]).toContain('Release café 中文 123');
-  expect(workers.some((url) => /export-worker\.js\?v=[0-9a-f]{12}$/.test(url)), 'the export ran in the versioned worker').toBe(true);
+  expect(
+    workers.some((url) => /export-worker\.js\?v=[0-9a-f]{12}$/.test(url)),
+    'the export ran in the versioned worker',
+  ).toBe(true);
 
   // Every script, style and engine request carries the release's version.
   const code = requests.filter((url) => /\.(m?js|css)$/.test(url.pathname));
@@ -22,7 +25,9 @@ test('loads one versioned release and builds downloads in the export worker', as
   expect(requests.every((url) => url.pathname.startsWith('/pdf.qft.org/'))).toBe(true);
 });
 
-test('a font is downloaded once and then comes from Cache Storage, even when the network no longer serves it', async ({ page }) => {
+test('a font is downloaded once and then comes from Cache Storage, even when the network no longer serves it', async ({
+  page,
+}) => {
   const fontRequests = [];
   page.on('request', (request) => {
     if (request.url().includes('/assets/fonts/NotoSans-Regular.ttf')) fontRequests.push(request.url());
@@ -35,7 +40,11 @@ test('a font is downloaded once and then comes from Cache Storage, even when the
   await expect.poll(() => fontRequests.length).toBe(1);
   expect(fontRequests[0]).toMatch(/NotoSans-Regular\.ttf\?v=[0-9a-f]{12}$/);
   await expect
-    .poll(() => page.evaluate(async () => (await (await caches.open('qft-fonts')).keys()).map((request) => request.url)))
+    .poll(() =>
+      page.evaluate(async () =>
+        (await (await caches.open('qft-fonts')).keys()).map((request) => request.url),
+      ),
+    )
     .toEqual([fontRequests[0]]);
   // A second visit: the font comes from the cache; the network is not asked.
   await page.route('**/assets/fonts/NotoSans-Regular.ttf*', (route) => route.abort());

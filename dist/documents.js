@@ -27,7 +27,13 @@ import {
 import { resetStage } from './page-view.js';
 import { documentFields, focusField } from './form-ui.js';
 import { selectItem, stopEditing } from './page-items.js';
-import { protectedDownload, renderTool, showSettingDefaults, unlockedDownload, updateProtectionStatus } from './tool-panel.js';
+import {
+  protectedDownload,
+  renderTool,
+  showSettingDefaults,
+  unlockedDownload,
+  updateProtectionStatus,
+} from './tool-panel.js';
 import { choosePage, chooseTool, formProblem, selectedIds, setSheet } from './pages.js';
 import { addImageFile, batch, change, documentChanged, recordView } from './app.js';
 
@@ -174,20 +180,29 @@ export function exportNotes(notes, { several = false } = {}) {
   const reasons = [
     notes.includes('pdfa-removed-password') && 'PDF/A files can’t have a password',
     notes.includes('pdfa-removed') && 'added text and marks don’t meet PDF/A rules',
-    notes.includes('pdfa-removed-properties') && 'changing its details removes the metadata that declares PDF/A',
+    notes.includes('pdfa-removed-properties') &&
+      'changing its details removes the metadata that declares PDF/A',
   ].filter(Boolean);
   const left = [
     notes.includes('labels-dropped') && 'page labels (such as i, ii, iii)',
     notes.includes('attachments-dropped') && 'attached files',
     notes.includes('tags-dropped') && 'accessibility tags',
   ].filter(Boolean);
-  let text = reasons.length ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.' : '';
+  let text = reasons.length
+    ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.'
+    : '';
   if (left.length) {
     const list = left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left.at(-1) : left[0];
-    text += (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') + ', without the original’s ' + list + '.';
+    text +=
+      (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') +
+      ', without the original’s ' +
+      list +
+      '.';
   }
   if (notes.includes('signature-invalid'))
-    text += ' The original was digitally signed: its signature isn’t valid in ' + (several ? 'these copies.' : 'this copy.');
+    text +=
+      ' The original was digitally signed: its signature isn’t valid in ' +
+      (several ? 'these copies.' : 'this copy.');
   return text;
 }
 export async function downloadDocument() {
@@ -429,7 +444,10 @@ export async function relayoutPictures() {
           if (!source) return page;
           // Added margins keep their size in points on the new page (crops stay fractions).
           const before = state.sources.find((s) => s.id === page.sourceId)?.pages[page.index]?.box;
-          const crop = before && source.pages[page.index] ? rescaledMargins(page.crop, before, source.pages[page.index].box) : page.crop;
+          const crop =
+            before && source.pages[page.index]
+              ? rescaledMargins(page.crop, before, source.pages[page.index].box)
+              : page.crop;
           return { ...page, sourceId: source.id, crop };
         });
       },

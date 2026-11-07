@@ -7,7 +7,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const { PDFCheckBox, PDFDocument, PDFHexString, PDFName, PDFRadioGroup, PDFString, StandardFonts, degrees, rgb } = require('@cantoo/pdf-lib');
+const {
+  PDFCheckBox,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFRadioGroup,
+  PDFString,
+  StandardFonts,
+  degrees,
+  rgb,
+} = require('@cantoo/pdf-lib');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const doc = await PDFDocument.create();

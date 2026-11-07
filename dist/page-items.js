@@ -337,7 +337,10 @@ function sketch(gesture, point) {
     height: height / geometry.height,
   };
   if (gesture.shape !== 'rect' && gesture.shape !== 'ellipse')
-    fields.points = gesture.points.map(({ x, y }) => [fraction((x - left) / width), fraction((y - top) / height)]);
+    fields.points = gesture.points.map(({ x, y }) => [
+      fraction((x - left) / width),
+      fraction((y - top) / height),
+    ]);
   if (!gesture.id) {
     gesture.id = uid();
     const annotation = {
@@ -375,7 +378,14 @@ export function addDrawing(page) {
     y: 0.2,
     width: 0.4,
     height: straight ? 0.1 : 0.15,
-    ...(straight ? { points: [[0, 1], [1, 0]] } : {}),
+    ...(straight
+      ? {
+          points: [
+            [0, 1],
+            [1, 0],
+          ],
+        }
+      : {}),
   };
   change(() => state.annotations.push(annotation));
   selectItem(annotation.id);
@@ -524,7 +534,13 @@ export function initPageItems() {
   stack.addEventListener('pointerdown', (event) => {
     const node = event.target.closest('.page-view'),
       view = node && ui.stage.views.get(node.dataset.viewId);
-    if (ui.busy || event.button !== 0 || !view || !pageById(view.id) || event.target.closest('#inline-editor'))
+    if (
+      ui.busy ||
+      event.button !== 0 ||
+      !view ||
+      !pageById(view.id) ||
+      event.target.closest('#inline-editor')
+    )
       return;
     // The page you work on becomes the current page.
     setCurrentPage(view.id);

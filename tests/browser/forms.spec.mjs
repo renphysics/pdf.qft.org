@@ -1,7 +1,19 @@
 // Fill form: a PDF's fields are filled in on the page, kept fillable or
 // flattened in the download, and shown with their values in the other tools.
 import AxeBuilder from '@axe-core/playwright';
-import { test, expect, fixture, openFiles, openSample, ready, useTool, download, toastText, pdfText, PDFLib } from './helpers.mjs';
+import {
+  test,
+  expect,
+  fixture,
+  openFiles,
+  openSample,
+  ready,
+  useTool,
+  download,
+  toastText,
+  pdfText,
+  PDFLib,
+} from './helpers.mjs';
 
 const field = (page, name) => page.locator(`.form-field[data-field="${name}"]`);
 const summary = (page) => page.locator('#form-summary');
@@ -15,7 +27,9 @@ const pixels = (locator) =>
     return hash;
   });
 
-test('a form opens in Fill form, its fields fill in on the page, and the download keeps them fillable', async ({ page }) => {
+test('a form opens in Fill form, its fields fill in on the page, and the download keeps them fillable', async ({
+  page,
+}) => {
   await openFiles(page, fixture('form-fields.pdf'));
   await expect(page.locator('#tool-select')).toHaveValue('form');
   expect(await toastText(page)).toContain('fields to fill in');
@@ -118,7 +132,9 @@ test('Split asks for the fields to be flattened, then splits the form', async ({
   await field(page, 'applicant.name').first().fill('Zoë Łukasz');
   await useTool(page, 'split');
   // The panel says what is needed before anything is tried.
-  await expect(page.locator('#split-summary')).toHaveText(/To split it, turn on “Flatten fields on download” in Fill form/);
+  await expect(page.locator('#split-summary')).toHaveText(
+    /To split it, turn on “Flatten fields on download” in Fill form/,
+  );
   await page.click('#tool-form [type="submit"]');
   await expect(page.locator('#toast-message')).toContainText('Flatten fields on download');
   await expect(page.locator('[data-action="download-split"]')).toHaveCount(0);
@@ -130,7 +146,9 @@ test('Split asks for the fields to be flattened, then splits the form', async ({
   await expect(page.locator('#split-summary')).toHaveText(/^2 output PDFs/);
   await page.click('#tool-form [type="submit"]');
   await expect(page.locator('[data-action="download-split"]')).toHaveCount(2);
-  const { bytes } = await download(page, () => page.locator('[data-action="download-split"]').first().click());
+  const { bytes } = await download(page, () =>
+    page.locator('[data-action="download-split"]').first().click(),
+  );
   expect((await PDFLib.PDFDocument.load(bytes)).getForm().getFields()).toHaveLength(0);
   expect((await pdfText(bytes))[0]).toContain('Zoë Łukasz');
 });
@@ -140,7 +158,9 @@ test('a character no font has is reported on its field', async ({ page }) => {
   await field(page, 'comments').fill('Unicorn 🦄');
   await useTool(page, 'text');
   await page.click('#download-button');
-  await expect(page.locator('#toast-message')).toHaveText(/^Page 2: “Comments”: The available font cannot display/);
+  await expect(page.locator('#toast-message')).toHaveText(
+    /^Page 2: “Comments”: The available font cannot display/,
+  );
   await expect(page.locator('#tool-select')).toHaveValue('form');
   await expect(field(page, 'comments')).toBeFocused();
 });
@@ -157,5 +177,13 @@ test('Fill form has no accessibility violations', async ({ page }) => {
   await openFiles(page, fixture('form-fields.pdf'));
   await field(page, 'applicant.name').first().fill('Alex Morgan');
   const { violations } = await new AxeBuilder({ page }).analyze();
-  expect(violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).slice(0, 3).join(', ')}`)).toEqual([]);
+  expect(
+    violations.map(
+      (violation) =>
+        `${violation.id}: ${violation.nodes
+          .map((node) => node.target.join(' '))
+          .slice(0, 3)
+          .join(', ')}`,
+    ),
+  ).toEqual([]);
 });

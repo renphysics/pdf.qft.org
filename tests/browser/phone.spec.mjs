@@ -2,7 +2,29 @@
 // bottom bar, controls are large enough to tap, and nothing scrolls sideways.
 import { test, expect, openSample, ready, overlayLines } from './helpers.mjs';
 
-const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'margins', 'merge', 'split', 'sheets', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'form', 'properties', 'draw'];
+const TOOLS = [
+  'text',
+  'image',
+  'highlight',
+  'signature',
+  'watermark',
+  'footer',
+  'numbers',
+  'pages',
+  'delete',
+  'crop',
+  'margins',
+  'merge',
+  'split',
+  'sheets',
+  'jpgtopdf',
+  'pdftojpg',
+  'protect',
+  'unlock',
+  'form',
+  'properties',
+  'draw',
+];
 
 /** Elements wider than the screen, outside the areas that scroll on purpose. */
 function overflow(page) {
@@ -10,11 +32,21 @@ function overflow(page) {
     page: document.documentElement.scrollWidth - innerWidth,
     wide: [...document.querySelectorAll('body *')]
       .filter((element) => {
-        if (!element.getClientRects().length || element.closest('.canvas-scroll, .tool-tabs, .page-list, [hidden]')) return false;
+        if (
+          !element.getClientRects().length ||
+          element.closest('.canvas-scroll, .tool-tabs, .page-list, [hidden]')
+        )
+          return false;
         return element.getBoundingClientRect().right > innerWidth + 1;
       })
       .slice(0, 5)
-      .map((element) => element.tagName.toLowerCase() + (element.id ? '#' + element.id : '') + '.' + String(element.className).split(' ')[0]),
+      .map(
+        (element) =>
+          element.tagName.toLowerCase() +
+          (element.id ? '#' + element.id : '') +
+          '.' +
+          String(element.className).split(' ')[0],
+      ),
   }));
 }
 
@@ -38,7 +70,10 @@ async function swipe(page, x, fromY, toY) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: fromY }] });
   for (let step = 1; step <= 12; step++) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: fromY + ((toY - fromY) * step) / 12 }] });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x, y: fromY + ((toY - fromY) * step) / 12 }],
+    });
     await page.waitForTimeout(16);
   }
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -55,7 +90,10 @@ test('in Draw, one finger draws instead of scrolling', async ({ page, browserNam
   await expect(page.locator('#page-jump')).toHaveValue('1');
 });
 
-test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({ page, browserName }) => {
+test('swiping moves through the pages, one at a time, and typing goes on meanwhile', async ({
+  page,
+  browserName,
+}) => {
   test.skip(browserName !== 'chromium', 'Swipes are sent through the Chromium DevTools protocol');
   await openSample(page, 'add-text-to-pdf/');
   await page.click('[data-action="dismiss-toast"]');
@@ -65,7 +103,9 @@ test('swiping moves through the pages, one at a time, and typing goes on meanwhi
     page.evaluate((number) => {
       const area = document.querySelector('#canvas-scroll').getBoundingClientRect();
       const view = document.querySelector(`.page-view[data-number="${number}"]`).getBoundingClientRect();
-      return Math.abs(view.top + view.height / 2 - (area.top + area.height / 2)) < 3 && view.height < area.height;
+      return (
+        Math.abs(view.top + view.height / 2 - (area.top + area.height / 2)) < 3 && view.height < area.height
+      );
     }, number);
   expect((await page.locator('.page-view.current').boundingBox()).height).toBeLessThan(stage.height);
   await swipe(page, stage.x + stage.width / 2, stage.y + stage.height * 0.8, stage.y + stage.height * 0.25);
@@ -83,7 +123,9 @@ test('swiping moves through the pages, one at a time, and typing goes on meanwhi
   await expect(page.locator('#inline-editor')).toBeFocused();
   await page.keyboard.type(', signed');
   await page.keyboard.press('Escape');
-  await expect(page.locator('.page-view[data-number="2"] .page-overlay tspan')).toHaveText(['Second page, signed']);
+  await expect(page.locator('.page-view[data-number="2"] .page-overlay tspan')).toHaveText([
+    'Second page, signed',
+  ]);
 });
 
 test('controls in the editor are at least 44 px', async ({ page }) => {
@@ -93,10 +135,15 @@ test('controls in the editor are at least 44 px', async ({ page }) => {
     await ready(page);
     const small = await page.evaluate(() =>
       [...document.querySelectorAll('#workspace :is(button, input, select, textarea, [tabindex="0"])')]
-        .filter((element) => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+        .filter(
+          (element) => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden',
+        )
         .filter((element) => {
           // A checkbox counts by its label, which is the target.
-          const target = element.type === 'checkbox' || element.type === 'radio' ? element.closest('label') || element : element;
+          const target =
+            element.type === 'checkbox' || element.type === 'radio'
+              ? element.closest('label') || element
+              : element;
           const box = target.getBoundingClientRect();
           return box.width < 44 || box.height < 44;
         })

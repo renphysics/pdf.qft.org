@@ -5,16 +5,37 @@ import { test, expect, fixture, openSample, ready, useTool } from './helpers.mjs
 
 async function violations(page) {
   const { violations: found } = await new AxeBuilder({ page }).analyze();
-  return found.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).slice(0, 3).join(', ')}`);
+  return found.map(
+    (violation) =>
+      `${violation.id}: ${violation.nodes
+        .map((node) => node.target.join(' '))
+        .slice(0, 3)
+        .join(', ')}`,
+  );
 }
 
 test('home page, tool pages, licenses and batch', async ({ page }) => {
-  for (const address of ['./', 'merge-pdf/', 'protect-pdf/', 'sign-pdf/', 'jpg-to-pdf/', 'pdf-to-jpg/', 'fill-pdf-form/', 'edit-pdf-metadata/', 'draw-on-pdf/', 'licenses/']) {
+  for (const address of [
+    './',
+    'merge-pdf/',
+    'protect-pdf/',
+    'sign-pdf/',
+    'jpg-to-pdf/',
+    'pdf-to-jpg/',
+    'fill-pdf-form/',
+    'edit-pdf-metadata/',
+    'draw-on-pdf/',
+    'licenses/',
+  ]) {
     await page.goto(address);
     expect(await violations(page), address).toEqual([]);
   }
   await page.goto('batch-edit-pdf/');
-  await page.locator('[data-action="batch-choose"]').first().click().catch(() => {});
+  await page
+    .locator('[data-action="batch-choose"]')
+    .first()
+    .click()
+    .catch(() => {});
   await page.setInputFiles('#batch-file-input', [fixture('rotated-cropped.pdf')]);
   expect(await violations(page), 'batch with a file').toEqual([]);
 });
@@ -35,7 +56,24 @@ test('every editor tool, with items selected and settings shown', async ({ page 
     await page.selectOption('#tool-form [name="scope"]', 'pages');
     expect(await violations(page), `${tool}, on some pages`).toEqual([]);
   }
-  for (const tool of ['image', 'pages', 'delete', 'crop', 'margins', 'merge', 'split', 'sheets', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'properties', 'draw', 'form', 'signature']) {
+  for (const tool of [
+    'image',
+    'pages',
+    'delete',
+    'crop',
+    'margins',
+    'merge',
+    'split',
+    'sheets',
+    'jpgtopdf',
+    'pdftojpg',
+    'protect',
+    'unlock',
+    'properties',
+    'draw',
+    'form',
+    'signature',
+  ]) {
     await useTool(page, tool);
     await ready(page);
     expect(await violations(page), tool).toEqual([]);
@@ -64,14 +102,20 @@ test('the password prompt, with and without an error', async ({ page }) => {
   expect(await violations(page), 'password prompt with an error').toEqual([]);
 });
 
-test('switches and segmented controls show their state in forced-colours mode', async ({ page, browserName }) => {
+test('switches and segmented controls show their state in forced-colours mode', async ({
+  page,
+  browserName,
+}) => {
   test.skip(browserName !== 'chromium', 'Playwright emulates forced colours in Chromium only');
   await page.emulateMedia({ forcedColors: 'active' });
   await openSample(page, 'add-page-numbers-to-pdf/');
   const style = (locator) =>
     locator.evaluate((node) => {
       const computed = getComputedStyle(node);
-      return { background: computed.backgroundColor, border: `${computed.borderTopStyle} ${computed.borderTopWidth}` };
+      return {
+        background: computed.backgroundColor,
+        border: `${computed.borderTopStyle} ${computed.borderTopWidth}`,
+      };
     });
   const track = page.locator('.switch-track');
   await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
@@ -86,4 +130,3 @@ test('switches and segmented controls show their state in forced-colours mode', 
   const other = await style(page.locator('.segmented input:not(:checked) + span').first());
   expect(chosen.background, 'the chosen segment looks different').not.toBe(other.background);
 });
-
