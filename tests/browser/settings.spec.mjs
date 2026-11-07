@@ -131,4 +131,36 @@ test('arrowing through the tool menu does not turn settings on; settling on one 
     'Page numbers shown on every page. Undo takes them away.',
   );
   await expect(page.locator('#undo-button')).toBeEnabled();
+  // The panel, drawn while the menu was being arrowed through, agrees with the page.
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
+  await toggle(page).click();
+  await expect(overlay(page)).not.toContainText('Page 1 of 3');
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'false');
+});
+
+test('leaving the editor with Back while arrowed onto Watermark changes nothing', async ({ page }) => {
+  await openSample(page);
+  const menu = page.locator('#tool-select');
+  await menu.focus();
+  const watermark = await menu.evaluate((select) =>
+    [...select.options].findIndex((option) => option.value === 'watermark'),
+  );
+  for (let step = 0; step < watermark; step++) await page.keyboard.press('ArrowDown');
+  await expect(menu).toHaveValue('watermark');
+  await page.goBack();
+  await expect(page.locator('#workspace')).toBeHidden();
+  await expect(page.locator('#toast-message')).not.toContainText('shown on every page');
+  await page.goForward();
+  await expect(page.locator('#workspace')).toBeVisible();
+  await expect(overlay(page)).not.toContainText('DRAFT');
+  await expect(page.locator('#undo-button')).toBeDisabled();
+});
+
+test('opened on the Watermark page, the opened message says the watermark is shown', async ({ page }) => {
+  await openSample(page, 'add-watermark-to-pdf/');
+  await expect(overlay(page)).toContainText('DRAFT');
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#toast-message')).toHaveText(
+    'Your PDF is ready. Everything happens on your device. Watermark “DRAFT” shown on every page. Undo takes it away.',
+  );
 });

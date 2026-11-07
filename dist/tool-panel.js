@@ -160,7 +160,7 @@ function settingOn(key) {
  * tool in use for a document (one undo step). Switched off or undone, they stay
  * off when the tool opens again.
  */
-export function showSettingDefaults() {
+export function showSettingDefaults({ notice = true } = {}) {
   const key = SETTINGS[ui.tool];
   if (
     !state.pages.length ||
@@ -168,14 +168,15 @@ export function showSettingDefaults() {
     state[key] ||
     ui.shownSettings.has(key)
   )
-    return;
+    return null;
   ui.shownSettings.add(key);
   change(() => (state[key] = settingDefaults[key]()));
-  toast(
+  const message =
     key === 'watermark'
       ? 'Watermark “DRAFT” shown on every page. Undo takes it away.'
-      : 'Page numbers shown on every page. Undo takes them away.',
-  );
+      : 'Page numbers shown on every page. Undo takes them away.';
+  if (notice) toast(message);
+  return message;
 }
 function switchField(key, label) {
   const on = settingOn(key);
