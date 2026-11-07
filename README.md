@@ -186,10 +186,11 @@ sheet that folds away. Controls are at least 44 px.
 The editor's code is split by what it does. `app.js` runs on every page and is
 all a page needs before a file is opened: the tool search, opening files and the
 sample, dialogs and notices. It loads the editor, `editor.js`, when a file is
-opened, or in the background once the page is idle, so a page is usable before
-the editor's 400 KB of modules arrive; the few modules it imports at once are
-preloaded on every page (`scripts/build-pages.mjs` writes the
-`<link rel="modulepreload">` tags). `editor.js` starts the editor (the actions
+opened, and starts loading it as soon as a visitor hovers, focuses or touches
+the upload area, a tool card or the sample, so it is usually there before the
+click, while a visitor who only reads the page never downloads its 400 KB; the
+few modules the page needs at once are preloaded on every page
+(`scripts/build-pages.mjs` writes the `<link rel="modulepreload">` tags). `editor.js` starts the editor (the actions
 behind buttons, what is redrawn after a change, listeners), and the rest lives
 in `editor-core.js` (state, helpers and messages; it imports no other editor
 module, so every module can use it as they load), `history.js` (edit history:
@@ -215,14 +216,20 @@ script versions every module's imports, static and dynamic
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned
 in `dist/assets/vendor/versions.json`. The landing page loads neither the editor (`editor.js` and its modules come when a
-file is opened, or once the page is idle) nor a PDF engine:
+file is opened, or when a visitor shows intent) nor a PDF engine:
 `pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
 non-ASCII text), and `preview.js` imports PDF.js when a document opens. Both
 start downloading as soon as a visitor opens the file picker, drags a file in,
 or opens the sample. The package manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
-change the project's MIT license.
+change the project's MIT license. Dependabot (`.github/dependabot.yml`)
+proposes updates to those packages and to the pinned GitHub Actions each week.
+The library bundles below are updated by hand: `npm test` fails when
+`package.json` and `dist/assets/vendor/versions.json` name different versions,
+and the Vendored libraries workflow (`.github/workflows/vendored-libraries.yml`,
+once a month) opens an issue when npm has a newer release;
+`node scripts/check-vendored-versions.mjs` runs the same comparison locally.
 
 pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
 maintained fork with the same API (the original project's last release was

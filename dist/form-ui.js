@@ -17,7 +17,6 @@ import {
   THUMB_WIDTH,
   toast,
   touch,
-  typing,
   ui,
 } from './editor-core.js';
 import { inView, pageById, revealElement, scrollToPage, setCurrentPage } from './page-view.js';

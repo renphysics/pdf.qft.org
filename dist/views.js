@@ -11,7 +11,7 @@
  * app.js back.
  */
 
-import { names, ui } from './editor-core.js';
+import { $, names, ui } from './editor-core.js';
 import { TOOL_PAGES } from './routes.js';
 
 const siteRoot = new URL('./', import.meta.url);
@@ -36,6 +36,20 @@ export function recordView(view) {
   else history.pushState(entry, '', viewAddress(view));
   ui.shownDepth = entry.depth;
   document.title = viewTitle(view);
+}
+/** The landing view is showing: its title, and focus at the top or at the tools (ui.landingFocus). */
+export function finishLanding() {
+  document.title = landingView.title;
+  const focus = ui.landingFocus;
+  ui.landingFocus = null;
+  if (focus === 'tools') {
+    $('#tools-title').focus({ preventScroll: true });
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setTimeout(() => $('#tools').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }), 0);
+  } else {
+    $('#landing-title').focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }
 }
 /** Run `show` for a view the browser is going back or forward to: nothing is recorded meanwhile. */
 export function restoring(show) {

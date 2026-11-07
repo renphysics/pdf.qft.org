@@ -63,6 +63,12 @@ for (const name of ['style.css', 'studio.css', 'batch.css']) {
   ])
     assert(!shell.has(name), `app.js loads ${name} before a file is opened`);
   assert(/import\('\.\/editor\.js'\)/.test(await source('app.js')), 'app.js loads editor.js on demand');
+  let shellBytes = 0;
+  for (const name of ['app.js', ...shell]) shellBytes += (await stat(path.join(site, name))).size;
+  assert(
+    shellBytes < 70000,
+    `the landing page's modules weigh ${shellBytes} bytes; a stray import into app.js?`,
+  );
   for (const name of (await readdir(site)).filter((file) => file.endsWith('.js')))
     assert(!/from '\.\/(?:app|editor)\.js'/.test(await source(name)), `${name} imports an entry module back`);
   for (const leaf of ['history.js', 'views.js']) {
@@ -110,6 +116,19 @@ for (const name of ['style.css', 'studio.css', 'batch.css']) {
       `tool-panel.js imports ${name} once, as a namespace`,
     );
   }
+}
+
+// The npm packages the Node suites run against are the versions bundled for
+// browsers: a Dependabot bump of one fails here until the bundle is updated too.
+{
+  const bundled = JSON.parse(await readFile(path.join(site, 'assets/vendor/versions.json'), 'utf8'));
+  const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  for (const name of ['@cantoo/pdf-lib', 'pdfjs-dist', '@cantoo/fontkit'])
+    assert.equal(
+      bundled[name],
+      manifest.devDependencies[name] ?? manifest.dependencies[name],
+      `${name}: package.json and dist/assets/vendor/versions.json name different versions (README: Updating the libraries)`,
+    );
 }
 
 for (const base of ['https://pdf.qft.org/', 'https://renphysics.github.io/pdf.qft.org/']) {

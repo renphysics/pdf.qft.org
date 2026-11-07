@@ -1,10 +1,12 @@
 /**
  * QFT PDF. This module runs on every page and is all a page needs before a file
- * is opened: the tool search, opening files and the sample, dialogs, notices,
- * and the browser's Back and Forward. The editor (editor.js and the modules it
- * imports, about 400 KB) loads when a file is opened, or in the background
- * once the page is idle, so the page is usable before it arrives. The editor's
- * modules:
+ * is opened: the tool search, opening files and the sample, the help and
+ * privacy dialogs, notices, and the browser's Back and Forward. The editor
+ * (editor.js and the modules it imports, about 400 KB) loads when a file is
+ * opened, and starts loading as soon as a visitor hovers, focuses or touches
+ * the upload area, a tool card or the sample, so it is usually there before
+ * the click; a visitor who only reads the page never downloads it. The
+ * editor's modules:
  *   editor.js       the actions behind buttons, listeners and start-up
  *   editor-core.js  shared state, helpers and messages
  *   history.js      edit history: change(), undo and redo
@@ -12,20 +14,38 @@
  *   page-view.js    the page preview
  *   page-items.js   typing, moving and resizing items; crop drag
  *   form-ui.js      Fill form
- *   tool-panel.js   the tool panel
+ *   tool-panel.js   the tool panel's frame, and panel-*.js, one per tool
  *   pages.js        pages, the page strip and choosing tools
  *   documents.js    opening, building and downloading PDFs
  */
 
-import { $, $$, busy, friendly, hideToast, pageTool, scheduleToastHide, toast, ui } from './editor-core.js';
+import {
+  $,
+  $$,
+  busy,
+  friendly,
+  hideToast,
+  pageTool,
+  scheduleToastHide,
+  showInfo,
+  toast,
+  ui,
+} from './editor-core.js';
+import { finishLanding } from './views.js';
 
 // ---- The editor, loaded once ----------------------------------------------------------
 
 let editor = null;
 let loading = null;
-/** The editor's module, loading it the first time. */
+/** The editor's module, loading it the first time (and again after a failed load). */
 export function loadEditor() {
-  loading ||= import('./editor.js').then((module) => (editor = module));
+  loading ||= import('./editor.js').then(
+    (module) => (editor = module),
+    (error) => {
+      loading = null;
+      throw error;
+    },
+  );
   return loading;
 }
 /** Hand work to the editor, loading it first; a failure is shown, not thrown. */
@@ -37,13 +57,21 @@ function withEditor(run) {
       toast(friendly(error), true);
     });
 }
-// Once the page is idle, the editor loads in the background, ready for the first open.
-const idle = window.requestIdleCallback || ((callback) => setTimeout(callback, 1500));
-idle(() => loadEditor().catch(() => {}), { timeout: 4000 });
-// Hovering or focusing Open or the sample: the PDF engines start downloading too.
-for (const button of $$('[data-action="open"], [data-action="sample"]'))
-  for (const type of ['pointerenter', 'focus'])
-    button.addEventListener(type, () => withEditor((module) => module.warm()), { once: true });
+// Intent: hovering, focusing or touching the upload area, a tool card or the sample
+// loads the editor; on Open and the sample the PDF engines start downloading too,
+// unless the visitor asked to save data.
+const warmEditor = () => loadEditor().catch(() => {});
+const warmEngines = () =>
+  navigator.connection?.saveData ? warmEditor() : withEditor((module) => module.warm());
+for (const [selector, warm] of [
+  ['#drop-zone, .tool-card, [data-action="batch"], [data-action="batch-choose"]', warmEditor],
+  ['[data-action="open"], [data-action="sample"]', warmEngines],
+])
+  for (const element of $$(selector))
+    for (const type of ['pointerover', 'focusin', 'touchstart'])
+      element.addEventListener(type, warm, { once: true, passive: true });
+// The batch workspace is part of the editor: its page needs it at once.
+if (pageTool === 'batch') warmEditor();
 
 // ---- The tool cards -------------------------------------------------------------------
 
@@ -83,7 +111,7 @@ const plainClick = (event) =>
 function openPicker() {
   if (pageTool && pageTool !== 'batch' && $('#workspace').hidden) ui.tool = pageTool;
   ui.append = false;
-  withEditor((module) => module.warm());
+  warmEngines();
   $('#file-input').click();
 }
 document.addEventListener('click', (event) => {
@@ -101,8 +129,12 @@ document.addEventListener('click', (event) => {
   event.preventDefault();
   if (name === 'dismiss-toast') hideToast();
   else if (name === 'close-dialog') $('#info-dialog').close();
+  else if (name === 'privacy' || name === 'help') showInfo(name);
   else if (name === 'open') openPicker();
-  else withEditor((module) => module.action(name, target));
+  else if (name === 'home' || name === 'tools-home' || name === 'back') {
+    ui.landingFocus = name === 'tools-home' ? 'tools' : 'top';
+    finishLanding();
+  } else withEditor((module) => module.action(name, target));
 });
 $('#file-input').addEventListener('change', (event) => {
   const files = [...event.target.files];
@@ -112,7 +144,7 @@ let dragDepth = 0;
 document.addEventListener('dragenter', (event) => {
   if (!event.dataTransfer?.types.includes('Files')) return;
   event.preventDefault();
-  if (dragDepth === 0) withEditor((module) => module.warm());
+  if (dragDepth === 0) warmEngines();
   dragDepth++;
   $('#drop-zone').classList.add('drag-over');
 });
@@ -154,9 +186,15 @@ toastNode.addEventListener('focusout', (event) => {
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !$('#toast').hidden && !document.querySelector('dialog[open]')) hideToast();
 });
-// Views are recorded by the editor; before it loads, this page is the only entry.
+// Views are recorded by the editor. Before it loads, Back and Forward can only
+// reach this page's own entry, or a batch entry left by a reload.
 window.addEventListener('popstate', (event) => {
   if (editor) editor.popstate(event);
+  else if (event.state?.view === 'batch') withEditor((module) => module.popstate(event));
+  else {
+    ui.shownDepth = Number(event.state?.depth) || 0;
+    finishLanding();
+  }
 });
 // Views restore their own scroll position; a reload starts on the landing view.
 history.scrollRestoration = 'manual';

@@ -16,10 +16,10 @@
 
 import { createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
-import { uploadedSignature } from './signature.js';
+import { savedSignature, uploadedSignature } from './signature.js';
 import { number } from './layout.js';
 import { change, onDocumentChanged, travel } from './history.js';
-import { landingView, recordView, restoring, viewDepth, viewTitle } from './views.js';
+import { finishLanding, recordView, restoring, viewDepth, viewTitle } from './views.js';
 import { geometryOf, onFontsReady } from './preview.js';
 import {
   $,
@@ -43,6 +43,7 @@ import {
   setState,
   settingDefaults,
   SETTINGS,
+  showInfo,
   snapshot,
   state,
   toast,
@@ -96,13 +97,18 @@ import {
   isDirty,
   openFiles,
   outputName,
-  showInfo,
   showLanding,
   showWorkspace,
   warmPdfTools,
 } from './documents.js';
 
 export { openFiles, warmPdfTools as warm } from './documents.js';
+
+// A signature kept on this device (Sign PDF) is ready when the editor is.
+{
+  const kept = savedSignature();
+  if (kept) Object.assign(ui, { signature: kept, signatureKept: true });
+}
 
 // Listeners on the page stack, added in the order the editor has always added them.
 initFormInputs();
@@ -158,18 +164,6 @@ function goToLanding(focus = 'top') {
   }
   showLanding();
   finishLanding();
-}
-function finishLanding() {
-  document.title = landingView.title;
-  const focus = ui.landingFocus;
-  ui.landingFocus = null;
-  if (focus === 'tools') {
-    $('#tools-title').focus({ preventScroll: true });
-    setTimeout(() => $('#tools').scrollIntoView({ behavior: 'smooth' }), 0);
-  } else {
-    $('#landing-title').focus({ preventScroll: true });
-    window.scrollTo(0, 0);
-  }
 }
 function restoreView(target) {
   restoring(() => {

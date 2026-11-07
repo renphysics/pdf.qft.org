@@ -596,8 +596,11 @@ source review does not replace the owner’s browser verification.
 
 - Edit history (`history.js`) and view recording (`views.js`) left `app.js`, so
   no module imports an entry module back; `app.js` is a landing shell that
-  loads `editor.js` when a file is opened or once the page is idle, and every
-  page preloads the three modules the shell imports at once. The site-integrity
+  loads `editor.js` when a file is opened, or as soon as a visitor hovers,
+  focuses or touches the upload area, a tool card or the sample (a reader never
+  downloads it; the help and privacy dialogs and the landing's own buttons need
+  no editor), and every page preloads the three modules the shell imports at
+  once. A browser test checks the landing fetches nothing but those. The site-integrity
   test checks the module graph and the preload list; the release test checks
   that the dynamic import and the preloads carry the release id. Opening the
   file picker stays synchronous with the click (browsers require it) while the
@@ -612,3 +615,8 @@ source review does not replace the owner’s browser verification.
   is exported and every call resolves; the site-integrity test checks the
   registry covers exactly the tools with a tab and that each module exports
   `fields()`. Browser suites in Chromium, WebKit and Firefox.
+- Dependencies: Dependabot proposes npm and GitHub Actions updates weekly (the
+  PDF libraries grouped apart, since their bundles are updated by hand); the
+  site-integrity test fails when `package.json` and `versions.json` disagree;
+  a monthly workflow compares the bundles with npm and opens or updates one
+  issue (`scripts/check-vendored-versions.mjs`, also runnable locally).
