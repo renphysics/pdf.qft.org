@@ -12,9 +12,13 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
+# Jobs run on Ubuntu 24.04, not ubuntu-latest: that label moved to 26.04 on
+# 2026-11-06, whose libsoup 3.6 rewrites spaces in download file names as
+# underscores in WebKit (the tests check the names the app chooses), and whose
+# Playwright dependency install took 40 minutes.
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -34,7 +38,7 @@ jobs:
   # browser engine: Chromium, WebKit (Safari's engine) and Firefox.
   browser:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

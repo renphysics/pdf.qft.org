@@ -299,8 +299,11 @@ scrolling, swiping between pages; an iPhone in Chromium and in WebKit) and axe
 accessibility checks. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
-before every deployment; when one fails, the run keeps its screenshots, traces
-and HTML report for 14 days (an artifact on the run's summary page). Locally:
+before every deployment, on Ubuntu 24.04 (pinned: `ubuntu-latest` became 26.04
+in November 2026, and its libsoup 3.6 rewrites spaces in download file names as
+underscores in WebKit, which the file-name checks catch); when one fails, the
+run keeps its screenshots, traces and HTML report for 14 days (an artifact on
+the run's summary page). Locally:
 
 ```sh
 npm ci
