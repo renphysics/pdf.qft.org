@@ -644,3 +644,13 @@ source review does not replace the owner’s browser verification.
   hostile file name on the Fill form page, adds a hostilely named image, and
   visits Fill form, Document properties, Merge PDFs, Organize pages, Add an
   image, the download name and the batch list: no flag set, nothing injected.
+- Focus and announcements: a panel control that disables itself (Move earlier
+  at the first page) hands focus to the nearest enabled control in its group
+  instead of the panel heading, and the heading shows a ring when it does get
+  focus; the page-range hint is a live region, so an out-of-range number is
+  announced; the landing scroll respects reduced motion; on touch screens the
+  notice's close button has a 44 px tap area around its 28 px drawing; Pages
+  per sheet says when a handout leaves a tagged PDF's tags, labels or
+  attachments behind (`copyNotes`), like Extract and Delete do. Tests:
+  accessibility (focus), settings (the announced range), phone (the tap area),
+  margins-sheets (a tagged handout's note), copy (copyNotes).

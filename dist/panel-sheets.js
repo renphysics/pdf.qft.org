@@ -4,11 +4,11 @@
  * panel interface.)
  */
 
-import { pagesPerSheet, sheetLayout } from './pdf-engine.js';
+import { copyNotes, pagesPerSheet, sheetLayout } from './pdf-engine.js';
 import { safeBaseName } from './workflows.js';
 import { geometryOf } from './preview.js';
 import { $, busy, icon, protectedDownload, snapshot, state, toast, ui } from './editor-core.js';
-import { downloadBytes, exportDocument, outputName, showExportError } from './documents.js';
+import { downloadBytes, exportDocument, exportNotes, outputName, showExportError } from './documents.js';
 import { numberField, selectField } from './tool-panel.js';
 
 const MM = 72 / 25.4; // points in a millimetre
@@ -88,7 +88,7 @@ async function saveSheets() {
   const draft = ui.sheetDraft;
   try {
     // From the PDF as it downloads, with its fields flattened (their answers become part of the pages).
-    const { bytes } = await exportDocument({ ...snapshot(), flattenForms: true, protection: null });
+    const { bytes, notes } = await exportDocument({ ...snapshot(), flattenForms: true, protection: null });
     busy(true, 'Putting the pages on sheets…');
     const password = protectedDownload() ? state.protection.password : null;
     const sheets = await pagesPerSheet(bytes, {
@@ -102,11 +102,14 @@ async function saveSheets() {
     const base = safeBaseName(outputName()).replace(/-(edited|converted|protected|unlocked)$/, '');
     downloadBytes(sheets, base + '-' + draft.perSheet + '-per-sheet.pdf');
     const count = Math.ceil(state.pages.length / draft.perSheet);
+    // A handout is a new PDF: it says what the original's pages left behind.
+    const losses = await copyNotes(bytes);
     toast(
       'Your ' +
         (count === 1 ? 'sheet has' : count + ' sheets have') +
         ' been downloaded.' +
-        (password ? ' The PDF needs your password to open.' : ''),
+        (password ? ' The PDF needs your password to open.' : '') +
+        exportNotes([...notes.filter((note) => note === 'signature-invalid'), ...losses]),
     );
   } catch (error) {
     showExportError(error);

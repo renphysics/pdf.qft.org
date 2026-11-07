@@ -94,7 +94,7 @@ function scopeFields() {
       '<input name="scopePages" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1-3, 5" aria-describedby="scope-hint">',
       true,
     ) +
-    '<p id="scope-hint" class="field-hint">Numbers follow the current page order.</p>' +
+    '<p id="scope-hint" class="field-hint" aria-live="polite">Numbers follow the current page order.</p>' +
     '<button type="button" class="button secondary" data-action="scope-selected">Use the selected pages</button></div>'
   );
 }
@@ -243,8 +243,10 @@ export function afterFill(values) {
     const error = ui.scopeErrors[SETTINGS[ui.tool]];
     const field = $('[name="scopePages"]', scopePages);
     field.setAttribute('aria-invalid', String(Boolean(error)));
-    $('#scope-hint').textContent = error || 'Numbers follow the current page order.';
-    $('#scope-hint').classList.toggle('invalid', Boolean(error));
+    const hint = $('#scope-hint'),
+      text = error || 'Numbers follow the current page order.';
+    if (hint.textContent !== text) hint.textContent = text;
+    hint.classList.toggle('invalid', Boolean(error));
   }
   const toggle = $('#tool-form [role="switch"]');
   if (toggle) toggle.setAttribute('aria-checked', String(settingOn(SETTINGS[ui.tool])));

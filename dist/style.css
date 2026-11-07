@@ -181,6 +181,12 @@ p,
 [tabindex='-1']:focus {
   outline: none;
 }
+/* The tool panel's heading shows where focus went when a control it was on is gone. */
+#tool-panel h2:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 .icon-defs {
   position: absolute;
   width: 0;
@@ -1322,6 +1328,21 @@ body.editing {
 .toast .toast-close:focus-visible {
   outline-color: var(--color-on-brand);
   outline-offset: 1px;
+}
+/* On touch screens the close button's tap area is 44 px, around its 28 px drawing. */
+@media (pointer: coarse) {
+  .toast-close {
+    position: relative;
+  }
+  .toast-close::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
 }
 /* In the editor, notices sit in the empty middle of the preview toolbar, so they
    cover neither the page nor the tool controls (positioned by positionToast()). */

@@ -164,3 +164,14 @@ test('opened on the Watermark page, the opened message says the watermark is sho
     'Your PDF is ready. Everything happens on your device. Watermark “DRAFT” shown on every page. Undo takes it away.',
   );
 });
+
+test('a page range outside the document is announced', async ({ page }) => {
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  await page.selectOption('#tool-form [name="scope"]', 'pages');
+  const hint = page.locator('#scope-hint');
+  await expect(hint).toHaveAttribute('aria-live', 'polite');
+  await page.fill('#tool-form [name="scopePages"]', '99');
+  await page.keyboard.press('Tab');
+  await expect(hint).toContainText('between 1 and 3');
+  await expect(hint).toHaveClass(/invalid/);
+});

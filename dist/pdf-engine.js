@@ -1075,6 +1075,12 @@ export function copyLosses(doc) {
   ].filter(Boolean);
 }
 
+/** The notes of a PDF made by copying every page of `bytes` into a new one (a handout: see copyLosses). */
+export async function copyNotes(bytes) {
+  const lib = await loadPdfLib();
+  return copyLosses(await lib.PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false }));
+}
+
 /** Whether a PDF has a digital signature: a signature field (/FT /Sig) with a value. */
 function isSigned(doc) {
   const { PDFArray, PDFDict, PDFName } = library();

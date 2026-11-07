@@ -126,3 +126,14 @@ test('puts 2 or 4 pages on each sheet, with the edits, and the document stays as
   expect((await PDFLib.PDFDocument.load(two.bytes)).getPageCount()).toBe(2);
   expect(await size(two.bytes)).toEqual([792, 612]);
 });
+
+test('a handout from a tagged PDF says the tags are left behind', async ({ page }) => {
+  const doc = await PDFLib.PDFDocument.create();
+  for (let number = 1; number <= 2; number++)
+    doc.addPage([300, 300]).drawText(`PAGE-${number}`, { x: 40, y: 150, size: 16 });
+  doc.catalog.set(PDFLib.PDFName.of('StructTreeRoot'), doc.context.obj({ Type: 'StructTreeRoot' }));
+  doc.catalog.set(PDFLib.PDFName.of('MarkInfo'), doc.context.obj({ Marked: true }));
+  await openFiles(page, await writeTemporary('tagged.pdf', await doc.save()), 'pdf-pages-per-sheet/');
+  await download(page, () => page.click('#tool-form [type="submit"]'));
+  await expect(page.locator('#toast-message')).toContainText('without the original’s accessibility tags');
+});

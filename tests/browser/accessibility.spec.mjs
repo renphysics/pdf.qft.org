@@ -130,3 +130,15 @@ test('switches and segmented controls show their state in forced-colours mode', 
   const other = await style(page.locator('.segmented input:not(:checked) + span').first());
   expect(chosen.background, 'the chosen segment looks different').not.toBe(other.background);
 });
+
+test('a button that disables itself hands focus to its neighbour, not to a heading', async ({ page }) => {
+  await openSample(page);
+  await useTool(page, 'pages');
+  await page.locator('[data-page-open]').nth(1).click();
+  await ready(page);
+  await page.locator('[data-action="move-earlier"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#announce-status')).toContainText('Page moved to position 1.');
+  await expect(page.locator('[data-action="move-earlier"]')).toBeDisabled();
+  await expect(page.locator('[data-action="move-later"]')).toBeFocused();
+});

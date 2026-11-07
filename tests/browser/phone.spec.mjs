@@ -206,3 +206,15 @@ test('Fill form zooms the page to the field you tap, and Fit shows it whole agai
   await page.click('[data-action="zoom-fit"]');
   await expect(page.locator('#zoom-label')).toHaveText('Fit');
 });
+
+test('the notice’s close button has a finger-sized tap area', async ({ page }) => {
+  await openSample(page);
+  const close = page.locator('.toast-close');
+  await expect(close).toBeVisible();
+  const area = await close.evaluate((button) => {
+    const before = getComputedStyle(button, '::before');
+    return [parseFloat(before.width), parseFloat(before.height)];
+  });
+  expect(area[0]).toBeGreaterThanOrEqual(44);
+  expect(area[1]).toBeGreaterThanOrEqual(44);
+});

@@ -27,7 +27,8 @@ globalThis.fetch = async (url, options) => {
   }
   return nativeFetch(url, options);
 };
-const { buildPdf, buildPdfWithNotes, pagesPerSheet, sheetLayout } = await import('../dist/pdf-engine.js');
+const { buildPdf, buildPdfWithNotes, copyNotes, pagesPerSheet, sheetLayout } =
+  await import('../dist/pdf-engine.js');
 const { splitPdf } = await import('../dist/workflows.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const {
@@ -804,6 +805,12 @@ assert.deepEqual(
   'pages only reordered: the PDF itself is kept, with all of these',
 );
 assert.deepEqual(
+  (await copyNotes(everything)).sort(),
+  ['attachments-dropped', 'labels-dropped', 'tags-dropped'],
+  'copyNotes: what a handout (Pages per sheet) leaves behind',
+);
+assert.deepEqual(await copyNotes(await catalogPdf({})), [], 'copyNotes: nothing to leave behind');
+assert.deepEqual(
   await notesOf(await catalogPdf({ PageLabels: { Nums: [0, { S: 'D' }] } }), [0, 1]),
   [],
   'labels that are plain numbers from 1 are not missed',
@@ -1031,7 +1038,7 @@ console.log(
         'split parts with a shared page: each part has its own links and bookmarks',
         'layers hidden in a PDF stay hidden when pages are deleted, duplicated, combined or split',
         'a bookmark for each combined file',
-        'notes: page labels, attached files and tags a copy leaves out; a digital signature no longer valid',
+        'notes: page labels, attached files and tags a copy leaves out; a digital signature no longer valid; copyNotes for handouts',
         'pages per sheet: 2 and 4 to a sheet, in reading order, turned and cropped as shown, layers hidden, no hidden pages, border, password',
       ],
     },

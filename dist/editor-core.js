@@ -306,13 +306,28 @@ export function focusKey(element = document.activeElement) {
   if (element.id) return ['#' + esc(element.id), panelFallback];
   return panelFallback ? [panelFallback] : null;
 }
-/** Focus the first visible, enabled match of a focusKey() description. */
+/**
+ * Focus the first visible, enabled match of a focusKey() description. A control
+ * that disabled itself (Move earlier, at the first page) hands focus to the
+ * nearest enabled control in its group, so a keyboard user keeps their place.
+ */
 export function restoreFocus(key) {
   for (const selector of [].concat(key || [])) {
     if (!selector) continue;
-    const target = $$(selector).find((element) => !element.disabled && element.getClientRects().length);
+    const shown = $$(selector).filter((element) => element.getClientRects().length);
+    const target = shown.find((element) => !element.disabled);
     if (target) {
       target.focus({ preventScroll: true });
+      return true;
+    }
+    const group = shown[0]?.closest('.mini-actions, .selection-buttons, .field-row, #tool-form');
+    const neighbour =
+      group &&
+      $$('button, input, select, textarea, [tabindex="0"]', group).find(
+        (element) => !element.disabled && element.getClientRects().length,
+      );
+    if (neighbour) {
+      neighbour.focus({ preventScroll: true });
       return true;
     }
   }
