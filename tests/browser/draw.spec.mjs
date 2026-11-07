@@ -30,20 +30,34 @@ async function tap(page, [u, v]) {
   await page.mouse.click(box.x + u * box.width, box.y + v * box.height);
 }
 
-test('draws pen strokes and shapes; the download shows them as the preview does', async ({ page, baseURL }) => {
+test('draws pen strokes and shapes; the download shows them as the preview does', async ({
+  page,
+  baseURL,
+}) => {
   await openSample(page, 'draw-on-pdf/');
   await expect(page.locator('#tool-select')).toHaveValue('draw');
 
   // Pen strokes are not selected, so the next one can start over the last.
-  await drag(page, [[0.15, 0.3], [0.25, 0.38], [0.35, 0.28], [0.45, 0.4]]);
+  await drag(page, [
+    [0.15, 0.3],
+    [0.25, 0.38],
+    [0.35, 0.28],
+    [0.45, 0.4],
+  ]);
   await expect(paths(page)).toHaveCount(1);
   await expect(selected(page)).toHaveCount(0);
-  await drag(page, [[0.3, 0.33], [0.3, 0.45]]);
+  await drag(page, [
+    [0.3, 0.33],
+    [0.3, 0.45],
+  ]);
   await expect(paths(page)).toHaveCount(2);
 
   // A rectangle is selected when drawn, and its colour can change.
   await page.selectOption('#tool-form [name="shape"]', 'rect');
-  await drag(page, [[0.55, 0.3], [0.85, 0.45]]);
+  await drag(page, [
+    [0.55, 0.3],
+    [0.85, 0.45],
+  ]);
   await expect(paths(page)).toHaveCount(3);
   await expect(selected(page)).toHaveCount(1);
   await expect(page.locator('#tool-form [data-action="delete-item"]')).toHaveText('Delete rectangle');
@@ -54,7 +68,10 @@ test('draws pen strokes and shapes; the download shows them as the preview does'
   await tap(page, [0.5, 0.52]);
   await expect(selected(page)).toHaveCount(0);
   await page.selectOption('#tool-form [name="shape"]', 'arrow');
-  await drag(page, [[0.2, 0.5], [0.5, 0.47]]);
+  await drag(page, [
+    [0.2, 0.5],
+    [0.5, 0.47],
+  ]);
   await page.selectOption('#tool-form [name="shape"]', 'ellipse');
   await page.click('#tool-form [data-action="add-drawing"]');
   await expect(paths(page)).toHaveCount(5);
@@ -79,13 +96,21 @@ test('draws pen strokes and shapes; the download shows them as the preview does'
 test('a selected drawing moves when dragged, and keeps its shape', async ({ page }) => {
   await openSample(page, 'draw-on-pdf/');
   await page.selectOption('#tool-form [name="shape"]', 'line');
-  await drag(page, [[0.2, 0.3], [0.6, 0.4]]);
+  await drag(page, [
+    [0.2, 0.3],
+    [0.6, 0.4],
+  ]);
   await expect(selected(page)).toHaveCount(1);
   const before = await placeOf(page);
-  await drag(page, [[0.4, 0.35], [0.5, 0.45]]);
+  await drag(page, [
+    [0.4, 0.35],
+    [0.5, 0.45],
+  ]);
   await expect(paths(page)).toHaveCount(1);
   await expect
-    .poll(async () => ((await paths(page).first().boundingBox())?.x ?? before.x) - before.x, { message: 'the drawing moved' })
+    .poll(async () => ((await paths(page).first().boundingBox())?.x ?? before.x) - before.x, {
+      message: 'the drawing moved',
+    })
     .toBeGreaterThan(20);
   const after = await placeOf(page);
   expect(after.x - before.x).toBeGreaterThan(20);

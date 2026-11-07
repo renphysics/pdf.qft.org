@@ -1,6 +1,16 @@
 // Sign PDF: draw, type or upload a signature, place it, and download.
 import { createRequire } from 'node:module';
-import { test, expect, openSample, ready, useTool, download, writeTemporary, PDFLib, root } from './helpers.mjs';
+import {
+  test,
+  expect,
+  openSample,
+  ready,
+  useTool,
+  download,
+  writeTemporary,
+  PDFLib,
+  root,
+} from './helpers.mjs';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -11,8 +21,13 @@ async function images(bytes) {
   const doc = await PDFLib.PDFDocument.load(bytes);
   const count = doc.context
     .enumerateIndirectObjects()
-    .filter(([, object]) => object instanceof PDFRawStream && object.dict.get(PDFName.of('Subtype')) === PDFName.of('Image')).length;
-  const perPage = doc.getPages().map((page) => page.node.Resources()?.lookup(PDFName.of('XObject'))?.keys().length || 0);
+    .filter(
+      ([, object]) =>
+        object instanceof PDFRawStream && object.dict.get(PDFName.of('Subtype')) === PDFName.of('Image'),
+    ).length;
+  const perPage = doc
+    .getPages()
+    .map((page) => page.node.Resources()?.lookup(PDFName.of('XObject'))?.keys().length || 0);
   return { count, perPage };
 }
 
@@ -21,12 +36,24 @@ async function drawSignature(page) {
   const at = (x, y) => [pad.x + pad.width * x, pad.y + pad.height * y];
   await page.mouse.move(...at(0.15, 0.6));
   await page.mouse.down();
-  for (const [x, y] of [[0.25, 0.3], [0.35, 0.7], [0.45, 0.35], [0.55, 0.65], [0.7, 0.4], [0.85, 0.55]]) await page.mouse.move(...at(x, y), { steps: 4 });
+  for (const [x, y] of [
+    [0.25, 0.3],
+    [0.35, 0.7],
+    [0.45, 0.35],
+    [0.55, 0.65],
+    [0.7, 0.4],
+    [0.85, 0.55],
+  ])
+    await page.mouse.move(...at(x, y), { steps: 4 });
   await page.mouse.up();
 }
 
 test('draw a signature, place it on one page and on every page; the PDF stores it once', async ({ page }) => {
-  const original = await images(new Uint8Array(await (await import('node:fs/promises')).readFile(path.join(root, 'dist/assets/sample.pdf'))));
+  const original = await images(
+    new Uint8Array(
+      await (await import('node:fs/promises')).readFile(path.join(root, 'dist/assets/sample.pdf')),
+    ),
+  );
   await openSample(page, 'sign-pdf/');
   await expect(page.locator('#tool-select')).toHaveValue('signature');
   await expect(page.locator('[data-action="signature-use"]')).toBeDisabled();
@@ -77,7 +104,8 @@ test('type a signature and add it to every page', async ({ page }) => {
     const context = canvas.getContext('2d');
     context.drawImage(image, 0, 0);
     const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    for (let i = 0; i < data.length; i += 4) if (data[i + 3] === 255) return [data[i], data[i + 1], data[i + 2]];
+    for (let i = 0; i < data.length; i += 4)
+      if (data[i + 3] === 255) return [data[i], data[i + 1], data[i + 2]];
     return null;
   });
   expect(blue).toEqual([0x1d, 0x3f, 0x9e]);
@@ -106,7 +134,10 @@ test('upload a picture of a signature: the paper becomes transparent', async ({ 
   await openSample(page, 'sign-pdf/');
   await page.locator('label:has(input[name="signatureMode"][value="upload"])').click();
   await expect(page.locator('#tool-form [name="removeBackground"]')).toBeChecked();
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-action="signature-choose"]')]);
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.click('[data-action="signature-choose"]'),
+  ]);
   await chooser.setFiles(file);
   await expect(page.locator('.signature-preview img')).toBeVisible();
   const corners = await page.evaluate(async () => {
@@ -118,7 +149,10 @@ test('upload a picture of a signature: the paper becomes transparent', async ({ 
     const context = canvas.getContext('2d');
     context.drawImage(image, 0, 0);
     const alpha = (x, y) => context.getImageData(x, y, 1, 1).data[3];
-    return { size: [canvas.width, canvas.height], corners: [alpha(0, 0), alpha(canvas.width - 1, canvas.height - 1)] };
+    return {
+      size: [canvas.width, canvas.height],
+      corners: [alpha(0, 0), alpha(canvas.width - 1, canvas.height - 1)],
+    };
   });
   expect(corners.corners).toEqual([0, 0]);
   // Cropped to the ink, not the whole photo.

@@ -7,7 +7,9 @@
   "scripts": {
     "prepare-assets": "node scripts/prepare-assets.mjs",
     "pages": "node scripts/build-pages.mjs",
-    "check": "node scripts/prepare-assets.mjs && node scripts/build-pages.mjs --check && node tests/site-integrity.test.mjs",
+    "format": "prettier --write \"dist/*.js\" \"dist/*.css\" \"scripts/**/*.mjs\" \"tests/**/*.mjs\"",
+    "format:check": "prettier --check \"dist/*.js\" \"dist/*.css\" \"scripts/**/*.mjs\" \"tests/**/*.mjs\"",
+    "check": "node scripts/prepare-assets.mjs && node scripts/build-pages.mjs --check && node tests/site-integrity.test.mjs && npm run format:check",
     "test": "npm run check && node tests/engine.test.mjs && node tests/forms.test.mjs && node tests/copy.test.mjs && node tests/preview.test.mjs && node tests/workflows.test.mjs && node tests/release-stamp.test.mjs",
     "test:browser": "node scripts/prepare-assets.mjs && playwright test"
   },
@@ -25,7 +27,8 @@
     "@cantoo/pdf-lib": "2.11.1",
     "@napi-rs/canvas": "0.1.100",
     "@playwright/test": "1.63.0",
-    "pdfjs-dist": "6.4.299"
+    "pdfjs-dist": "6.4.299",
+    "prettier": "3.9.10"
   },
   "dependencies": {
     "@cantoo/fontkit": "2.0.12"

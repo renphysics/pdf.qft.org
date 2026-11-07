@@ -1,8 +1,26 @@
 // Editing journeys on a desktop screen (tests/QA-CHECKLIST.md).
+import { createRequire } from 'node:module';
 import {
-  test, expect, fixture, openSample, openFiles, ready, useTool, toastText, download, overlayLines, pdfText,
-  pdfOutline, previewDifference, lineWidths, writeTemporary, PDFLib,
+  test,
+  expect,
+  fixture,
+  openSample,
+  openFiles,
+  ready,
+  useTool,
+  toastText,
+  download,
+  overlayLines,
+  pdfText,
+  pdfOutline,
+  previewDifference,
+  lineWidths,
+  writeTemporary,
+  PDFLib,
+  root,
 } from './helpers.mjs';
+
+const { createCanvas } = createRequire(import.meta.url)(`${root}/node_modules/@napi-rs/canvas`);
 
 test('opens the sample from the home page', async ({ page }) => {
   await openSample(page);
@@ -23,7 +41,10 @@ test('adds text, moves it with keys and the mouse, edits, deletes, undoes and re
   expect(await overlayLines(page)).toEqual(['Keyboard text']);
 
   // Quick presses all count, even within one animation frame: five move five times one.
-  const x = () => page.evaluate(() => Number(document.querySelector('.edit-layer [data-item-id]').style.transform.split(',')[4]));
+  const x = () =>
+    page.evaluate(() =>
+      Number(document.querySelector('.edit-layer [data-item-id]').style.transform.split(',')[4]),
+    );
   const start = await x();
   await page.keyboard.press('ArrowRight');
   await expect.poll(x).not.toBe(start);
@@ -73,7 +94,10 @@ test('reports characters the fonts cannot draw, on their page', async ({ page })
   await expect(page.locator('#page-jump')).toHaveValue('1');
 });
 
-test('watermark, headers and footers and page numbers: the download matches the preview', async ({ page, baseURL }) => {
+test('watermark, headers and footers and page numbers: the download matches the preview', async ({
+  page,
+  baseURL,
+}) => {
   await openSample(page);
   // Watermark and Page numbers are on as soon as they open.
   await useTool(page, 'watermark');
@@ -90,6 +114,25 @@ test('watermark, headers and footers and page numbers: the download matches the 
   await page.mouse.click(surface.x + surface.width * 0.15, surface.y + surface.height * 0.3);
   await page.keyboard.type('Placed note');
   await page.keyboard.press('Escape');
+  // A highlight and a picture on page 1 too: both must be in the download. The
+  // comparison treats pixels within 60 of each other as the same, and the default
+  // highlight (a pale yellow at 35%) changes a pixel by at most 60, so a missing
+  // one would pass. This one changes the red channel by about 100: enough to be
+  // seen, but not so much that its half-covered edge pixels differ from both
+  // neighbours by more than 60, which would count each engine's own anti-aliasing.
+  await useTool(page, 'highlight');
+  await page.click('[data-action="add-highlight"]');
+  await page.fill('#tool-form [name="color"]', '#1b4fa0');
+  await page.fill('#tool-form [name="opacity"]', '44');
+  await page.keyboard.press('Escape');
+  await useTool(page, 'image');
+  const logo = createCanvas(120, 60);
+  logo.getContext('2d').fillStyle = '#2244aa';
+  logo.getContext('2d').fillRect(0, 0, 120, 60);
+  await page.locator('.pages-heading [data-action="add-files"]').click();
+  await page.setInputFiles('#file-input', await writeTemporary('logo.png', logo.toBuffer('image/png')));
+  await expect(page.locator('.edit-layer [data-item-id]')).toHaveCount(3);
+  await page.keyboard.press('Escape');
   const { name, bytes } = await download(page, () => page.click('#download-button'));
   expect(name).toBe('A little room to create-edited.pdf');
   const text = await pdfText(bytes);
@@ -98,10 +141,23 @@ test('watermark, headers and footers and page numbers: the download matches the 
   expect(text[1]).toContain('DRAFT');
   expect(text[2]).toContain('Left 3');
   expect(text[2]).toContain('Page 3 of 3');
-  for (const pageNumber of [1, 2]) expect(await previewDifference(page, bytes, pageNumber, baseURL)).toBeLessThan(0.0002);
+  const first = (await PDFLib.PDFDocument.load(bytes)).getPage(0).node.Resources();
+  expect(first.lookup(PDFLib.PDFName.of('XObject')).keys().length, 'the picture is on page 1').toBe(1);
+  const states = first.lookup(PDFLib.PDFName.of('ExtGState'));
+  expect(
+    states
+      .keys()
+      .some((key) => states.lookup(key).get(PDFLib.PDFName.of('BM')) === PDFLib.PDFName.of('Multiply')),
+    'the highlight is on page 1',
+  ).toBe(true);
+  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.002);
+  expect(await previewDifference(page, bytes, 2, baseURL)).toBeLessThan(0.0002);
 });
 
-test('Chinese, Korean and kana text: a small download that matches the preview', async ({ page, baseURL }) => {
+test('Chinese, Korean and kana text: a small download that matches the preview', async ({
+  page,
+  baseURL,
+}) => {
   await openSample(page, 'add-text-to-pdf/');
   // Large text with several spaces between Hangul words: a glyph or spacing
   // difference between preview and download adds up along the line.
@@ -117,7 +173,9 @@ test('Chinese, Korean and kana text: a small download that matches the preview',
   await useTool(page, 'footer');
   await page.fill('#tool-form [name="footerLeft"]', '量子场论 第 {page} 页');
   // The CJK font loads on first use; the preview redraws when it arrives.
-  await expect(page.locator('.page-view.current .page-overlay text[font-family*="CJK"]').first()).toBeAttached();
+  await expect(
+    page.locator('.page-view.current .page-overlay text[font-family*="CJK"]').first(),
+  ).toBeAttached();
   await page.waitForFunction(() => document.fonts.check('16px "QFT Noto Sans CJK"', '中'));
   const { bytes } = await download(page, () => page.click('#download-button'));
   expect(bytes.length, 'only the glyphs used are embedded').toBeLessThan(350_000);
@@ -130,7 +188,8 @@ test('Chinese, Korean and kana text: a small download that matches the preview',
   // difference (such as Hangul spaces widened in the download only) shows here.
   const widths = await lineWidths(page, bytes, 1, baseURL);
   expect(widths.length).toBeGreaterThanOrEqual(3);
-  for (const line of widths) expect(Math.abs(line.preview - line.pdf), JSON.stringify(widths)).toBeLessThan(0.5);
+  for (const line of widths)
+    expect(Math.abs(line.preview - line.pdf), JSON.stringify(widths)).toBeLessThan(0.5);
   // Pixels: rasterizers differ a little between systems, so this only guards against gross errors.
   expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.003);
 });
@@ -202,9 +261,13 @@ test('adds a blank page after the current one, shaped as that page shows', async
 test('reverses the pages, and interleaves the fronts and backs of a double-sided scan', async ({ page }) => {
   // Two sheets scanned one side at a time: fronts F1, F2, then the backs from the last sheet, B2, B1.
   const pdf = await PDFLib.PDFDocument.create();
-  for (const text of ['F1', 'F2', 'B2', 'B1']) pdf.addPage([300, 300]).drawText(text, { x: 40, y: 150, size: 24 });
+  for (const text of ['F1', 'F2', 'B2', 'B1'])
+    pdf.addPage([300, 300]).drawText(text, { x: 40, y: 150, size: 24 });
   await openFiles(page, await writeTemporary('scan.pdf', await pdf.save()), 'organize-pdf/');
-  const order = async () => (await pdfText((await download(page, () => page.click('#download-button'))).bytes)).map((text) => text.trim());
+  const order = async () =>
+    (await pdfText((await download(page, () => page.click('#download-button'))).bytes)).map((text) =>
+      text.trim(),
+    );
   await page.click('[data-action="interleave-pages"]');
   expect(await order()).toEqual(['F1', 'B1', 'F2', 'B2']);
   await page.click('#undo-button');
@@ -297,7 +360,10 @@ test('the address follows the tool; Back returns to the page and Forward to the 
 test('PDFs with form fields keep them, and refuse changes that would lose them', async ({ page }) => {
   const form = await PDFLib.PDFDocument.create();
   for (let i = 0; i < 2; i++) form.addPage();
-  form.getForm().createTextField('name').addToPage(form.getPage(0), { x: 50, y: 700, width: 200, height: 24 });
+  form
+    .getForm()
+    .createTextField('name')
+    .addToPage(form.getPage(0), { x: 50, y: 700, width: 200, height: 24 });
   await openFiles(page, await writeTemporary('form.pdf', await form.save()));
   await useTool(page, 'delete');
   await page.locator('[data-page-select]').nth(1).check();
@@ -309,10 +375,16 @@ test('PDFs with form fields keep them, and refuse changes that would lose them',
 
 test('files that are not PDFs, or are damaged, get a clear message', async ({ page }) => {
   await page.goto('./');
-  await page.setInputFiles('#file-input', await writeTemporary('notes.txt', new TextEncoder().encode('plain text')));
+  await page.setInputFiles(
+    '#file-input',
+    await writeTemporary('notes.txt', new TextEncoder().encode('plain text')),
+  );
   expect(await toastText(page)).toContain('Please choose PDF files');
   await page.click('[data-action="dismiss-toast"]');
-  await page.setInputFiles('#file-input', await writeTemporary('broken.pdf', new TextEncoder().encode('%PDF-1.7 broken')));
+  await page.setInputFiles(
+    '#file-input',
+    await writeTemporary('broken.pdf', new TextEncoder().encode('%PDF-1.7 broken')),
+  );
   expect(await toastText(page)).toContain('could not be opened as a PDF');
   await expect(page.locator('#landing')).toBeVisible();
 });

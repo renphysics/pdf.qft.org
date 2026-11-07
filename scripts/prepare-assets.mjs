@@ -7,8 +7,10 @@ import path from 'node:path';
 // upload limit. This is packaging only: the deployed font is byte-identical
 // to the original licensed font, and no remote download is needed.
 const root = fileURLToPath(new URL('../', import.meta.url));
-const manifest = JSON.parse(await readFile(new URL('../vendor/fonts/manifest.json', import.meta.url), 'utf8'));
-const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const manifest = JSON.parse(
+  await readFile(new URL('../vendor/fonts/manifest.json', import.meta.url), 'utf8'),
+);
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const buffers = [];
 for (const part of manifest.parts) {
   const bytes = await readFile(path.join(root, part.path));

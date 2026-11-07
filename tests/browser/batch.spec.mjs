@@ -3,21 +3,33 @@ import { test, expect, fixture, download, pdfText, PDFLib } from './helpers.mjs'
 import path from 'node:path';
 import { root } from './helpers.mjs';
 
-test('applies a footer and a crop to each PDF, isolates one that needs a password, and zips the rest', async ({ page }) => {
+test('applies a footer and a crop to each PDF, isolates one that needs a password, and zips the rest', async ({
+  page,
+}) => {
   await page.goto('batch-edit-pdf/');
-  await page.locator('[data-action="batch-choose"]').first().click().catch(() => {});
+  await page
+    .locator('[data-action="batch-choose"]')
+    .first()
+    .click()
+    .catch(() => {});
   await page.setInputFiles('#batch-file-input', [
-    path.join(root, 'dist/assets/sample.pdf'), fixture('rotated-cropped.pdf'), fixture('password-aes128.pdf'),
+    path.join(root, 'dist/assets/sample.pdf'),
+    fixture('rotated-cropped.pdf'),
+    fixture('password-aes128.pdf'),
   ]);
   await page.locator('input[name="enable-footer"]').check();
   await page.fill('[name="footerCenter"]', 'Batch footer {page}/{total}');
   await page.locator('input[name="enable-crop"]').check();
   await page.fill('[name="crop-top"]', '5');
   await page.click('[data-batch-action="process"]');
-  await expect(page.locator('#batch-status')).toHaveText(/2 files ready · 1 could not be processed/, { timeout: 60_000 });
+  await expect(page.locator('#batch-status')).toHaveText(/2 files ready · 1 could not be processed/, {
+    timeout: 60_000,
+  });
   await expect(page.locator('#batch-file-list')).toContainText('Remove it with Unlock PDF');
 
-  const first = await download(page, () => page.locator('[data-batch-action="download-file"]').first().click());
+  const first = await download(page, () =>
+    page.locator('[data-batch-action="download-file"]').first().click(),
+  );
   expect(first.name).toBe('sample-processed.pdf');
   const text = await pdfText(first.bytes);
   expect(text[0]).toContain('Batch footer 1/3');

@@ -14,6 +14,9 @@
  *   redeploying identical code keeps visitors' caches.
  * - Each engine bundle (pdf-lib, fontkit, PDF.js and its worker) is versioned
  *   by a hash of its own bytes, so it is downloaded again only when it changes.
+ * - The two text fonts are versioned the same way; the app keeps them in Cache
+ *   Storage under that URL (pdf-engine.js fetchFont), so they outlive Pages'
+ *   ten-minute cache and are downloaded again only when they change.
  *
  * Usage: node scripts/stamp-release.mjs [siteDirectory]   (default: dist)
  */
@@ -28,7 +31,15 @@ const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
 // Every module beside index.html (app.js and the editor's modules, the engine...).
 const MODULES = (await readdir(site)).filter((name) => name.endsWith('.js')).sort();
-const FIRST_PARTY = ['index.html', 'licenses/index.html', ...TOOL_PAGE_FILES, ...MODULES, 'style.css', 'studio.css', 'batch.css'];
+const FIRST_PARTY = [
+  'index.html',
+  'licenses/index.html',
+  ...TOOL_PAGE_FILES,
+  ...MODULES,
+  'style.css',
+  'studio.css',
+  'batch.css',
+];
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const sources = Object.fromEntries(
   await Promise.all(FIRST_PARTY.map(async (name) => [name, await readFile(path.join(site, name), 'utf8')])),
@@ -37,11 +48,20 @@ if (Object.values(sources).some((text) => /\?v=[0-9a-f]{10,}/.test(text))) {
   throw new Error(`${site} is already stamped. Run this once, on a fresh copy of the site.`);
 }
 const release = sha256(FIRST_PARTY.map((name) => `${name}\0${sources[name]}`).join('\0')).slice(0, 12);
-const engine = async (file) => sha256(await readFile(path.join(site, 'assets/vendor', file))).slice(0, 12);
+const hashOf = async (file) =>
+  sha256(
+    await readFile(path.join(site, file)).catch(() => {
+      // The CJK font is assembled by scripts/prepare-assets.mjs; it is not in the repository.
+      throw new Error(`${file} is missing from ${site}. Run node scripts/prepare-assets.mjs first.`);
+    }),
+  ).slice(0, 12);
+const engine = (file) => hashOf(`assets/vendor/${file}`);
 const pdfjs = await engine('pdf.mjs');
 const worker = await engine('pdf.worker.mjs');
 const pdfLib = await engine('pdf-lib.min.js');
 const fontkit = await engine('fontkit.umd.min.js');
+const latinFont = await hashOf('assets/fonts/NotoSans-Regular.ttf');
+const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
 
 // [pattern, replacement, expected number of matches, or null for any number].
 // A mismatch means the sources changed shape and this script must be updated,
@@ -78,6 +98,8 @@ const RULES = {
     imports,
     [/(new URL\('\.\/assets\/vendor\/pdf-lib\.min\.js)'/g, `$1?v=${pdfLib}'`, 1],
     [/(new URL\('\.\/assets\/vendor\/fontkit\.umd\.min\.js)'/g, `$1?v=${fontkit}'`, 1],
+    [/(new URL\('\.\/assets\/fonts\/NotoSans-Regular\.ttf)'/g, `$1?v=${latinFont}'`, 1],
+    [/(new URL\('\.\/assets\/fonts\/NotoSansCJKsc-Regular\.otf)'/g, `$1?v=${cjkFont}'`, 1],
   ],
 };
 
@@ -85,7 +107,8 @@ for (const [name, rules] of Object.entries(RULES)) {
   let text = sources[name];
   for (const [pattern, replacement, expected] of rules) {
     const found = text.match(pattern)?.length ?? 0;
-    if (expected !== null && found !== expected) throw new Error(`${name}: expected ${expected} match(es) for ${pattern}, found ${found}.`);
+    if (expected !== null && found !== expected)
+      throw new Error(`${name}: expected ${expected} match(es) for ${pattern}, found ${found}.`);
     text = text.replace(pattern, replacement);
   }
   // Every relative import must be versioned: an unversioned URL could load a
@@ -96,4 +119,6 @@ for (const [name, rules] of Object.entries(RULES)) {
   if (unversioned.length) throw new Error(`${name}: unversioned import(s): ${unversioned.join(', ')}`);
   await writeFile(path.join(site, name), text);
 }
-console.log(`Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}) in ${site}.`);
+console.log(
+  `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${cjkFont}) in ${site}.`,
+);

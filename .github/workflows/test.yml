@@ -4,13 +4,19 @@ name: Test
 on:
   pull_request:
   workflow_dispatch:
+  # The Pages workflow runs these jobs before it deploys.
+  workflow_call:
 
 permissions:
   contents: read
 
+# One run per branch: a newer push to a pull request cancels the older run.
+# When the Pages workflow calls this one, the group is keyed by its name too, and
+# a push or a manual run never cancels anything, so a run of Test on main cannot
+# cancel the tests a deploy is waiting for.
 concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Jobs run on Ubuntu 24.04, not ubuntu-latest: that label moved to 26.04 on
 # 2026-11-06, whose libsoup 3.6 rewrites spaces in download file names as
@@ -19,6 +25,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -39,6 +46,7 @@ jobs:
   browser:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

@@ -6,7 +6,7 @@
  */
 
 import { savedSignature } from './signature.js';
-import { TOOL_PAGES } from './routes.js';
+import { TOOL_PAGES, TOOLS } from './routes.js';
 
 // Resolve assets beside this module, including GitHub Pages project subpaths.
 export const assetUrl = (path) => new URL(path, import.meta.url).href;
@@ -101,7 +101,9 @@ export const ui = {
   // Pages per sheet: margin and gap in millimetres; Letter paper where it is the usual size.
   sheetDraft: {
     perSheet: 2,
-    paper: ['US', 'CA', 'MX', 'PH'].includes(String(globalThis.navigator?.language || '').split('-')[1]) ? 'letter' : 'a4',
+    paper: ['US', 'CA', 'MX', 'PH'].includes(String(globalThis.navigator?.language || '').split('-')[1])
+      ? 'letter'
+      : 'a4',
     margin: 10,
     gap: 5,
     border: false,
@@ -110,6 +112,10 @@ export const ui = {
   cancelOperation: false,
   cancelExport: null,
   lastCropPreset: null,
+  // When an arrow key last moved through the tool menu, and whether Watermark or
+  // Page numbers wait for focus to leave it before they show (chooseTool).
+  menuTraversal: 0,
+  defaultsOnBlur: false,
   // Organize pages: the backs of a double-sided scan came from the last sheet first (Interleave).
   backsReversed: true,
   // Watermark and Page numbers whose defaults were shown for this document (showSettingDefaults).
@@ -155,29 +161,8 @@ export const ui = {
 // Tool pages (routes.js) name their tool on <body data-tool>; it opens first.
 export const pageTool = TOOL_PAGES[document.body.dataset.tool] ? document.body.dataset.tool : null;
 if (pageTool && pageTool !== 'batch') ui.tool = pageTool;
-export const names = {
-  text: 'Add text',
-  image: 'Add an image',
-  highlight: 'Highlight',
-  watermark: 'Watermark',
-  footer: 'Headers & footers',
-  numbers: 'Page numbers',
-  pages: 'Organize pages',
-  merge: 'Merge PDFs',
-  delete: 'Delete Pages',
-  crop: 'Crop PDF',
-  margins: 'Add margins',
-  split: 'Split PDF',
-  sheets: 'Pages per sheet',
-  protect: 'Protect PDF',
-  unlock: 'Unlock PDF',
-  signature: 'Sign PDF',
-  jpgtopdf: 'JPG to PDF',
-  pdftojpg: 'PDF to JPG',
-  form: 'Fill form',
-  properties: 'Properties',
-  draw: 'Draw',
-};
+/** Each editor tool's name: the menu, the panel's title (routes.js). */
+export const names = Object.fromEntries(TOOLS.filter((item) => item.tab).map((item) => [item.id, item.name]));
 export const descriptions = {
   text: 'Click the page where your text should start, then type. Drag text to move it.',
   image: 'Add a PNG or JPG to this page, then drag it into place. Drag a corner to resize it.',
@@ -190,9 +175,11 @@ export const descriptions = {
   merge: 'Add PDF files, then arrange their pages in the strip.',
   delete: 'Select the pages to remove using their checkboxes or a page range. Undo brings them back.',
   crop: 'Drag across the page to choose the area to keep, or set the margins below.',
-  margins: 'Add blank space around your pages: room for notes, binding or punching. Nothing on the page moves.',
+  margins:
+    'Add blank space around your pages: room for notes, binding or punching. Nothing on the page moves.',
   split: 'Create separate PDFs from this document, including your edits.',
-  sheets: 'Put 2 or 4 pages on each sheet, for handouts or to save paper. The sheets download as a new PDF; your document stays as it is.',
+  sheets:
+    'Put 2 or 4 pages on each sheet, for handouts or to save paper. The sheets download as a new PDF; your document stays as it is.',
   protect: 'Choose a password. Anyone who opens the PDF you download will need it.',
   unlock: 'Download a copy of your PDF that opens without a password.',
   signature:
@@ -201,7 +188,8 @@ export const descriptions = {
     'Your JPG and PNG pictures are pages. Choose their paper size, put them in order in the page strip, then download one PDF.',
   pdftojpg: 'Save pages as JPG or PNG pictures, exactly as they look with your edits.',
   form: 'Click a field to type in it, or tick its box. Tab moves to the next field.',
-  properties: 'The title, author and other details saved in your PDF. Change them, or remove them before you share it.',
+  properties:
+    'The title, author and other details saved in your PDF. Change them, or remove them before you share it.',
   draw: 'Draw on the page with a pen, or drag to add a line, an arrow, a rectangle or an ellipse.',
 };
 export const settingDefaults = {

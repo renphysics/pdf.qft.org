@@ -178,7 +178,9 @@ export function renderKey(descriptor) {
     rotation(descriptor.rotation || 0),
     crop ? [crop.left, crop.top, crop.right, crop.bottom, crop.rotation].join(',') : '',
     // Added margins are painted blank outside the content area.
-    crop?.content ? [crop.content.left, crop.content.top, crop.content.right, crop.content.bottom].join(',') : '',
+    crop?.content
+      ? [crop.content.left, crop.content.top, crop.content.right, crop.content.bottom].join(',')
+      : '',
   ].join(':');
 }
 

@@ -12,8 +12,11 @@ import { chromium, defineConfig, devices, firefox, webkit } from '@playwright/te
 
 const CI = Boolean(process.env.CI);
 const engines = { chromium, webkit, firefox };
-const chosen = process.env.BROWSERS ? process.env.BROWSERS.split(',').map((name) => name.trim()) : Object.keys(engines);
-const runs = (engine) => chosen.includes(engine) && (CI || engine === 'chromium' || existsSync(engines[engine].executablePath()));
+const chosen = process.env.BROWSERS
+  ? process.env.BROWSERS.split(',').map((name) => name.trim())
+  : Object.keys(engines);
+const runs = (engine) =>
+  chosen.includes(engine) && (CI || engine === 'chromium' || existsSync(engines[engine].executablePath()));
 if (!process.env.TEST_WORKER_INDEX) {
   const skipped = chosen.filter((engine) => !runs(engine));
   if (skipped.length) console.log(`Not installed here, so not tested: ${skipped.join(', ')}.`);
@@ -32,7 +35,9 @@ export default defineConfig({
   forbidOnly: CI,
   retries: CI ? 1 : 0,
   workers: CI ? 2 : undefined,
-  reporter: CI ? [['list'], ['html', { open: 'never', outputFolder: 'tests/output/playwright-report' }]] : 'list',
+  reporter: CI
+    ? [['list'], ['html', { open: 'never', outputFolder: 'tests/output/playwright-report' }]]
+    : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4173/',
     acceptDownloads: true,
@@ -42,7 +47,8 @@ export default defineConfig({
   webServer: [
     { command: 'node scripts/serve.mjs dist 4173', url: 'http://127.0.0.1:4173/', reuseExistingServer: !CI },
     {
-      command: 'node scripts/serve.mjs dist 4174 /pdf.qft.org/ --release',
+      // The release copy needs the CJK font, which prepare-assets assembles (quickly) if it is missing.
+      command: 'node scripts/prepare-assets.mjs && node scripts/serve.mjs dist 4174 /pdf.qft.org/ --release',
       url: 'http://127.0.0.1:4174/pdf.qft.org/',
       reuseExistingServer: !CI,
     },

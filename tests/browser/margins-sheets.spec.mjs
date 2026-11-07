@@ -1,5 +1,18 @@
 // Add margins and Pages per sheet (tests/QA-CHECKLIST.md).
-import { test, expect, openSample, openFiles, ready, useTool, toastText, download, pdfText, previewDifference, writeTemporary, PDFLib } from './helpers.mjs';
+import {
+  test,
+  expect,
+  openSample,
+  openFiles,
+  ready,
+  useTool,
+  toastText,
+  download,
+  pdfText,
+  previewDifference,
+  writeTemporary,
+  PDFLib,
+} from './helpers.mjs';
 
 const MM = 72 / 25.4;
 const size = async (bytes, index = 0) => {
@@ -19,7 +32,9 @@ test('adds margins to every page or one, as one undo step, and removes them', as
   await expect(page.locator('#tool-form [name="marginRight"]')).toHaveValue('60');
   await page.click('#tool-form [type="submit"]');
   expect(await toastText(page)).toBe('Margins added to 3 pages.');
-  await expect.poll(async () => (await sheet.boundingBox()).width / (await sheet.boundingBox()).height).toBeGreaterThan(before.width / before.height + 0.15);
+  await expect
+    .poll(async () => (await sheet.boundingBox()).width / (await sheet.boundingBox()).height)
+    .toBeGreaterThan(before.width / before.height + 0.15);
   const { bytes } = await download(page, () => page.click('#download-button'));
   for (const index of [0, 1, 2]) {
     const [width, height] = await size(bytes, index);
@@ -53,14 +68,20 @@ test('added margins are blank, in the preview as in the download', async ({ page
   sheet.drawRectangle({ x: 320, y: 100, width: 60, height: 100, color: PDFLib.rgb(1, 0, 0) });
   sheet.setCropBox(0, 0, 300, 300);
   await openFiles(page, await writeTemporary('hidden-square.pdf', await pdf.save()), 'add-margins-to-pdf/');
-  for (const [edge, value] of [['marginTop', '15'], ['marginLeft', '25'], ['marginRight', '40']]) await page.fill(`#tool-form [name="${edge}"]`, value);
+  for (const [edge, value] of [
+    ['marginTop', '15'],
+    ['marginLeft', '25'],
+    ['marginRight', '40'],
+  ])
+    await page.fill(`#tool-form [name="${edge}"]`, value);
   await page.click('#tool-form [type="submit"]');
   await expect(page.locator('#toast-message')).toHaveText('Margins added to the page.');
   // Pixels of the drawn page: red (the square) and dark (the text).
   const pixels = () =>
     page.locator('.page-view.current canvas').evaluate((canvas) => {
       const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-      let red = 0, dark = 0;
+      let red = 0,
+        dark = 0;
       for (let index = 0; index < data.length; index += 4) {
         if (data[index] > 200 && data[index + 1] < 80 && data[index + 2] < 80) red++;
         if (data[index] < 100 && data[index + 1] < 100 && data[index + 2] < 100) dark++;
@@ -79,9 +100,13 @@ test('added margins are blank, in the preview as in the download', async ({ page
 test('puts 2 or 4 pages on each sheet, with the edits, and the document stays as it is', async ({ page }) => {
   await openSample(page, 'pdf-pages-per-sheet/');
   await page.selectOption('#tool-form [name="sheetPaper"]', 'a4');
-  await expect(page.locator('#sheet-summary')).toHaveText('3 pages on 2 landscape A4 sheets: 2 across, 1 down.');
+  await expect(page.locator('#sheet-summary')).toHaveText(
+    '3 pages on 2 landscape A4 sheets: 2 across, 1 down.',
+  );
   await page.locator('label:has(input[name="sheetCount"][value="4"])').click();
-  await expect(page.locator('#sheet-summary')).toHaveText('3 pages on 1 portrait A4 sheet: 2 across, 2 down.');
+  await expect(page.locator('#sheet-summary')).toHaveText(
+    '3 pages on 1 portrait A4 sheet: 2 across, 2 down.',
+  );
   const sheets = await download(page, () => page.click('#tool-form [type="submit"]'));
   expect(sheets.name).toBe('A little room to create-4-per-sheet.pdf');
   expect(await toastText(page)).toBe('Your sheet has been downloaded.');

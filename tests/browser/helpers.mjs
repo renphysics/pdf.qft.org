@@ -63,7 +63,9 @@ export async function opensWith(bytes, password) {
     await PDFLib.PDFDocument.load(bytes, password === undefined ? {} : { password });
     return 'open';
   } catch (error) {
-    return error.constructor.name === 'EncryptedPDFError' || /password/i.test(error.message) ? 'password' : 'invalid';
+    return error.constructor.name === 'EncryptedPDFError' || /password/i.test(error.message)
+      ? 'password'
+      : 'invalid';
   }
 }
 
@@ -115,7 +117,9 @@ export async function download(page, click) {
 
 /** Text lines the preview draws on the current page, after it has painted. */
 export async function overlayLines(page) {
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   return page.locator('.page-view.current .page-overlay tspan').allTextContents();
 }
 
@@ -130,9 +134,14 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
   // The whole page must be on screen, clear of the status bar and notices.
   const { width } = page.viewportSize();
   await page.setViewportSize({ width, height: 2000 });
-  await page.locator('[data-page-open]').nth(pageNumber - 1).click();
+  await page
+    .locator('[data-page-open]')
+    .nth(pageNumber - 1)
+    .click();
   await ready(page);
-  await page.addStyleTag({ content: '.edit-layer, .toast, .stage-caption { visibility: hidden !important; }' });
+  await page.addStyleTag({
+    content: '.edit-layer, .toast, .stage-caption { visibility: hidden !important; }',
+  });
   const preview = (await page.locator('.page-view.current').screenshot()).toString('base64');
   return page.evaluate(
     async ({ preview, data, pageNumber, siteRoot }) => {
@@ -155,10 +164,14 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
         const context = canvas.getContext('2d');
         context.fillStyle = '#fff';
         context.fillRect(0, 0, canvas.width, canvas.height);
-        return paint(context, canvas).then(() => context.getImageData(0, 0, canvas.width, canvas.height).data);
+        return paint(context, canvas).then(
+          () => context.getImageData(0, 0, canvas.width, canvas.height).data,
+        );
       };
       const a = await draw(async (context) => context.drawImage(image, 0, 0));
-      const b = await draw((context, canvas) => pdfPage.render({ canvasContext: context, viewport, canvas }).promise);
+      const b = await draw(
+        (context, canvas) => pdfPage.render({ canvasContext: context, viewport, canvas }).promise,
+      );
       await doc.loadingTask.destroy();
       const width = image.width,
         height = image.height;
@@ -170,7 +183,14 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
               ny = y + dy;
             if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
             const j = (ny * width + nx) * 4;
-            if (Math.max(Math.abs(from[i] - to[j]), Math.abs(from[i + 1] - to[j + 1]), Math.abs(from[i + 2] - to[j + 2])) <= 60) return true;
+            if (
+              Math.max(
+                Math.abs(from[i] - to[j]),
+                Math.abs(from[i + 1] - to[j + 1]),
+                Math.abs(from[i + 2] - to[j + 2]),
+              ) <= 60
+            )
+              return true;
           }
         }
         return false;
@@ -191,13 +211,17 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
  * so unlike pixels they do not depend on how a system rasterizes text.
  */
 export async function lineWidths(page, bytes, pageNumber, siteRoot) {
-  await page.locator('[data-page-open]').nth(pageNumber - 1).click();
+  await page
+    .locator('[data-page-open]')
+    .nth(pageNumber - 1)
+    .click();
   await ready(page);
   return page.evaluate(
     async ({ data, pageNumber, siteRoot }) => {
       const lib = await import(new URL('assets/vendor/pdf.mjs', siteRoot).href);
       lib.GlobalWorkerOptions.workerSrc = new URL('assets/vendor/pdf.worker.mjs', siteRoot).href;
-      const doc = await lib.getDocument({ data: Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) }).promise;
+      const doc = await lib.getDocument({ data: Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) })
+        .promise;
       const items = (await (await doc.getPage(pageNumber)).getTextContent()).items;
       await doc.loadingTask.destroy();
       return [...document.querySelectorAll('.page-view.current .page-overlay tspan')]

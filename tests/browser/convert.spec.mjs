@@ -1,7 +1,18 @@
 // JPG to PDF and PDF to JPG.
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { test, expect, fixture, openSample, ready, useTool, download, writeTemporary, PDFLib, root } from './helpers.mjs';
+import {
+  test,
+  expect,
+  fixture,
+  openSample,
+  ready,
+  useTool,
+  download,
+  writeTemporary,
+  PDFLib,
+  root,
+} from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const { createCanvas } = require(path.join(root, 'node_modules/@napi-rs/canvas'));
@@ -37,7 +48,9 @@ function withOrientation(jpeg, orientation) {
 }
 
 const pageSizes = async (bytes) =>
-  (await PDFLib.PDFDocument.load(bytes)).getPages().map((page) => [Math.round(page.getWidth()), Math.round(page.getHeight())]);
+  (await PDFLib.PDFDocument.load(bytes))
+    .getPages()
+    .map((page) => [Math.round(page.getWidth()), Math.round(page.getHeight())]);
 
 test('pictures become pages: turned upright, on Letter or their own size, in one PDF', async ({ page }) => {
   const wide = await writeTemporary('wide.png', picture(800, 400, 'png'));
@@ -54,7 +67,10 @@ test('pictures become pages: turned upright, on Letter or their own size, in one
   await expect(page.locator('#tool-form [name="pictureSize"]')).toHaveValue('letter');
   let file = await download(page, () => page.click('#download-button'));
   expect(file.name).toBe('combined-converted.pdf');
-  expect(await pageSizes(file.bytes)).toEqual([[792, 612], [612, 792]]);
+  expect(await pageSizes(file.bytes)).toEqual([
+    [792, 612],
+    [612, 792],
+  ]);
 
   // Their own size, no margin; undo brings Letter back.
   await page.selectOption('#tool-form [name="pictureSize"]', 'fit');
@@ -62,11 +78,21 @@ test('pictures become pages: turned upright, on Letter or their own size, in one
   await page.selectOption('#tool-form [name="pictureMargin"]', '0');
   await expect(page.locator('#busy-overlay')).toBeHidden();
   file = await download(page, () => page.click('#download-button'));
-  expect(await pageSizes(file.bytes)).toEqual([[600, 300], [150, 300]]);
+  expect(await pageSizes(file.bytes)).toEqual([
+    [600, 300],
+    [150, 300],
+  ]);
   // The photo's page shows it upright: red at the top (its stored left half), blue below.
   const doc = await PDFLib.PDFDocument.load(file.bytes);
-  const jpeg = doc.context.enumerateIndirectObjects().find(([, object]) => object.dict?.get(PDFLib.PDFName.of('Filter')) === PDFLib.PDFName.of('DCTDecode'))[1];
-  expect([jpeg.dict.get(PDFLib.PDFName.of('Width')).asNumber(), jpeg.dict.get(PDFLib.PDFName.of('Height')).asNumber()]).toEqual([200, 400]);
+  const jpeg = doc.context
+    .enumerateIndirectObjects()
+    .find(
+      ([, object]) => object.dict?.get(PDFLib.PDFName.of('Filter')) === PDFLib.PDFName.of('DCTDecode'),
+    )[1];
+  expect([
+    jpeg.dict.get(PDFLib.PDFName.of('Width')).asNumber(),
+    jpeg.dict.get(PDFLib.PDFName.of('Height')).asNumber(),
+  ]).toEqual([200, 400]);
 
   // PDFs join the pictures.
   await page.click('[data-action="add-files"]');

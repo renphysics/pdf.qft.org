@@ -1,0 +1,4 @@
+# Bundled libraries and generated test output are not ours to format.
+dist/assets/
+tests/output/
+node_modules/

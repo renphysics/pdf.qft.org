@@ -2,12 +2,37 @@
 // editor's tools or in batch, and the header keeps its links.
 import { test, expect, openSample, ready, useTool } from './helpers.mjs';
 
-const TOOLS = ['text', 'image', 'highlight', 'signature', 'watermark', 'footer', 'numbers', 'pages', 'delete', 'crop', 'margins', 'merge', 'split', 'sheets', 'jpgtopdf', 'pdftojpg', 'protect', 'unlock', 'form', 'properties', 'draw'];
+const TOOLS = [
+  'text',
+  'image',
+  'highlight',
+  'signature',
+  'watermark',
+  'footer',
+  'numbers',
+  'pages',
+  'delete',
+  'crop',
+  'margins',
+  'merge',
+  'split',
+  'sheets',
+  'jpgtopdf',
+  'pdftojpg',
+  'protect',
+  'unlock',
+  'form',
+  'properties',
+  'draw',
+];
 const sideways = (page) =>
   page.evaluate(() => [
     document.documentElement.scrollWidth - innerWidth,
     ...[...document.querySelectorAll('#workspace *, #landing *')]
-      .filter((element) => element.getClientRects().length && !element.closest('.canvas-scroll, .tool-tabs, .page-list'))
+      .filter(
+        (element) =>
+          element.getClientRects().length && !element.closest('.canvas-scroll, .tool-tabs, .page-list'),
+      )
       .filter((element) => element.getBoundingClientRect().right > innerWidth + 1)
       .slice(0, 3)
       .map((element) => element.tagName + '.' + String(element.className).split(' ')[0]),

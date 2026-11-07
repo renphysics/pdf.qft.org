@@ -27,7 +27,13 @@ import {
 import { resetStage } from './page-view.js';
 import { documentFields, focusField } from './form-ui.js';
 import { selectItem, stopEditing } from './page-items.js';
-import { protectedDownload, renderTool, showSettingDefaults, unlockedDownload, updateProtectionStatus } from './tool-panel.js';
+import {
+  protectedDownload,
+  renderTool,
+  showSettingDefaults,
+  unlockedDownload,
+  updateProtectionStatus,
+} from './tool-panel.js';
 import { choosePage, chooseTool, formProblem, selectedIds, setSheet } from './pages.js';
 import { addImageFile, batch, change, documentChanged, recordView } from './app.js';
 
@@ -174,20 +180,29 @@ export function exportNotes(notes, { several = false } = {}) {
   const reasons = [
     notes.includes('pdfa-removed-password') && 'PDF/A files can’t have a password',
     notes.includes('pdfa-removed') && 'added text and marks don’t meet PDF/A rules',
-    notes.includes('pdfa-removed-properties') && 'changing its details removes the metadata that declares PDF/A',
+    notes.includes('pdfa-removed-properties') &&
+      'changing its details removes the metadata that declares PDF/A',
   ].filter(Boolean);
   const left = [
     notes.includes('labels-dropped') && 'page labels (such as i, ii, iii)',
     notes.includes('attachments-dropped') && 'attached files',
     notes.includes('tags-dropped') && 'accessibility tags',
   ].filter(Boolean);
-  let text = reasons.length ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.' : '';
+  let text = reasons.length
+    ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.'
+    : '';
   if (left.length) {
     const list = left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left.at(-1) : left[0];
-    text += (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') + ', without the original’s ' + list + '.';
+    text +=
+      (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') +
+      ', without the original’s ' +
+      list +
+      '.';
   }
   if (notes.includes('signature-invalid'))
-    text += ' The original was digitally signed: its signature isn’t valid in ' + (several ? 'these copies.' : 'this copy.');
+    text +=
+      ' The original was digitally signed: its signature isn’t valid in ' +
+      (several ? 'these copies.' : 'this copy.');
   return text;
 }
 export async function downloadDocument() {
@@ -252,7 +267,7 @@ export function showInfo(kind) {
       '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><p>Passwords are used only in this tab: to open a protected PDF, and to protect your download. They are never saved, not even in presets. Your signature is kept in this browser only if you choose “Keep it on this device”; unticking it removes it.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
   if (kind === 'help')
     content.innerHTML =
-      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, drawings, watermarks, headers, footers, and page numbers. Fill in PDF forms. Merge PDFs or reorder, reverse, rotate, delete, crop, extract, and split their pages, interleave a double-sided scan, and add blank pages or margins. Put 2 or 4 pages on each sheet for handouts. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete Pages &amp; Crop PDF</h3><p>Delete Pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Signatures</h3><p>With Sign PDF, draw your signature, type your name in a handwriting style, or upload a picture of it. Click the page to place it, or add it to every page; drag it to move it and a corner to resize it. It is a picture of your signature, not a certificate-based digital signature.</p><h3>Forms</h3><p>With Fill form, click a field to type in it, or tick its box; Tab moves to the next field. Your download keeps the fields fillable, or turn on Flatten fields on download to make your answers part of the pages. Calculations built into a form don’t run, and forms made only in Adobe’s XFA format can’t be filled.</p><h3>Drawing</h3><p>With Draw, drag on the page to draw with the pen, or choose a line, an arrow, a rectangle or an ellipse. Each stroke is one undo step. Select a drawing to move it, resize it, or change its color and line width. On a touch screen, one finger draws and two fingers scroll.</p><h3>Properties</h3><p>Properties shows the title, author, subject, keywords and language saved in your PDF. Change them, or choose Remove all before you share the file: it also removes which app made the PDF and when. The language stays, because screen readers need it.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). JPG and PNG pictures open as pages (JPG to PDF); PDF to JPG saves pages as pictures. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. To combine, remove, extract or split pages of a PDF with form fields, first turn on Flatten fields on download in Fill form.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Japanese kanji and Traditional Chinese characters use the font’s Simplified Chinese shapes, so some of them look slightly different. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
+      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, drawings, watermarks, headers, footers, and page numbers. Fill in PDF forms. Merge PDFs or reorder, reverse, rotate, delete, crop, extract, and split their pages, interleave a double-sided scan, and add blank pages or margins. Put 2 or 4 pages on each sheet for handouts. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete pages &amp; Crop PDF</h3><p>Delete pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Signatures</h3><p>With Sign PDF, draw your signature, type your name in a handwriting style, or upload a picture of it. Click the page to place it, or add it to every page; drag it to move it and a corner to resize it. It is a picture of your signature, not a certificate-based digital signature.</p><h3>Forms</h3><p>With Fill form, click a field to type in it, or tick its box; Tab moves to the next field. Your download keeps the fields fillable, or turn on Flatten fields on download to make your answers part of the pages. Calculations built into a form don’t run, and forms made only in Adobe’s XFA format can’t be filled.</p><h3>Drawing</h3><p>With Draw, drag on the page to draw with the pen, or choose a line, an arrow, a rectangle or an ellipse. Each stroke is one undo step. Select a drawing to move it, resize it, or change its color and line width. On a touch screen, one finger draws and two fingers scroll.</p><h3>Document properties</h3><p>Document properties shows the title, author, subject, keywords and language saved in your PDF. Change them, or choose Remove all before you share the file: it also removes which app made the PDF and when. The language stays, because screen readers need it.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). JPG and PNG pictures open as pages (JPG to PDF); PDF to JPG saves pages as pictures. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. To combine, remove, extract or split pages of a PDF with form fields, first turn on Flatten fields on download in Fill form.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Japanese kanji and Traditional Chinese characters use the font’s Simplified Chinese shapes, so some of them look slightly different. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
   $('#info-dialog').showModal();
 }
 
@@ -361,7 +376,7 @@ async function openWithPassword(name, bytes, several) {
   }));
 }
 /** What to say once files are open: protection kept or removed, files skipped. */
-function openedMessage(sources, { added, kept, skipped }) {
+function openedMessage(sources, { added, kept, skipped, shown = null }) {
   const withPassword = sources.some((source) => source.protection === 'password'),
     limited = sources.some((source) => source.protection === 'owner'),
     pictures = sources.filter((source) => source.picture).length,
@@ -392,6 +407,7 @@ function openedMessage(sources, { added, kept, skipped }) {
         (skipped.length === 1 ? ' wasn’t' : ' weren’t') +
         ' opened.',
     );
+  if (shown) parts.push(shown);
   return parts.join(' ');
 }
 /** A picture file as a one-page source; it keeps the picture to lay the page out again. */
@@ -429,7 +445,10 @@ export async function relayoutPictures() {
           if (!source) return page;
           // Added margins keep their size in points on the new page (crops stay fractions).
           const before = state.sources.find((s) => s.id === page.sourceId)?.pages[page.index]?.box;
-          const crop = before && source.pages[page.index] ? rescaledMargins(page.crop, before, source.pages[page.index].box) : page.crop;
+          const crop =
+            before && source.pages[page.index]
+              ? rescaledMargins(page.crop, before, source.pages[page.index].box)
+              : page.crop;
           return { ...page, sourceId: source.id, crop };
         });
       },
@@ -573,12 +592,13 @@ export async function openFiles(files, append = false) {
       if (phone()) setSheet(!['text', 'highlight', 'draw'].includes(ui.tool));
       showWorkspace();
       documentChanged(true);
-      // Opened on Watermark or Page numbers: theirs show at once.
-      showSettingDefaults();
+      // Opened on Watermark or Page numbers: theirs show at once, and the
+      // opened message says so.
+      const shown = showSettingDefaults({ notice: false });
       renderTool();
       ui.focusKey = '#document-name';
       recordView('editor');
-      toast(openedMessage(sources, { added: 0, kept: keep, skipped }));
+      toast(openedMessage(sources, { added: 0, kept: keep, skipped, shown }));
     }
   } catch (error) {
     toast(friendly(error), true);

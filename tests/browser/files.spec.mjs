@@ -1,14 +1,36 @@
 // PDF/A files and password-protected PDFs, opened, edited and downloaded.
 import {
-  test, expect, fixture, openFiles, ready, useTool, toastText, download, pdfText, opensWith, writeTemporary, PDFLib,
+  test,
+  expect,
+  fixture,
+  openFiles,
+  ready,
+  useTool,
+  toastText,
+  download,
+  pdfText,
+  opensWith,
+  writeTemporary,
+  PDFLib,
 } from './helpers.mjs';
 
 /** A one-page PDF that declares PDF/A-1b in its XMP metadata, saved without object streams. */
 async function pdfaFile() {
   const pdf = await PDFLib.PDFDocument.create();
-  pdf.addPage([400, 300]).drawText('Archived page', { x: 40, y: 200, size: 18, font: await pdf.embedFont(PDFLib.StandardFonts.Helvetica) });
-  const xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
-  pdf.catalog.set(PDFLib.PDFName.of('Metadata'), pdf.context.register(pdf.context.stream(new TextEncoder().encode(xmp), { Type: 'Metadata', Subtype: 'XML' })));
+  pdf.addPage([400, 300]).drawText('Archived page', {
+    x: 40,
+    y: 200,
+    size: 18,
+    font: await pdf.embedFont(PDFLib.StandardFonts.Helvetica),
+  });
+  const xmp =
+    '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
+  pdf.catalog.set(
+    PDFLib.PDFName.of('Metadata'),
+    pdf.context.register(
+      pdf.context.stream(new TextEncoder().encode(xmp), { Type: 'Metadata', Subtype: 'XML' }),
+    ),
+  );
   return writeTemporary('archive-pdfa1.pdf', await pdf.save({ useObjectStreams: false }));
 }
 const dialog = (page) => page.locator('#password-dialog');
@@ -25,7 +47,9 @@ test('a PDF/A-1 file downloads, and stops claiming PDF/A once content is added',
   expect(await toastText(page)).toContain('no longer marked as PDF/A');
 });
 
-test('asks for the password, keeps asking while it is wrong, and keeps it for the download', async ({ page }) => {
+test('asks for the password, keeps asking while it is wrong, and keeps it for the download', async ({
+  page,
+}) => {
   await page.goto('./');
   await page.setInputFiles('#file-input', fixture('password-aes128.pdf'));
   await expect(dialog(page)).toBeVisible();
@@ -45,7 +69,9 @@ test('asks for the password, keeps asking while it is wrong, and keeps it for th
   await expect(dialog(page)).toBeHidden();
   expect(await toastText(page)).toContain('keep the same password');
   await expect(page.locator('#download-button use')).toHaveAttribute('href', '#i-lock');
-  await expect(page.locator('#download-button')).toHaveAccessibleName('Download PDF (protected with a password)');
+  await expect(page.locator('#download-button')).toHaveAccessibleName(
+    'Download PDF (protected with a password)',
+  );
 
   const kept = await download(page, () => page.click('#download-button'));
   expect(kept.name).toBe('password-aes128-protected.pdf');
@@ -88,7 +114,9 @@ test('Protect PDF sets a new password, also for split parts', async ({ page }) =
   expect((await pdfText(part.bytes, 'Grüße 1'))[0]).toContain('ROTATION 0');
 });
 
-test('a PDF that only restricts changes opens without asking, and its limits are not kept', async ({ page }) => {
+test('a PDF that only restricts changes opens without asking, and its limits are not kept', async ({
+  page,
+}) => {
   await openFiles(page, fixture('owner-only-aes256.pdf'), 'add-page-numbers-to-pdf/');
   await expect(dialog(page)).toBeHidden();
   expect(await toastText(page)).toContain('limits on printing, copying or changes');
@@ -113,7 +141,11 @@ test('Cancel and Escape open nothing, and the next file asks again', async ({ pa
 
 test('opening several files skips the one whose password is not given', async ({ page }) => {
   await page.goto('merge-pdf/');
-  await page.setInputFiles('#file-input', [fixture('rotated-cropped.pdf'), fixture('password-rc4.pdf'), fixture('owner-only-aes256.pdf')]);
+  await page.setInputFiles('#file-input', [
+    fixture('rotated-cropped.pdf'),
+    fixture('password-rc4.pdf'),
+    fixture('owner-only-aes256.pdf'),
+  ]);
   await expect(page.locator('#password-cancel')).toHaveText('Skip this file');
   await page.click('#password-cancel');
   await ready(page);
@@ -141,7 +173,13 @@ test('a page whose PDF sets a larger unit (UserUnit) shows whole', async ({ page
   sheet.drawRectangle({ x: 300, y: 0, width: 100, height: 100, color: PDFLib.rgb(0, 0, 0) });
   await openFiles(page, await writeTemporary('user-unit.pdf', await pdf.save()));
   const canvas = page.locator('.page-view.current canvas');
-  const red = (x, y) => canvas.evaluate((node, [x, y]) => node.getContext('2d').getImageData(Math.floor(node.width * x), Math.floor(node.height * y), 1, 1).data[0], [x, y]);
+  const red = (x, y) =>
+    canvas.evaluate(
+      (node, [x, y]) =>
+        node.getContext('2d').getImageData(Math.floor(node.width * x), Math.floor(node.height * y), 1, 1)
+          .data[0],
+      [x, y],
+    );
   expect(await red(0.9, 0.9), 'the corner square').toBeLessThan(60);
   expect(await red(0.6, 0.9), 'beside the square').toBeGreaterThan(200);
   expect(await red(0.25, 0.25), 'the top left').toBeGreaterThan(200);
@@ -150,8 +188,12 @@ test('a page whose PDF sets a larger unit (UserUnit) shows whole', async ({ page
 test('the download says what a copy leaves out, and that a signature no longer holds', async ({ page }) => {
   // Roman page labels for the first page, and tags: deleting a page copies the others into a new PDF.
   const labelled = await PDFLib.PDFDocument.create();
-  for (const text of ['Contents', 'Chapter 1', 'Chapter 2']) labelled.addPage([400, 300]).drawText(text, { x: 40, y: 200, size: 18 });
-  labelled.catalog.set(PDFLib.PDFName.of('PageLabels'), labelled.context.obj({ Nums: [0, { S: 'r' }, 1, { S: 'D' }] }));
+  for (const text of ['Contents', 'Chapter 1', 'Chapter 2'])
+    labelled.addPage([400, 300]).drawText(text, { x: 40, y: 200, size: 18 });
+  labelled.catalog.set(
+    PDFLib.PDFName.of('PageLabels'),
+    labelled.context.obj({ Nums: [0, { S: 'r' }, 1, { S: 'D' }] }),
+  );
   labelled.catalog.set(PDFLib.PDFName.of('StructTreeRoot'), labelled.context.obj({ Type: 'StructTreeRoot' }));
   await openFiles(page, await writeTemporary('labelled.pdf', await labelled.save()));
   await useTool(page, 'delete');
@@ -159,18 +201,41 @@ test('the download says what a copy leaves out, and that a signature no longer h
   await page.locator('[data-page-select]').nth(0).check();
   await page.click('[data-action="delete-pages"]');
   await download(page, () => page.click('#download-button'));
-  expect(await toastText(page)).toBe('Your edited PDF has been downloaded. Its pages were copied into a new PDF, without the original’s page labels (such as i, ii, iii) and accessibility tags.');
+  expect(await toastText(page)).toBe(
+    'Your edited PDF has been downloaded. Its pages were copied into a new PDF, without the original’s page labels (such as i, ii, iii) and accessibility tags.',
+  );
 
   // A signed PDF: any download changes the file its signature covers.
   const signed = await PDFLib.PDFDocument.create();
   const sheet = signed.addPage([400, 300]);
   sheet.drawText('Signed agreement', { x: 40, y: 200, size: 18 });
   const { context } = signed;
-  const value = context.register(context.obj({ Type: 'Sig', Filter: 'Adobe.PPKLite', SubFilter: 'adbe.pkcs7.detached', ByteRange: [0, 10, 20, 30], Contents: PDFLib.PDFHexString.of('00') }));
-  const field = context.register(context.obj({ Type: 'Annot', Subtype: 'Widget', FT: 'Sig', T: PDFLib.PDFString.of('Signature1'), Rect: [0, 0, 0, 0], F: 132, P: sheet.ref, V: value }));
+  const value = context.register(
+    context.obj({
+      Type: 'Sig',
+      Filter: 'Adobe.PPKLite',
+      SubFilter: 'adbe.pkcs7.detached',
+      ByteRange: [0, 10, 20, 30],
+      Contents: PDFLib.PDFHexString.of('00'),
+    }),
+  );
+  const field = context.register(
+    context.obj({
+      Type: 'Annot',
+      Subtype: 'Widget',
+      FT: 'Sig',
+      T: PDFLib.PDFString.of('Signature1'),
+      Rect: [0, 0, 0, 0],
+      F: 132,
+      P: sheet.ref,
+      V: value,
+    }),
+  );
   sheet.node.set(PDFLib.PDFName.of('Annots'), context.obj([field]));
   signed.catalog.set(PDFLib.PDFName.of('AcroForm'), context.obj({ Fields: [field], SigFlags: 3 }));
   await openFiles(page, await writeTemporary('signed.pdf', await signed.save()));
   await download(page, () => page.click('#download-button'));
-  expect(await toastText(page)).toBe('Your edited PDF has been downloaded. The original was digitally signed: its signature isn’t valid in this copy.');
+  expect(await toastText(page)).toBe(
+    'Your edited PDF has been downloaded. The original was digitally signed: its signature isn’t valid in this copy.',
+  );
 });

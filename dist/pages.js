@@ -27,7 +27,7 @@ import {
 import { renderEditLayers, renderStage, scrollToPage, updateCurrentPage } from './page-view.js';
 import { sourceOf } from './form-ui.js';
 import { endGesture, stopEditing } from './page-items.js';
-import { renderTool, showSettingDefaults, updateDeletionMarks } from './tool-panel.js';
+import { fillForm, renderTool, showSettingDefaults, updateDeletionMarks } from './tool-panel.js';
 import { change, recordView } from './app.js';
 import { interleaveOrder } from './workflows.js';
 
@@ -359,7 +359,28 @@ export function chooseTool(tool) {
   endGesture();
   if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
   ui.tool = tool;
-  showSettingDefaults();
+  // Watermark and Page numbers show their defaults when chosen. Arrowing through
+  // the menu to see what there is changes the tool with every key; then they
+  // wait until focus leaves the menu, so looking at a tool does not edit the
+  // document.
+  const menu = $('#tool-select');
+  if (performance.now() - ui.menuTraversal < 1000 && document.activeElement === menu) {
+    if (!ui.defaultsOnBlur) {
+      ui.defaultsOnBlur = true;
+      menu.addEventListener(
+        'blur',
+        () => {
+          ui.defaultsOnBlur = false;
+          // Leaving the editor (Back) blurs the menu too; nothing was settled on then.
+          if ($('#workspace').hidden) return;
+          showSettingDefaults();
+          // The panel was drawn before the setting existed: its switch catches up.
+          fillForm();
+        },
+        { once: true },
+      );
+    }
+  } else showSettingDefaults();
   if (tool === 'crop') ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
   if (phone()) setSheet(true);
   renderTool();

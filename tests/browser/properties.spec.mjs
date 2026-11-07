@@ -53,7 +53,9 @@ test('Remove all keeps only the language, and undo brings the details back', asy
   await openSample(page, 'edit-pdf-metadata/');
   await field(page, 'language').fill('en');
   await page.click('[data-action="properties-clear"]');
-  await expect(page.locator('#toast-message')).toHaveText('Details removed. Your download won’t include them.');
+  await expect(page.locator('#toast-message')).toHaveText(
+    'Details removed. Your download won’t include them.',
+  );
   await expect(field(page, 'title')).toHaveValue('');
   await expect(field(page, 'subject')).toHaveValue('');
   await expect(field(page, 'language')).toHaveValue('en');
