@@ -175,6 +175,25 @@ export function pageGeometry(source, descriptor) {
 }
 
 /**
+ * The crop of a page whose source box changes from `from` to `to` ({ width,
+ * height }), with its added margins the same size in points (they were typed in
+ * millimetres) and its crop and content the same fractions of the page. An edge
+ * has an added margin where its crop margin is below its content margin.
+ */
+export function rescaledMargins(crop, from, to) {
+  if (!crop?.content) return crop;
+  const turned = rotation(crop.rotation || 0) % 180 !== 0;
+  const size = (box) => ({ left: turned ? box.height : box.width, right: turned ? box.height : box.width, top: turned ? box.width : box.height, bottom: turned ? box.width : box.height });
+  const before = size(from), after = size(to);
+  const next = { ...crop };
+  for (const edge of ['left', 'top', 'right', 'bottom']) {
+    const content = Number(crop.content[edge] ?? 0), value = Number(crop[edge] ?? 0);
+    if (value < content) next[edge] = content - ((content - value) * before[edge]) / after[edge];
+  }
+  return next;
+}
+
+/**
  * Where a page shows its source's content, in user space: its source's visible
  * box, or the part of it recorded when margins were added (crop.content).
  * Added margins outside it are blank.

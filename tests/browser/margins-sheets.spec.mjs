@@ -1,5 +1,5 @@
 // Add margins and Pages per sheet (tests/QA-CHECKLIST.md).
-import { test, expect, openSample, openFiles, useTool, toastText, download, pdfText, previewDifference, writeTemporary, PDFLib } from './helpers.mjs';
+import { test, expect, openSample, openFiles, ready, useTool, toastText, download, pdfText, previewDifference, writeTemporary, PDFLib } from './helpers.mjs';
 
 const MM = 72 / 25.4;
 const size = async (bytes, index = 0) => {
@@ -56,15 +56,21 @@ test('added margins are blank, in the preview as in the download', async ({ page
   for (const [edge, value] of [['marginTop', '15'], ['marginLeft', '25'], ['marginRight', '40']]) await page.fill(`#tool-form [name="${edge}"]`, value);
   await page.click('#tool-form [type="submit"]');
   await expect(page.locator('#toast-message')).toHaveText('Margins added to the page.');
-  const red = () =>
+  // Pixels of the drawn page: red (the square) and dark (the text).
+  const pixels = () =>
     page.locator('.page-view.current canvas').evaluate((canvas) => {
       const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-      let count = 0;
-      for (let index = 0; index < data.length; index += 4) if (data[index] > 200 && data[index + 1] < 80 && data[index + 2] < 80) count++;
-      return count;
+      let red = 0, dark = 0;
+      for (let index = 0; index < data.length; index += 4) {
+        if (data[index] > 200 && data[index + 1] < 80 && data[index + 2] < 80) red++;
+        if (data[index] < 100 && data[index + 1] < 100 && data[index + 2] < 100) dark++;
+      }
+      return { red, dark };
     });
-  await expect.poll(async () => (await page.locator('.page-view.current').boundingBox()).width).toBeGreaterThan(0);
-  await expect.poll(red).toBe(0);
+  await ready(page);
+  const drawn = await pixels();
+  expect(drawn.dark, 'the text is drawn').toBeGreaterThan(50);
+  expect(drawn.red, 'the square the CropBox hid stays hidden in the margin').toBe(0);
   const { bytes } = await download(page, () => page.click('#download-button'));
   // (This hides notices for the rest of the test.)
   expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.003);

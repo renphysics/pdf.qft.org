@@ -4,6 +4,7 @@
  */
 
 import { buildPdfWithNotes, imagesToPdf, loadPdfLib, openPdf, passwordProblem } from './pdf-engine.js';
+import { rescaledMargins } from './layout.js';
 import { isPicture, pictureForPage } from './convert.js';
 import { closeDocuments, loadPdfjs, previewFont } from './preview.js';
 import {
@@ -423,9 +424,14 @@ export async function relayoutPictures() {
     change(
       () => {
         state.sources = [...state.sources.filter((s) => !replaced.has(s.id)), ...replaced.values()];
-        state.pages = state.pages.map((page) =>
-          replaced.has(page.sourceId) ? { ...page, sourceId: replaced.get(page.sourceId).id } : page,
-        );
+        state.pages = state.pages.map((page) => {
+          const source = replaced.get(page.sourceId);
+          if (!source) return page;
+          // Added margins keep their size in points on the new page (crops stay fractions).
+          const before = state.sources.find((s) => s.id === page.sourceId)?.pages[page.index]?.box;
+          const crop = before && source.pages[page.index] ? rescaledMargins(page.crop, before, source.pages[page.index].box) : page.crop;
+          return { ...page, sourceId: source.id, crop };
+        });
       },
       { layout: true },
     );

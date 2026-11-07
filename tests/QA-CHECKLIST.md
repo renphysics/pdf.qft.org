@@ -534,4 +534,13 @@ source review does not replace the owner’s browser verification.
   cards, menu entries and tabs; axe finds no violations in either panel.
 - Known limits: links and comments are not on the sheets; margins can make a page
   at most 14,400 points (5 m) on a side.
-
+- Review (four reviewers, one skeptic per finding), fixed before merging: with
+  "Flatten fields on download" on, pdf-lib keeps drawing into the stream it made
+  for the flattened fields, which the margin clip wrapped, so page numbers and edits
+  in the margins vanished from the download (engine test with a text field, both
+  ways; fails without the fix); the "crop hid" engine check could not fail (a blue
+  square inside the CropBox but outside the content area now must stay hidden);
+  margins on picture pages kept their fraction, not their millimetres, when the
+  picture layout changed (`rescaledMargins`, unit test); the tablet and phone
+  layout tests now include both panels; the preview check waits for the drawing
+  and checks the text is drawn before asserting the square is not.

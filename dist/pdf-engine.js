@@ -1177,6 +1177,11 @@ function addBlankMargins(page, content, box) {
   const start = context.register(context.contentStream([lib.pushGraphicsState(), lib.rectangle(content.x, content.y, content.width, content.height), lib.clip(), lib.endPath()]));
   const end = context.register(context.contentStream([lib.popGraphicsState()]));
   page.node.wrapContentStreams(start, end);
+  // pdf-lib draws into a stream it keeps on the page once one exists (flattened
+  // fields make one), and that stream is now inside the clip: what is drawn from
+  // here on (the edits, page numbers, headers and footers, also in the margins)
+  // goes into a new stream after the clip ends.
+  page.getContentStream(false);
   const media = page.getMediaBox();
   const left = Math.min(media.x, box.x), bottom = Math.min(media.y, box.y);
   page.setMediaBox(left, bottom, Math.max(media.x + media.width, box.x + box.width) - left, Math.max(media.y + media.height, box.y + box.height) - bottom);
