@@ -11,13 +11,29 @@ export const fixture = (name) => path.join(root, 'tests/fixtures', name);
 export const PDFLib = require('@cantoo/pdf-lib');
 export { expect };
 
-/** Every test fails on an uncaught error in the page. */
+/**
+ * Every test fails on an uncaught error in the page, and on a content security
+ * policy violation: the page reports one through the console (an inline style,
+ * a blob: worker, a data: font would each be one).
+ */
 export const test = base.extend({
   page: async ({ page }, use) => {
-    const errors = [];
+    const errors = [],
+      violations = [];
     page.on('pageerror', (error) => errors.push(String(error)));
+    await page.addInitScript(() => {
+      document.addEventListener('securitypolicyviolation', (event) => {
+        console.error(
+          `CSP violation: ${event.violatedDirective} blocked ${event.blockedURI || 'inline'} at ${event.sourceFile}:${event.lineNumber}`,
+        );
+      });
+    });
+    page.on('console', (message) => {
+      if (message.text().startsWith('CSP violation:')) violations.push(message.text());
+    });
     await use(page);
     expect(errors, 'uncaught errors in the page').toEqual([]);
+    expect(violations, 'content security policy violations').toEqual([]);
   },
 });
 
@@ -139,8 +155,11 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
     .nth(pageNumber - 1)
     .click();
   await ready(page);
-  await page.addStyleTag({
-    content: '.edit-layer, .toast, .stage-caption { visibility: hidden !important; }',
+  // Hidden with a constructed stylesheet: an inline <style> would break the content security policy.
+  await page.evaluate(() => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync('.edit-layer, .toast, .stage-caption { visibility: hidden !important; }');
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   });
   const preview = (await page.locator('.page-view.current').screenshot()).toString('base64');
   return page.evaluate(

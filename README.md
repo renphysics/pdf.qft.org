@@ -86,6 +86,16 @@ GitHub Pages ignores `_headers`; the HTML therefore also provides its content
 security policy and referrer policy through supported meta tags. `_headers`
 remains available for hosts that support that format.
 
+The content security policy allows only the site's own scripts, styles,
+fonts, workers and connections (plus WebAssembly, and `data:` and `blob:`
+images: the CSS icons and object URLs for pictures), and no frames or media:
+there is no inline style or script, fonts come as bytes, and the PDF.js and
+export workers are files. Every browser test fails on a policy violation, and
+`tests/browser/hostile.spec.mjs` opens a PDF whose title, author, creator,
+producer, field names, labels, options and bookmark carry HTML and script
+(`scripts/make-hostile-fixture.mjs`), with a hostile file name and image name,
+and checks that nothing runs or is injected in any panel that shows them.
+
 The large CJK font is stored losslessly as two chunks under `vendor/fonts/` to
 stay within the repository upload API's request limit. `prepare-assets.mjs`
 verifies both chunks and the complete SHA-256, then reconstructs the original

@@ -631,3 +631,16 @@ source review does not replace the owner’s browser verification.
   44 px inside the stage with the sheet folded, Tab keeps the next field in
   view, a check box toggles from a tap, and Fit returns. Desktop: the zoom stays
   at Fit (forms test guard).
+- The content security policy no longer allows inline styles, `data:` or
+  `blob:` fonts or `blob:` workers, and forbids frames and media (the app uses
+  none of them; the licenses page, which has an inline style block and no
+  scripts, keeps its own policy). Every browser test now fails on a policy
+  violation, reported from a `securitypolicyviolation` listener through the
+  console; the preview comparison hides the edit layer with a constructed
+  stylesheet instead of an inline one. `tests/fixtures/hostile-metadata.pdf`
+  (made by `scripts/make-hostile-fixture.mjs`) carries HTML and script in its
+  title, author, creator, producer, field names, labels, options and bookmark,
+  an OpenAction and a `javascript:` link; the hostile test opens it under a
+  hostile file name on the Fill form page, adds a hostilely named image, and
+  visits Fill form, Document properties, Merge PDFs, Organize pages, Add an
+  image, the download name and the batch list: no flag set, nothing injected.
