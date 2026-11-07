@@ -53,7 +53,35 @@ test('a font is downloaded once and then comes from Cache Storage, even when the
   await page.keyboard.type('Déjà vu');
   await page.keyboard.press('Escape');
   await expect(page.locator('.page-view.current .page-overlay')).toContainText('Déjà vu');
-  await expect(page.locator('#toast-message')).not.toContainText('could not be loaded');
+  await expect(page.locator('#panel-problems')).not.toContainText('could not be loaded');
+});
+
+test('a 200 response that is not the font (a captive portal page) is neither drawn with nor kept', async ({
+  page,
+}) => {
+  const portal = (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><title>Sign in to the network</title>',
+    });
+  await page.route('**/assets/fonts/NotoSans-Regular.ttf*', portal);
+  await openSample(page, 'add-text-to-pdf/');
+  await page.click('[data-action="add-text"]');
+  await page.keyboard.type('Café');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#panel-problems')).toContainText('could not be loaded');
+  const keys = () => page.evaluate(async () => (await (await caches.open('qft-fonts')).keys()).length);
+  expect(await keys()).toBe(0);
+  // Once the network serves the font again (a later visit), it loads and is kept.
+  await page.unroute('**/assets/fonts/NotoSans-Regular.ttf*', portal);
+  await openSample(page, 'add-text-to-pdf/');
+  await page.click('[data-action="add-text"]');
+  await page.keyboard.type('Déjà vu');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.page-view.current .page-overlay')).toContainText('Déjà vu');
+  await expect(page.locator('#panel-problems')).not.toContainText('could not be loaded');
+  await expect.poll(keys).toBe(1);
 });
 
 test('builds downloads on the page where module workers are missing', async ({ page }) => {

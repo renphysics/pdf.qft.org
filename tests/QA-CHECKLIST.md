@@ -576,4 +576,13 @@ source review does not replace the owner’s browser verification.
   parallel) instead of repeating its steps.
 - Prettier is a dev dependency with `.prettierrc`; `npm run check` fails on
   unformatted files; the whole tree was formatted once (`.git-blame-ignore-revs`).
+- From the adversarial review of this PR: the panel's switch follows a deferred
+  show (it said off while the watermark was on, and clicking it hid the
+  watermark); leaving the editor with Back while arrowed onto a tool changes
+  nothing; on the Watermark and Page numbers pages the opened message carries
+  the notice; the help dialog uses the registry's names. A font is kept in Cache
+  Storage only when its bytes hash to the version in its URL, so a captive
+  portal's page (a 200 with HTML) is neither drawn with nor kept (release test);
+  the release stamp says to run prepare-assets when the CJK font is missing, and
+  the release test server runs it first.
 

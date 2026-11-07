@@ -756,8 +756,9 @@ export function fontFile(kind) {
  * copy of the site), or where Cache Storage is unavailable, it is fetched as usual.
  */
 async function fetchFont(url) {
+  const version = new URLSearchParams(url.search).get('v');
   const store =
-    /[?&]v=[0-9a-f]{12}$/.test(url.search) && typeof caches !== 'undefined'
+    /^[0-9a-f]{12}$/.test(version || '') && typeof caches !== 'undefined'
       ? await caches.open('qft-fonts').catch(() => null)
       : null;
   const cached = store && (await store.match(url.href).catch(() => null));
@@ -766,16 +767,32 @@ async function fetchFont(url) {
   if (!response.ok) throw new Error('font fetch');
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (store) {
-    // Only this version of the font is kept.
-    const stale = (await store.keys().catch(() => [])).filter(
-      (request) => new URL(request.url).pathname === url.pathname,
-    );
-    await Promise.all(stale.map((request) => store.delete(request))).catch(() => {});
-    await store
-      .put(url.href, new Response(bytes.slice(), { headers: { 'Content-Length': String(bytes.length) } }))
-      .catch(() => {});
+    // Only bytes that are the version the URL names are used and kept: a
+    // captive portal or a proxy can answer 200 with a page of its own, and a
+    // cut-off download is short. Neither may be drawn with or stay in the cache.
+    const actual = await versionOf(bytes);
+    if (actual && actual !== version) throw new Error('font fetch');
+    if (actual) {
+      // Only this version of the font is kept.
+      const stale = (await store.keys().catch(() => [])).filter(
+        (request) => new URL(request.url).pathname === url.pathname,
+      );
+      await Promise.all(stale.map((request) => store.delete(request))).catch(() => {});
+      await store
+        .put(url.href, new Response(bytes.slice(), { headers: { 'Content-Length': String(bytes.length) } }))
+        .catch(() => {});
+    }
   }
   return bytes;
+}
+
+/** The version the release stamp gives a file: the first 12 hex digits of its SHA-256. Null where hashing is unavailable. */
+async function versionOf(bytes) {
+  if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+  const digest = await crypto.subtle.digest('SHA-256', bytes).catch(() => null);
+  return (
+    digest && Array.from(new Uint8Array(digest, 0, 6), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  );
 }
 
 async function getFontBytes(kind) {

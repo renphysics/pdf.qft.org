@@ -48,7 +48,13 @@ if (Object.values(sources).some((text) => /\?v=[0-9a-f]{10,}/.test(text))) {
   throw new Error(`${site} is already stamped. Run this once, on a fresh copy of the site.`);
 }
 const release = sha256(FIRST_PARTY.map((name) => `${name}\0${sources[name]}`).join('\0')).slice(0, 12);
-const hashOf = async (file) => sha256(await readFile(path.join(site, file))).slice(0, 12);
+const hashOf = async (file) =>
+  sha256(
+    await readFile(path.join(site, file)).catch(() => {
+      // The CJK font is assembled by scripts/prepare-assets.mjs; it is not in the repository.
+      throw new Error(`${file} is missing from ${site}. Run node scripts/prepare-assets.mjs first.`);
+    }),
+  ).slice(0, 12);
 const engine = (file) => hashOf(`assets/vendor/${file}`);
 const pdfjs = await engine('pdf.mjs');
 const worker = await engine('pdf.worker.mjs');
