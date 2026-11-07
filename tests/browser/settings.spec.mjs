@@ -93,3 +93,29 @@ test('page numbers swap sides on even pages, for printing on both sides, and Bat
   await expect(page.locator('input[name="numbers-margin"]')).toHaveAttribute('min', '0');
   await expect(page.locator('input[name="footer-margin"]')).toHaveAttribute('min', '0');
 });
+
+test('arrowing through the tool menu does not turn settings on; settling on one does, with a notice', async ({ page }) => {
+  await openSample(page);
+  const menu = page.locator('#tool-select');
+  await menu.focus();
+  // Down past Watermark and Page numbers and back: nothing changed.
+  const count = await menu.evaluate((select) => select.options.length);
+  for (let step = 1; step < count; step++) await page.keyboard.press('ArrowDown');
+  for (let step = 1; step < count; step++) await page.keyboard.press('ArrowUp');
+  await expect(menu).toHaveValue('text');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#undo-button')).toBeDisabled();
+  await expect(overlay(page)).not.toContainText('DRAFT');
+  await expect(overlay(page)).not.toContainText('Page 1 of 3');
+  // Arrow to Page numbers and move on into the panel: now they show, and the notice says so.
+  await menu.focus();
+  const numbers = await menu.evaluate((select) => [...select.options].findIndex((option) => option.value === 'numbers'));
+  for (let step = 0; step < numbers; step++) await page.keyboard.press('ArrowDown');
+  await expect(menu).toHaveValue('numbers');
+  await expect(overlay(page)).not.toContainText('Page 1 of 3');
+  await page.keyboard.press('Tab');
+  await expect(overlay(page)).toContainText('Page 1 of 3');
+  await expect(page.locator('#toast-message')).toHaveText('Page numbers shown on every page. Undo takes them away.');
+  await expect(page.locator('#undo-button')).toBeEnabled();
+});
+

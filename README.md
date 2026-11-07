@@ -35,6 +35,14 @@ again only when it changes. `tests/release-stamp.test.mjs` keeps the script in
 step with the sources. No server, API keys, or external document-processing service
 is needed.
 
+The two text fonts are versioned the same way, and the app keeps them in Cache
+Storage under that URL (`fetchFont` in `pdf-engine.js`): GitHub Pages marks
+every file as changed by a deploy, so without this a returning visitor
+downloaded the 16 MB CJK font again after every deploy. The engine bundles
+(about 0.9 MB compressed) still follow the browser's cache: loading scripts
+from a cache of our own would need `blob:` scripts, which the content security
+policy forbids.
+
 1. Open repository **Settings → Pages**.
 2. Set **Build and deployment → Source** to **GitHub Actions**.
 3. Run **Deploy QFT PDF to GitHub Pages** from the **Actions** tab if the initial
@@ -87,22 +95,34 @@ Pages workflow performs this step automatically.
 
 ## Tool pages and addresses
 
-Every tool has its own address, such as `/merge-pdf/` or `/crop-pdf/`, listed in
-`dist/routes.js`. Each tool page is a complete copy of the app with its own
-title, description, heading, how-to, FAQ and structured data, so search engines
-and link previews see real content, and visitors land straight in that tool.
+Every tool is described once, in `TOOLS` in `dist/routes.js`: its id, the
+address of its page (such as `/merge-pdf/` or `/crop-pdf/`), its name (the tool
+menu, the panel's title and its card on the home page), its tab label on phones,
+its icon, and its card's copy, category, colour and search keywords. Each tool
+page is a complete copy of the app with its own title, description, heading,
+how-to, FAQ and structured data, so search engines and link previews see real
+content, and visitors land straight in that tool.
 
 The pages are generated, not edited by hand. `dist/index.html` is the template:
-`<!-- page:name -->` comments mark the regions a tool page replaces, and
-`scripts/pages/content.mjs` holds each page's copy. After changing either, run:
+`<!-- tools:cards -->`, `<!-- tools:menu -->` and `<!-- tools:tabs -->` mark the
+regions written from `TOOLS` (the cards, the tool menu and the tab bar), and
+`<!-- page:name -->` comments mark the regions a tool page replaces from
+`scripts/pages/content.mjs`, which holds each page's copy. After changing any of
+them, run:
 
 ```sh
 npm run pages
 ```
 
-This rewrites `dist/<slug>/index.html` and `dist/sitemap.xml`. `npm test` fails if
-they are out of date, and checks every page's canonical address, metadata and
-FAQ data.
+This rewrites those regions of `dist/index.html`, `dist/<slug>/index.html` and
+`dist/sitemap.xml`. `npm test` fails if they are out of date, and checks every
+page's canonical address, metadata and FAQ data.
+
+To add a tool: add it to `TOOLS` (and an icon symbol to `index.html` if it needs
+a new one); add its page's copy to `scripts/pages/content.mjs`; add its panel's
+description in `editor-core.js` and its panel (fields, values, input and submit)
+in `tool-panel.js`, with any button actions in `app.js`; run `npm run pages`;
+add a browser test and a QA checklist entry.
 
 Inside a page, the editor and the batch workspace are browser history entries,
 so Back and Forward move between views, the address names the tool in use, and
@@ -135,7 +155,11 @@ shows it without building a PDF:
   footers, and page numbers update on every page as their settings change.
   Watermark and Page numbers show their defaults the first time they open for a
   document (one undo step; once undone or switched off, they stay off), and
-  Headers & footers is on until it is switched off. Edge margins go from 0 to
+  Headers & footers is on until it is switched off; a notice says what was
+  shown and that Undo takes it away. Arrowing through the tool menu with the
+  keyboard changes the tool with every key, so while the menu has focus, these
+  defaults wait until focus leaves it: looking at the tools does not edit the
+  document. Edge margins go from 0 to
   100 pt; a number typed out of range is set to the nearest value allowed.
   For printing on both sides, Swap left and right on even pages (headers and
   footers, page numbers, and their batch presets) puts what is on the right of
@@ -211,7 +235,8 @@ npm test
 ```
 
 The tests require Node.js 22.13 or newer and Python 3. `npm run check` validates
-the static distribution without installing dependencies. The PDF tests inspect
+the static distribution and that the code is formatted (`npm run format` applies
+Prettier, with the settings in `.prettierrc`). The PDF tests inspect
 exported text, geometry, numbering and ZIP contents independently, and check
 that the editor preview draws text where the export puts it. Set `PYTHON`
 if Python 3 has another executable name on your machine.
@@ -299,11 +324,13 @@ scrolling, swiping between pages; an iPhone in Chromium and in WebKit) and axe
 accessibility checks. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
-before every deployment, on Ubuntu 24.04 (pinned: `ubuntu-latest` became 26.04
-in November 2026, and its libsoup 3.6 rewrites spaces in download file names as
-underscores in WebKit, which the file-name checks catch); when one fails, the
-run keeps its screenshots, traces and HTML report for 14 days (an artifact on
-the run's summary page). Locally:
+before every deployment (the Pages workflow runs the Test workflow, so the
+engines run in parallel there too), on Ubuntu 24.04 (pinned: `ubuntu-latest`
+became 26.04 in November 2026, and its libsoup 3.6 rewrites spaces in download
+file names as underscores in WebKit, which the file-name checks catch); every
+job has a timeout; when a browser job fails, the run keeps its screenshots,
+traces and HTML report for 14 days (an artifact on the run's summary page).
+Locally:
 
 ```sh
 npm ci

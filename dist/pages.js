@@ -359,7 +359,24 @@ export function chooseTool(tool) {
   endGesture();
   if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
   ui.tool = tool;
-  showSettingDefaults();
+  // Watermark and Page numbers show their defaults when chosen. Arrowing through
+  // the menu to see what there is changes the tool with every key; then they
+  // wait until focus leaves the menu, so looking at a tool does not edit the
+  // document.
+  const menu = $('#tool-select');
+  if (performance.now() - ui.menuTraversal < 1000 && document.activeElement === menu) {
+    if (!ui.defaultsOnBlur) {
+      ui.defaultsOnBlur = true;
+      menu.addEventListener(
+        'blur',
+        () => {
+          ui.defaultsOnBlur = false;
+          showSettingDefaults();
+        },
+        { once: true },
+      );
+    }
+  } else showSettingDefaults();
   if (tool === 'crop') ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
   if (phone()) setSheet(true);
   renderTool();

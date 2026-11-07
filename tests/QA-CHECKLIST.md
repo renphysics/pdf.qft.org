@@ -544,3 +544,36 @@ source review does not replace the owner’s browser verification.
   picture layout changed (`rescaledMargins`, unit test); the tablet and phone
   layout tests now include both panels; the preview check waits for the drawing
   and checks the text is drawn before asserting the square is not.
+
+## From the quality evaluation: cache, menu, registry, tests, CI — 2026-11-07
+
+- Fonts outlive deploys: GitHub Pages serves every file with a ten-minute cache
+  and a deploy-time ETag, so after each deploy returning visitors downloaded the
+  engines and fonts again (13.6 MB compressed for the CJK font). The fonts now
+  carry a hash of their bytes in their URL and are kept in Cache Storage
+  (`fetchFont`); the release test checks the URLs, and a browser test on the
+  stamped site shows the second visit draws accented text with the font's network
+  route blocked. The engine bundles (0.9 MB) still re-download: a cache of our own
+  for scripts would need `blob:` scripts, which the CSP forbids.
+- Looking at the tool menu no longer edits the document: arrowing through
+  Watermark and Page numbers used to turn both on silently (two undo steps,
+  DRAFT in the download). While an arrow key moved through the menu and it keeps
+  focus, their defaults wait until focus leaves it; a notice says what was shown
+  and that Undo takes it away. Browser test in three engines.
+- One tool registry (`TOOLS` in routes.js) writes the cards, the tool menu and
+  the tab bar into index.html (`npm run pages`, checked by `npm test`) and names
+  the panels, so a tool's name is the same everywhere ("Organize pages", "Delete
+  pages", "Document properties", "Fill form"); keywords on every card and
+  every-word matching in the search ("combine", "remove pages", "handout").
+- Add image and Highlight downloads are tested: engine assertions on the image
+  XObject, the highlight's colour, fill and /Multiply blend at 30% (each fails
+  with the drawing removed); the editor's download-matches-preview test adds
+  both and compares pixels.
+- Forced colours (Windows High Contrast): switches and segmented controls draw
+  their state with system colours; checked in Chromium with emulated forced
+  colours.
+- CI: every job has a timeout; the deploy runs the Test workflow (engines in
+  parallel) instead of repeating its steps.
+- Prettier is a dev dependency with `.prettierrc`; `npm run check` fails on
+  unformatted files; the whole tree was formatted once (`.git-blame-ignore-revs`).
+

@@ -1,7 +1,10 @@
 /**
  * Generate one page per tool (dist/<slug>/index.html) and dist/sitemap.xml.
  *
- * Each tool page is the home page (dist/index.html) with its marked regions
+ * The home page's tool cards, the editor's tool menu and the phone's tab bar are
+ * written into index.html first, from the registry in dist/routes.js (between
+ * the tools:cards, tools:menu and tools:tabs comments), so a tool is described
+ * in one place. Each tool page is the home page (dist/index.html) with its marked regions
  * replaced from scripts/pages/content.mjs: metadata, hero, upload card, a how-to
  * and FAQ section, and the tools-grid heading. Everything else, including the
  * editor, dialogs and batch workspace, is shared, so the app works the same on
@@ -17,7 +20,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOL_PAGES } from '../dist/routes.js';
+import { TOOLS, TOOL_PAGES } from '../dist/routes.js';
 import { PAGES } from './pages/content.mjs';
 
 const ORIGIN = 'https://pdf.qft.org/';
@@ -55,6 +58,28 @@ const line = (block, pattern) => {
   if (!found) throw new Error(`index.html: no line matches ${pattern}`);
   return found;
 };
+
+/** The text between two inline comments, replaced. */
+function replaceBetween(html, name, content) {
+  const open = `<!-- tools:${name} -->`, close = `<!-- /tools:${name} -->`;
+  const start = html.indexOf(open), end = html.indexOf(close);
+  if (start < 0 || end < start) throw new Error(`index.html is missing the tools:${name} region.`);
+  return html.slice(0, start + open.length) + content + html.slice(end);
+}
+const svg = (icon) => `<svg class="icon" aria-hidden="true"><use href="#i-${icon}"/></svg>`;
+/** index.html with its cards, tool menu and tabs written from the registry (dist/routes.js). */
+function withTools(html) {
+  const cards = TOOLS.filter((item) => item.card).map((item) => {
+    const start = item.tab ? `data-start-tool="${item.id}"` : `data-action="${item.id}"`;
+    return `          <a class="tool-card" ${start} data-category="${item.category}" data-keywords="${escapeHtml(item.keywords || '')}" href="./${item.slug}/" data-card="${item.id}"><span class="tool-icon ${item.color}">${svg(item.icon)}</span><span class="tool-card-copy"><strong>${escapeHtml(item.title || item.name)}</strong><span>${escapeHtml(item.card[0])}<br> ${escapeHtml(item.card[1])}</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>`;
+  });
+  const menu = TOOLS.filter((item) => item.tab);
+  const options = menu.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
+  const tabs = menu.map((item) => `<button type="button" data-tool="${item.id}" aria-pressed="false">${svg(item.icon)}<span>${escapeHtml(item.tab)}</span></button>`).join('');
+  html = replaceBetween(html, 'cards', `\n${cards.join('\n')}\n        `);
+  html = replaceBetween(html, 'menu', options);
+  return replaceBetween(html, 'tabs', tabs);
+}
 
 function toolPage(template, page) {
   const slug = TOOL_PAGES[page.tool];
@@ -186,7 +211,7 @@ function toolPage(template, page) {
   return { file: `${slug}/index.html`, html, url };
 }
 
-const template = await readFile(path.join(site, 'index.html'), 'utf8');
+const template = withTools(await readFile(path.join(site, 'index.html'), 'utf8'));
 const outputs = PAGES.map((page) => toolPage(template, page));
 if (new Set(outputs.map((output) => output.file)).size !== outputs.length) throw new Error('Two pages share an address.');
 const sitemap = [
@@ -196,7 +221,7 @@ const sitemap = [
   '</urlset>',
   '',
 ].join('\n');
-const files = [...outputs.map(({ file, html }) => [file, html]), ['sitemap.xml', sitemap]];
+const files = [['index.html', template], ...outputs.map(({ file, html }) => [file, html]), ['sitemap.xml', sitemap]];
 
 const stale = [];
 for (const [file, content] of files) {
@@ -210,7 +235,7 @@ for (const [file, content] of files) {
   }
 }
 if (checkOnly && stale.length) {
-  console.error(`Generated pages are out of date: ${stale.join(', ')}.\nRun: node scripts/build-pages.mjs`);
+  console.error(`Generated pages are out of date: ${stale.join(', ')}.\nRun: npm run pages`);
   process.exit(1);
 }
 console.log(checkOnly ? `Tool pages are up to date (${outputs.length} pages and the sitemap).` : `Wrote ${outputs.length} tool pages and the sitemap.`);

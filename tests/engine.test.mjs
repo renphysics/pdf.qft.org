@@ -110,6 +110,23 @@ for (let i = 0; i < extracted.length; i++) {
   find(`Number ${i + 7}`);
   find('DRAFT');
 }
+// The picture and the highlight are drawn on every page: one image XObject, and a
+// filled rectangle in the highlight's colour, blended with /Multiply at 30% opacity.
+{
+  const { PDFName, decodePDFRawStream } = globalThis.PDFLib;
+  for (const [index, page] of loadedOutput.getPages().entries()) {
+  const resources = page.node.Resources();
+  assert.equal(resources.lookup(PDFName.of('XObject')).keys().length, 1, `page ${index + 1} has its picture`);
+  const states = resources.lookup(PDFName.of('ExtGState'));
+  const multiply = states && states.keys().map((key) => states.lookup(key)).find((state) => state.get(PDFName.of('BM')) === PDFName.of('Multiply'));
+  assert.ok(multiply, `page ${index + 1} has the highlight's blend mode`);
+  approx(multiply.lookup(PDFName.of('ca')).asNumber(), 0.3, 'highlight opacity', 0.001);
+  const content = page.node.Contents().asArray().map((ref) => Buffer.from(decodePDFRawStream(loadedOutput.context.lookup(ref)).decode()).toString('latin1')).join('\n');
+  // pdf-lib draws the rectangle as a path (m, l, h) and fills it: the colour, then a fill within a few lines.
+  assert.match(content, /1 0\.92\d* 0\.45\d* rg\n(?:[^\n]*\n){1,12}?f\*?\n/, `page ${index + 1} fills the highlight rectangle in #ffec73`);
+  assert.match(content, /\/[\w-]+ Do\b/, `page ${index + 1} draws its picture`);
+  }
+}
 
 const second = await PDFDocument.create();
 second.addPage([210, 310]).drawText('Second document');

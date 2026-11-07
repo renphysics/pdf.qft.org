@@ -645,12 +645,33 @@ export function fontFile(kind) {
   return getFontBytes(kind);
 }
 
+/**
+ * Download a font once. GitHub Pages lets browsers cache a file for ten
+ * minutes only and marks every file as changed by a deploy, so the deployed
+ * site keeps fonts (the CJK font is 16 MB) in Cache Storage under their
+ * versioned URL (scripts/stamp-release.mjs: ?v=<hash of the file>), and a font
+ * is downloaded again only when its bytes change. Without a version (a local
+ * copy of the site), or where Cache Storage is unavailable, it is fetched as usual.
+ */
+async function fetchFont(url) {
+  const store = /[?&]v=[0-9a-f]{12}$/.test(url.search) && typeof caches !== 'undefined' ? await caches.open('qft-fonts').catch(() => null) : null;
+  const cached = store && (await store.match(url.href).catch(() => null));
+  if (cached) return new Uint8Array(await cached.arrayBuffer());
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('font fetch');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (store) {
+    // Only this version of the font is kept.
+    const stale = (await store.keys().catch(() => [])).filter((request) => new URL(request.url).pathname === url.pathname);
+    await Promise.all(stale.map((request) => store.delete(request))).catch(() => {});
+    await store.put(url.href, new Response(bytes.slice(), { headers: { 'Content-Length': String(bytes.length) } })).catch(() => {});
+  }
+  return bytes;
+}
+
 async function getFontBytes(kind) {
   if (!fontBytes.has(kind)) {
-    fontBytes.set(kind, fetch(FONT_FILES[kind]).then(async (response) => {
-      if (!response.ok) throw new Error('font fetch');
-      return new Uint8Array(await response.arrayBuffer());
-    }).catch(() => {
+    fontBytes.set(kind, fetchFont(FONT_FILES[kind]).catch(() => {
       fontBytes.delete(kind);
       throw new Error('The font for this text could not be loaded. Check your connection, then try again.');
     }));

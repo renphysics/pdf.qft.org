@@ -151,6 +151,7 @@ export function showSettingDefaults() {
   if (!state.pages.length || (key !== 'watermark' && key !== 'pageNumbers') || state[key] || ui.shownSettings.has(key)) return;
   ui.shownSettings.add(key);
   change(() => (state[key] = settingDefaults[key]()));
+  toast(key === 'watermark' ? 'Watermark “DRAFT” shown on every page. Undo takes it away.' : 'Page numbers shown on every page. Undo takes them away.');
 }
 function switchField(key, label) {
   const on = settingOn(key);

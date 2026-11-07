@@ -22,6 +22,31 @@ test('loads one versioned release and builds downloads in the export worker', as
   expect(requests.every((url) => url.pathname.startsWith('/pdf.qft.org/'))).toBe(true);
 });
 
+test('a font is downloaded once and then comes from Cache Storage, even when the network no longer serves it', async ({ page }) => {
+  const fontRequests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/assets/fonts/NotoSans-Regular.ttf')) fontRequests.push(request.url());
+  });
+  await openSample(page, 'add-text-to-pdf/');
+  await page.click('[data-action="add-text"]');
+  await page.keyboard.type('Café');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.page-view.current .page-overlay')).toContainText('Café');
+  await expect.poll(() => fontRequests.length).toBe(1);
+  expect(fontRequests[0]).toMatch(/NotoSans-Regular\.ttf\?v=[0-9a-f]{12}$/);
+  await expect
+    .poll(() => page.evaluate(async () => (await (await caches.open('qft-fonts')).keys()).map((request) => request.url)))
+    .toEqual([fontRequests[0]]);
+  // A second visit: the font comes from the cache; the network is not asked.
+  await page.route('**/assets/fonts/NotoSans-Regular.ttf*', (route) => route.abort());
+  await openSample(page, 'add-text-to-pdf/');
+  await page.click('[data-action="add-text"]');
+  await page.keyboard.type('Déjà vu');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.page-view.current .page-overlay')).toContainText('Déjà vu');
+  await expect(page.locator('#toast-message')).not.toContainText('could not be loaded');
+});
+
 test('builds downloads on the page where module workers are missing', async ({ page }) => {
   await page.addInitScript(() => {
     delete window.Worker;

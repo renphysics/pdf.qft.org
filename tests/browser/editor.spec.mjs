@@ -1,8 +1,11 @@
 // Editing journeys on a desktop screen (tests/QA-CHECKLIST.md).
+import { createRequire } from 'node:module';
 import {
   test, expect, fixture, openSample, openFiles, ready, useTool, toastText, download, overlayLines, pdfText,
-  pdfOutline, previewDifference, lineWidths, writeTemporary, PDFLib,
+  pdfOutline, previewDifference, lineWidths, writeTemporary, PDFLib, root,
 } from './helpers.mjs';
+
+const { createCanvas } = createRequire(import.meta.url)(`${root}/node_modules/@napi-rs/canvas`);
 
 test('opens the sample from the home page', async ({ page }) => {
   await openSample(page);
@@ -90,6 +93,18 @@ test('watermark, headers and footers and page numbers: the download matches the 
   await page.mouse.click(surface.x + surface.width * 0.15, surface.y + surface.height * 0.3);
   await page.keyboard.type('Placed note');
   await page.keyboard.press('Escape');
+  // A highlight and a picture on page 1 too: both must be in the download.
+  await useTool(page, 'highlight');
+  await page.click('[data-action="add-highlight"]');
+  await page.keyboard.press('Escape');
+  await useTool(page, 'image');
+  const logo = createCanvas(120, 60);
+  logo.getContext('2d').fillStyle = '#2244aa';
+  logo.getContext('2d').fillRect(0, 0, 120, 60);
+  await page.locator('.pages-heading [data-action="add-files"]').click();
+  await page.setInputFiles('#file-input', await writeTemporary('logo.png', logo.toBuffer('image/png')));
+  await expect(page.locator('.edit-layer [data-item-id]')).toHaveCount(3);
+  await page.keyboard.press('Escape');
   const { name, bytes } = await download(page, () => page.click('#download-button'));
   expect(name).toBe('A little room to create-edited.pdf');
   const text = await pdfText(bytes);
@@ -98,7 +113,12 @@ test('watermark, headers and footers and page numbers: the download matches the 
   expect(text[1]).toContain('DRAFT');
   expect(text[2]).toContain('Left 3');
   expect(text[2]).toContain('Page 3 of 3');
-  for (const pageNumber of [1, 2]) expect(await previewDifference(page, bytes, pageNumber, baseURL)).toBeLessThan(0.0002);
+  const first = (await PDFLib.PDFDocument.load(bytes)).getPage(0).node.Resources();
+  expect(first.lookup(PDFLib.PDFName.of('XObject')).keys().length, 'the picture is on page 1').toBe(1);
+  const states = first.lookup(PDFLib.PDFName.of('ExtGState'));
+  expect(states.keys().some((key) => states.lookup(key).get(PDFLib.PDFName.of('BM')) === PDFLib.PDFName.of('Multiply')), 'the highlight is on page 1').toBe(true);
+  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.002);
+  expect(await previewDifference(page, bytes, 2, baseURL)).toBeLessThan(0.0002);
 });
 
 test('Chinese, Korean and kana text: a small download that matches the preview', async ({ page, baseURL }) => {

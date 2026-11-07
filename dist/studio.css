@@ -1390,6 +1390,31 @@ summary:focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: -3px;
 }
+/* Forced colours (Windows High Contrast): our background colours are replaced
+   by the system's, so a switch's position and the chosen segment are drawn with
+   system colours instead. */
+@media (forced-colors: active) {
+  .switch-track {
+    border: 1px solid ButtonText;
+    background: Canvas;
+    forced-color-adjust: none;
+  }
+  .switch-track > span {
+    background: ButtonText;
+  }
+  .switch[aria-checked='true'] .switch-track {
+    border-color: Highlight;
+    background: Highlight;
+  }
+  .switch[aria-checked='true'] .switch-track > span {
+    background: HighlightText;
+  }
+  .segmented input:checked + span {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+}
 .scope-pages .button {
   margin-top: 0;
 }

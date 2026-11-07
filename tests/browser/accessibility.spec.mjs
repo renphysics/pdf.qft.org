@@ -63,3 +63,27 @@ test('the password prompt, with and without an error', async ({ page }) => {
   await expect(page.locator('#password-error')).toBeVisible();
   expect(await violations(page), 'password prompt with an error').toEqual([]);
 });
+
+test('switches and segmented controls show their state in forced-colours mode', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Playwright emulates forced colours in Chromium only');
+  await page.emulateMedia({ forcedColors: 'active' });
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  const style = (locator) =>
+    locator.evaluate((node) => {
+      const computed = getComputedStyle(node);
+      return { background: computed.backgroundColor, border: `${computed.borderTopStyle} ${computed.borderTopWidth}` };
+    });
+  const track = page.locator('.switch-track');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
+  const on = await style(track);
+  expect(on.border, 'the switch has an outline').toMatch(/^solid [1-9]/);
+  await page.click('[data-action="toggle-setting"]');
+  await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'false');
+  const off = await style(track);
+  expect(off.background, 'on and off look different').not.toBe(on.background);
+  await useTool(page, 'sheets');
+  const chosen = await style(page.locator('.segmented input:checked + span'));
+  const other = await style(page.locator('.segmented input:not(:checked) + span').first());
+  expect(chosen.background, 'the chosen segment looks different').not.toBe(other.background);
+});
+

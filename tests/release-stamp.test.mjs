@@ -19,6 +19,7 @@ const modules = (await readdir(site)).filter((name) => name.endsWith('.js')).sor
 const files = [
   'index.html', 'licenses/index.html', ...toolPages, ...modules, 'style.css', 'studio.css', 'batch.css',
   'assets/vendor/pdf.mjs', 'assets/vendor/pdf.worker.mjs', 'assets/vendor/pdf-lib.min.js', 'assets/vendor/fontkit.umd.min.js',
+  'assets/fonts/NotoSans-Regular.ttf', 'assets/fonts/NotoSansCJKsc-Regular.otf',
 ];
 const workspace = await mkdtemp(path.join(tmpdir(), 'qft-stamp-'));
 async function copySite(name) {
@@ -73,6 +74,10 @@ try {
   assert(engine.includes(`from './layout.js?v=${release}'`), 'the engine imports the release layout');
   assert(engine.includes(`new URL('./assets/vendor/pdf-lib.min.js?v=${await hash(vendor('pdf-lib.min.js'))}'`));
   assert(engine.includes(`new URL('./assets/vendor/fontkit.umd.min.js?v=${await hash(vendor('fontkit.umd.min.js'))}'`));
+  // Fonts too: the app keeps them in Cache Storage under this URL.
+  for (const font of ['NotoSans-Regular.ttf', 'NotoSansCJKsc-Regular.otf']) {
+    assert(engine.includes(`new URL('./assets/fonts/${font}?v=${await hash(path.join(first, 'assets/fonts', font))}'`), `${font} versioned by its bytes`);
+  }
 
   // Every versioned reference still points at a real file.
   let checked = 0;
@@ -84,8 +89,8 @@ try {
     }
   }
   // 4 per page (home and tools: three stylesheets and app.js), 2 on the licenses page,
-  // every import between modules, and the export worker, PDF.js worker, pdf-lib and fontkit URLs.
-  let expected = 4 * (1 + toolPages.length) + 2 + 4;
+  // every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit URLs, and two fonts.
+  let expected = 4 * (1 + toolPages.length) + 2 + 4 + 2;
   for (const name of modules) expected += [...(await readFile(path.join(site, name), 'utf8')).matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*)'\.\/[^']+'/g)].length;
   assert.equal(checked, expected, 'every versioned reference: pages, imports between modules, workers and engines');
 
@@ -98,7 +103,7 @@ try {
   await appendFile(path.join(changed, 'studio.css'), '\n/* edit */\n');
   stamp(changed);
   assert.notEqual((await readFile(path.join(changed, 'index.html'), 'utf8')).match(/app\.js\?v=([0-9a-f]{12})/)[1], release);
-  console.log(JSON.stringify({ status: 'passed', checks: ['versioned modules, styles and engines', 'one URL per module', `${checked} references resolve`, 'deterministic release id'] }, null, 2));
+  console.log(JSON.stringify({ status: 'passed', checks: ['versioned modules, styles, engines and fonts', 'one URL per module', `${checked} references resolve`, 'deterministic release id'] }, null, 2));
 } finally {
   await rm(workspace, { recursive: true, force: true });
 }

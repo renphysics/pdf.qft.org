@@ -17,8 +17,16 @@ concurrency:
 # underscores in WebKit (the tests check the names the app chooses), and whose
 # Playwright dependency install took 40 minutes.
 jobs:
+  # The checks a pull request gets: the static site, the PDF engine suites and
+  # the browser tests in Chromium, WebKit and Firefox, one job per engine. A
+  # failure blocks deployment.
+  tests:
+    uses: ./.github/workflows/test.yml
+
   build:
+    needs: tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -31,27 +39,8 @@ jobs:
           cache: npm
       - name: Install test dependencies
         run: npm ci --ignore-scripts
-      # Restores the verified CJK font into dist/, checks the static site, then
-      # runs the PDF engine and workflow suites. A failure blocks deployment.
-      - name: Restore font assets and run all tests
-        run: npm test
-      # The editing journeys in tests/QA-CHECKLIST.md, in Chromium, WebKit
-      # (Safari's engine) and Firefox, including a stamped copy of the site under
-      # the project path. A failure blocks deployment.
-      - name: Install the browsers for Playwright
-        run: npx playwright install --with-deps chromium webkit firefox
-      - name: Run the browser tests
-        run: npm run test:browser
-      # When a test fails: its screenshots and traces, and the HTML report, to
-      # download from the run's summary page.
-      - name: Keep the test report
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: playwright-report
-          path: tests/output/
-          retention-days: 14
-          if-no-files-found: ignore
+      - name: Restore font assets
+        run: node scripts/prepare-assets.mjs
       # GitHub Pages lets browsers cache every file for ten minutes under the
       # same URL, so a reload right after a deploy could mix the new page with
       # the previous release's scripts. Versioned URLs keep each release whole.
@@ -69,6 +58,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       pages: write
       id-token: write

@@ -603,6 +603,13 @@ export const batch = initBatch({
   },
   notify: (message, error) => toast(message, error, { announce: false }),
 });
+// Arrow keys move through the closed menu, changing the tool with every press:
+// looking at the tools, not choosing one (see chooseTool).
+$('#tool-select').addEventListener('keydown', (event) => {
+  if (['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key) || event.key.length === 1) {
+    ui.menuTraversal = performance.now();
+  }
+});
 $('#tool-select').addEventListener('change', (event) => chooseTool(event.target.value));
 $('#page-jump').addEventListener('change', jumpToPage);
 // While the box had focus, the current page may have changed.
@@ -616,12 +623,13 @@ $('#page-jump').addEventListener('keydown', (event) => {
 });
 let toolFilter = 'all';
 function filterTools() {
-  const query = $('#tool-search').value.trim().toLowerCase();
+  // Every word typed must be in the card's text or its keywords (routes.js).
+  const words = $('#tool-search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
   let count = 0;
   $$('.tool-card').forEach((card) => {
+    const text = (card.textContent + ' ' + (card.dataset.keywords || '')).toLowerCase();
     const visible =
-      (toolFilter === 'all' || card.dataset.category === toolFilter) &&
-      (card.textContent + ' ' + (card.dataset.keywords || '')).toLowerCase().includes(query);
+      (toolFilter === 'all' || card.dataset.category === toolFilter) && words.every((word) => text.includes(word));
     card.hidden = !visible;
     if (visible) count++;
   });
