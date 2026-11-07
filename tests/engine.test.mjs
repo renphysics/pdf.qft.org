@@ -895,14 +895,12 @@ for (const flattenForms of [false, true]) {
 // PDF/A once content is added, keeping the rest of its metadata.
 async function pdfaFixture(part, conformance, attributeForm) {
   const pdf = await PDFDocument.create();
-  pdf
-    .addPage([400, 300])
-    .drawText('Archived page', {
-      x: 40,
-      y: 200,
-      size: 18,
-      font: await pdf.embedFont(StandardFonts.Helvetica),
-    });
+  pdf.addPage([400, 300]).drawText('Archived page', {
+    x: 40,
+    y: 200,
+    size: 18,
+    font: await pdf.embedFont(StandardFonts.Helvetica),
+  });
   const id = attributeForm
     ? `<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="${part}" pdfaid:conformance="${conformance}"/>`
     : `<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>${part}</pdfaid:part><pdfaid:conformance>${conformance}</pdfaid:conformance></rdf:Description>`;
@@ -1239,14 +1237,12 @@ assert.equal(plainOpened.bytes, fixtureBytes, 'an unencrypted PDF is used as it 
 // (pdf.js), with the document's strings intact. The library alone left strings
 // outside object streams unencrypted, so the language read back as garbage.
 const stringsDoc = await PDFDocument.create();
-stringsDoc
-  .addPage([300, 200])
-  .drawText('Protected page', {
-    x: 40,
-    y: 100,
-    size: 18,
-    font: await stringsDoc.embedFont(StandardFonts.Helvetica),
-  });
+stringsDoc.addPage([300, 200]).drawText('Protected page', {
+  x: 40,
+  y: 100,
+  size: 18,
+  font: await stringsDoc.embedFont(StandardFonts.Helvetica),
+});
 stringsDoc.setTitle('Quarterly figures');
 stringsDoc.setLanguage('de-DE');
 const link = stringsDoc.context.obj({

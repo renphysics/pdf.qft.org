@@ -17,14 +17,12 @@ import {
 /** A one-page PDF that declares PDF/A-1b in its XMP metadata, saved without object streams. */
 async function pdfaFile() {
   const pdf = await PDFLib.PDFDocument.create();
-  pdf
-    .addPage([400, 300])
-    .drawText('Archived page', {
-      x: 40,
-      y: 200,
-      size: 18,
-      font: await pdf.embedFont(PDFLib.StandardFonts.Helvetica),
-    });
+  pdf.addPage([400, 300]).drawText('Archived page', {
+    x: 40,
+    y: 200,
+    size: 18,
+    font: await pdf.embedFont(PDFLib.StandardFonts.Helvetica),
+  });
   const xmp =
     '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
   pdf.catalog.set(
