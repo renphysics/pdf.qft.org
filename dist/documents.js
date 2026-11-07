@@ -26,7 +26,7 @@ import {
 } from './editor-core.js';
 import { resetStage } from './page-view.js';
 import { documentFields, focusField } from './form-ui.js';
-import { selectItem, stopEditing } from './page-items.js';
+import { addImageFile, selectItem, stopEditing } from './page-items.js';
 import {
   protectedDownload,
   renderTool,
@@ -35,7 +35,8 @@ import {
   updateProtectionStatus,
 } from './tool-panel.js';
 import { choosePage, chooseTool, formProblem, selectedIds, setSheet } from './pages.js';
-import { addImageFile, batch, change, documentChanged, recordView } from './app.js';
+import { change, documentChanged } from './history.js';
+import { recordView } from './views.js';
 
 // ---- Building the PDF ---------------------------------------------------------------
 // The PDF is built only to download, extract or split, in a worker when possible.
@@ -461,7 +462,7 @@ export async function relayoutPictures() {
   }
 }
 export async function openFiles(files, append = false) {
-  if (ui.busy || batch.isBusy() || !files.length) return;
+  if (ui.busy || ui.batch?.isBusy() || !files.length) return;
   const list = [...files];
   // The picker is cleared only after its files are read (see finally below), or
   // when we stop early, so choosing the same file again still fires a change event.
@@ -608,7 +609,7 @@ export async function openFiles(files, append = false) {
   }
 }
 export function showWorkspace() {
-  if (!batch.close()) return;
+  if (ui.batch && !ui.batch.close()) return;
   document.body.classList.remove('batching');
   $('#landing').hidden = true;
   $('#workspace').hidden = false;
@@ -616,7 +617,7 @@ export function showWorkspace() {
   window.scrollTo(0, 0);
 }
 export function showLanding() {
-  if (!batch.close()) return;
+  if (ui.batch && !ui.batch.close()) return;
   stopEditing();
   document.body.classList.remove('batching');
   $('#landing').hidden = false;

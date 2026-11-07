@@ -31,8 +31,7 @@ import {
 import { documentFields, fillingForm, renderFormLayer, updateFormSummary } from './form-ui.js';
 import { positionInlineEditor, stack } from './page-items.js';
 import { annotationList, updateCropOverlays } from './tool-panel.js';
-import { refreshThumbOverlays, thumbKey } from './pages.js';
-import { revealThumbnail, syncPageNavigation } from './app.js';
+import { refreshThumbOverlays, revealThumbnail, syncPageNavigation, thumbKey } from './pages.js';
 
 // ---- The page preview ----------------------------------------------------------
 // Pages are shown one under another in a scrolling stack, each fitted to its

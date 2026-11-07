@@ -64,6 +64,7 @@ export const emptyState = () => ({
 });
 export let state = emptyState();
 export const ui = {
+  batch: null, // the batch workspace (batch-ui.js initBatch), set by app.js
   tool: 'text',
   activeId: null,
   selected: new Set(),
@@ -431,3 +432,7 @@ export function rangeText(indexes) {
 export function setState(next) {
   state = next;
 }
+
+/** Whether keystrokes on this element are text being typed (so shortcuts leave them alone). */
+export const typing = (element) =>
+  ['INPUT', 'TEXTAREA', 'SELECT'].includes(element?.tagName) || element?.isContentEditable;

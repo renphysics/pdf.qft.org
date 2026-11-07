@@ -65,14 +65,18 @@ const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
 
 // [pattern, replacement, expected number of matches, or null for any number].
 // A mismatch means the sources changed shape and this script must be updated,
-// so it fails loudly. Every module's imports of its neighbours are versioned;
-// the check below fails on any relative import left unversioned.
-const imports = [/(from '\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
+// so it fails loudly. Every module's imports of its neighbours are versioned,
+// static (from) and dynamic (import()); the check below fails on any relative
+// import left unversioned.
+const imports = [/((?:from |import\()'\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
+// The modules a page preloads alongside app.js (scripts/build-pages.mjs).
+const preloads = (sources['index.html'].match(/rel="modulepreload"/g) || []).length;
 const RULES = {
   ...Object.fromEntries(MODULES.map((name) => [name, [imports]])),
   'index.html': [
     [/(href="\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
     [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
+    [/(rel="modulepreload" href="\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
   ],
   'licenses/index.html': [[/(href="\.\.\/(?:style|studio)\.css)"/g, `$1?v=${release}"`, 2]],
   ...Object.fromEntries(
@@ -81,6 +85,7 @@ const RULES = {
       [
         [/(href="\.\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
         [/(src="\.\.\/app\.js)"/g, `$1?v=${release}"`, 1],
+        [/(rel="modulepreload" href="\.\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
       ],
     ]),
   ),

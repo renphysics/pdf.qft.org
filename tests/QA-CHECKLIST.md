@@ -592,3 +592,13 @@ source review does not replace the owner’s browser verification.
   group is keyed by the calling workflow and cancels only pull-request runs, so a
   run of Test on main cannot cancel the tests a deploy waits for.
 
+## The “next” list: lazy editor, panels, forms on phones, CSP, focus, artifacts, tests, dependencies, polish — 2026-11-07
+
+- Edit history (`history.js`) and view recording (`views.js`) left `app.js`, so
+  no module imports an entry module back; `app.js` is a landing shell that
+  loads `editor.js` when a file is opened or once the page is idle, and every
+  page preloads the three modules the shell imports at once. The site-integrity
+  test checks the module graph and the preload list; the release test checks
+  that the dynamic import and the preloads carry the release id. Opening the
+  file picker stays synchronous with the click (browsers require it) while the
+  editor loads; files dropped or picked before it arrives are opened once it has.

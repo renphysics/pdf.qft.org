@@ -16,12 +16,13 @@ import {
   THUMB_WIDTH,
   toast,
   touch,
+  typing,
   ui,
 } from './editor-core.js';
 import { inView, pageById, revealElement, scrollToPage, setCurrentPage } from './page-view.js';
 import { rememberThumb, setSheet, thumbKey } from './pages.js';
 import { usedSources } from './documents.js';
-import { change, typing } from './app.js';
+import { change } from './history.js';
 
 // ---- Filling in forms ------------------------------------------------------------
 // With Fill form open, each page shows inputs over its form fields, and PDF.js

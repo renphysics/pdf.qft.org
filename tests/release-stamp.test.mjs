@@ -80,9 +80,26 @@ try {
   }
   const app = await read('app.js');
   assert(
-    app.includes(`from ${engineUrl}`) && app.includes(`from './editor-core.js?v=${release}'`),
-    'app.js imports the release engine and editor',
+    app.includes(`import('./editor.js?v=${release}')`) &&
+      app.includes(`from './editor-core.js?v=${release}'`),
+    'app.js loads the release editor on demand',
   );
+  assert(
+    (await read('editor.js')).includes(`from './documents.js?v=${release}'`),
+    'editor.js imports the release',
+  );
+  // The modules app.js imports statically are preloaded, with the release, on every page.
+  const preloads = [...html.matchAll(/rel="modulepreload" href="\.\/([\w-]+\.js)\?v=([0-9a-f]{12})"/g)];
+  assert(
+    preloads.length >= 2 && preloads.every((match) => match[2] === release),
+    'index.html preloads the release modules',
+  );
+  for (const name of toolPages)
+    assert.equal(
+      (await read(name)).match(/rel="modulepreload" href="\.\.\/[\w-]+\.js\?v=/g)?.length,
+      preloads.length,
+      `${name} preloads the modules`,
+    );
   assert(
     (await read('documents.js')).includes(`new URL('./export-worker.js?v=${release}', import.meta.url)`),
     'export worker versioned',
@@ -129,9 +146,9 @@ try {
       checked++;
     }
   }
-  // 4 per page (home and tools: three stylesheets and app.js), 2 on the licenses page,
+  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads, 2 on the licenses page,
   // every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit URLs, and two fonts.
-  let expected = 4 * (1 + toolPages.length) + 2 + 4 + 2;
+  let expected = (4 + preloads.length) * (1 + toolPages.length) + 2 + 4 + 2;
   for (const name of modules)
     expected += [
       ...(await readFile(path.join(site, name), 'utf8')).matchAll(

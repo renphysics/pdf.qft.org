@@ -3,15 +3,17 @@
  * turning, deleting and selecting pages.
  */
 
-import { blankPdf, openPdf } from './pdf-engine.js';
+import { blankPdf, openPdf, parsePageRange } from './pdf-engine.js';
 import { formKey, geometryOf, pageOverlay, renderKey, renderPage } from './preview.js';
 import {
   $,
   $$,
+  activeIndex,
   annotationById,
   announceMessage,
   busy,
   currentPage,
+  friendly,
   icon,
   names,
   pageIndexOf,
@@ -28,7 +30,8 @@ import { renderEditLayers, renderStage, scrollToPage, updateCurrentPage } from '
 import { sourceOf } from './form-ui.js';
 import { endGesture, stopEditing } from './page-items.js';
 import { fillForm, renderTool, showSettingDefaults, updateDeletionMarks } from './tool-panel.js';
-import { change, recordView } from './app.js';
+import { change } from './history.js';
+import { recordView } from './views.js';
 import { interleaveOrder } from './workflows.js';
 
 // ---- Pages -------------------------------------------------------------------------
@@ -395,4 +398,43 @@ export function setSheet(open) {
   const toggle = $('#sheet-toggle');
   toggle.setAttribute('aria-expanded', String(open));
   toggle.setAttribute('aria-label', open ? 'Hide tool settings' : 'Show tool settings');
+}
+
+// ---- The page strip and page navigation ------------------------------------------
+
+/** Scroll the page strip so a page's thumbnail is in view. */
+export function revealThumbnail(id) {
+  const node = $('[data-page-id="' + id + '"]'),
+    root = phone() ? $('#page-list') : $('.page-sidebar');
+  if (!node) return;
+  const rect = node.getBoundingClientRect(),
+    area = root.getBoundingClientRect();
+  if (phone()) {
+    if (rect.left < area.left) root.scrollLeft += rect.left - area.left;
+    else if (rect.right > area.right) root.scrollLeft += rect.right - area.right;
+  } else {
+    if (rect.top < area.top) root.scrollTop += rect.top - area.top;
+    else if (rect.bottom > area.bottom) root.scrollTop += rect.bottom - area.bottom;
+  }
+}
+/** The page number box and Previous and Next follow the current page (but not while a number is typed). */
+export function syncPageNavigation({ force = false } = {}) {
+  const field = $('#page-jump'),
+    index = activeIndex();
+  field.max = state.pages.length;
+  if (force || document.activeElement !== field) field.value = index + 1;
+  $('#page-counter').textContent = 'of ' + state.pages.length;
+  $('[data-action=previous]').disabled = index === 0;
+  $('[data-action=next]').disabled = index >= state.pages.length - 1;
+}
+/** Select the pages whose numbers were typed in the Organize pages or Delete pages panel. */
+export function selectRange() {
+  try {
+    const indices = parsePageRange(ui.rangeDraft, state.pages.length);
+    ui.selected = new Set(indices.map((i) => state.pages[i].id));
+    $$('[data-page-select]').forEach((input) => (input.checked = ui.selected.has(input.dataset.pageSelect)));
+    renderTool();
+  } catch (error) {
+    toast(friendly(error), true);
+  }
 }

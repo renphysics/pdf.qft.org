@@ -180,22 +180,34 @@ On phones the document comes first: the page fills the screen under a compact
 document bar, tools sit in a bottom bar, and each tool's settings open in a
 sheet that folds away. Controls are at least 44 px.
 
-The editor's code is split by what it does. `app.js` starts it (edit history,
-addresses, the actions behind buttons, listeners), and the rest lives in
-`editor-core.js` (state, helpers and messages; it imports no other editor
-module, so every module can use it as they load), `page-view.js` (the page
-preview), `page-items.js` (typing, moving and resizing items, crop drag),
-`form-ui.js` (Fill form), `tool-panel.js` (the tool panel), `pages.js` (pages,
-the page strip and choosing tools) and `documents.js` (opening, building and
-downloading PDFs). The modules import each other's functions freely; code that
-runs as a module loads uses only `editor-core.js` and the libraries. The release
-script versions every module's imports (`scripts/stamp-release.mjs`), so a new
-module needs no changes there.
+The editor's code is split by what it does. `app.js` runs on every page and is
+all a page needs before a file is opened: the tool search, opening files and the
+sample, dialogs and notices. It loads the editor, `editor.js`, when a file is
+opened, or in the background once the page is idle, so a page is usable before
+the editor's 400 KB of modules arrive; the few modules it imports at once are
+preloaded on every page (`scripts/build-pages.mjs` writes the
+`<link rel="modulepreload">` tags). `editor.js` starts the editor (the actions
+behind buttons, what is redrawn after a change, listeners), and the rest lives
+in `editor-core.js` (state, helpers and messages; it imports no other editor
+module, so every module can use it as they load), `history.js` (edit history:
+`change()`, undo and redo; it imports only `editor-core.js` and `editor.js`
+registers what to redraw, so any module can record a change without importing
+an entry module back), `views.js` (addresses and browser history, built the same
+way), `page-view.js` (the page preview), `page-items.js` (typing, moving and
+resizing items, crop drag), `form-ui.js` (Fill form), `tool-panel.js` (the tool
+panel), `pages.js` (pages, the page strip and choosing tools) and `documents.js`
+(opening, building and downloading PDFs). The editor's modules import each
+other's functions freely; code that runs as a module loads uses only
+`editor-core.js` and the libraries, and no module imports `app.js` or
+`editor.js` (`tests/site-integrity.test.mjs` checks the graph). The release
+script versions every module's imports, static and dynamic
+(`scripts/stamp-release.mjs`), so a new module needs no changes there.
 
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned
-in `dist/assets/vendor/versions.json`. The landing page loads no PDF engine:
+in `dist/assets/vendor/versions.json`. The landing page loads neither the editor (`editor.js` and its modules come when a
+file is opened, or once the page is idle) nor a PDF engine:
 `pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
 non-ASCII text), and `preview.js` imports PDF.js when a document opens. Both
 start downloading as soon as a visitor opens the file picker, drags a file in,

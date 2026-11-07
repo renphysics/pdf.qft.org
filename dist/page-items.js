@@ -13,8 +13,10 @@ import {
   announceMessage,
   clamp,
   currentPage,
+  friendly,
   phone,
   state,
+  toast,
   ui,
   uid,
 } from './editor-core.js';
@@ -34,8 +36,9 @@ import {
   updateStageHint,
 } from './page-view.js';
 import { fillForm, placeSignature, renderTool, updateCropOverlays } from './tool-panel.js';
-import { refreshThumbOverlays, setSheet } from './pages.js';
-import { change, documentChanged, record, recordView } from './app.js';
+import { chooseTool, refreshThumbOverlays, setSheet } from './pages.js';
+import { change, documentChanged, record } from './history.js';
+import { recordView } from './views.js';
 
 // ---- Typing on the page ---------------------------------------------------------
 
@@ -729,4 +732,30 @@ export function initPageItems() {
   });
   stack.addEventListener('pointerup', endCropDrag);
   stack.addEventListener('pointercancel', endCropDrag);
+}
+
+/** Put a PNG or JPG on the current page with Add an image. */
+export async function addImageFile(file) {
+  try {
+    if (!['image/png', 'image/jpeg'].includes(file.type))
+      throw new Error('Please choose a PNG or JPG image.');
+    if (file.size > 15 * 1024 * 1024) throw new Error('Please choose an image smaller than 15 MB.');
+    const bitmap = await createImageBitmap(file);
+    if (bitmap.width * bitmap.height > 30000000) {
+      bitmap.close();
+      throw new Error('Choose an image with fewer than 30 million pixels.');
+    }
+    ui.image = {
+      name: file.name,
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      type: file.type === 'image/png' ? 'png' : 'jpg',
+      ratio: bitmap.width / bitmap.height,
+    };
+    bitmap.close();
+    if (ui.tool !== 'image') chooseTool('image');
+    placeImage(ui.image);
+    toast('Image added. Drag it into place, or drag a corner to resize it.');
+  } catch (error) {
+    toast(friendly(error), true);
+  }
 }

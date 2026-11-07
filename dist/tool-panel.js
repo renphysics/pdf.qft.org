@@ -66,7 +66,7 @@ import {
 } from './page-view.js';
 import { formPanel, updateFormSummary } from './form-ui.js';
 import { deselect, inlineEditor, selectItem, setFrame } from './page-items.js';
-import { setSheet, splitFormProblem } from './pages.js';
+import { selectRange, setSheet, splitFormProblem } from './pages.js';
 import {
   downloadBytes,
   exportDocument,
@@ -75,7 +75,7 @@ import {
   relayoutPictures,
   showExportError,
 } from './documents.js';
-import { action, change } from './app.js';
+import { change } from './history.js';
 
 // ---- The tool panel ---------------------------------------------------------------
 
@@ -1255,7 +1255,7 @@ export function renderTool() {
   const form = $('#tool-form');
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (['delete', 'pages'].includes(ui.tool)) action('select-range');
+    if (['delete', 'pages'].includes(ui.tool)) selectRange();
     else if (ui.tool === 'split') generateSplit();
     else if (ui.tool === 'sheets') saveSheets();
     else if (ui.tool === 'margins') addMargins();

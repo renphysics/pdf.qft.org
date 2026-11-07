@@ -40,6 +40,48 @@ for (const name of ['style.css', 'studio.css', 'batch.css']) {
   for (const match of source.matchAll(/url\(\s*["']?([^"')\s]+)["']?\s*\)/g)) add(name, match[1]);
 }
 
+// The page loads app.js and what it imports statically; the editor (editor.js and
+// its modules) is loaded on demand, and no module imports either entry back.
+{
+  const source = async (name) => readFile(path.join(site, name), 'utf8');
+  const staticImports = async (name, found = new Set()) => {
+    for (const [, dependency] of (await source(name)).matchAll(/from '\.\/([\w-]+\.js)'/g))
+      if (!found.has(dependency)) {
+        found.add(dependency);
+        await staticImports(dependency, found);
+      }
+    return found;
+  };
+  const shell = await staticImports('app.js');
+  for (const name of [
+    'editor.js',
+    'documents.js',
+    'tool-panel.js',
+    'page-view.js',
+    'pdf-engine.js',
+    'batch-ui.js',
+  ])
+    assert(!shell.has(name), `app.js loads ${name} before a file is opened`);
+  assert(/import\('\.\/editor\.js'\)/.test(await source('app.js')), 'app.js loads editor.js on demand');
+  for (const name of (await readdir(site)).filter((file) => file.endsWith('.js')))
+    assert(!/from '\.\/(?:app|editor)\.js'/.test(await source(name)), `${name} imports an entry module back`);
+  for (const leaf of ['history.js', 'views.js']) {
+    const imports = [...(await source(leaf)).matchAll(/from '\.\/([\w-]+\.js)'/g)].map((match) => match[1]);
+    assert(
+      imports.every((name) => ['editor-core.js', 'routes.js'].includes(name)),
+      `${leaf} imports only editor-core.js and routes.js, so any module can import it`,
+    );
+  }
+  const preloaded = [
+    ...(await source('index.html')).matchAll(/rel="modulepreload" href="\.\/([\w-]+\.js)"/g),
+  ].map((match) => match[1]);
+  assert.deepEqual(
+    preloaded.sort(),
+    [...shell].sort(),
+    'index.html preloads exactly the modules app.js imports',
+  );
+}
+
 for (const base of ['https://pdf.qft.org/', 'https://renphysics.github.io/pdf.qft.org/']) {
   const baseURL = new URL(base);
   for (const { source, reference } of references) {
