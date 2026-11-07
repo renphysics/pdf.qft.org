@@ -10,9 +10,13 @@ on:
 permissions:
   contents: read
 
+# One run per branch: a newer push to a pull request cancels the older run.
+# When the Pages workflow calls this one, the group is keyed by its name too, and
+# a push or a manual run never cancels anything, so a run of Test on main cannot
+# cancel the tests a deploy is waiting for.
 concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Jobs run on Ubuntu 24.04, not ubuntu-latest: that label moved to 26.04 on
 # 2026-11-06, whose libsoup 3.6 rewrites spaces in download file names as

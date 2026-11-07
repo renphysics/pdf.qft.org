@@ -114,9 +114,13 @@ test('watermark, headers and footers and page numbers: the download matches the 
   await page.mouse.click(surface.x + surface.width * 0.15, surface.y + surface.height * 0.3);
   await page.keyboard.type('Placed note');
   await page.keyboard.press('Escape');
-  // A highlight and a picture on page 1 too: both must be in the download.
+  // A highlight and a picture on page 1 too: both must be in the download. The
+  // default highlight (a pale yellow at 35%) changes a pixel by less than the
+  // comparison's tolerance, so this one is dark and as opaque as it goes.
   await useTool(page, 'highlight');
   await page.click('[data-action="add-highlight"]');
+  await page.fill('#tool-form [name="color"]', '#1b4fa0');
+  await page.fill('#tool-form [name="opacity"]', '80');
   await page.keyboard.press('Escape');
   await useTool(page, 'image');
   const logo = createCanvas(120, 60);
