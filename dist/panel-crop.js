@@ -148,7 +148,7 @@ function applyCrop() {
           };
         }
       },
-      { layout: true },
+      { layout: true, label: 'Crop' },
     );
     ui.lastCropPreset = margins;
     ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };

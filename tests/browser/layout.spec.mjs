@@ -56,3 +56,27 @@ for (const width of [721, 768, 1024, 1280]) {
     expect(await sideways(page), 'batch').toEqual([0]);
   });
 }
+
+// A notice sits where it covers no control: in the toolbar's gap between page
+// navigation and zoom, or, where that is too narrow, at the foot of the pages.
+for (const width of [800, 1024, 1280, 1600]) {
+  test(`a notice covers neither page navigation nor zoom at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openSample(page, 'add-page-numbers-to-pdf/');
+    const toast = page.locator('#toast');
+    await expect(toast).toBeVisible();
+    const boxes = await page.evaluate(() =>
+      ['#toast', '.page-navigation', '.zoom-controls', '.stage-caption', '#canvas-scroll'].map((selector) => {
+        const { left, top, right, bottom } = document.querySelector(selector).getBoundingClientRect();
+        return { left, top, right, bottom };
+      }),
+    );
+    const [notice, navigation, zoom, status, stage] = boxes;
+    const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    expect(overlaps(notice, navigation), 'page navigation is clear').toBe(false);
+    expect(overlaps(notice, zoom), 'zoom is clear').toBe(false);
+    expect(overlaps(notice, status), 'the status line is clear').toBe(false);
+    expect(notice.left).toBeGreaterThanOrEqual(stage.left);
+    expect(notice.right).toBeLessThanOrEqual(stage.right);
+  });
+}

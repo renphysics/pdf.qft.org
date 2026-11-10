@@ -69,7 +69,7 @@ test('a form opens in Fill form, its fields fill in on the page, and the downloa
   await expect(summary(page)).not.toContainText('required');
 
   const { name, bytes } = await download(page, () => page.click('#tool-form [data-action="download"]'));
-  expect(name).toBe('form-fields-edited.pdf');
+  expect(name).toBe('form-fields-filled.pdf');
   const form = (await PDFLib.PDFDocument.load(bytes)).getForm();
   expect(form.getFields()).toHaveLength(12);
   expect(form.getTextField('applicant.name').getText()).toBe('Zoë Łukasz');

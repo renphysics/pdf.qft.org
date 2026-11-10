@@ -86,7 +86,7 @@ function addMargins() {
           };
         }
       },
-      { layout: true },
+      { layout: true, label: 'Add margins' },
     );
     ui.marginDraft = { top: 0, bottom: 0, left: 0, right: 0, scope: draft.scope };
     renderTool();
@@ -115,7 +115,7 @@ export function removeMargins() {
           else p.crop = { ...crop, rotation: p.rotation };
         }
       },
-      { layout: true },
+      { layout: true, label: 'Remove margins' },
     );
     renderTool();
     toast(

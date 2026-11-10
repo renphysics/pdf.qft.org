@@ -174,6 +174,20 @@ shows it without building a PDF:
   defaults wait until focus leaves it: looking at the tools does not edit the
   document. Edge margins go from 0 to
   100 pt; a number typed out of range is set to the nearest value allowed.
+- Every edit is an undo step with a name: Undo and Redo say which step they
+  take ("Undo: Rotate pages", in the button's tooltip and its accessible name),
+  and a notice says what was undone, in place of one that no longer holds.
+- A download is named after its first file and what was done to it:
+  `-numbered`, `-watermarked`, `-cropped`, `-signed`, `-filled` or `-organized`
+  when the edits are of one kind, `-merged` for several files, `-converted`
+  for pictures made into pages, `-protected` or `-unlocked` for passwords, and
+  `-edited` otherwise (`outputName` in `documents.js`).
+- Notices sit where they cover no control: on a desktop, in the toolbar's gap
+  between page navigation and zoom, as wide as the gap allows, or at the foot
+  of the pages where the gap is too narrow; on a phone, under the document bar,
+  clear of the tools under the thumbs. They stay five seconds or longer, by
+  their length; errors stay until dismissed. "Everything happens on your
+  device" is said with the first document opened in a tab, not every time.
   For printing on both sides, Swap left and right on even pages (headers and
   footers, page numbers, and their batch presets) puts what is on the right of
   odd pages on the left of even pages, by position in the document.
@@ -417,7 +431,10 @@ Browser acceptance journeys and review notes are under tests/.
 Delete Pages is available from the home toolkit and editor sidebar. Select
 thumbnail checkboxes or enter ranges such as `2, 4-6`; the editor marks pages
 for deletion and shows how many will remain. At least one page must remain.
-Deletion is undoable and the original source file is untouched.
+It starts with nothing selected: the first page, which a document opens with
+selected for Organize pages, is not a choice to delete it, while pages selected
+on purpose stay selected. Deletion is undoable and the original source file is
+untouched.
 
 Crop PDF accepts a pointer-drawn rectangle or numeric margin percentages.
 Apply to the current page, selected pages, or every page. Percentages refer

@@ -313,5 +313,6 @@ export function resizeImageTo(annotation, fraction) {
   width = Math.max(4, width);
   change(() => setFrame(annotation, item, { ...frame, width, height: width / ratio }), {
     key: 'width:' + annotation.id,
+    label: 'Resize ' + annotation.type,
   });
 }

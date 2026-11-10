@@ -73,7 +73,7 @@ export function movePage(id, offset, targetId = null) {
       const [page] = state.pages.splice(from, 1);
       state.pages.splice(to, 0, page);
     },
-    { layout: true },
+    { layout: true, label: 'Move page' },
   );
   renderTool();
   announceMessage('Page moved to position ' + (to + 1) + '.');
@@ -82,7 +82,7 @@ export function movePage(id, offset, targetId = null) {
 export function reversePages() {
   if (ui.busy || state.pages.length < 2) return;
   stopEditing();
-  change(() => state.pages.reverse(), { layout: true });
+  change(() => state.pages.reverse(), { layout: true, label: 'Reverse pages' });
   renderTool();
   announceMessage('The pages are in reverse order.');
 }
@@ -100,7 +100,7 @@ export function interleavePages() {
       const pages = [...state.pages];
       state.pages.splice(0, pages.length, ...order.map((index) => pages[index]));
     },
-    { layout: true },
+    { layout: true, label: 'Interleave pages' },
   );
   renderTool();
   announceMessage('Fronts and backs are interleaved: each front is followed by its back.');
@@ -135,7 +135,7 @@ export async function insertBlankPage() {
         state.sources.push(source);
         state.pages.splice(at, 0, blank);
       },
-      { layout: true },
+      { layout: true, label: 'Add a blank page' },
     );
   } finally {
     busy(false);
@@ -157,7 +157,7 @@ export function rotateSelected() {
         if (ids.has(p.id)) p.rotation = (p.rotation + 90) % 360;
       });
     },
-    { layout: true },
+    { layout: true, label: 'Rotate pages' },
   );
   toast(ids.size === 1 ? 'Page rotated.' : ids.size + ' pages rotated.');
 }
@@ -174,7 +174,7 @@ export function deletePages() {
       state.pages = remaining;
       state.annotations = state.annotations.filter((a) => !ids.has(a.pageId));
     },
-    { layout: true },
+    { layout: true, label: 'Delete pages' },
   );
   renderTool();
   toast(
@@ -364,6 +364,13 @@ export function chooseTool(tool) {
   endGesture();
   if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
   if (ui.tool === 'form' && tool !== 'form') restoreFormZoom();
+  // Delete pages starts with nothing to delete: the page a document opens with
+  // selected was not chosen. Pages selected on purpose stay selected.
+  if (tool === 'delete' && ui.selectedByDefault) {
+    ui.selected = new Set();
+    ui.selectedByDefault = false;
+    $$('[data-page-select]').forEach((input) => (input.checked = false));
+  }
   ui.tool = tool;
   // Watermark and Page numbers show their defaults when chosen. Arrowing through
   // the menu to see what there is changes the tool with every key; then they
@@ -435,6 +442,7 @@ export function selectRange() {
   try {
     const indices = parsePageRange(ui.rangeDraft, state.pages.length);
     ui.selected = new Set(indices.map((i) => state.pages[i].id));
+    ui.selectedByDefault = false;
     $$('[data-page-select]').forEach((input) => (input.checked = ui.selected.has(input.dataset.pageSelect)));
     renderTool();
   } catch (error) {

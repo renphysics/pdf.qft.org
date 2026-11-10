@@ -8,7 +8,7 @@ import { copyNotes, pagesPerSheet, sheetLayout } from './pdf-engine.js';
 import { safeBaseName } from './workflows.js';
 import { geometryOf } from './preview.js';
 import { $, busy, icon, protectedDownload, snapshot, state, toast, ui } from './editor-core.js';
-import { downloadBytes, exportDocument, exportNotes, outputName, showExportError } from './documents.js';
+import { downloadBytes, exportDocument, exportNotes, outputBase, showExportError } from './documents.js';
 import { numberField, selectField } from './tool-panel.js';
 
 const MM = 72 / 25.4; // points in a millimetre
@@ -99,7 +99,7 @@ async function saveSheets() {
       border: draft.border,
       password,
     });
-    const base = safeBaseName(outputName()).replace(/-(edited|converted|protected|unlocked)$/, '');
+    const base = safeBaseName(outputBase());
     downloadBytes(sheets, base + '-' + draft.perSheet + '-per-sheet.pdf');
     const count = Math.ceil(state.pages.length / draft.perSheet);
     // A handout is a new PDF: it says what the original's pages left behind.

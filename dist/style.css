@@ -1344,12 +1344,13 @@ body.editing {
     transform: translate(-50%, -50%);
   }
 }
-/* In the editor, notices sit in the empty middle of the preview toolbar, so they
-   cover neither the page nor the tool controls (positioned by positionToast()). */
+/* In the editor, notices sit in the gap of the preview toolbar between page
+   navigation and zoom, or at the foot of the pages where that gap is too narrow,
+   so they cover no control (positioned by positionToast()). */
 @media (min-width: 721px) {
   body.editing .toast {
     top: var(--toast-top, 112px);
-    bottom: auto;
+    bottom: var(--toast-bottom, auto);
     left: var(--toast-left, 50%);
     max-width: var(--toast-width, 420px);
   }

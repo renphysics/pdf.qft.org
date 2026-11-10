@@ -1,14 +1,14 @@
 /**
  * Edit history. Edits apply at once: each change() is one undo step, except
  * that changes with the same key in quick succession (typing, dragging, a
- * slider) merge into one.
+ * slider) merge into one. Each step carries a label, which Undo and Redo show.
  *
  * Any module may import change() from here: this module imports only
  * editor-core.js, and what the editor redraws after a change is registered by
  * app.js with onDocumentChanged(), so nothing has to import app.js back.
  */
 
-import { $, activeIndex, selectedItem, setState, snapshot, state, ui } from './editor-core.js';
+import { $, activeIndex, names, selectedItem, setState, snapshot, state, ui } from './editor-core.js';
 
 const listeners = [];
 /** Register what to bring up to date after every change (the editor's renders). */
@@ -19,11 +19,15 @@ export function onDocumentChanged(listener) {
 export function record() {
   return { state: snapshot(), active: ui.activeId, selected: new Set(ui.selected), item: ui.item };
 }
-export function change(mutate, { key = null, layout = false, before = null } = {}) {
+/**
+ * Make an edit. `label` names it for Undo ("Undo: Rotate pages"); without one
+ * it is named after the tool in use.
+ */
+export function change(mutate, { key = null, layout = false, before = null, label = null } = {}) {
   const now = performance.now();
   const merge = key && ui.lastChange?.key === key && now - ui.lastChange.time < 1500;
   if (!merge) {
-    ui.past.push(before || record());
+    ui.past.push({ ...(before || record()), label: label || names[ui.tool] });
     if (ui.past.length > 100) ui.past.shift();
   }
   ui.future = [];
@@ -56,7 +60,7 @@ export function documentChanged(layout) {
 export function travel(from, to) {
   if (ui.busy || !from.length) return null;
   const entry = from.pop();
-  to.push({ ...record(), active: entry.active });
+  to.push({ ...record(), active: entry.active, label: entry.label });
   setState(entry.state);
   ui.activeId = entry.active;
   ui.stage.reveal = entry.active;

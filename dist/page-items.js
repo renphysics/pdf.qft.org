@@ -129,7 +129,7 @@ export function stopEditing() {
         () => {
           state.annotations = state.annotations.filter((item) => item.id !== id);
         },
-        { key: 'text:' + id },
+        { key: 'text:' + id, label: 'Delete text' },
       );
     if (ui.item === id) ui.item = null;
   }
@@ -196,7 +196,10 @@ function moveItem(gesture, point) {
     x: clamp(frame.x + now.x - start.x, 0, Math.max(0, placement.width - frame.width)),
     y: clamp(frame.y + now.y - start.y, 0, Math.max(0, placement.height - frame.height)),
   };
-  change(() => setFrame(annotation, item, moved), { key: gesture.key });
+  change(() => setFrame(annotation, item, moved), {
+    key: gesture.key,
+    label: 'Move ' + itemName(annotation),
+  });
 }
 function resizeItem(gesture, point) {
   const annotation = annotationById(gesture.id),
@@ -214,7 +217,7 @@ function resizeItem(gesture, point) {
         annotation.width = width / W;
         annotation.autoWidth = false;
       },
-      { key: gesture.key },
+      { key: gesture.key, label: 'Resize text' },
     );
     return;
   }
@@ -249,6 +252,7 @@ function resizeItem(gesture, point) {
   }
   change(() => setFrame(annotation, item, { x: left, y: top, width: right - left, height: bottom - top }), {
     key: gesture.key,
+    label: 'Resize ' + itemName(annotation),
   });
 }
 function drawHighlight(gesture, point) {
@@ -276,12 +280,12 @@ function drawHighlight(gesture, point) {
       opacity: ui.styles.highlight.opacity,
       ...box,
     };
-    change(() => state.annotations.push(annotation), { key: gesture.key });
+    change(() => state.annotations.push(annotation), { key: gesture.key, label: 'Add highlight' });
     ui.item = gesture.id;
     return;
   }
   const annotation = annotationById(gesture.id);
-  if (annotation) change(() => Object.assign(annotation, box), { key: gesture.key });
+  if (annotation) change(() => Object.assign(annotation, box), { key: gesture.key, label: 'Add highlight' });
 }
 /** Add a highlight at a spot on a page (keyboard and touch alternative to drawing). */
 export function addHighlight(page, point) {
@@ -301,7 +305,7 @@ export function addHighlight(page, point) {
     width: Math.max(0.01, width),
     height: Math.max(0.005, height),
   };
-  change(() => state.annotations.push(annotation));
+  change(() => state.annotations.push(annotation), { label: 'Add highlight' });
   selectItem(annotation.id);
 }
 /** Draw: a pen stroke follows the pointer; other shapes stretch from where the drag started. */
@@ -359,11 +363,11 @@ function sketch(gesture, point) {
       strokeWidth: style.width,
       ...fields,
     };
-    change(() => state.annotations.push(annotation), { key: gesture.key });
+    change(() => state.annotations.push(annotation), { key: gesture.key, label: 'Add drawing' });
     return;
   }
   const annotation = annotationById(gesture.id);
-  if (annotation) change(() => Object.assign(annotation, fields), { key: gesture.key });
+  if (annotation) change(() => Object.assign(annotation, fields), { key: gesture.key, label: 'Add drawing' });
 }
 /** Add a line, arrow, rectangle or ellipse to a page (keyboard and touch alternative to dragging). */
 export function addDrawing(page) {
@@ -392,7 +396,7 @@ export function addDrawing(page) {
         }
       : {}),
   };
-  change(() => state.annotations.push(annotation));
+  change(() => state.annotations.push(annotation), { label: 'Add drawing' });
   selectItem(annotation.id);
 }
 export function placeImage(image, point = null) {
@@ -421,7 +425,7 @@ export function placeImage(image, point = null) {
     imageBytes: image.bytes,
     imageType: image.type,
   };
-  change(() => state.annotations.push(annotation));
+  change(() => state.annotations.push(annotation), { label: 'Add image' });
   selectItem(annotation.id);
 }
 function nudge(id, dx, dy) {
@@ -441,7 +445,10 @@ function nudge(id, dx, dy) {
     x: clamp(x + delta.x - origin.x, 0, Math.max(0, placement.width - frame.width)),
     y: clamp(y + delta.y - origin.y, 0, Math.max(0, placement.height - frame.height)),
   };
-  change(() => setFrame(annotation, item, moved), { key: 'nudge:' + id });
+  change(() => setFrame(annotation, item, moved), {
+    key: 'nudge:' + id,
+    label: 'Move ' + itemName(annotation),
+  });
 }
 export function deleteItem(id) {
   const annotation = annotationById(id);
@@ -457,9 +464,12 @@ export function deleteItem(id) {
     state.annotations = state.annotations.filter((item) => item.id !== id);
     documentChanged(false);
   } else
-    change(() => {
-      state.annotations = state.annotations.filter((item) => item.id !== id);
-    });
+    change(
+      () => {
+        state.annotations = state.annotations.filter((item) => item.id !== id);
+      },
+      { label: 'Delete ' + itemName(annotation) },
+    );
   ui.item = null;
   renderTool();
   $('#canvas-scroll').focus({ preventScroll: true });
@@ -694,7 +704,7 @@ export function initPageItems() {
       () => {
         annotation.text = inlineEditor.value;
       },
-      { key: 'text:' + id, before },
+      { key: 'text:' + id, before, label: 'Edit text' },
     );
     warmFont(inlineEditor.value);
     const field = $('#tool-form [name="text"]');
@@ -762,6 +772,15 @@ export async function addImageFile(file) {
   }
 }
 
+/** What an item is called in an undo step: "Move image", "Delete text". */
+function itemName(annotation) {
+  return (
+    { image: 'image', highlight: 'highlight', signature: 'signature', drawing: 'drawing' }[
+      annotation?.type
+    ] || 'text'
+  );
+}
+
 // ---- Signatures on pages (made in panel-signature.js) -----------------------------
 
 /** A signature's size and place: at a click, or near the lower right of the page. */
@@ -809,7 +828,7 @@ export function placeSignature(point = null, page = currentPage()) {
   }
   const geometry = geometryOf(state, page),
     annotation = signatureAnnotation(page, geometry, signatureFrame(geometry, point));
-  change(() => state.annotations.push(annotation));
+  change(() => state.annotations.push(annotation), { label: 'Add signature' });
   // Placed with a button, it may be out of view.
   selectItem(annotation.id, { reveal: !point });
 }
@@ -818,7 +837,7 @@ export function placeSignatureEverywhere() {
     const geometry = geometryOf(state, page);
     return signatureAnnotation(page, geometry, signatureFrame(geometry));
   });
-  change(() => state.annotations.push(...added));
+  change(() => state.annotations.push(...added), { label: 'Add signature' });
   selectItem(added[activeIndex()].id, { reveal: true });
   toast('Your signature is on all ' + added.length + ' pages. Drag any of them to adjust it.');
 }
@@ -843,6 +862,6 @@ export function copySignature(item) {
       return signatureAnnotation(page, geometry, frame, item.imageBytes);
     });
   if (!added.length) return;
-  change(() => state.annotations.push(...added));
+  change(() => state.annotations.push(...added), { label: 'Add signature' });
   toast('Signature added to ' + added.length + ' more page' + (added.length === 1 ? '' : 's') + '.');
 }

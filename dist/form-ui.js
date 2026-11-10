@@ -247,7 +247,7 @@ function commitControl(control) {
         [source.id]: { ...(state.formValues[source.id] || {}), [field.name]: value },
       };
     },
-    { key: field.kind === 'text' ? 'form:' + source.id + ':' + field.name : null },
+    { key: field.kind === 'text' ? 'form:' + source.id + ':' + field.name : null, label: 'Fill in a field' },
   );
   refreshThumbnailsSoon();
 }
@@ -380,12 +380,15 @@ export function clearForm() {
   );
   if (!fields.length) return;
   const empty = { text: '', checkbox: false, radio: null, dropdown: '', list: [] };
-  change(() => {
-    const values = { ...state.formValues };
-    for (const { source, field } of fields)
-      values[source.id] = { ...(values[source.id] || {}), [field.name]: empty[field.kind] };
-    state.formValues = values;
-  });
+  change(
+    () => {
+      const values = { ...state.formValues };
+      for (const { source, field } of fields)
+        values[source.id] = { ...(values[source.id] || {}), [field.name]: empty[field.kind] };
+      state.formValues = values;
+    },
+    { label: 'Clear the form' },
+  );
   refreshThumbnailsSoon();
   toast('Fields cleared. Undo brings their values back.');
 }
@@ -489,6 +492,6 @@ export function afterRender() {
 }
 export function onInput(name, value) {
   if (name !== 'flattenForms') return;
-  change(() => (state.flattenForms = value));
+  change(() => (state.flattenForms = value), { label: 'Flatten fields' });
   announceMessage(value ? 'Fields will be flattened on download.' : 'Fields will stay fillable.');
 }

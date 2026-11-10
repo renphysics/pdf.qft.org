@@ -129,7 +129,7 @@ export function onInput(name, value, field, item) {
       () => {
         item[keys[name]] = name === 'size' ? Number(value) : value;
       },
-      { key: name + ':' + item.id },
+      { key: name + ':' + item.id, label: 'Edit text' },
     );
     if (name === 'text') warmFont(value);
     if (ui.editing === item.id && name === 'text') inlineEditor.value = value;
@@ -138,11 +138,13 @@ export function onInput(name, value, field, item) {
   if (ui.tool === 'highlight') {
     const parsed = name === 'opacity' ? Number(value) / 100 : value;
     ui.styles.highlight[name] = parsed;
-    if (item?.type === 'highlight') change(() => (item[name] = parsed), { key: name + ':' + item.id });
+    if (item?.type === 'highlight')
+      change(() => (item[name] = parsed), { key: name + ':' + item.id, label: 'Edit highlight' });
     return;
   }
   if (ui.tool === 'image' && item?.type === 'image') {
-    if (name === 'opacity') change(() => (item.opacity = Number(value) / 100), { key: 'opacity:' + item.id });
+    if (name === 'opacity')
+      change(() => (item.opacity = Number(value) / 100), { key: 'opacity:' + item.id, label: 'Edit image' });
     if (name === 'width') resizeImageTo(item, Number(value) / 100);
   }
 }

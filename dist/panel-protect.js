@@ -83,6 +83,7 @@ export function onInput(name, value, field) {
   if (ui.tool === 'protect' && name === 'password') {
     change(() => (state.protection = value ? { enabled: true, password: value } : null), {
       key: 'protection',
+      label: 'Password',
     });
     updateProtectionStatus();
   }

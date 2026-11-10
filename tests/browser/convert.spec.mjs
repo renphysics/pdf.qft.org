@@ -66,7 +66,7 @@ test('pictures become pages: turned upright, on Letter or their own size, in one
   // The tests' browser language is en-US (playwright.config.mjs): Letter, turned to suit each picture.
   await expect(page.locator('#tool-form [name="pictureSize"]')).toHaveValue('letter');
   let file = await download(page, () => page.click('#download-button'));
-  expect(file.name).toBe('combined-converted.pdf');
+  expect(file.name).toBe('wide-converted.pdf');
   expect(await pageSizes(file.bytes)).toEqual([
     [792, 612],
     [612, 792],

@@ -17,7 +17,7 @@ import {
   toast,
   ui,
 } from './editor-core.js';
-import { downloadBytes, exportDocument, outputName, relayoutPictures, showExportError } from './documents.js';
+import { downloadBytes, exportDocument, outputBase, relayoutPictures, showExportError } from './documents.js';
 import { selectField } from './tool-panel.js';
 
 function jpgToPdfFields() {
@@ -124,7 +124,7 @@ async function savePictures() {
     ui.cancelOperation = false;
     busy(true, 'Saving pages as pictures…');
     cancellable('Cancel', null);
-    const base = safeBaseName(outputName()).replace(/-(edited|converted|protected|unlocked)$/, '');
+    const base = safeBaseName(outputBase());
     const pictures = await pagesToImages(bytes, numbers, {
       format: settings.format,
       dpi: settings.dpi,

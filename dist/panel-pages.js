@@ -107,7 +107,7 @@ export function values() {
 export function onInput(name, value) {
   if (name === 'backsReversed') ui.backsReversed = value;
   else if (name === 'fileBookmarks') {
-    change(() => (state.fileBookmarks = value));
+    change(() => (state.fileBookmarks = value), { label: 'File bookmarks' });
     announceMessage(value ? 'Each file will have a bookmark.' : 'Files won’t have bookmarks of their own.');
   } else if (name === 'range') ui.rangeDraft = value;
 }

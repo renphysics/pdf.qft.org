@@ -319,7 +319,7 @@ test('merges another PDF, undoes and redoes it, and splits into a ZIP', async ({
   await page.click('#redo-button');
   await expect(page.locator('#document-info')).toHaveText(/^7 pages/);
   const merged = await download(page, () => page.click('#download-button'));
-  expect(merged.name).toBe('combined-edited.pdf');
+  expect(merged.name).toBe('A little room to create-merged.pdf');
   expect((await pdfText(merged.bytes))[3]).toContain('ROTATION 0');
   // A bookmark for each file, at its first page; turned off, none.
   expect(await pdfOutline(merged.bytes)).toEqual([
@@ -337,7 +337,7 @@ test('merges another PDF, undoes and redoes it, and splits into a ZIP', async ({
   await page.click('#tool-form [type="submit"]');
   await expect(page.locator('[data-action="download-split"]')).toHaveCount(3);
   const zip = await download(page, () => page.click('[data-action="download-split-zip"]'));
-  expect(zip.name).toBe('combined-split.zip');
+  expect(zip.name).toBe('A little room to create-split.zip');
   const entries = Buffer.from(zip.bytes).toString('latin1').split('PK\u0003\u0004').length - 1;
   expect(entries).toBe(3);
 });
@@ -387,4 +387,78 @@ test('files that are not PDFs, or are damaged, get a clear message', async ({ pa
   );
   await expectToast(page, /could not be opened as a PDF/);
   await expect(page.locator('#landing')).toBeVisible();
+});
+
+test('Undo and Redo say which step they take, and a notice says what was undone', async ({ page }) => {
+  await openSample(page);
+  const undo = page.locator('#undo-button'),
+    redo = page.locator('#redo-button');
+  await expect(undo).not.toHaveAttribute('title');
+  await useTool(page, 'numbers');
+  await expect(undo).toHaveAttribute('title', 'Undo: Page numbers');
+  await expect(undo).toHaveAttribute('aria-label', 'Undo: Page numbers');
+  await useTool(page, 'pages');
+  await page.click('[data-action="rotate"]');
+  await expect(undo).toHaveAttribute('title', 'Undo: Rotate pages');
+  await undo.click();
+  await expectToast(page, 'Undone: Rotate pages.');
+  await expect(undo).toHaveAttribute('title', 'Undo: Page numbers');
+  await expect(redo).toHaveAttribute('title', 'Redo: Rotate pages');
+  await redo.click();
+  await expectToast(page, 'Redone: Rotate pages.');
+  await expect(redo).not.toHaveAttribute('title');
+  await expect(redo).toBeDisabled();
+});
+
+test('Delete pages starts with nothing to delete; pages selected on purpose stay selected', async ({
+  page,
+}) => {
+  await openSample(page);
+  // The first page is selected when a document opens: handy for Organize pages, not a choice to delete it.
+  await useTool(page, 'delete');
+  await expect(page.locator('#tool-panel')).toContainText('0 of 3 pages selected for deletion');
+  await expect(page.locator('[data-action="delete-pages"]')).toBeDisabled();
+  await expect(page.locator('.page-item.marked-delete')).toHaveCount(0);
+  await page.locator('[data-page-select]').nth(1).check();
+  await expect(page.locator('#tool-panel')).toContainText('1 of 3 pages selected for deletion');
+  // Chosen pages stay chosen through other tools and back.
+  await useTool(page, 'pages');
+  await useTool(page, 'delete');
+  await expect(page.locator('#tool-panel')).toContainText('1 of 3 pages selected for deletion');
+  await page.click('[data-action="delete-pages"]');
+  await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
+  await expect(page.locator('#undo-button')).toHaveAttribute('title', 'Undo: Delete pages');
+});
+
+test('the first document opened is told its files stay on the device; later ones are simply ready', async ({
+  page,
+}) => {
+  await openSample(page);
+  await expectToast(page, 'Your PDF is ready. Everything happens on your device.');
+  await page.click('#workspace [data-action="open"]');
+  await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
+  await expect(page.locator('#document-info')).toHaveText(/^4 pages/);
+  await expectToast(page, 'Your PDF is ready.');
+});
+
+test('a download’s name says what was done to the file', async ({ page }) => {
+  await openSample(page);
+  const name = async () => (await download(page, () => page.click('#download-button'))).name;
+  await useTool(page, 'numbers');
+  expect(await name()).toBe('A little room to create-numbered.pdf');
+  await page.click('#undo-button');
+  await useTool(page, 'watermark');
+  // Undone once, Watermark does not show itself again: the switch does.
+  await useTool(page, 'text');
+  await useTool(page, 'watermark');
+  expect(await name()).toBe('A little room to create-watermarked.pdf');
+  await page.click('#undo-button');
+  await useTool(page, 'pages');
+  await page.click('[data-action="rotate"]');
+  expect(await name()).toBe('A little room to create-organized.pdf');
+  await useTool(page, 'crop');
+  await page.fill('#tool-form [name="top"]', '10');
+  await page.click('#tool-form [type="submit"]');
+  // Two kinds of change: edited.
+  expect(await name()).toBe('A little room to create-edited.pdf');
 });

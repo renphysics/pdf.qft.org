@@ -19,7 +19,7 @@ import {
   ui,
 } from './editor-core.js';
 import { splitFormProblem } from './pages.js';
-import { exportDocument, exportNotes, outputName, showExportError } from './documents.js';
+import { exportDocument, exportNotes, outputBase, showExportError } from './documents.js';
 import { makeField, numberField, renderTool, selectField } from './tool-panel.js';
 
 function splitFields() {
@@ -140,7 +140,7 @@ async function generateSplit() {
       },
       shouldCancel: () => ui.cancelOperation,
     });
-    const base = safeBaseName(outputName()).replace(/-edited$/, '');
+    const base = safeBaseName(outputBase());
     ui.splitResults = outputs.map((output, index) => ({
       name: base + '-part-' + String(index + 1).padStart(String(groups.length).length, '0') + '.pdf',
       bytes: output,

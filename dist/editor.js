@@ -26,7 +26,6 @@ import {
   $$,
   activeIndex,
   annotationById,
-  announceMessage,
   assetUrl,
   busy,
   confirmDialog,
@@ -138,20 +137,36 @@ function updateDownloadButton() {
   if (locked) button.title = 'Your download will need its password to open';
   else button.removeAttribute('title');
 }
+/** Undo and Redo are on when there is a step to take, and say which ("Undo: Rotate pages"). */
 function updateHistoryButtons() {
-  $('#undo-button').disabled = !ui.past.length;
-  $('#redo-button').disabled = !ui.future.length;
+  for (const [id, steps, verb] of [
+    ['#undo-button', ui.past, 'Undo'],
+    ['#redo-button', ui.future, 'Redo'],
+  ]) {
+    const button = $(id),
+      label = steps.at(-1)?.label;
+    button.disabled = !steps.length;
+    if (label) {
+      button.title = verb + ': ' + label;
+      button.setAttribute('aria-label', verb + ': ' + label);
+    } else {
+      button.removeAttribute('title');
+      button.removeAttribute('aria-label');
+    }
+  }
 }
-function undoOrRedo(from, to, message) {
+function undoOrRedo(from, to, done) {
   if (ui.busy || !from.length) return;
   stopEditing();
   endGesture();
-  if (!travel(from, to)) return;
+  const step = travel(from, to);
+  if (!step) return;
   renderTool();
-  announceMessage(message);
+  // Says what was undone, in place of a notice about what no longer holds.
+  toast(done + (step.label ? ': ' + step.label : '') + '.');
 }
-const undo = () => undoOrRedo(ui.past, ui.future, 'Undone.');
-const redo = () => undoOrRedo(ui.future, ui.past, 'Redone.');
+const undo = () => undoOrRedo(ui.past, ui.future, 'Undone');
+const redo = () => undoOrRedo(ui.future, ui.past, 'Redone');
 
 // ---- Views (views.js records them) -----------------------------------------------
 let ignoreNextPop = false;
@@ -205,10 +220,11 @@ async function resetDocument() {
       setState(snapshot(ui.initial));
       ui.activeId = state.pages[0].id;
       ui.selected = new Set([ui.activeId]);
+      ui.selectedByDefault = true;
       ui.item = null;
       ui.stage.reveal = ui.activeId;
     },
-    { layout: true },
+    { layout: true, label: 'Reset' },
   );
   ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: 'current' };
   ui.lastCropPreset = null;
@@ -324,7 +340,7 @@ export async function action(name, element) {
   if (name === 'download') await downloadDocument();
   if (name === 'download-protected') await downloadProtected();
   if (name === 'remove-protection') {
-    change(() => (state.protection = null));
+    change(() => (state.protection = null), { label: 'Remove password' });
     renderTool();
     toast('Password removed. Your download will open without one.');
   }
@@ -368,6 +384,7 @@ export async function action(name, element) {
   }
   if (name === 'select-all' || name === 'select-none') {
     ui.selected = name === 'select-all' ? new Set(state.pages.map((p) => p.id)) : new Set();
+    ui.selectedByDefault = false;
     $$('[data-page-select]').forEach((input) => (input.checked = ui.selected.has(input.dataset.pageSelect)));
     renderTool();
   }
@@ -393,7 +410,7 @@ export async function action(name, element) {
         () => {
           targets.forEach((p) => delete p.crop);
         },
-        { layout: true },
+        { layout: true, label: 'Restore crop' },
       );
       ui.lastCropPreset = null;
       ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
@@ -560,6 +577,7 @@ $('#page-list').addEventListener('change', (event) => {
   if (!id) return;
   if (event.target.checked) ui.selected.add(id);
   else ui.selected.delete(id);
+  ui.selectedByDefault = false;
   renderTool();
 });
 $('#page-list').addEventListener('dragstart', (event) => {

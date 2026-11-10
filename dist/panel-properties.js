@@ -57,6 +57,7 @@ export function clearProperties() {
         keywords: '',
         clean: true,
       }),
+    { label: 'Remove details' },
   );
   renderTool();
   toast('Details removed. Your download won’t include them.');

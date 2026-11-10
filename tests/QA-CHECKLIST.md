@@ -671,3 +671,13 @@ source review does not replace the owner’s browser verification.
   reading whichever is showing; the two batch clicks that swallowed their
   errors now wait for the batch workspace; the browser's language and time
   zone are fixed (en-US, UTC), with a German case for the A4 default.
+- Everyday details: undo steps have names (the tool's, or the action's: Rotate
+  pages, Move page, Delete text…), shown by Undo and Redo and in the notice
+  after undoing; Delete pages starts with nothing selected unless pages were
+  selected on purpose; a download's name says what was done (numbered,
+  watermarked, cropped, signed, filled, organized, merged, converted, edited),
+  after its first file's name; notices sit in the toolbar's free gap, at its
+  real width, or at the foot of the pages where the gap is too narrow (tested
+  at 800, 1024, 1280 and 1600 px: no overlap with page navigation, zoom or the
+  status line); the privacy sentence shows with the first document only.
+  Notices keep their five seconds: shortening them would cost reading time.

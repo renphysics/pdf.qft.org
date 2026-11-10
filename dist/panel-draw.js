@@ -74,5 +74,6 @@ export function onInput(name, value, field, item) {
   if (item?.type === 'drawing')
     change(() => (item[name === 'width' ? 'strokeWidth' : 'color'] = parsed), {
       key: name + ':' + item.id,
+      label: 'Edit drawing',
     });
 }

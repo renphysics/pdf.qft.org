@@ -158,18 +158,60 @@ export function downloadBytes(bytes, name) {
 export function usedSources() {
   return state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
 }
-export function outputName(
-  suffix = protectedDownload()
-    ? 'protected'
-    : unlockedDownload()
-      ? 'unlocked'
-      : usedSources().every((source) => source.picture)
-        ? 'converted'
-        : 'edited',
-) {
-  const sources = usedSources();
-  const base = sources.length === 1 ? sources[0].name.replace(/\.(pdf|jpe?g|png)$/i, '') : 'combined';
-  return base + '-' + suffix + '.pdf';
+/** A download is named after the first file in it (blank pages aside), without its extension. */
+export function outputBase() {
+  const first = state.pages
+    .map((page) => state.sources.find((source) => source.id === page.sourceId))
+    .find((source) => source && !source.blank);
+  return first ? first.name.replace(/\.(pdf|jpe?g|png)$/i, '') : 'document';
+}
+/**
+ * What a download's name says was done: its protection; "converted" for
+ * pictures made into pages; "merged" for several files; one word when the
+ * edits are of one kind (numbered, watermarked, cropped, signed, filled,
+ * organized); and "edited" for anything else.
+ */
+function outputKind() {
+  if (protectedDownload()) return 'protected';
+  if (unlockedDownload()) return 'unlocked';
+  const files = usedSources().filter((source) => !source.blank);
+  if (files.length && files.every((source) => source.picture)) return 'converted';
+  if (files.length > 1) return 'merged';
+  const on = (key) => state[key] && state[key].enabled !== false;
+  const kinds = new Set();
+  if (on('pageNumbers')) kinds.add('numbered');
+  if (on('watermark') && String(state.watermark.text || '').trim()) kinds.add('watermarked');
+  if (
+    on('headerFooter') &&
+    ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].some((slot) =>
+      String(state.headerFooter[slot] || '').trim(),
+    )
+  )
+    kinds.add('edited');
+  for (const annotation of state.annotations)
+    kinds.add(annotation.type === 'signature' ? 'signed' : 'edited');
+  if (state.pages.some((page) => page.crop))
+    kinds.add(state.pages.some((page) => page.crop?.content) ? 'edited' : 'cropped');
+  if (
+    state.flattenForms ||
+    Object.values(state.formValues || {}).some((values) => Object.keys(values).length)
+  )
+    kinds.add('filled');
+  if (state.properties) kinds.add('edited');
+  // Pages moved, turned, removed, repeated or added.
+  const [file] = files;
+  if (
+    file &&
+    (state.pages.length !== file.pageCount ||
+      state.pages.some(
+        (page, index) => page.sourceId !== file.id || page.index !== index || (page.rotation || 0) !== 0,
+      ))
+  )
+    kinds.add('organized');
+  return kinds.size === 1 ? [...kinds][0] : 'edited';
+}
+export function outputName(suffix = outputKind()) {
+  return outputBase() + '-' + suffix + '.pdf';
 }
 /**
  * What a download message adds about the file, or the files of a split
@@ -367,6 +409,13 @@ async function openWithPassword(name, bytes, several) {
   }));
 }
 /** What to say once files are open: protection kept or removed, files skipped. */
+let reassured = false;
+/** Said with the first document opened in this tab; later ones are simply ready. */
+function reassurance() {
+  if (reassured) return '';
+  reassured = true;
+  return ' Everything happens on your device.';
+}
 function openedMessage(sources, { added, kept, skipped, shown = null }) {
   const withPassword = sources.some((source) => source.protection === 'password'),
     limited = sources.some((source) => source.protection === 'owner'),
@@ -387,8 +436,8 @@ function openedMessage(sources, { added, kept, skipped, shown = null }) {
     );
   else if (withPassword) parts.push('Your PDF is unlocked for editing, here on your device.');
   else if (!added && ui.tool === 'form' && documentFields().length)
-    parts.push('Your PDF has fields to fill in: click one to type in it. Everything happens on your device.');
-  else parts.push('Your PDF is ready. Everything happens on your device.');
+    parts.push('Your PDF has fields to fill in: click one to type in it.' + reassurance());
+  else parts.push('Your PDF is ready.' + reassurance());
   if (kept) parts.push('Your download will keep the same password. Change it in Protect PDF.');
   if (limited && ui.tool !== 'unlock')
     parts.push('It had limits on printing, copying or changes, which your download won’t have.');
@@ -443,7 +492,7 @@ export async function relayoutPictures() {
           return { ...page, sourceId: source.id, crop };
         });
       },
-      { layout: true },
+      { layout: true, label: 'Page size' },
     );
   } catch (error) {
     toast(friendly(error), true);
@@ -545,7 +594,7 @@ export async function openFiles(files, append = false) {
           state.pages.push(...pages);
           if (keep) state.protection = { enabled: true, password };
         },
-        { layout: true },
+        { layout: true, label: 'Add files' },
       );
       renderTool();
       toast(openedMessage(sources, { added: pages.length, kept: keep, skipped }));
@@ -560,6 +609,7 @@ export async function openFiles(files, append = false) {
       });
       ui.activeId = pages[0].id;
       ui.selected = new Set([pages[0].id]);
+      ui.selectedByDefault = true;
       ui.item = null;
       ui.past = [];
       ui.future = [];
