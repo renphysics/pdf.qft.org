@@ -204,12 +204,15 @@ shows it without building a PDF:
   when the edits are of one kind, `-merged` for several files, `-converted`
   for pictures made into pages, `-protected` or `-unlocked` for passwords, and
   `-edited` otherwise (`outputName` in `documents.js`).
-- Notices sit where they cover no control: on a desktop, in the toolbar's gap
+- On a desktop a notice covers no control: it sits in the toolbar's gap
   between page navigation and zoom, as wide as the gap allows, or at the foot
-  of the pages where the gap is too narrow; on a phone, under the document bar,
-  clear of the tools under the thumbs. They stay five seconds or longer, by
-  their length; errors stay until dismissed. "Everything happens on your
-  device" is said with the first document opened in a tab, not every time.
+  of the pages where the gap is too narrow, and inside the window when that is
+  shorter than the editor. On a phone it stays at the top, under the document
+  bar and clear of the tools under the thumbs; there it lies over page
+  navigation and zoom until it goes, so it is put away when a form field is
+  tapped. Notices stay five seconds or longer, by their length; errors stay
+  until dismissed. "Everything happens on your device" is said with the first
+  document opened in a tab, not every time.
 - Every change is one undo step (typing, dragging and sliders merge into one
   step), with redo. Problems the export would report, such as a character the
   fonts cannot draw or a header too long for its page, are shown on the page
@@ -451,8 +454,10 @@ thumbnail checkboxes or enter ranges such as `2, 4-6`; the editor marks pages
 for deletion and shows how many will remain. At least one page must remain.
 It starts with nothing selected: the first page, which a document opens with
 selected for Organize pages, is not a choice to delete it, while pages selected
-on purpose stay selected. Deletion is undoable and the original source file is
-untouched.
+on purpose stay selected. That holds however the tool is reached: chosen from
+another tool, opened on its own page, after Reset, and after Undo or Redo of a
+step made before (`dropDefaultSelection` in `editor-core.js`). Deletion is
+undoable and the original source file is untouched.
 
 Crop PDF accepts a pointer-drawn rectangle or numeric margin percentages.
 Apply to the current page, selected pages, or every page. Percentages refer
@@ -541,12 +546,19 @@ dropdowns and lists. A PDF with fields opened from the home page opens in it.
   through them in reading order, on to the next page. In the other tools and
   the page strip, PDF.js draws the fields with the values typed (its annotation
   storage), as readers will show the download.
-- On phones (the layout under 720 px), a field that gets focus folds the tool
-  sheet away and zooms the page so the field is at least 44 px tall (check
-  boxes and radios 24 px, with a 44 px tap area), in the upper part of the view
-  above the keyboard; Tab and Go to the next empty field keep the field in
-  view, Fit shows the whole page, and leaving Fill form returns to the zoom
-  from before. The zoom buttons step down from a field zoom.
+- On phones (the layout under 720 px, under a finger), a field that gets focus
+  folds the tool sheet away and zooms the page so the field is at least 44 px
+  tall (check boxes and radios 24 px), in the upper part of the view above the
+  keyboard; Tab and Go to the next empty field keep the field in view, Fit
+  shows the whole page, and leaving Fill form returns to the zoom from before.
+  The zoom buttons step down from a field zoom, and a zoom set by hand is kept.
+  For a box or a list the sheet folds and the page zooms only after the tap
+  has been delivered, so the first tap ticks the box. A box can be tapped
+  around its drawn size, up to 44 px across, but never where another field is
+  as near: its tap area grows by half the gap to its nearest neighbour at most
+  (`tapAreas` in `form-ui.js`), so a tap on a field always reaches that field,
+  however small the page is shown. With a mouse in a narrow window nothing
+  zooms.
 - Values are part of the document state (`state.formValues`), so each change is
   an undo step. On export they are written to the fields, and changed fields get
   new appearances in a font that has their characters (Helvetica, Noto Sans or

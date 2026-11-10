@@ -634,6 +634,20 @@ source review does not replace the owner’s browser verification.
   44 px inside the stage with the sheet folded, Tab keeps the next field in
   view, a check box toggles from a tap, and Fit returns. Desktop: the zoom stays
   at Fit (forms test guard).
+- Review of the above, reproduced in Chromium and WebKit before fixing: every
+  box had a 44 px tap area whatever its neighbours, so at Fit a tap on the
+  "member" box chose a "plan" radio and, in WebKit, a tap on the e-mail field
+  did too; the sheet folded as soon as a box got focus, so on a last page the
+  first tap zoomed to the box without ticking it; the zoom also ran for a
+  mouse in a narrow window. Now a box's tap area grows by half the gap to its
+  nearest neighbour at most (`tapAreas`), the sheet folds with the zoom after
+  the tap for boxes and lists, the zoom needs a coarse pointer, and a zoom set
+  by hand is not put back. Phone tests: at Fit every field is on top of its
+  own surface; the first tap ticks a box 4 to 7 px wide and zooms it to 24 px;
+  a tap beside the zoomed box toggles it; leaving Fill form restores the zoom;
+  a last-page box is ticked by its first tap; a notice is put away when a
+  field is tapped. Desktop test: a 683 px window with a mouse is not zoomed.
+  Each new test fails with its fix taken out.
 - The content security policy no longer allows inline styles, `data:` or
   `blob:` fonts or `blob:` workers, and forbids frames and media (the app uses
   none of them; the licenses page, which has an inline style block and no
@@ -647,10 +661,14 @@ source review does not replace the owner’s browser verification.
   hostile file name on the Fill form page, adds a hostilely named image, and
   visits Fill form, Document properties, Merge PDFs, Organize pages, Add an
   image, the download name and the batch list: no flag set, nothing injected.
-- Focus and announcements: a panel control that disables itself (Move earlier
-  at the first page) hands focus to the nearest enabled control in its group
-  instead of the panel heading, and the heading shows a ring when it does get
-  focus; the page-range hint is a live region, so an out-of-range number is
+- Focus and announcements: a panel control that disables itself (Delete, once
+  the selected pages are gone) hands focus to the nearest enabled control in
+  its group, the one before it first, instead of the panel heading, and the
+  heading shows a ring when it does get focus; Move earlier and Move later are
+  unavailable (`aria-disabled`) at the first and the last page, not disabled,
+  so focus stays on the button that reached the end and one Enter too many
+  says "This page is already the first" instead of moving the page back (a
+  review finding: focus used to go to the opposite button); the page-range hint is a live region, so an out-of-range number is
   announced; the landing scroll respects reduced motion; on touch screens the
   notice's close button has a 44 px tap area around its 28 px drawing; Pages
   per sheet says when a handout leaves a tagged PDF's tags, labels or
@@ -685,6 +703,11 @@ source review does not replace the owner’s browser verification.
   at 800, 1024, 1280 and 1600 px: no overlap with page navigation, zoom or the
   status line); the privacy sentence shows with the first document only.
   Notices keep their five seconds: shortening them would cost reading time.
+  Review findings fixed: in a window shorter than the editor (1024 x 500, a
+  phone on its side) the notice at the foot of the pages was below the window's
+  edge, and now stays inside it; Delete pages still started with page 1
+  selected on its own page, after Reset and after Undo, and now starts empty
+  there too (tests for each).
 - `{date}` and `{filename}` in watermarks, headers, footers and page numbers:
   today's date as 2026-11-10 and the name of the file each page came from,
   without its extension. Engine test: two merged files and a blank page (each

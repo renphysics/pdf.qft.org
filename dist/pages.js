@@ -13,6 +13,7 @@ import {
   announceMessage,
   busy,
   currentPage,
+  dropDefaultSelection,
   friendly,
   icon,
   names,
@@ -66,6 +67,12 @@ export function movePage(id, offset, targetId = null) {
   if (ui.busy) return;
   const from = pageIndexOf(id),
     to = targetId ? pageIndexOf(targetId) : from + offset;
+  if (!targetId && from >= 0 && (to < 0 || to >= state.pages.length)) {
+    // Move earlier at the first page, Move later at the last: the button keeps
+    // focus (it is aria-disabled, not disabled) and says why nothing moved.
+    announceMessage(to < 0 ? 'This page is already the first.' : 'This page is already the last.');
+    return;
+  }
   if (from < 0 || to < 0 || to >= state.pages.length || from === to) return;
   stopEditing();
   change(
@@ -364,14 +371,8 @@ export function chooseTool(tool) {
   endGesture();
   if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
   if (ui.tool === 'form' && tool !== 'form') restoreFormZoom();
-  // Delete pages starts with nothing to delete: the page a document opens with
-  // selected was not chosen. Pages selected on purpose stay selected.
-  if (tool === 'delete' && ui.selectedByDefault) {
-    ui.selected = new Set();
-    ui.selectedByDefault = false;
-    $$('[data-page-select]').forEach((input) => (input.checked = false));
-  }
   ui.tool = tool;
+  dropDefaultSelection();
   // Watermark and Page numbers show their defaults when chosen. Arrowing through
   // the menu to see what there is changes the tool with every key; then they
   // wait until focus leaves the menu, so looking at a tool does not edit the

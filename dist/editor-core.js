@@ -309,9 +309,22 @@ export function focusKey(element = document.activeElement) {
   return panelFallback ? [panelFallback] : null;
 }
 /**
+ * Delete pages starts with nothing to delete: the page a document opens with
+ * selected was not chosen. Called wherever the selection is set for the user
+ * (a document opens, Reset, Undo and Redo) and when the tool is chosen. Pages
+ * selected on purpose stay selected.
+ */
+export function dropDefaultSelection() {
+  if (ui.tool !== 'delete' || !ui.selectedByDefault) return;
+  ui.selected = new Set();
+  ui.selectedByDefault = false;
+  $$('[data-page-select]').forEach((input) => (input.checked = false));
+}
+/**
  * Focus the first visible, enabled match of a focusKey() description. A control
- * that disabled itself (Move earlier, at the first page) hands focus to the
- * nearest enabled control in its group, so a keyboard user keeps their place.
+ * that disabled itself (Delete, once the selected pages are gone) hands focus
+ * to the nearest enabled control in its group, the one before it first, so a
+ * keyboard user keeps their place.
  */
 export function restoreFocus(key) {
   for (const selector of [].concat(key || [])) {
@@ -323,12 +336,12 @@ export function restoreFocus(key) {
       return true;
     }
     const group = shown[0]?.closest('.mini-actions, .selection-buttons, .field-row, #tool-form');
-    const neighbour =
-      group &&
-      $$('button, input, select, textarea, [tabindex="0"]', group).find(
-        (element) => !element.disabled && element.getClientRects().length,
-      );
-    if (neighbour) {
+    const controls = group ? $$('button, input, select, textarea, [tabindex="0"]', group) : [],
+      at = controls.indexOf(shown[0]),
+      usable = (element) => element && !element.disabled && element.getClientRects().length;
+    for (let step = 1; at >= 0 && step < controls.length; step++) {
+      const neighbour = [controls[at - step], controls[at + step]].find(usable);
+      if (!neighbour) continue;
       neighbour.focus({ preventScroll: true });
       return true;
     }
@@ -375,7 +388,8 @@ export function positionToast() {
     place(
       stage.left + stage.width / 2,
       'auto',
-      innerHeight - stage.bottom + 8 + 'px',
+      // In a short window the pages end below its edge: the notice stays in the window.
+      Math.max(8, innerHeight - stage.bottom + 8) + 'px',
       Math.max(240, Math.min(460, stage.width - 32)),
     );
   }

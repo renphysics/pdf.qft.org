@@ -130,14 +130,41 @@ test('switches and segmented controls show their state in forced-colours mode', 
   expect(chosen.background, 'the chosen segment looks different').not.toBe(other.background);
 });
 
-test('a button that disables itself hands focus to its neighbour, not to a heading', async ({ page }) => {
+test('a button that reaches its limit keeps focus; one that disables itself hands focus to its neighbour', async ({
+  page,
+}) => {
   await openSample(page);
   await useTool(page, 'pages');
   await page.locator('[data-page-open]').nth(1).click();
   await ready(page);
-  await page.locator('[data-action="move-earlier"]').focus();
+  const earlier = page.locator('[data-action="move-earlier"]'),
+    order = () =>
+      page
+        .locator('#page-list [data-page-id]')
+        .evaluateAll((items) => items.map((item) => item.dataset.pageId));
+  const before = await order();
+  await earlier.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#announce-status')).toContainText('Page moved to position 1.');
-  await expect(page.locator('[data-action="move-earlier"]')).toBeDisabled();
-  await expect(page.locator('[data-action="move-later"]')).toBeFocused();
+  // At the first page the button is unavailable, not disabled: focus stays on it,
+  // not on Move later, where one Enter too many would move the page back.
+  await expect(earlier).toHaveAttribute('aria-disabled', 'true');
+  await expect(earlier).toBeFocused();
+  const moved = await order();
+  expect(moved).toEqual([before[1], before[0], before[2]]);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#announce-status')).toContainText('This page is already the first.');
+  expect(await order()).toEqual(moved);
+  await expect(page.locator('[data-action="move-later"]')).not.toHaveAttribute('aria-disabled', 'true');
+
+  // Delete pages: the button disables itself when the selected pages are gone, and
+  // focus goes to the control next to it, not to the first one in the panel.
+  await useTool(page, 'delete');
+  await page.locator('[data-page-select]').nth(2).check();
+  const remove = page.locator('[data-action="delete-pages"]');
+  await remove.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
+  await expect(remove).toBeDisabled();
+  await expect(page.locator('[data-action="select-range"]')).toBeFocused();
 });

@@ -80,3 +80,21 @@ for (const width of [800, 1024, 1280, 1600]) {
     expect(notice.right).toBeLessThanOrEqual(stage.right);
   });
 }
+
+// The editor is at least 520 px high, so in a shorter window the pages end below
+// its edge: a notice at their foot would be out of sight.
+for (const [width, height] of [
+  [1024, 500],
+  [844, 390],
+]) {
+  test(`a notice stays in a window ${width} px wide and ${height} px high`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await openSample(page, 'add-page-numbers-to-pdf/');
+    await expect(page.locator('#toast')).toBeVisible();
+    const notice = await page.locator('#toast').boundingBox();
+    expect(notice.y).toBeGreaterThanOrEqual(0);
+    expect(notice.y + notice.height).toBeLessThanOrEqual(height);
+    expect(notice.x).toBeGreaterThanOrEqual(0);
+    expect(notice.x + notice.width).toBeLessThanOrEqual(width);
+  });
+}

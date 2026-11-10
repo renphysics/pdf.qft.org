@@ -13,6 +13,7 @@ import {
   busy,
   cancellable,
   confirmDialog,
+  dropDefaultSelection,
   emptyState,
   friendly,
   pageTool,
@@ -630,6 +631,7 @@ export async function openFiles(files, append = false) {
       resetStage();
       // A PDF with fields to fill in, opened from the home page, opens in Fill form.
       if (!pageTool && documentFields().length) ui.tool = 'form';
+      dropDefaultSelection();
       // Phones: tools you use on the page start with their settings folded away.
       if (phone()) setSheet(!['text', 'highlight', 'draw'].includes(ui.tool));
       showWorkspace();

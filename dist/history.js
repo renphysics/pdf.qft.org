@@ -8,7 +8,17 @@
  * app.js with onDocumentChanged(), so nothing has to import app.js back.
  */
 
-import { $, activeIndex, names, selectedItem, setState, snapshot, state, ui } from './editor-core.js';
+import {
+  $,
+  activeIndex,
+  dropDefaultSelection,
+  names,
+  selectedItem,
+  setState,
+  snapshot,
+  state,
+  ui,
+} from './editor-core.js';
 
 const listeners = [];
 /** Register what to bring up to date after every change (the editor's renders). */
@@ -17,7 +27,13 @@ export function onDocumentChanged(listener) {
 }
 /** The document and selection as they are now: one undo entry. */
 export function record() {
-  return { state: snapshot(), active: ui.activeId, selected: new Set(ui.selected), item: ui.item };
+  return {
+    state: snapshot(),
+    active: ui.activeId,
+    selected: new Set(ui.selected),
+    selectedByDefault: ui.selectedByDefault,
+    item: ui.item,
+  };
 }
 /**
  * Make an edit. `label` names it for Undo ("Undo: Rotate pages"); without one
@@ -65,6 +81,8 @@ export function travel(from, to) {
   ui.activeId = entry.active;
   ui.stage.reveal = entry.active;
   ui.selected = entry.selected;
+  ui.selectedByDefault = Boolean(entry.selectedByDefault);
+  dropDefaultSelection();
   ui.item = entry.item;
   ui.lastChange = null;
   ui.pendingRecord = null;

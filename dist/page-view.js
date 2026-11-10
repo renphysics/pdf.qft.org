@@ -781,8 +781,15 @@ export function updateCurrentPage() {
   if (option) option.textContent = 'Current page (' + (index + 1) + ')';
   const earlier = $('#tool-form [data-action="move-earlier"]'),
     later = $('#tool-form [data-action="move-later"]');
-  if (earlier) earlier.disabled = index === 0;
-  if (later) later.disabled = index === state.pages.length - 1;
+  // At the first or the last page they are unavailable, not disabled: focus stays
+  // on the button that reached the end, and pressing it again does nothing.
+  for (const [button, reached] of [
+    [earlier, index === 0],
+    [later, index === state.pages.length - 1],
+  ]) {
+    if (reached) button?.setAttribute('aria-disabled', 'true');
+    else button?.removeAttribute('aria-disabled');
+  }
   refreshAnnotationList();
   updateCropOverlays();
   updateProblems(currentOverlay()?.problems || []);

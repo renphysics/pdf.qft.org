@@ -430,6 +430,45 @@ test('Delete pages starts with nothing to delete; pages selected on purpose stay
   await expect(page.locator('#undo-button')).toHaveAttribute('title', 'Undo: Delete pages');
 });
 
+test('Delete pages starts empty on its own page, after Reset, and after Undo', async ({ page }) => {
+  const nothing = async () => {
+    await expect(page.locator('#tool-panel')).toContainText('0 of 3 pages selected for deletion');
+    await expect(page.locator('[data-action="delete-pages"]')).toBeDisabled();
+    await expect(page.locator('.page-item.marked-delete')).toHaveCount(0);
+    await expect(page.locator('[data-page-select]:checked')).toHaveCount(0);
+  };
+  // Opened on the tool's own page: the tool is not chosen, it is already there.
+  await openSample(page, 'delete-pages-from-pdf/');
+  await nothing();
+  // A page chosen and deleted; Reset brings the document back with nothing chosen.
+  await page.locator('[data-page-select]').nth(2).check();
+  await page.click('[data-action="delete-pages"]');
+  await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
+  await page.click('#reset-button');
+  await page.click('#confirm-dialog [data-confirm="confirm"]');
+  await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
+  await nothing();
+
+  // An edit made in another tool remembers the selection a document opens with;
+  // undoing it while Delete pages is open does not select that page for deletion.
+  await openSample(page);
+  await useTool(page, 'pages');
+  await page.click('[data-action="rotate"]');
+  await expect(page.locator('#undo-button')).toHaveAttribute('title', 'Undo: Rotate pages');
+  await useTool(page, 'delete');
+  await nothing();
+  await page.click('#undo-button');
+  await nothing();
+  await page.click('#redo-button');
+  await nothing();
+  // A selection made on purpose comes back with Undo.
+  await page.locator('[data-page-select]').nth(1).check();
+  await page.click('[data-action="delete-pages"]');
+  await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
+  await page.click('#undo-button');
+  await expect(page.locator('#tool-panel')).toContainText('1 of 3 pages selected for deletion');
+});
+
 test('the first document opened is told its files stay on the device; later ones are simply ready', async ({
   page,
 }) => {

@@ -29,11 +29,11 @@ export function fields(item, index) {
         'Download selected pages</button><div class="field-section wide">CURRENT PAGE · <span data-current-page>' +
         (index + 1) +
         '</span></div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="move-earlier"' +
-        (index === 0 ? ' disabled' : '') +
+        (index === 0 ? ' aria-disabled="true"' : '') +
         '>' +
         icon('up') +
         'Move earlier</button><button type="button" class="button secondary" data-action="move-later"' +
-        (index === state.pages.length - 1 ? ' disabled' : '') +
+        (index === state.pages.length - 1 ? ' aria-disabled="true"' : '') +
         '>' +
         icon('down') +
         'Move later</button></div><button type="button" class="button secondary" data-action="insert-blank">' +

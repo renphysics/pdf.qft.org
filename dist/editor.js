@@ -30,6 +30,7 @@ import {
   busy,
   confirmDialog,
   currentPage,
+  dropDefaultSelection,
   formatSize,
   friendly,
   hideToast,
@@ -220,6 +221,7 @@ async function resetDocument() {
       ui.activeId = state.pages[0].id;
       ui.selected = new Set([ui.activeId]);
       ui.selectedByDefault = true;
+      dropDefaultSelection();
       ui.item = null;
       ui.stage.reveal = ui.activeId;
     },
