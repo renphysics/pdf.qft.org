@@ -200,12 +200,16 @@ test('Fill form zooms the page to the field you tap, and Fit shows it whole agai
   await expect(next).toHaveCount(1);
   await expect.poll(() => within(next)).toBe(true);
   expect((await next.boundingBox()).height).toBeGreaterThanOrEqual(24);
-  // Fit shows the whole page again, and the field is not zoomed to a second time
-  // when the stage is laid out again: the zoom was set by hand.
-  await page.click('[data-action="zoom-fit"]');
+  // Fit shows the whole page again. The field keeps focus, as it does on an iPhone,
+  // where a tapped button takes none (dispatchEvent: a click that moves no focus),
+  // and it is not zoomed to a second time when the stage is laid out again: the
+  // zoom was set by hand.
+  await page.locator('[data-action="zoom-fit"]').dispatchEvent('click');
   await expect(page.locator('#zoom-label')).toHaveText('Fit');
+  await expect(next).toBeFocused();
   await page.setViewportSize({ width: 390, height: 600 });
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 400)));
+  // The stage is laid out again a little after its size changes.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 600)));
   await expect(page.locator('#zoom-label')).toHaveText('Fit');
 });
 
@@ -296,7 +300,8 @@ test('a notice is put away when a field is tapped: it lay over the zoom buttons'
   // The notice may lie over the first fields: tap one below it.
   const email = page.locator('.form-field[data-field="applicant.email"]').first();
   await ((await covers(page, name)) ? email : name).tap();
-  await expect(page.locator('#toast')).toBeHidden();
+  // At once: left alone, it would stay for five seconds and more.
+  await expect(page.locator('#toast')).toBeHidden({ timeout: 2000 });
   await expect(page.locator('#zoom-label')).not.toHaveText('Fit');
 });
 
