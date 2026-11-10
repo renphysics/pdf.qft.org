@@ -337,10 +337,13 @@ export function fitFieldForTouch(control = document.activeElement, { again = fal
   const scroll = $('#canvas-scroll'),
     area = scroll.getBoundingClientRect(),
     box = control.getBoundingClientRect(),
-    target = control.type === 'checkbox' || control.type === 'radio' ? TOUCH_BOX : TOUCH_TARGET;
-  if (box.height > 0 && box.height < target - 0.5) {
+    target = control.type === 'checkbox' || control.type === 'radio' ? TOUCH_BOX : TOUCH_TARGET,
+    // On a turned page a field lies on its side: its height is its width on the screen.
+    turn = new DOMMatrixReadOnly(control.style.transform),
+    size = Math.abs(turn.b) > Math.abs(turn.a) ? box.width : box.height;
+  if (size > 0 && size < target - 0.5) {
     // Sizes scale with the zoom; the field's centre stays put while the page grows around it.
-    const zoom = Math.min(FIELD_ZOOM_MAX, (ui.zoom * target) / box.height);
+    const zoom = Math.min(FIELD_ZOOM_MAX, (ui.zoom * target) / size);
     ui.formZoom ??= { before: ui.zoom };
     setZoom(
       zoom,
@@ -485,6 +488,9 @@ export function initFormInputs() {
     if (!control) return;
     const view = control.closest('.page-view');
     if (view) setCurrentPage(view.dataset.viewId);
+    // A zoom set by hand is kept for the field that had focus then, not for this one
+    // (in any layout: a phone may be turned upright with the field still in focus).
+    ui.zoomByHand = false;
     if (!phone()) return;
     // Phones: the tool sheet folds away from a field that is typed in (room for the keyboard).
     if (control.matches('input[type="text"], input[type="password"], textarea')) setSheet(false);
@@ -492,7 +498,6 @@ export function initFormInputs() {
     // Under a finger the page also zooms to the field, once the tap that focused
     // it has been delivered in full: a box or a list that moved under the finger
     // before its click would not toggle or open. Their sheet folds then, too.
-    ui.zoomByHand = false;
     requestAnimationFrame(() => {
       if (document.activeElement !== control) return;
       setSheet(false);

@@ -272,10 +272,12 @@ The landing shell and the editor share their state by importing the same
 deploy, a page that was loaded before it would be given the new release's
 editor, whose modules have other addresses and so their own state. The shell
 checks that the editor it loaded works on its own state (`sameRelease` in
-`app.js`) and otherwise reloads the page into the new release, once, saying so
-if a file had been chosen. When the editor cannot be fetched at all, the notice
-asks for a reload: Chromium does not fetch a module a second time in the same
-page.
+`app.js`) and otherwise does not use it. The page is left as it is until the
+visitor opens something (a warm-up never reloads: the file picker may be open,
+or the search in use); then it reloads into the new release, once, and says
+that the step has to be repeated (`refresh`). When the editor cannot be
+fetched at all, the notice asks for a reload: Chromium does not fetch a module
+a second time in the same page.
 
 ## Development
 
@@ -572,10 +574,12 @@ dropdowns and lists. A PDF with fields opened from the home page opens in it.
   storage), as readers will show the download.
 - On phones (the layout under 720 px, under a finger), a field that gets focus
   folds the tool sheet away and zooms the page so the field is at least 44 px
-  tall (check boxes and radios 24 px), in the upper part of the view above the
+  tall (check boxes and radios 24 px; on a turned page, where a field lies on
+  its side, 44 px across its line), in the upper part of the view above the
   keyboard; Tab and Go to the next empty field keep the field in view, Fit
   shows the whole page, and leaving Fill form returns to the zoom from before.
-  The zoom buttons step down from a field zoom, and a zoom set by hand is kept.
+  The zoom buttons step down from a field zoom, and a zoom set by hand is kept
+  until another field gets focus.
   For a box or a list the sheet folds and the page zooms only after the tap
   has been delivered, so the first tap ticks the box. A box can be tapped
   around its drawn size, up to 44 px across, but never where another field is

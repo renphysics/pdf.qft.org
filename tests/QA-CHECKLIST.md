@@ -612,9 +612,10 @@ source review does not replace the owner’s browser verification.
   loaded before a deploy was given the new release's editor, whose modules
   have other addresses and so were second copies with their own state: Add
   another PDF replaced the document. The shell now checks that the editor
-  works on its own state (`sameRelease`) and otherwise reloads into the new
-  release, once, with a notice when a file had been chosen; a reload that does
-  not help says so. (2) When the editor could not be fetched, the notice was
+  works on its own state (`sameRelease`) and otherwise does not use it; when
+  the visitor then opens something, the page reloads into the new release,
+  once, with a notice to try again (`refresh`); a reload that does not help
+  says so. (2) When the editor could not be fetched, the notice was
   the browser's own text, it also appeared on a mere hover, the picker kept
   its file (so choosing it again did nothing), and trying again cannot work in
   Chromium, which never fetches a module twice in a page (probed in three
@@ -623,11 +624,29 @@ source review does not replace the owner’s browser verification.
   pressed before the editor had arrived opened the workspace but could not
   open the picker later; the shell now opens a picker of its own at once and
   hands the files over. (4) Module headers and the README described the
-  layout from before the split. Landing tests, in three engines: a skewed
-  release reloads once and then adds a PDF to the open document; a warm-up
-  reloads without a notice and a second mismatch asks for a reload by hand;
-  a refused editor gives the notice and an empty picker; the batch picker
-  opens while the editor is held back. Each fails with its fix taken out.
+  layout from before the split. Landing tests, in three engines: with the
+  new release's editor arriving while the file picker is open, the page stays
+  until the file is chosen, then reloads once with the notice, and afterwards
+  opens the file and adds another to it; a warm-up leaves the page and its
+  search text alone, the next click on Choose PDF reloads before a picker
+  opens, and a second mismatch asks for a reload by hand; a refused editor
+  gives the notice and an empty picker; the batch picker opens while the
+  editor is held back. Each fails with its fix taken out.
+- A second review pass, over the fixes themselves (three reviewers, then
+  verifiers). The first version of the reload above was silent on the usual
+  path: Choose PDF warms the editor up, so the page reloaded under the open
+  file picker without a notice, and a mere hover wiped the search text. It now
+  waits for an action, as described. Also from that pass: `expectToast`
+  threw when it met a page that was loading, instead of asking again; the
+  focus ring of an unavailable Move earlier or Move later was faded with the
+  button (it is dimmed in its text and border now, not as a whole); a zoom
+  set by hand was remembered until a field got focus in the phone layout, so
+  a field focused with the phone on its side stayed small when the phone was
+  turned upright; a text field on a turned page was never zoomed to, because
+  its height on the screen is its length (it is measured across its line
+  now); the size checks in the phone tests allowed no rounding (pages are
+  laid out on whole px); one window size of the short-window notice test and
+  two phone tests passed without their fixes, and were replaced or tightened.
 - `tool-panel.js` (2,000 lines) is now the panel's frame (318 lines: the field
   builders, `renderTool`, `fillForm`, the input prologue and the `PANELS`
   registry) plus twelve `panel-*.js` modules, one per tool or family, behind

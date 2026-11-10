@@ -185,7 +185,8 @@ test('Fill form zooms the page to the field you tap, and Fit shows it whole agai
   expect((await name.boundingBox()).height).toBeLessThan(20);
   await name.tap();
   await expect(name).toBeFocused();
-  await expect.poll(async () => (await name.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  // (The zoom aims at 44 px and takes half a px less: pages are laid out on whole px.)
+  await expect.poll(async () => (await name.boundingBox()).height).toBeGreaterThanOrEqual(43.5);
   const stage = await page.locator('#canvas-scroll').boundingBox();
   const within = async (locator) => {
     const box = await locator.boundingBox();
@@ -199,7 +200,7 @@ test('Fill form zooms the page to the field you tap, and Fit shows it whole agai
   const next = page.locator('.form-field:focus');
   await expect(next).toHaveCount(1);
   await expect.poll(() => within(next)).toBe(true);
-  expect((await next.boundingBox()).height).toBeGreaterThanOrEqual(24);
+  expect((await next.boundingBox()).height).toBeGreaterThanOrEqual(23.5);
   // Fit shows the whole page again. The field keeps focus, as it does on an iPhone,
   // where a tapped button takes none (dispatchEvent: a click that moves no focus),
   // and it is not zoomed to a second time when the stage is laid out again: the
@@ -247,7 +248,7 @@ test('at Fit a tap on a form field reaches that field; a tapped check box is tic
   await member.tap();
   await expect(member).toBeChecked();
   await expect(page.locator('.form-field[type="radio"]:checked')).toHaveCount(0);
-  await expect.poll(async () => (await member.boundingBox()).height).toBeGreaterThanOrEqual(24);
+  await expect.poll(async () => (await member.boundingBox()).height).toBeGreaterThanOrEqual(23.5);
   expect((await member.boundingBox()).height).toBeLessThan(40);
   await expect(page.locator('.tool-sidebar')).toHaveClass(/collapsed/);
   // Zoomed, the box has a finger-sized tap area: a tap beside it unticks it.
@@ -290,11 +291,56 @@ test('the first tap ticks a check box on the last page, with the tool sheet open
   await agree.tap();
   await expect(agree).toBeChecked();
   await expect(page.locator('.tool-sidebar')).toHaveClass(/collapsed/);
-  await expect.poll(async () => (await agree.boundingBox()).height).toBeGreaterThanOrEqual(24);
+  await expect.poll(async () => (await agree.boundingBox()).height).toBeGreaterThanOrEqual(23.5);
+});
+
+test('a text field on a turned page is zoomed to as well: across its line, which lies sideways', async ({
+  page,
+}) => {
+  await openFiles(page, fixture('form-fields.pdf'));
+  await page.keyboard.press('Escape');
+  await page.locator('[data-action="next"]').tap();
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  await ready(page);
+  // The fixture's second page is turned a quarter: its fields are taller than wide on the screen.
+  const name = page.locator('.page-view.current .form-field[data-field="applicant.name"]');
+  const before = await name.boundingBox();
+  expect(before.height).toBeGreaterThan(before.width);
+  expect(before.width).toBeLessThan(20);
+  await name.tap();
+  await expect(name).toBeFocused();
+  await expect.poll(async () => (await name.boundingBox()).width).toBeGreaterThanOrEqual(43.5);
+  await expect(page.locator('#zoom-label')).not.toHaveText('Fit');
+});
+
+test('a field focused with the phone on its side is zoomed to when the phone is turned upright, also after the zoom buttons were used', async ({
+  page,
+}) => {
+  // On its side the window is wider than the phone layout: nothing zooms there.
+  await page.setViewportSize({ width: 750, height: 342 });
+  await openFiles(page, fixture('form-fields.pdf'));
+  await page.keyboard.press('Escape');
+  // (dispatchEvent: in a window this low the page strip lies over the zoom buttons.)
+  await page.locator('[data-action="zoom-in"]').dispatchEvent('click');
+  await expect(page.locator('#zoom-label')).not.toHaveText('Fit');
+  await page.locator('[data-action="zoom-fit"]').dispatchEvent('click');
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
+  const name = page.locator('.form-field[data-field="applicant.name"]').first();
+  await name.tap();
+  await expect(name).toBeFocused();
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
+  // Upright: the phone layout, with the field still in focus. The zoom set by hand
+  // was before this field got focus, so it does not hold the field small.
+  await page.setViewportSize({ width: 390, height: 664 });
+  await expect(name).toBeFocused();
+  await expect.poll(async () => (await name.boundingBox()).height).toBeGreaterThanOrEqual(43.5);
 });
 
 test('a notice is put away when a field is tapped: it lay over the zoom buttons', async ({ page }) => {
   await openFiles(page, fixture('form-fields.pdf'));
+  // A notice shown now, by the editor's own function: the one from opening may
+  // have gone by itself on a slow machine.
+  await page.evaluate(async () => (await import('/editor-core.js')).toast('A notice that is still showing.'));
   await expect(page.locator('#toast')).toBeVisible();
   const name = page.locator('.form-field[data-field="applicant.name"]').first();
   // The notice may lie over the first fields: tap one below it.
