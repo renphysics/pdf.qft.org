@@ -26,8 +26,8 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@cantoo/pdf-lib": "2.11.1",
-    "@napi-rs/canvas": "0.1.100",
-    "@playwright/test": "1.63.0",
+    "@napi-rs/canvas": "1.1.0",
+    "@playwright/test": "1.65.0",
     "pdfjs-dist": "6.4.299",
     "prettier": "3.9.10"
   },
