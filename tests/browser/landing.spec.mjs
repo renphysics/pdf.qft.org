@@ -45,71 +45,93 @@ test('hovering the upload area loads the editor before a file is chosen', async 
  * modules have other addresses (each carries its release), so they are second
  * copies with a state of their own. Here the editor, while `deployed()` holds,
  * and every module asked for under the new release, import each other under the
- * new release's addresses, as a stamped copy of the site does.
+ * new release's addresses, as a stamped copy of the site does. `hold`: a promise
+ * the editor waits for before it is served.
  */
-async function deployNewRelease(page, deployed = () => true) {
+async function deployNewRelease(page, { deployed = () => true, hold = null } = {}) {
   await page.route(/\.js(\?v=next)?$/, async (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('v') !== 'next' && !(/\/editor\.js$/.test(url.pathname) && deployed()))
-      return route.continue();
+    const url = new URL(route.request().url()),
+      editor = /\/editor\.js$/.test(url.pathname);
+    if (editor) await hold;
+    if (url.searchParams.get('v') !== 'next' && !(editor && deployed())) return route.continue();
     const response = await route.fetch();
     const body = (await response.text()).replace(/(from |import\()'(\.\/[\w-]+\.js)'/g, "$1'$2?v=next'");
     await route.fulfill({ response, body });
   });
 }
-/** How many times the page has been loaded again since this was called. */
-function countReloads(page) {
-  const counter = { reloads: 0 };
+/** How many times the page has been loaded again, and how many file pickers it has opened, since this was called. */
+function watch(page) {
+  const seen = { reloads: 0, pickers: 0 };
   page.on('request', (request) => {
-    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) counter.reloads++;
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) seen.reloads++;
   });
-  return counter;
+  page.on('filechooser', () => seen.pickers++);
+  return seen;
 }
-// dispatchEvent: a click without the pointer movement that would load the editor first.
-const openSampleByClick = (page) => page.locator('[data-action="sample"]').first().dispatchEvent('click');
+/**
+ * The editor's modules have run: they put the batch workspace's file input in the
+ * page as they start. (The page's "network idle" is no sign of it: that is said
+ * once, when the page has loaded.)
+ */
+const editorRan = (page) => expect(page.locator('#batch-file-input')).toBeAttached();
+const UPDATED = 'QFT PDF has been updated, so this page was reloaded. Please try again.';
+const choosePdf = '#drop-zone [data-action="open"]';
 
-test('a page from before a deploy reloads into the new release, once, and says a file must be chosen again', async ({
+test('a page from before a deploy: the chosen file brings a reload into the new release and a notice, not silence', async ({
   page,
 }) => {
-  let asked = 0;
-  // The first time the editor is asked for, it is the new release's. The page that
-  // reloads is the new release's own: its editor is then served as it is.
-  await deployNewRelease(page, () => asked++ === 0);
+  // The editor arrives while the file picker is open, as it does after a click on
+  // Choose PDF: the page must not reload under the picker. The first editor asked
+  // for is the new release's; the page that reloads is that release's own.
+  let asked = 0,
+    arrive;
+  const held = new Promise((resolve) => (arrive = resolve));
+  await deployNewRelease(page, { deployed: () => asked++ === 0, hold: held });
   await page.goto('./');
-  const counter = countReloads(page);
-  await openSampleByClick(page);
-  await expectToast(
-    page,
-    'QFT PDF has been updated, so this page was reloaded. Please choose your file again.',
-  );
-  expect(counter.reloads).toBe(1);
+  const seen = watch(page);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click(choosePdf)]);
+  arrive();
+  // The new release's editor has run, and the page is as it was: the picker is
+  // still the page's, and the file chosen in it arrives.
+  await editorRan(page);
+  expect(seen.reloads).toBe(0);
+  await chooser.setFiles(fixture('rotated-cropped.pdf'));
+  await expectToast(page, UPDATED);
+  expect(seen.reloads).toBe(1);
   await expect(page.locator('#workspace')).toBeHidden();
-  // One release now: the editor works on the page's own state, and adding a PDF adds.
-  await page.locator('[data-action="sample"]').first().click();
+  // One release now: the file opens, and adding a PDF adds to it.
+  await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
   await ready(page);
-  await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
+  await expect(page.locator('#document-info')).toHaveText(/^4 pages/);
   await page.locator('[data-action="add-files"]').first().click();
   await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
-  await expect(page.locator('#document-info')).toHaveText(/^7 pages/);
-  expect(counter.reloads).toBe(1);
+  await expect(page.locator('#document-info')).toHaveText(/^8 pages/);
+  expect(seen.reloads).toBe(1);
 });
 
-test('a warm-up that meets a new release reloads without a notice; a reload that does not help says so', async ({
+test('a warm-up that meets a new release leaves the page alone; the next click reloads before a file is chosen in vain', async ({
   page,
 }) => {
   await deployNewRelease(page);
   await page.goto('./');
-  const counter = countReloads(page),
-    loadedAgain = page.waitForEvent('load');
+  const seen = watch(page);
+  await page.fill('#tool-search', 'merge');
+  // The pointer on the upload area loads the editor: another release's.
   await page.hover('#drop-zone');
-  await loadedAgain;
-  expect(counter.reloads).toBe(1);
+  await editorRan(page);
+  expect(seen.reloads).toBe(0);
+  await expect(page.locator('#tool-search')).toHaveValue('merge');
+  await expect(page.locator('.tool-card[data-card="crop"]')).toBeHidden();
   await expect(page.locator('#toast')).toBeHidden();
+  // Choose PDF: known by now, so the page reloads at once instead of opening a picker.
+  await page.click(choosePdf);
+  await expectToast(page, UPDATED);
+  expect(seen).toEqual({ reloads: 1, pickers: 0 });
   // Still two releases (a cache that keeps serving the old page): no second reload.
-  await openSampleByClick(page);
+  await page.locator('[data-action="sample"]').first().click();
   await expectToast(page, 'QFT PDF was updated while this page was open. Please reload the page.');
   await expect(page.locator('#toast')).toHaveClass(/error/);
-  expect(counter.reloads).toBe(1);
+  expect(seen.reloads).toBe(1);
   await expect(page.locator('#workspace')).toBeHidden();
 });
 

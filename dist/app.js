@@ -37,27 +37,40 @@ import { finishLanding } from './views.js';
 
 let editor = null;
 let loading = null;
-// An action is waiting for the editor (a click, a chosen file), not only a warm-up.
-let acting = false;
-// When this page last reloaded itself into a newer release (sameRelease), kept in
-// the history entry, which a reload keeps.
+// The editor that arrived is another release's (sameRelease): this page cannot use it.
+let stale = false;
+// When this page last reloaded itself into a newer release (refresh), kept in the
+// history entry, which a reload keeps.
 const reloaded = history.state?.reloaded || null;
 /**
  * One release in a tab. The editor shares this module's state by importing the
  * same editor-core.js. After a deploy, a page loaded before it is given the new
  * release's editor, whose modules have other addresses (each carries its
  * release) and so would be second copies with a state of their own: Add another
- * PDF would replace the document, notices would not pause. Nothing is open yet,
- * so the page reloads into the new release, once; if that does not help, the
- * notice asks for a reload by hand.
+ * PDF would replace the document, notices would not pause. Such an editor is
+ * not used; the page is left as it is until the visitor does something that
+ * needs the editor (refresh).
  */
 function sameRelease(module) {
   if (module.ui === ui) return module;
-  if (Date.now() - (reloaded?.at || 0) < 60000)
-    throw new Error('QFT PDF was updated while this page was open. Please reload the page.');
-  history.replaceState({ ...history.state, reloaded: { at: Date.now(), notice: acting } }, '');
+  stale = true;
+  throw new Error('QFT PDF was updated while this page was open. Please reload the page.');
+}
+/**
+ * The visitor did something that needs the editor, and the editor is another
+ * release's. Nothing is open yet, so the page reloads into the new release,
+ * once, and says so there (the click or the chosen file has to be repeated). A
+ * warm-up never does this: the page would reload under an open file picker, or
+ * while the visitor is typing in the search. If a reload a moment ago did not
+ * help, the notice asks for one by hand.
+ */
+function refresh() {
+  if (Date.now() - (reloaded?.at || 0) < 60000) {
+    toast('QFT PDF was updated while this page was open. Please reload the page.', true);
+    return;
+  }
+  history.replaceState({ ...history.state, reloaded: { at: Date.now() } }, '');
   location.reload();
-  return new Promise(() => {}); // nothing more happens on this page
 }
 /** The editor's module, loading it the first time (and again after a failed load). */
 export function loadEditor() {
@@ -73,14 +86,14 @@ export function loadEditor() {
     .then((module) => (editor = module));
   return loading;
 }
-/** Say why something could not be done. */
+/** Say why something could not be done; with another release's editor, reload into that release. */
 function failed(error) {
   busy(false);
-  toast(friendly(error), true);
+  if (stale) refresh();
+  else toast(friendly(error), true);
 }
 /** Hand work to the editor, loading it first; a failure is shown, not thrown. */
 function withEditor(run) {
-  acting = true;
   return loadEditor().then(run).catch(failed);
 }
 // Intent: hovering, focusing or touching the upload area, a tool card or the sample
@@ -138,6 +151,8 @@ const plainClick = (event) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 /** Open the file picker: at once, as browsers require, while the editor loads. */
 function openPicker() {
+  // Known already: reload now, before a file is chosen in vain.
+  if (stale) return refresh();
   if (pageTool && pageTool !== 'batch' && $('#workspace').hidden) ui.tool = pageTool;
   ui.append = false;
   warmEngines();
@@ -149,6 +164,7 @@ function openPicker() {
  * handed over once the workspace is there.
  */
 function chooseForBatch() {
+  if (stale) return refresh();
   $('#batch-early-picker')?.remove();
   const picker = Object.assign(document.createElement('input'), {
     id: 'batch-early-picker',
@@ -192,7 +208,6 @@ document.addEventListener('click', (event) => {
 $('#file-input').addEventListener('change', (event) => {
   const picker = event.target,
     files = [...picker.files];
-  acting = true;
   loadEditor()
     .then(
       (module) => module.openFiles(files, ui.append),
@@ -264,9 +279,8 @@ window.addEventListener('popstate', (event) => {
 // Views restore their own scroll position; a reload starts on the landing view.
 history.scrollRestoration = 'manual';
 history.replaceState({ view: 'landing', depth: 0 }, '');
-// The page reloaded itself into a newer release while a file was being opened.
-if (reloaded?.notice)
-  toast('QFT PDF has been updated, so this page was reloaded. Please choose your file again.');
+// The page reloaded itself into a newer release when the visitor opened something (refresh).
+if (reloaded) toast('QFT PDF has been updated, so this page was reloaded. Please try again.');
 if (!window.File || !window.Blob || !window.Worker)
   toast(
     'QFT PDF needs a modern browser. Please use a recent version of Chrome, Edge, Firefox, or Safari.',

@@ -10,8 +10,8 @@
  * (for example, every PDF reported as unreadable). Versioned URLs make each
  * release load as one consistent set. The editor is fetched later than the
  * page (app.js loads it on first use), so a page from before a deploy can be
- * given the next release's editor: app.js checks for that and reloads
- * (sameRelease).
+ * given the next release's editor: app.js checks for that (sameRelease) and
+ * reloads when the visitor opens something (refresh).
  *
  * - First-party files share one release id: a hash of their contents, so
  *   redeploying identical code keeps visitors' caches.

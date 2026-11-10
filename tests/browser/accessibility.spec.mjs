@@ -150,6 +150,22 @@ test('a button that reaches its limit keeps focus; one that disables itself hand
   // not on Move later, where one Enter too many would move the page back.
   await expect(earlier).toHaveAttribute('aria-disabled', 'true');
   await expect(earlier).toBeFocused();
+  // It looks unavailable in its text, not as a whole: fading the button would
+  // fade the focus ring that shows where the keyboard is.
+  const look = (locator) =>
+    locator.evaluate((button) => {
+      const style = getComputedStyle(button);
+      return {
+        opacity: style.opacity,
+        color: style.color,
+        ring: style.outlineStyle + ' ' + style.outlineWidth,
+      };
+    });
+  const unavailable = await look(earlier),
+    available = await look(page.locator('[data-action="move-later"]'));
+  expect(unavailable.opacity).toBe('1');
+  expect(unavailable.ring).toBe('solid 3px');
+  expect(unavailable.color).not.toBe(available.color);
   const moved = await order();
   expect(moved).toEqual([before[1], before[0], before[2]]);
   await page.keyboard.press('Enter');

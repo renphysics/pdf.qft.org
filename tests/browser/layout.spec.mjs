@@ -87,7 +87,7 @@ for (const width of [800, 1024, 1280, 1600]) {
 // its edge: a notice at their foot would be out of sight.
 for (const [width, height] of [
   [1024, 500],
-  [844, 390],
+  [800, 480],
 ]) {
   test(`a notice stays in a window ${width} px wide and ${height} px high`, async ({ page }) => {
     await page.setViewportSize({ width, height });

@@ -160,14 +160,17 @@ export async function expectToast(page, expected) {
   await expect
     .poll(
       () =>
-        page.evaluate((wanted) => {
-          const pattern = 'source' in wanted ? new RegExp(wanted.source, wanted.flags) : null,
-            shown = window.qaNotices.slice(window.qaNoticesRead),
-            found = shown.findIndex((text) => (pattern ? pattern.test(text) : text === wanted.text));
-          if (found < 0) return shown;
-          window.qaNoticesRead += found + 1;
-          return true;
-        }, wanted),
+        page
+          .evaluate((wanted) => {
+            const pattern = 'source' in wanted ? new RegExp(wanted.source, wanted.flags) : null,
+              shown = window.qaNotices.slice(window.qaNoticesRead),
+              found = shown.findIndex((text) => (pattern ? pattern.test(text) : text === wanted.text));
+            if (found < 0) return shown;
+            window.qaNoticesRead += found + 1;
+            return true;
+          }, wanted)
+          // The page is loading (a test that reloads it): asked again in a moment.
+          .catch((error) => ['(the page was loading: ' + String(error.message).split('\n')[0] + ')']),
       {
         message: `a notice ${expected instanceof RegExp ? 'with ' + expected : JSON.stringify(expected)} was shown`,
       },

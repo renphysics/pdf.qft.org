@@ -116,12 +116,29 @@ textarea {
 button {
   cursor: pointer;
 }
-/* aria-disabled: a button that cannot act now but keeps keyboard focus (Move
-   earlier at the first page), so focus does not jump when it reaches its limit. */
-button:disabled,
-button[aria-disabled='true'] {
+button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
+}
+/* aria-disabled: a button that cannot act now but keeps keyboard focus (Move
+   earlier at the first page), so focus does not jump when it reaches its limit.
+   Dimmed like a disabled one, but in its text, icon and border only: opacity
+   would fade the focus ring that shows where the keyboard is. */
+button[aria-disabled='true'] {
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  color: color-mix(in srgb, currentColor 42%, transparent);
+}
+.button.secondary[aria-disabled='true'] {
+  border-color: var(--color-border);
+  border-color: color-mix(in srgb, var(--color-border-strong) 42%, transparent);
+}
+@media (forced-colors: active) {
+  button[aria-disabled='true'],
+  .button.secondary[aria-disabled='true'] {
+    color: GrayText;
+    border-color: GrayText;
+  }
 }
 a {
   color: inherit;
