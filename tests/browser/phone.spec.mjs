@@ -26,6 +26,15 @@ const TOOLS = [
   'draw',
 ];
 
+/** Whether something else (a notice) is on top of the middle of an element. */
+async function covers(page, locator) {
+  return locator.evaluate((node) => {
+    const box = node.getBoundingClientRect(),
+      top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return !node.contains(top);
+  });
+}
+
 /** Elements wider than the screen, outside the areas that scroll on purpose. */
 function overflow(page) {
   return page.evaluate(() => ({
@@ -191,18 +200,104 @@ test('Fill form zooms the page to the field you tap, and Fit shows it whole agai
   await expect(next).toHaveCount(1);
   await expect.poll(() => within(next)).toBe(true);
   expect((await next.boundingBox()).height).toBeGreaterThanOrEqual(24);
-  // A check box: finger-sized tap area, and a tap toggles it.
-  const box = page.locator('.form-field[type="checkbox"]').first();
-  await box.scrollIntoViewIfNeeded();
-  expect(
-    await box.evaluate((input) => parseFloat(getComputedStyle(input, '::before').height)),
-  ).toBeGreaterThanOrEqual(44);
-  await box.tap();
-  await expect(box).toBeChecked();
-  await expect.poll(async () => (await box.boundingBox()).height).toBeGreaterThanOrEqual(24);
-  // Fit shows the whole page again; leaving Fill form returns to it too.
+  // Fit shows the whole page again, and the field is not zoomed to a second time
+  // when the stage is laid out again: the zoom was set by hand.
   await page.click('[data-action="zoom-fit"]');
   await expect(page.locator('#zoom-label')).toHaveText('Fit');
+  await page.setViewportSize({ width: 390, height: 600 });
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 400)));
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
+});
+
+test('at Fit a tap on a form field reaches that field; a tapped check box is ticked, then zoomed to', async ({
+  page,
+}) => {
+  await openFiles(page, fixture('form-fields.pdf'));
+  // Escape puts the opened notice away, if it is still showing.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#toast')).toBeHidden();
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
+  // No field's tap area lies over another field: in the middle and towards the
+  // corners of each field, that field is what a tap reaches.
+  const covered = await page.evaluate(() =>
+    [...document.querySelectorAll('.page-view.current .form-field')].flatMap((field) => {
+      const box = field.getBoundingClientRect();
+      return [
+        [0.5, 0.5],
+        [0.2, 0.2],
+        [0.8, 0.2],
+        [0.2, 0.8],
+        [0.8, 0.8],
+      ]
+        .map(([x, y]) => document.elementFromPoint(box.left + box.width * x, box.top + box.height * y))
+        .filter((top) => !field.contains(top))
+        .map((top) => `${field.dataset.field} is under ${top?.dataset?.field || top?.tagName}`);
+    }),
+  );
+  expect(covered).toEqual([]);
+
+  // The first tap, on a box a few px wide: it is ticked, not a neighbour, and the page zooms to it.
+  const member = page.locator('.form-field[data-field="member"]');
+  await expect(member).not.toBeChecked();
+  expect((await member.boundingBox()).height).toBeLessThan(12);
+  await member.tap();
+  await expect(member).toBeChecked();
+  await expect(page.locator('.form-field[type="radio"]:checked')).toHaveCount(0);
+  await expect.poll(async () => (await member.boundingBox()).height).toBeGreaterThanOrEqual(24);
+  expect((await member.boundingBox()).height).toBeLessThan(40);
+  await expect(page.locator('.tool-sidebar')).toHaveClass(/collapsed/);
+  // Zoomed, the box has a finger-sized tap area: a tap beside it unticks it.
+  const zoomed = await member.boundingBox();
+  const room = await member.evaluate((input) => parseFloat(input.style.getPropertyValue('--tap')));
+  expect(zoomed.height + 2 * room).toBeGreaterThanOrEqual(43);
+  await page.touchscreen.tap(zoomed.x + zoomed.width + room - 3, zoomed.y + zoomed.height / 2);
+  await expect(member).not.toBeChecked();
+  // Still no field under another's tap area.
+  expect(
+    await page.evaluate(
+      () =>
+        [...document.querySelectorAll('.page-view.current .form-field')].filter((field) => {
+          const box = field.getBoundingClientRect(),
+            stage = document.querySelector('#canvas-scroll').getBoundingClientRect(),
+            x = box.left + box.width / 2,
+            y = box.top + box.height / 2;
+          // Only fields in view: the others are behind the bars around the stage.
+          if (x < stage.left || x > stage.right || y < stage.top || y > stage.bottom) return false;
+          return !field.contains(document.elementFromPoint(x, y));
+        }).length,
+    ),
+  ).toBe(0);
+  // Leaving Fill form puts the zoom back as it was before the field.
+  await page.locator('.tool-tabs [data-tool="text"]').click();
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
+});
+
+test('the first tap ticks a check box on the last page, with the tool sheet open', async ({ page }) => {
+  await openFiles(page, fixture('form-fields.pdf'));
+  await page.keyboard.press('Escape');
+  await page.locator('[data-action="next"]').tap();
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  await ready(page);
+  // The sheet is open and the page is at the end of the scroll: folding the sheet
+  // before the tap was delivered moved the box away from under the finger.
+  await expect(page.locator('.tool-sidebar')).not.toHaveClass(/collapsed/);
+  const agree = page.locator('.page-view.current .form-field[data-field="agree"]');
+  await expect(agree).not.toBeChecked();
+  await agree.tap();
+  await expect(agree).toBeChecked();
+  await expect(page.locator('.tool-sidebar')).toHaveClass(/collapsed/);
+  await expect.poll(async () => (await agree.boundingBox()).height).toBeGreaterThanOrEqual(24);
+});
+
+test('a notice is put away when a field is tapped: it lay over the zoom buttons', async ({ page }) => {
+  await openFiles(page, fixture('form-fields.pdf'));
+  await expect(page.locator('#toast')).toBeVisible();
+  const name = page.locator('.form-field[data-field="applicant.name"]').first();
+  // The notice may lie over the first fields: tap one below it.
+  const email = page.locator('.form-field[data-field="applicant.email"]').first();
+  await ((await covers(page, name)) ? email : name).tap();
+  await expect(page.locator('#toast')).toBeHidden();
+  await expect(page.locator('#zoom-label')).not.toHaveText('Fit');
 });
 
 test('the notice’s close button has a finger-sized tap area', async ({ page }) => {

@@ -324,6 +324,7 @@ export async function action(name, element) {
     // Steps of 25% of Fit; from a zoom set with the wheel, to the next step.
     const quarters = name === 'zoom-in' ? Math.ceil(ui.zoom * 4 + 0.01) : Math.floor(ui.zoom * 4 - 0.01);
     setZoom(name === 'zoom-fit' ? 1 : quarters / 4, null, { max: Math.max(3, ui.zoom) });
+    ui.zoomByHand = true;
   }
   if (name === 'undo') undo();
   if (name === 'redo') redo();
@@ -647,7 +648,7 @@ const refit = () => {
     if ($('#workspace').hidden) return;
     renderStage();
     // A phone's keyboard or a turn changes Fit: a focused form field keeps its size.
-    fitFieldForTouch();
+    fitFieldForTouch(document.activeElement, { again: true });
     // The page strip scrolls in a different container on phones.
     if (phoneLayout !== phone()) {
       phoneLayout = phone();
@@ -666,10 +667,13 @@ $('#canvas-scroll').addEventListener(
     const scroll = $('#canvas-scroll'),
       area = scroll.getBoundingClientRect(),
       delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
-    setZoom(ui.zoom * Math.exp(-delta / 400), {
-      x: event.clientX - area.left - scroll.clientLeft,
-      y: event.clientY - area.top - scroll.clientTop,
-    });
+    // Like the buttons: from a field zoom above 300%, down to 300% and no further up.
+    setZoom(
+      ui.zoom * Math.exp(-delta / 400),
+      { x: event.clientX - area.left - scroll.clientLeft, y: event.clientY - area.top - scroll.clientTop },
+      { max: Math.max(3, ui.zoom) },
+    );
+    ui.zoomByHand = true;
   },
   { passive: false },
 );

@@ -57,6 +57,10 @@ test('a form opens in Fill form, its fields fill in on the page, and the downloa
   // The next empty field, and Tab on to the next page's fields.
   await page.click('[data-action="form-next"]');
   await expect(field(page, 'applicant.email')).toBeFocused();
+  // The field zoom is for fingers on phones; it would come a frame after the focus.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   await expect(page.locator('#zoom-label'), 'the field zoom is for phones').toHaveText('Fit');
   await page.keyboard.type('zoe@example.org');
   await field(page, 'interests').focus();
@@ -186,4 +190,26 @@ test('Fill form has no accessibility violations', async ({ page }) => {
           .join(', ')}`,
     ),
   ).toEqual([]);
+});
+
+test('in a narrow window with a mouse, a field is not zoomed to; the sheet folds for typing only', async ({
+  page,
+}) => {
+  // Half of a laptop screen: the phone layout, without a finger.
+  await page.setViewportSize({ width: 683, height: 800 });
+  await openFiles(page, fixture('form-fields.pdf'), 'fill-pdf-form/');
+  const settle = () =>
+    page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+  await expect(page.locator('.tool-sidebar')).not.toHaveClass(/collapsed/);
+  await field(page, 'member').click();
+  await settle();
+  await expect(field(page, 'member')).toBeChecked();
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
+  await expect(page.locator('.tool-sidebar')).not.toHaveClass(/collapsed/);
+  await field(page, 'applicant.name').first().click();
+  await settle();
+  await expect(page.locator('#zoom-label')).toHaveText('Fit');
+  await expect(page.locator('.tool-sidebar')).toHaveClass(/collapsed/);
 });
