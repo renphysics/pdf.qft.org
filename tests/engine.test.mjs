@@ -1693,11 +1693,11 @@ await test('tagged PDFs: repeated content is marked as artifacts; untagged addit
     form.catalog.set(PDFName.of('MarkInfo'), form.context.obj({ Marked: true }));
     form.catalog.set(PDFName.of('StructTreeRoot'), form.context.obj({ Type: 'StructTreeRoot' }));
     const formBytes = await form.save();
-    const answered = (flattenForms) =>
+    const answered = (flattenForms, formValues = { f: { answer: 'My answer' } }) =>
       buildPdfWithNotes({
         sources: [{ id: 'f', bytes: formBytes }],
         pages: [{ id: 'p', sourceId: 'f', index: 0 }],
-        formValues: { f: { answer: 'My answer' } },
+        formValues,
         flattenForms,
       });
     assert.ok(
@@ -1707,6 +1707,10 @@ await test('tagged PDFs: repeated content is marked as artifacts; untagged addit
     assert.ok(
       !(await answered(false)).notes.includes('additions-untagged'),
       'answers kept in their fields are not additions to the pages',
+    );
+    assert.ok(
+      !(await answered(true, {})).notes.includes('additions-untagged'),
+      'a form flattened with nothing typed in it has nothing added',
     );
   }
 });

@@ -646,7 +646,9 @@ source review does not replace the owner’s browser verification.
   its height on the screen is its length (it is measured across its line
   now); the size checks in the phone tests allowed no rounding (pages are
   laid out on whole px); one window size of the short-window notice test and
-  two phone tests passed without their fixes, and were replaced or tightened.
+  two phone tests passed without their fixes, and were replaced or tightened;
+  a tagged form flattened with nothing typed in it was told that what was
+  added is untagged, and is now told so only when answers were typed.
 - `tool-panel.js` (2,000 lines) is now the panel's frame (318 lines: the field
   builders, `renderTool`, `fillForm`, the input prologue and the `PANELS`
   registry) plus twelve `panel-*.js` modules, one per tool or family, behind

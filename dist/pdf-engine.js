@@ -1716,11 +1716,14 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     if (!fontManagers.has(target)) fontManagers.set(target, fontManager(target));
     return fontManagers.get(target);
   };
-  let formFilled = false;
+  let formFilled = false,
+    // Answers typed here and flattened into the pages: content the user added.
+    answersFlattened = false;
   for (const id of needed) {
     const sourceDoc = loaded.get(id);
     const values = state.formValues?.[id];
     if (!hasAcroForm(sourceDoc) || !(state.flattenForms || (values && Object.keys(values).length))) continue;
+    answersFlattened ||= Boolean(state.flattenForms && values && Object.keys(values).length);
     // A problem with a field is reported on the page that shows it.
     const fieldError = (name, message) => {
       let sourceIndex = -1;
@@ -1889,7 +1892,8 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
   // Answers flattened into the pages are drawn there untagged, like what was added.
-  if (artifact && (annotated || (formFilled && state.flattenForms))) losses.add('additions-untagged');
+  // (A form flattened as it came says nothing of the kind: nothing was added.)
+  if (artifact && (annotated || answersFlattened)) losses.add('additions-untagged');
   const notes = [...losses];
   // New field appearances use fonts that PDF/A requires to be embedded.
   added ||= formFilled;
