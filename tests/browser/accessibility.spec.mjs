@@ -104,7 +104,9 @@ test('switches and segmented controls show their state in forced-colours mode', 
   browserName,
 }) => {
   test.skip(browserName !== 'chromium', 'Playwright emulates forced colours in Chromium only');
-  await page.emulateMedia({ forcedColors: 'active' });
+  // Reduced motion too: the switch fades between its colours, and a colour read
+  // as the fade starts is still the one it had.
+  await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
   await openSample(page, 'add-page-numbers-to-pdf/');
   const style = (locator) =>
     locator.evaluate((node) => {

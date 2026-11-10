@@ -605,7 +605,7 @@ source review does not replace the owner’s browser verification.
   that the dynamic import and the preloads carry the release id. Opening the
   file picker stays synchronous with the click (browsers require it) while the
   editor loads; files dropped or picked before it arrives are opened once it has.
-- `tool-panel.js` (2,000 lines) is now the panel's frame (317 lines: the field
+- `tool-panel.js` (2,000 lines) is now the panel's frame (318 lines: the field
   builders, `renderTool`, `fillForm`, the input prologue and the `PANELS`
   registry) plus twelve `panel-*.js` modules, one per tool or family, behind
   one interface (`fields`, `values`, `onInput`, `onSubmit`, `afterRender`,
@@ -661,7 +661,8 @@ source review does not replace the owner’s browser verification.
   what the user added isn't tagged. Engine test: the four artifacts, one text
   run each, the added text outside them, the note; an untagged PDF gets neither.
 - Tests: the seven Node suites are `node:test` tests now (81 named tests where
-  there were seven scripts chained with `&&`); `npm test` runs them in one
+  there were seven scripts chained with `&&`, 83 with the two added for
+  `{date}` and `{filename}`); `npm test` runs them in one
   `node --test`, each file in its own process, so a failure is reported by name
   and hides nothing (checked: with pictures not drawn, one test fails and 80
   pass). The conversion was done by a script that wraps each section in a
