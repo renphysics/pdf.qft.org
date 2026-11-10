@@ -592,7 +592,7 @@ source review does not replace the owner’s browser verification.
   group is keyed by the calling workflow and cancels only pull-request runs, so a
   run of Test on main cannot cancel the tests a deploy waits for.
 
-## The “next” list: lazy editor, panels, forms on phones, CSP, focus, artifacts, tests, dependencies, polish — 2026-11-07
+## The “next” list: lazy editor, panels, forms on phones, CSP, focus, artifacts, tests, dependencies, polish — 2026-11-10
 
 - Edit history (`history.js`) and view recording (`views.js`) left `app.js`, so
   no module imports an entry module back; `app.js` is a landing shell that
@@ -681,3 +681,19 @@ source review does not replace the owner’s browser verification.
   at 800, 1024, 1280 and 1600 px: no overlap with page navigation, zoom or the
   status line); the privacy sentence shows with the first document only.
   Notices keep their five seconds: shortening them would cost reading time.
+- `{date}` and `{filename}` in watermarks, headers, footers and page numbers:
+  today's date as 2026-11-10 and the name of the file each page came from,
+  without its extension. Engine test: two merged files and a blank page (each
+  page its own file's name, the blank page none), a name with `$&` and braces
+  in it put in as it is. Workflow test: a batch uses each file's name. Browser
+  tests: the preview and the download agree; with the clock at half past noon
+  UTC, a browser in Auckland shows the next day's date.
+- Remembered settings: Watermark, Headers & footers and Page numbers keep
+  their text and options in this browser only while "Remember these settings
+  on this device" is ticked. Browser tests: nothing is stored until it is
+  ticked; what is stored has neither the switch nor the pages; it follows an
+  edit and its Undo; the next PDF starts from it, on every page, with a notice
+  that says the saved ones are shown; unticking removes the key; saved headers
+  and footers go on when the tool opens, one Undo takes them off and the switch
+  then reads off; stored values of the wrong kind, and text that is no JSON,
+  are left out; a browser that refuses to store says so and unticks the box.

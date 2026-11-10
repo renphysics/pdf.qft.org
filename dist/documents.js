@@ -4,7 +4,7 @@
  */
 
 import { buildPdfWithNotes, imagesToPdf, loadPdfLib, openPdf, passwordProblem } from './pdf-engine.js';
-import { rescaledMargins } from './layout.js';
+import { baseName, rescaledMargins } from './layout.js';
 import { isPicture, pictureForPage } from './convert.js';
 import { closeDocuments, loadPdfjs, previewFont } from './preview.js';
 import {
@@ -163,7 +163,7 @@ export function outputBase() {
   const first = state.pages
     .map((page) => state.sources.find((source) => source.id === page.sourceId))
     .find((source) => source && !source.blank);
-  return first ? first.name.replace(/\.(pdf|jpe?g|png)$/i, '') : 'document';
+  return first ? baseName(first.name) : 'document';
 }
 /**
  * What a download's name says was done: its protection; "converted" for

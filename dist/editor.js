@@ -40,7 +40,6 @@ import {
   protectedDownload,
   selectedItem,
   setState,
-  settingDefaults,
   SETTINGS,
   showInfo,
   snapshot,
@@ -72,7 +71,7 @@ import { cropDraftActive, cropValues, scopedPages, updateCropOverlays } from './
 import { notesMargin, removeMargins } from './panel-margins.js';
 import { clearProperties } from './panel-properties.js';
 import { pad, setSignature, useSignature } from './panel-signature.js';
-import { toggleSetting } from './panel-settings.js';
+import { defaultSetting, toggleSetting } from './panel-settings.js';
 import {
   choosePage,
   chooseTool,
@@ -375,7 +374,7 @@ export async function action(name, element) {
     if (key && ids.length) {
       delete ui.scopeErrors[key];
       change(() => {
-        state[key] ||= settingDefaults[key]();
+        state[key] ||= defaultSetting(key);
         state[key].enabled = true;
         state[key].pages = ids;
       });
@@ -477,7 +476,7 @@ function sendSettingsToBatch() {
     const key = SETTINGS[ui.tool],
       preset = { version: 1, name: names[ui.tool] + ' preset' };
     if (key) {
-      const { enabled, pages, ...setting } = state[key] || settingDefaults[key]();
+      const { enabled, pages, ...setting } = state[key] || defaultSetting(key);
       void enabled;
       void pages;
       preset[key] = setting;

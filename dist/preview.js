@@ -21,6 +21,7 @@ import {
   number,
   pageGeometry,
   pageNumberItem,
+  pageVariables,
   placementGeometry,
   rotation,
   TEXT_LINE_HEIGHT,
@@ -523,9 +524,11 @@ export function pageOverlay(state, pageIndex, { hide } = {}) {
     items.push(item);
   }
   const flip = (y) => geometry.height - y;
+  // {date} and {filename} on this page, as the export fills them in.
+  const extra = pageVariables(state, descriptor);
   if (applies(state.watermark, descriptor.id)) {
     const setting = state.watermark;
-    const text = watermarkText(setting, pageIndex + 1, total);
+    const text = watermarkText(setting, pageIndex + 1, total, extra);
     const measured = text.trim() && fontFor(text, problems, 'watermark');
     if (measured) {
       const mark = layoutWatermark(setting, geometry, measured.font, text);
@@ -552,12 +555,12 @@ export function pageOverlay(state, pageIndex, { hide } = {}) {
   }
   const margins = [];
   if (applies(state.headerFooter, descriptor.id)) {
-    for (const item of headerFooterItems(state.headerFooter, geometry, pageIndex + 1, total))
+    for (const item of headerFooterItems(state.headerFooter, geometry, pageIndex + 1, total, extra))
       margins.push([item, state.headerFooter.color]);
   }
   if (applies(state.pageNumbers, descriptor.id)) {
     margins.push([
-      pageNumberItem(state.pageNumbers, geometry, pageIndex + 1, total),
+      pageNumberItem(state.pageNumbers, geometry, pageIndex + 1, total, extra),
       state.pageNumbers.color,
     ]);
   }

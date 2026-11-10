@@ -35,7 +35,7 @@ const {
   imagesToPdf,
   blankPdf,
 } = await import('../dist/pdf-engine.js');
-const { rescaledMargins } = await import('../dist/layout.js');
+const { baseName, isoDate, rescaledMargins, variables } = await import('../dist/layout.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 const { PDFDocument, StandardFonts, degrees, rgb } = globalThis.PDFLib;
 const outputDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'output');
@@ -243,6 +243,68 @@ await test('merging two PDFs; a footer on selected pages only', async () => {
   assert.ok(mergedText[0].items.some((item) => item.text === 'Second document'));
   assert.ok(!mergedText[0].items.some((item) => item.text === 'Selected only'));
   assert.ok(mergedText[1].items.some((item) => item.text === 'Selected only'));
+});
+
+await test('{date} and {filename}: today’s date, and the name of the file each page came from', async () => {
+  // The date as the reader's own calendar has it, months and days in two digits.
+  assert.equal(isoDate(new Date(2026, 0, 5, 23, 59)), '2026-01-05');
+  assert.equal(isoDate(new Date(2026, 10, 30)), '2026-11-30');
+  assert.equal(baseName('Report v1.2.PDF'), 'Report v1.2');
+  assert.equal(
+    baseName('Report v1.2'),
+    'Report v1.2',
+    'Only the type of a file the editor opens is taken off',
+  );
+  assert.equal(baseName('scan.jpeg'), 'scan');
+  assert.equal(
+    variables('{filename} {date} {page}/{total} {date}', 2, 9, { date: 'D', filename: 'F' }),
+    'F D 2/9 D',
+  );
+  assert.equal(variables('a{date}b{filename}c', 1, 1), 'abc', 'Without a file they leave nothing behind');
+  // A name goes in as it is: "$&" is no pattern, and braces in it are not filled in a second time.
+  assert.equal(
+    variables('{filename}', 3, 4, { date: 'D', filename: 'Cost $& $$ {page} {date}' }),
+    'Cost $& $$ {page} {date}',
+  );
+
+  const second = await PDFDocument.create();
+  second.addPage([420, 310]).drawText('Second document');
+  const before = isoDate();
+  const bytes = await buildPdf({
+    sources: [
+      { id: 'a', bytes: fixtureBytes, name: 'Annual report v1.2.pdf' },
+      { id: 'b', bytes: await second.save(), name: 'scan $& 7.PDF' },
+      { id: 'c', bytes: await blankPdf(400, 300), name: 'Blank page', blank: true },
+    ],
+    pages: [
+      { id: 'b1', sourceId: 'b', index: 0 },
+      { id: 'a2', sourceId: 'a', index: 1 },
+      { id: 'c1', sourceId: 'c', index: 0 },
+    ],
+    headerFooter: { headerLeft: '{filename}', footerLeft: 'Printed {date}' },
+    pageNumbers: { format: '{filename} p{page}/{total}' },
+    watermark: { text: 'Copy of {filename}, {date}', size: 12 },
+  });
+  await writeFile(path.join(outputDir, 'tokens-export.pdf'), bytes);
+  // The build may have run across midnight.
+  const dates = [before, isoDate()];
+  const pages = (await extract(bytes)).map((page) => page.items.map((item) => item.text.trim()));
+  assert.equal(pages.length, 3);
+  const shows = (page, text) => dates.some((date) => page.includes(text.replace('DATE', date)));
+  for (const [index, name] of [
+    [0, 'scan $& 7'],
+    [1, 'Annual report v1.2'],
+  ]) {
+    assert.ok(pages[index].includes(name), `Header on page ${index + 1}: ${JSON.stringify(pages[index])}`);
+    assert.ok(shows(pages[index], 'Printed DATE'), `Footer on page ${index + 1}`);
+    assert.ok(pages[index].includes(`${name} p${index + 1}/3`), `Page number on page ${index + 1}`);
+    assert.ok(shows(pages[index], `Copy of ${name}, DATE`), `Watermark on page ${index + 1}`);
+  }
+  // A blank page came from no file: its name is nothing, the rest is as on the other pages.
+  assert.ok(!pages[2].some((text) => text.includes('Blank page')), JSON.stringify(pages[2]));
+  assert.ok(shows(pages[2], 'Printed DATE'));
+  assert.ok(pages[2].includes('p3/3'));
+  assert.ok(shows(pages[2], 'Copy of , DATE'));
 });
 
 await test('headers, footers and page numbers mirrored on even pages', async () => {

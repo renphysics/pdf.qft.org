@@ -484,12 +484,38 @@ export function applies(setting, pageId) {
   );
 }
 
-export function variables(text, page, total) {
-  return textValue(text).replaceAll('{page}', String(page)).replaceAll('{total}', String(total));
+/** Today's date as 2026-11-10: read the same in every language, and drawn by every font. */
+export function isoDate(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+}
+/** A file's name without the extension of a file the editor opens: "Report v1.2.pdf" is "Report v1.2". */
+export function baseName(name) {
+  return String(name ?? '').replace(/\.(pdf|jpe?g|png)$/i, '');
+}
+/**
+ * What {date} and {filename} stand for on a page: today's date, and the name of
+ * the file the page came from, without its extension (nothing for a blank page).
+ */
+export function pageVariables(state, descriptor) {
+  const source = state?.sources?.find((item) => item.id === descriptor?.sourceId);
+  return { date: isoDate(), filename: !source || source.blank ? '' : baseName(source.name) };
+}
+/**
+ * Fill in {page}, {total}, {date} and {filename} (the last two from
+ * pageVariables). The file's name goes in last and as it is: braces or a "$"
+ * in it stand for nothing.
+ */
+export function variables(text, page, total, extra = {}) {
+  return textValue(text)
+    .replaceAll('{page}', String(page))
+    .replaceAll('{total}', String(total))
+    .replaceAll('{date}', () => extra.date ?? '')
+    .replaceAll('{filename}', () => extra.filename ?? '');
 }
 
-export function watermarkText(setting, pageNumber, total) {
-  return variables(setting.text, pageNumber, total).replace(/\n/g, ' ');
+export function watermarkText(setting, pageNumber, total, extra) {
+  return variables(setting.text, pageNumber, total, extra).replace(/\n/g, ' ');
 }
 
 /** Place a watermark: shrunk to fit the page, including its rotated bounding box. */
@@ -542,7 +568,7 @@ function side(align, setting, pageNumber) {
 }
 
 /** The header and footer texts for one page, before measuring. */
-export function headerFooterItems(setting, geometry, pageNumber, total) {
+export function headerFooterItems(setting, geometry, pageNumber, total, extra) {
   const size = number(setting.size, 10, 4, 48);
   const margin = edgeMargin(setting, geometry);
   const usable = Math.max(1, geometry.width - margin * 2);
@@ -553,7 +579,7 @@ export function headerFooterItems(setting, geometry, pageNumber, total) {
     for (const slot of slots) {
       items.push({
         key: edge + slot,
-        text: variables(setting[edge + slot], pageNumber, total),
+        text: variables(setting[edge + slot], pageNumber, total, extra),
         size,
         margin,
         maxWidth,
@@ -566,7 +592,7 @@ export function headerFooterItems(setting, geometry, pageNumber, total) {
   return items;
 }
 
-export function pageNumberItem(setting, geometry, pageNumber, total) {
+export function pageNumberItem(setting, geometry, pageNumber, total, extra) {
   const margin = edgeMargin(setting, geometry);
   const position = setting.position || 'bottom-center';
   return {
@@ -575,6 +601,7 @@ export function pageNumberItem(setting, geometry, pageNumber, total) {
       setting.format || 'Page {page} of {total}',
       pageNumber + number(setting.start, 1, 0, 1000000) - 1,
       total,
+      extra,
     ),
     size: number(setting.size, 10, 4, 48),
     margin,

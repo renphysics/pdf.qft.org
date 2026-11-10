@@ -246,6 +246,34 @@ await test('batch: crop geometry and annotations, numbering restarts per file, t
   await writeFile(path.join(outputDir, 'workflow-batch.pdf'), processed);
 });
 
+await test('batch: {filename} is the name of each file, {date} is today', async () => {
+  const { isoDate } = await import('../dist/layout.js');
+  const named = normalizePreset({
+    version: 1,
+    name: 'Named',
+    headerFooter: { headerLeft: '{filename}', footerLeft: 'Printed {date}' },
+    pageNumbers: { format: '{filename}: {page} of {total}' },
+  });
+  const before = isoDate();
+  const pages = await inspectIndependent(
+    await applyPreset(await fixture(2), named, () => {}, 'Minutes 2026-03.pdf'),
+  );
+  const dates = [before, isoDate()];
+  assert.equal(pages.length, 2);
+  for (let i = 0; i < pages.length; i++) {
+    assert.ok(pages[i].text.includes('Minutes 2026-03: ' + (i + 1) + ' of 2'), pages[i].text);
+    assert.ok(
+      dates.some((date) => pages[i].text.includes('Printed ' + date)),
+      pages[i].text,
+    );
+    assert.ok(!pages[i].text.includes('.pdf'), 'The name is shown without its extension');
+  }
+  // A caller that gives no name gets no name, not a placeholder.
+  const unnamed = await inspectIndependent(await applyPreset(await fixture(1), named));
+  assert.ok(unnamed[0].text.includes(': 1 of 1'), unnamed[0].text);
+  assert.ok(!unnamed[0].text.includes('{filename}'));
+});
+
 let outputs;
 await test('split: text, page order, crop and rotation; printed numbering kept; invalid groups; cancellation', async () => {
   const processedCopy = processed.slice();

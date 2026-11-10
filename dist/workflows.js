@@ -262,7 +262,7 @@ export async function splitPdf(
 }
 
 /** Process one file using a repeatable recipe, resetting numbering per file. */
-export async function applyPreset(bytes, input, onProgress = () => {}) {
+export async function applyPreset(bytes, input, onProgress = () => {}, name = '') {
   const preset = normalizePreset(input);
   const sourceBytes = pdfBytes(bytes);
   onProgress(0);
@@ -289,7 +289,7 @@ export async function applyPreset(bytes, input, onProgress = () => {}) {
   }));
   return buildPdf(
     {
-      sources: [{ id: 'preset-source', bytes: sourceBytes }],
+      sources: [{ id: 'preset-source', bytes: sourceBytes, name }],
       pages,
       annotations: [],
       watermark: preset.watermark ? { ...preset.watermark, pages: 'all' } : null,

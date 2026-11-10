@@ -174,6 +174,27 @@ shows it without building a PDF:
   defaults wait until focus leaves it: looking at the tools does not edit the
   document. Edge margins go from 0 to
   100 pt; a number typed out of range is set to the nearest value allowed.
+  For printing on both sides, Swap left and right on even pages (headers and
+  footers, page numbers, and their batch presets) puts what is on the right of
+  odd pages on the left of even pages, by position in the document.
+  Turning, moving and removing pages only changes the page list. Organize pages
+  can also reverse the order of all pages, and interleave a double-sided scan:
+  the first half of the pages are the fronts and the rest the backs, scanned
+  from the last sheet or the first (`interleaveOrder` in `workflows.js`).
+- In a watermark, a header, a footer or a page number, `{page}` and `{total}`
+  stand for the page number and the page count, `{date}` for today's date
+  (2026-11-10, the date where the reader is) and `{filename}` for the name of
+  the file the page came from, without its extension: each page of a merged
+  document shows its own file, a blank page none, and each file of a batch its
+  own name (`variables` and `pageVariables` in `layout.js`).
+- Watermark, Headers & footers and Page numbers each have "Remember these
+  settings on this device". Ticked, the tool's text and options are kept in
+  this browser (not the PDF, nor which pages), follow what is used, Undo and
+  Redo included, and are where the tool starts with the next PDF, whose notice
+  says that the saved ones are shown; saved headers and footers go on when the
+  tool opens, as one undo step. Unticking forgets them. What the browser kept
+  is used only where it is of the kind the tool expects (`defaultSetting` in
+  `panel-settings.js`).
 - Every edit is an undo step with a name: Undo and Redo say which step they
   take ("Undo: Rotate pages", in the button's tooltip and its accessible name),
   and a notice says what was undone, in place of one that no longer holds.
@@ -188,13 +209,6 @@ shows it without building a PDF:
   clear of the tools under the thumbs. They stay five seconds or longer, by
   their length; errors stay until dismissed. "Everything happens on your
   device" is said with the first document opened in a tab, not every time.
-  For printing on both sides, Swap left and right on even pages (headers and
-  footers, page numbers, and their batch presets) puts what is on the right of
-  odd pages on the left of even pages, by position in the document.
-  Turning, moving and removing pages only changes the page list. Organize pages
-  can also reverse the order of all pages, and interleave a double-sided scan:
-  the first half of the pages are the fronts and the rest the backs, scanned
-  from the last sheet or the first (`interleaveOrder` in `workflows.js`).
 - Every change is one undo step (typing, dragging and sliders merge into one
   step), with redo. Problems the export would report, such as a character the
   fonts cannot draw or a header too long for its page, are shown on the page
@@ -294,7 +308,10 @@ that the editor preview draws text where the export puts it. Set `PYTHON`
 if Python 3 has another executable name on your machine.
 
 The editor keeps PDFs, edits, and generated files in tab memory. Saved presets
-store only settings and entered preset text in this browser's localStorage.
+store only settings and entered preset text in this browser's localStorage. So
+do Watermark, Headers & footers and Page numbers, each only while its "Remember
+these settings on this device" is ticked (`qft-pdf.settings.v1`); unticking
+removes them.
 Download creates a new file; originals are not overwritten. There is no upload
 endpoint, analytics script, sign-in, or billing integration. Ordinary website
 requests are still handled by the hosting platform.

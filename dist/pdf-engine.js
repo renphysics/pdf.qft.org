@@ -29,8 +29,8 @@ import {
   contentBox,
   drawingPath,
   fontKind,
-  hexColor,
   headerFooterItems,
+  hexColor,
   invert,
   layoutMarginText,
   layoutRect,
@@ -39,6 +39,7 @@ import {
   number,
   pageGeometry,
   pageNumberItem,
+  pageVariables,
   placementGeometry,
   rotation,
   textValue,
@@ -976,8 +977,17 @@ function artifactMarker(doc) {
     ]);
 }
 
-async function drawWatermark(page, geometry, setting, getFont, pageIndex, total, artifact = null) {
-  const text = watermarkText(setting, pageIndex + 1, total);
+async function drawWatermark(
+  page,
+  geometry,
+  setting,
+  getFont,
+  pageIndex,
+  total,
+  artifact = null,
+  extra = {},
+) {
+  const text = watermarkText(setting, pageIndex + 1, total, extra);
   if (!text.trim()) return false;
   const font = await fontFor(getFont, text, pageIndex, 'watermark');
   const mark = layoutWatermark(setting, geometry, font, text);
@@ -1843,15 +1853,18 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
       page.pushOperators(lib.popGraphicsState());
     }
     page.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(...geometry.matrix));
+    // {date} and {filename} on this page.
+    const extra = pageVariables(state, descriptor);
     if (applies(state.watermark, descriptor.id))
       added =
-        (await drawWatermark(page, geometry, state.watermark, getFont, index, total, artifact)) || added;
+        (await drawWatermark(page, geometry, state.watermark, getFont, index, total, artifact, extra)) ||
+        added;
     if (applies(state.headerFooter, descriptor.id)) {
       added =
         (await drawMarginItems(
           page,
           geometry,
-          headerFooterItems(state.headerFooter, geometry, index + 1, total),
+          headerFooterItems(state.headerFooter, geometry, index + 1, total, extra),
           state.headerFooter.color,
           getFont,
           index,
@@ -1864,7 +1877,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
         (await drawMarginItems(
           page,
           geometry,
-          [pageNumberItem(state.pageNumbers, geometry, index + 1, total)],
+          [pageNumberItem(state.pageNumbers, geometry, index + 1, total, extra)],
           state.pageNumbers.color,
           getFont,
           index,

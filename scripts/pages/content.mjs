@@ -273,7 +273,7 @@ export const PAGES = [
     faqs: [
       [
         'Can I include page numbers?',
-        'Yes. Type {page} and {total} anywhere, for example Page {page} of {total}.',
+        'Yes. Type {page} and {total} anywhere, for example Page {page} of {total}. {date} adds today’s date and {filename} the file’s name.',
       ],
       [
         'What if I print on both sides?',
