@@ -63,7 +63,7 @@ export const emptyState = () => ({
 });
 export let state = emptyState();
 export const ui = {
-  batch: null, // the batch workspace (batch-ui.js initBatch), set by app.js
+  batch: null, // the batch workspace (batch-ui.js initBatch), set by editor.js
   tool: 'text',
   activeId: null,
   selected: new Set(),

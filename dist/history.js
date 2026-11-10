@@ -4,8 +4,9 @@
  * slider) merge into one. Each step carries a label, which Undo and Redo show.
  *
  * Any module may import change() from here: this module imports only
- * editor-core.js, and what the editor redraws after a change is registered by
- * app.js with onDocumentChanged(), so nothing has to import app.js back.
+ * editor-core.js, and what follows a change is registered with
+ * onDocumentChanged() (the editor's redraws by editor.js, remembered settings
+ * by panel-settings.js), so nothing has to import an entry module back.
  */
 
 import {

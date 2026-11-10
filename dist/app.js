@@ -37,32 +37,61 @@ import { finishLanding } from './views.js';
 
 let editor = null;
 let loading = null;
+// An action is waiting for the editor (a click, a chosen file), not only a warm-up.
+let acting = false;
+// When this page last reloaded itself into a newer release (sameRelease), kept in
+// the history entry, which a reload keeps.
+const reloaded = history.state?.reloaded || null;
+/**
+ * One release in a tab. The editor shares this module's state by importing the
+ * same editor-core.js. After a deploy, a page loaded before it is given the new
+ * release's editor, whose modules have other addresses (each carries its
+ * release) and so would be second copies with a state of their own: Add another
+ * PDF would replace the document, notices would not pause. Nothing is open yet,
+ * so the page reloads into the new release, once; if that does not help, the
+ * notice asks for a reload by hand.
+ */
+function sameRelease(module) {
+  if (module.ui === ui) return module;
+  if (Date.now() - (reloaded?.at || 0) < 60000)
+    throw new Error('QFT PDF was updated while this page was open. Please reload the page.');
+  history.replaceState({ ...history.state, reloaded: { at: Date.now(), notice: acting } }, '');
+  location.reload();
+  return new Promise(() => {}); // nothing more happens on this page
+}
 /** The editor's module, loading it the first time (and again after a failed load). */
 export function loadEditor() {
-  loading ||= import('./editor.js').then(
-    (module) => (editor = module),
-    (error) => {
+  loading ||= import('./editor.js')
+    .then(sameRelease, (error) => {
+      // Firefox fetches again on the next try; Chromium never does in the same page
+      // (nor WebKit, for a module the editor imports), so the notice says to reload.
       loading = null;
-      throw error;
-    },
-  );
+      throw new Error('The editor could not be loaded. Check your connection, then reload the page.', {
+        cause: error,
+      });
+    })
+    .then((module) => (editor = module));
   return loading;
+}
+/** Say why something could not be done. */
+function failed(error) {
+  busy(false);
+  toast(friendly(error), true);
 }
 /** Hand work to the editor, loading it first; a failure is shown, not thrown. */
 function withEditor(run) {
-  return loadEditor()
-    .then(run)
-    .catch((error) => {
-      busy(false);
-      toast(friendly(error), true);
-    });
+  acting = true;
+  return loadEditor().then(run).catch(failed);
 }
 // Intent: hovering, focusing or touching the upload area, a tool card or the sample
 // loads the editor; on Open and the sample the PDF engines start downloading too,
-// unless the visitor asked to save data.
+// unless the visitor asked to save data. A warm-up that fails says nothing: the
+// click that follows does.
 const warmEditor = () => loadEditor().catch(() => {});
 const warmEngines = () =>
-  navigator.connection?.saveData ? warmEditor() : withEditor((module) => module.warm());
+  loadEditor()
+    .then((module) => navigator.connection?.saveData || module.warm())
+    .catch(() => {});
 for (const [selector, warm] of [
   ['#drop-zone, .tool-card, [data-action="batch"], [data-action="batch-choose"]', warmEditor],
   ['[data-action="open"], [data-action="sample"]', warmEngines],
@@ -114,6 +143,29 @@ function openPicker() {
   warmEngines();
   $('#file-input').click();
 }
+/**
+ * Choose PDFs for a batch before the editor, which owns the batch workspace, has
+ * loaded: a picker opens only during the click, so the files are chosen here and
+ * handed over once the workspace is there.
+ */
+function chooseForBatch() {
+  $('#batch-early-picker')?.remove();
+  const picker = Object.assign(document.createElement('input'), {
+    id: 'batch-early-picker',
+    type: 'file',
+    accept: '.pdf,application/pdf',
+    multiple: true,
+    hidden: true,
+  });
+  picker.addEventListener('change', () => {
+    const files = [...picker.files];
+    picker.remove();
+    if (files.length) withEditor((module) => module.batchFiles(files));
+  });
+  document.body.append(picker);
+  picker.click();
+  withEditor((module) => module.action('batch'));
+}
 document.addEventListener('click', (event) => {
   const target = event.target.closest('button,a');
   if (!target) return;
@@ -131,14 +183,27 @@ document.addEventListener('click', (event) => {
   else if (name === 'close-dialog') $('#info-dialog').close();
   else if (name === 'privacy' || name === 'help') showInfo(name);
   else if (name === 'open') openPicker();
+  else if (name === 'batch-choose') chooseForBatch();
   else if (name === 'home' || name === 'tools-home' || name === 'back') {
     ui.landingFocus = name === 'tools-home' ? 'tools' : 'top';
     finishLanding();
   } else withEditor((module) => module.action(name, target));
 });
 $('#file-input').addEventListener('change', (event) => {
-  const files = [...event.target.files];
-  withEditor((module) => module.openFiles(files, ui.append));
+  const picker = event.target,
+    files = [...picker.files];
+  acting = true;
+  loadEditor()
+    .then(
+      (module) => module.openFiles(files, ui.append),
+      (error) => {
+        // openFiles clears the picker when it is done. Without the editor it stays
+        // filled, and choosing the same file again would not be a change.
+        picker.value = '';
+        throw error;
+      },
+    )
+    .catch(failed);
 });
 let dragDepth = 0;
 document.addEventListener('dragenter', (event) => {
@@ -199,6 +264,9 @@ window.addEventListener('popstate', (event) => {
 // Views restore their own scroll position; a reload starts on the landing view.
 history.scrollRestoration = 'manual';
 history.replaceState({ view: 'landing', depth: 0 }, '');
+// The page reloaded itself into a newer release while a file was being opened.
+if (reloaded?.notice)
+  toast('QFT PDF has been updated, so this page was reloaded. Please choose your file again.');
 if (!window.File || !window.Blob || !window.Worker)
   toast(
     'QFT PDF needs a modern browser. Please use a recent version of Chrome, Edge, Firefox, or Safari.',

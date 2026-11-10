@@ -11,8 +11,11 @@
  *   afterFill(values)                 after every fillForm (state only the panel shows)
  *   title(item)                       the heading with an item selected, else null
  * A module serving several tools reads ui.tool. The modules are imported as
- * namespaces and export only functions, so the editor's import cycle never
- * reaches a binding before it exists.
+ * namespaces, and the registry reads their functions only when a panel is
+ * drawn, so the editor's import cycle never reaches one before it exists. A
+ * panel module may run code as it loads only with what the leaf modules give
+ * (editor-core.js, history.js, views.js, the libraries), as panel-settings.js
+ * does to follow changes: anything else in the cycle may not exist yet.
  */
 
 import {

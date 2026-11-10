@@ -6,9 +6,10 @@
  * the tool in use, and a reload opens that tool's page. Documents live only in
  * memory, so a reload starts on the landing.
  *
- * app.js shows the views; this module, which imports only editor-core.js and
+ * The editor shows the views (restoreView in editor.js; app.js only finishes
+ * the landing view). This module, which imports only editor-core.js and
  * routes.js, records them, so any module can record a view without importing
- * app.js back.
+ * an entry module back.
  */
 
 import { $, names, ui } from './editor-core.js';

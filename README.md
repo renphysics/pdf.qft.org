@@ -249,11 +249,21 @@ footers and page numbers; organize, delete and merge; crop; margins; sheets;
 split; protect and unlock; sign; convert; properties), `pages.js` (pages, the
 page strip and choosing tools) and `documents.js` (opening, building and
 downloading PDFs). The editor's modules import each
-other's functions freely; code that runs as a module loads uses only
-`editor-core.js` and the libraries, and no module imports `app.js` or
-`editor.js` (`tests/site-integrity.test.mjs` checks the graph). The release
-script versions every module's imports, static and dynamic
-(`scripts/stamp-release.mjs`), so a new module needs no changes there.
+other's functions freely; code that runs as a module loads uses only the leaf
+modules (`editor-core.js`, `history.js`, `views.js`) and the libraries, and no
+module imports `app.js` or `editor.js` (`tests/site-integrity.test.mjs` checks
+the graph). The release script versions every module's imports, static and
+dynamic (`scripts/stamp-release.mjs`), so a new module needs no changes there.
+
+The landing shell and the editor share their state by importing the same
+`editor-core.js`, and the editor is fetched later than the shell. After a
+deploy, a page that was loaded before it would be given the new release's
+editor, whose modules have other addresses and so their own state. The shell
+checks that the editor it loaded works on its own state (`sameRelease` in
+`app.js`) and otherwise reloads the page into the new release, once, saying so
+if a file had been chosen. When the editor cannot be fetched at all, the notice
+asks for a reload: Chromium does not fetch a module a second time in the same
+page.
 
 ## Development
 

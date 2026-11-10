@@ -8,7 +8,10 @@
  * the new index.html but may reuse the previous release's app.js and modules
  * from cache for up to ten minutes. Mixed releases can fail in confusing ways
  * (for example, every PDF reported as unreadable). Versioned URLs make each
- * release load as one consistent set.
+ * release load as one consistent set. The editor is fetched later than the
+ * page (app.js loads it on first use), so a page from before a deploy can be
+ * given the next release's editor: app.js checks for that and reloads
+ * (sameRelease).
  *
  * - First-party files share one release id: a hash of their contents, so
  *   redeploying identical code keeps visitors' caches.

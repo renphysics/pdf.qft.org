@@ -608,6 +608,26 @@ source review does not replace the owner’s browser verification.
   rehearsing the deploy steps, where they failed). Opening the
   file picker stays synchronous with the click (browsers require it) while the
   editor loads; files dropped or picked before it arrives are opened once it has.
+- Review of the lazy editor, each point reproduced before fixing. (1) A page
+  loaded before a deploy was given the new release's editor, whose modules
+  have other addresses and so were second copies with their own state: Add
+  another PDF replaced the document. The shell now checks that the editor
+  works on its own state (`sameRelease`) and otherwise reloads into the new
+  release, once, with a notice when a file had been chosen; a reload that does
+  not help says so. (2) When the editor could not be fetched, the notice was
+  the browser's own text, it also appeared on a mere hover, the picker kept
+  its file (so choosing it again did nothing), and trying again cannot work in
+  Chromium, which never fetches a module twice in a page (probed in three
+  engines). The notice now says to check the connection and reload, warm-ups
+  fail silently, and the picker is emptied. (3) On the batch page, Choose PDFs
+  pressed before the editor had arrived opened the workspace but could not
+  open the picker later; the shell now opens a picker of its own at once and
+  hands the files over. (4) Module headers and the README described the
+  layout from before the split. Landing tests, in three engines: a skewed
+  release reloads once and then adds a PDF to the open document; a warm-up
+  reloads without a notice and a second mismatch asks for a reload by hand;
+  a refused editor gives the notice and an empty picker; the batch picker
+  opens while the editor is held back. Each fails with its fix taken out.
 - `tool-panel.js` (2,000 lines) is now the panel's frame (318 lines: the field
   builders, `renderTool`, `fillForm`, the input prologue and the `PANELS`
   registry) plus twelve `panel-*.js` modules, one per tool or family, behind

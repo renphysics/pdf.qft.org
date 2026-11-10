@@ -1,8 +1,8 @@
 /**
- * QFT PDF's editor. app.js loads this module when a file is opened (or once the
- * page is idle); it starts the editor: the actions behind buttons, what the
- * editor redraws after a change, showing views, and the listeners. The rest
- * lives in:
+ * QFT PDF's editor. app.js loads this module when a file is opened, or as soon
+ * as a visitor hovers, focuses or touches the upload area, a tool card or the
+ * sample; it starts the editor: the actions behind buttons, what the editor
+ * redraws after a change, showing views, and the listeners. The rest lives in:
  *   editor-core.js  shared state, helpers and messages
  *   history.js      edit history: change(), undo and redo
  *   views.js        addresses and browser history
@@ -102,6 +102,9 @@ import {
 } from './documents.js';
 
 export { openFiles, warmPdfTools as warm } from './documents.js';
+// The state this copy of the editor works on: app.js checks that it is its own
+// (one release in a tab).
+export { ui } from './editor-core.js';
 
 // A signature kept on this device (Sign PDF) is ready when the editor is.
 {
@@ -610,6 +613,11 @@ $('#page-list').addEventListener('dragend', () => {
   ui.dragId = null;
   $$('.dragging,.drag-target').forEach((el) => el.classList.remove('dragging', 'drag-target'));
 });
+/** PDFs chosen for a batch before the editor had loaded (app.js): into the batch workspace. */
+export function batchFiles(files) {
+  if (!batch.isOpen()) batch.open();
+  batch.addFiles(files);
+}
 /** Files dropped on the page (app.js listens): into the batch when it is open or on its page, else opened. */
 export function openDropped(files) {
   if (batch.isOpen() || pageTool === 'batch') {
