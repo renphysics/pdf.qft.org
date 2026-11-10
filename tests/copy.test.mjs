@@ -1061,5 +1061,7 @@ await test('pages per sheet: a turned, cropped page as it shows; hidden layers s
 });
 
 await test('the source PDFs are untouched', async () => {
+  // After every build above: selected by name, this would compare the sources with themselves.
+  assert.ok(blankBytes && questions, 'the tests before this one ran (run this test with its file)');
   assert.deepEqual([fingerprint(lecture), fingerprint(appendix)], before, 'the source PDFs are untouched');
 });

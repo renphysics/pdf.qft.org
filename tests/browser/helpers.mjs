@@ -13,8 +13,9 @@ export { expect };
 
 /**
  * Every test fails on an uncaught error in the page, and on a content security
- * policy violation: the page reports one through the console (an inline style,
- * a blob: worker, a data: font would each be one).
+ * policy violation in the document: the page reports one through the console
+ * (an inline style, a blob: worker, a data: font would each be one). The page
+ * also keeps a list of the notices it has shown, for expectToast.
  */
 export const test = base.extend({
   page: async ({ page }, use) => {
@@ -29,6 +30,29 @@ export const test = base.extend({
         console.error(
           `CSP violation: ${event.violatedDirective} blocked ${event.blockedURI || 'inline'} at ${event.sourceFile}:${event.lineNumber}`,
         );
+      });
+    });
+    await page.addInitScript(() => {
+      // The notices shown since the page loaded, each when it became visible or
+      // changed while visible: a notice that was only written, or hidden at once,
+      // is not in the list.
+      window.qaNotices = [];
+      window.qaNoticesRead = 0;
+      document.addEventListener('DOMContentLoaded', () => {
+        const notice = document.querySelector('#toast'),
+          message = document.querySelector('#toast-message');
+        if (!notice || !message) return;
+        // One shown as the page started (its modules run before this event).
+        if (!notice.hidden) window.qaNotices.push(message.textContent);
+        new MutationObserver(() => {
+          if (!notice.hidden) window.qaNotices.push(message.textContent);
+        }).observe(notice, {
+          attributes: true,
+          attributeFilter: ['hidden'],
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
       });
     });
     page.on('console', (message) => {
@@ -124,13 +148,31 @@ export async function useTool(page, tool) {
 }
 
 /**
- * The notice shows `expected`: a string is its whole text, a pattern a part of
- * it. Retried until it does, so a notice still showing from the step before
- * is not read by mistake.
+ * A notice with `expected` was shown: a string is its whole text, a pattern a
+ * part of it. Looks through the notices the page has shown since the last one
+ * found (the list kept by the fixture above), and waits for it. So a notice
+ * that hid itself during a slow step still counts, one that was written but
+ * never shown does not, and neither does one from before the last expectation.
  */
 export async function expectToast(page, expected) {
-  // The text stays when a notice hides itself, so a slow step before this cannot miss it.
-  await expect(page.locator('#toast-message')).toHaveText(expected);
+  const wanted =
+    expected instanceof RegExp ? { source: expected.source, flags: expected.flags } : { text: expected };
+  await expect
+    .poll(
+      () =>
+        page.evaluate((wanted) => {
+          const pattern = 'source' in wanted ? new RegExp(wanted.source, wanted.flags) : null,
+            shown = window.qaNotices.slice(window.qaNoticesRead),
+            found = shown.findIndex((text) => (pattern ? pattern.test(text) : text === wanted.text));
+          if (found < 0) return shown;
+          window.qaNoticesRead += found + 1;
+          return true;
+        }, wanted),
+      {
+        message: `a notice ${expected instanceof RegExp ? 'with ' + expected : JSON.stringify(expected)} was shown`,
+      },
+    )
+    .toBe(true);
 }
 
 /** Click something that downloads a file; returns its name and bytes. */

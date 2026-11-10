@@ -1,6 +1,8 @@
 // Tablet and desktop widths: nothing scrolls sideways on the home page, in the
 // editor's tools or in batch, and the header keeps its links.
-import { test, expect, openSample, ready, useTool } from './helpers.mjs';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { test, expect, openSample, ready, root, useTool } from './helpers.mjs';
 
 const TOOLS = [
   'text',
@@ -98,3 +100,26 @@ for (const [width, height] of [
     expect(notice.x + notice.width).toBeLessThanOrEqual(width);
   });
 }
+
+// GitHub Pages sends no policy of its own; a host that reads dist/_headers sends
+// that policy with every response, and a browser then holds a page to both.
+test('with the policy of _headers sent too, the licenses page keeps its styles and the editor opens', async ({
+  page,
+}) => {
+  const policy = (await readFile(path.join(root, 'dist/_headers'), 'utf8'))
+    .match(/^\s*Content-Security-Policy:\s*(.+)$/m)[1]
+    .trim();
+  await page.route('**/*', async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': policy } });
+  });
+  await page.goto('licenses/');
+  await expect(page.locator('h1')).toHaveText('Licenses & credits.');
+  // From licenses/licenses.css: an inline style block would be refused. (The
+  // fixture fails the test on any violation.)
+  expect(await page.locator('.license-wrap').evaluate((node) => getComputedStyle(node).maxWidth)).toBe(
+    '1000px',
+  );
+  await openSample(page);
+  await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
+});

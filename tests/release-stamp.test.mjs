@@ -21,6 +21,7 @@ const modules = (await readdir(site)).filter((name) => name.endsWith('.js')).sor
 const files = [
   'index.html',
   'licenses/index.html',
+  'licenses/licenses.css',
   ...toolPages,
   ...modules,
   'style.css',
@@ -69,8 +70,8 @@ await test('every page loads the same versioned release: app.js, the stylesheets
   for (const sheet of ['style', 'studio', 'batch'])
     assert(html.includes(`href="./${sheet}.css?v=${release}"`), `${sheet}.css versioned`);
   const licenses = await read('licenses/index.html');
-  for (const sheet of ['style', 'studio'])
-    assert(licenses.includes(`href="../${sheet}.css?v=${release}"`), `licenses page ${sheet}.css versioned`);
+  for (const sheet of ['../style', '../studio', './licenses'])
+    assert(licenses.includes(`href="${sheet}.css?v=${release}"`), `licenses page ${sheet}.css versioned`);
   assert(
     preloads.length >= 2 && preloads.every((match) => match[2] === release),
     'index.html preloads the release modules',
@@ -159,9 +160,10 @@ await test('every versioned reference points at a real file, and every reference
       checked++;
     }
   }
-  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads, 2 on the licenses page,
-  // every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit URLs, and two fonts.
-  let expected = (4 + preloads.length) * (1 + toolPages.length) + 2 + 4 + 2;
+  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads, 3 on the licenses page
+  // (its own stylesheet too), every import between modules, the export worker, PDF.js worker, pdf-lib and
+  // fontkit URLs, and two fonts.
+  let expected = (4 + preloads.length) * (1 + toolPages.length) + 3 + 4 + 2;
   for (const name of modules)
     expected += [
       ...(await readFile(path.join(site, name), 'utf8')).matchAll(

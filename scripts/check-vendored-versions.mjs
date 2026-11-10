@@ -11,7 +11,7 @@
  * `report` (the lines) as step outputs instead, and exits 0, so the Vendored
  * libraries workflow can open or update an issue.
  */
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { appendFile, readFile } from 'node:fs/promises';
 
 const PACKAGES = ['@cantoo/pdf-lib', 'pdfjs-dist', '@cantoo/fontkit'];
@@ -19,7 +19,8 @@ const versions = JSON.parse(
   await readFile(new URL('../dist/assets/vendor/versions.json', import.meta.url), 'utf8'),
 );
 const rows = PACKAGES.map((name) => {
-  const latest = execFileSync('npm', ['view', name, 'version'], { encoding: 'utf8' }).trim();
+  // Through a shell: on Windows npm is npm.cmd. The names are the three above.
+  const latest = execSync(`npm view ${name} version`, { encoding: 'utf8' }).trim();
   return { name, bundled: versions[name], latest, differs: latest !== versions[name] };
 });
 const lines = rows.map(

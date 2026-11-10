@@ -85,17 +85,24 @@ python3 -m http.server 8000 --directory dist
 Open `http://localhost:8000/`. For production, serve `dist/` over HTTPS.
 GitHub Pages ignores `_headers`; the HTML therefore also provides its content
 security policy and referrer policy through supported meta tags. `_headers`
-remains available for hosts that support that format.
+remains available for hosts that support that format, and sends the policy the
+pages declare (`tests/site-integrity.test.mjs` compares them).
 
 The content security policy allows only the site's own scripts, styles,
 fonts, workers and connections (plus WebAssembly, and `data:` and `blob:`
 images: the CSS icons and object URLs for pictures), and no frames or media:
-there is no inline style or script, fonts come as bytes, and the PDF.js and
-export workers are files. Every browser test fails on a policy violation, and
-`tests/browser/hostile.spec.mjs` opens a PDF whose title, author, creator,
-producer, field names, labels, options and bookmark carry HTML and script
-(`scripts/make-hostile-fixture.mjs`), with a hostile file name and image name,
-and checks that nothing runs or is injected in any panel that shows them.
+no page has an inline style or script (the licenses page's styles are a file,
+`licenses/licenses.css`), fonts come as bytes, and the PDF.js and export
+workers are files. A meta tag binds its document. A worker takes its policy
+from the headers of its own file, so on GitHub Pages, which sends none, the
+two workers run without one; a host that reads `_headers` sends it for them
+too. Every browser test fails on a policy violation in the document, one test
+opens the licenses page and the editor with the `_headers` policy sent as a
+header as well, and `tests/browser/hostile.spec.mjs` opens a PDF whose title,
+author, creator, producer, field names, labels, options and bookmark carry
+HTML and script (`scripts/make-hostile-fixture.mjs`), with a hostile file name
+and image name, and checks that nothing runs or is injected in any panel that
+shows them, and that the download is given a name without those characters.
 
 The large CJK font is stored losslessly as two chunks under `vendor/fonts/` to
 stay within the repository upload API's request limit. `prepare-assets.mjs`
@@ -187,7 +194,9 @@ shows it without building a PDF:
   (2026-11-10, the date where the reader is) and `{filename}` for the name of
   the file the page came from, without its extension: each page of a merged
   document shows its own file, a blank page none, and each file of a batch its
-  own name (`variables` and `pageVariables` in `layout.js`).
+  own name (`variables` and `pageVariables` in `layout.js`). The name is drawn
+  in composed form, as it would be typed: macOS hands names over decomposed,
+  and the fonts have no glyphs for Hangul letters on their own.
 - Watermark, Headers & footers and Page numbers each have "Remember these
   settings on this device". Ticked, the tool's text and options are kept in
   this browser (not the PDF, nor which pages), follow what is used, Undo and
@@ -203,7 +212,10 @@ shows it without building a PDF:
   `-numbered`, `-watermarked`, `-cropped`, `-signed`, `-filled` or `-organized`
   when the edits are of one kind, `-merged` for several files, `-converted`
   for pictures made into pages, `-protected` or `-unlocked` for passwords, and
-  `-edited` otherwise (`outputName` in `documents.js`).
+  `-edited` otherwise (`outputName` in `documents.js`). Download selected
+  pages is named after the first file among those pages. The editor gives the
+  name in a form every system takes (`safeBaseName`: no `< > : " | ? *` or
+  control characters), instead of leaving that to the browser.
 - On a desktop a notice covers no control: it sits in the toolbar's gap
   between page navigation and zoom, as wide as the gap allows, or at the foot
   of the pages where the gap is too narrow, and inside the window when that is
@@ -374,11 +386,13 @@ carried over: page labels other than plain numbers from 1, file attachments and
 tags (the structure screen readers use); the download message says when a copy
 leaves any of these out. Edits that keep every page of one PDF exactly once
 (adding content, reordering, rotating, cropping) change the original document
-instead, so all of these stay. In a tagged PDF kept this way, the page numbers,
-headers, footers and watermark the editor adds are marked as pagination
-artifacts (`/Artifact <</Type /Pagination /Subtype …>>`), which screen readers
-skip; text, pictures, highlights, drawings and signatures you add are not
-tagged, and the download message says so.
+instead, so all of these stay. In a tagged PDF kept this way (one with a
+structure tree; `/MarkInfo` alone tags nothing), the page numbers, headers,
+footers and watermark the editor adds are marked as pagination artifacts
+(`/Artifact <</Type /Pagination /Subtype …>>`), which screen readers skip;
+text, pictures, highlights, drawings and signatures you add, and form answers
+flattened into the pages, are not tagged, and the download message says so. A
+handout (Pages per sheet) says what was left out on the way to it as well.
 
 A page whose PDF sets a larger unit (`/UserUnit`) is shown and edited in the
 PDF's own units, as its download is drawn: sizes such as 10 pt text are in those

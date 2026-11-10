@@ -156,6 +156,8 @@ await test('the npm packages are the versions bundled for browsers', async () =>
 });
 
 await test('every reference resolves at the custom domain and at the GitHub project path', async () => {
+  // The first test collects them: selected by name, this one would check nothing.
+  assert(references.length > 100, 'the references were collected (run this test with its file)');
   for (const base of ['https://pdf.qft.org/', 'https://renphysics.github.io/pdf.qft.org/']) {
     const baseURL = new URL(base);
     for (const { source, reference } of references) {
@@ -263,6 +265,34 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
       `${name}: FAQ data matches the page`,
     );
   }
+});
+
+await test('one content security policy: no page needs an inline style, and _headers sends the same policy', async () => {
+  const policyOf = (page) => page.match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/)?.[1];
+  const home = policyOf(html);
+  assert(home, 'index.html has a policy');
+  for (const name of [...Object.keys(PAGES), 'licenses/index.html']) {
+    const page = await readFile(path.join(site, name), 'utf8'),
+      policy = policyOf(page);
+    assert(policy, `${name}: a policy`);
+    assert(!policy.includes("'unsafe-inline'"), `${name}: inline styles and scripts are refused`);
+    assert(/style-src 'self'(?:;|$)/.test(policy), `${name}: only the site's own stylesheets`);
+    // What the policy refuses is not there to be refused.
+    const markup = page.replace(/<script[\s\S]*?<\/script>/g, '');
+    assert(!/<style[\s>]/i.test(markup), `${name}: a style block`);
+    assert(!/\sstyle\s*=/i.test(markup), `${name}: a style attribute`);
+    // The licenses page runs no script at all; every other page has the home page's policy.
+    if (name === 'licenses/index.html') assert(policy.includes("script-src 'none'"), `${name}: no scripts`);
+    else assert.equal(policy, home, `${name}: the home page's policy`);
+  }
+  // A host that reads _headers sends its policy for every path on top of the page's
+  // own, the licenses page included: it is the home page's policy.
+  const headers = await readFile(path.join(site, '_headers'), 'utf8');
+  assert.equal(
+    headers.match(/^\s*Content-Security-Policy:\s*(.+)$/m)?.[1].trim(),
+    home,
+    '_headers sends the policy the pages declare',
+  );
 });
 
 await test('robots.txt and the sitemap list every page; the license, CNAME and .nojekyll are served', async () => {

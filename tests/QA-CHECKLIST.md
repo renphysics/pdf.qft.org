@@ -670,11 +670,14 @@ source review does not replace the owner’s browser verification.
   Each new test fails with its fix taken out.
 - The content security policy no longer allows inline styles, `data:` or
   `blob:` fonts or `blob:` workers, and forbids frames and media (the app uses
-  none of them; the licenses page, which has an inline style block and no
-  scripts, keeps its own policy). Every browser test now fails on a policy
-  violation, reported from a `securitypolicyviolation` listener through the
-  console; the preview comparison hides the edit layer with a constructed
-  stylesheet instead of an inline one. `tests/fixtures/hostile-metadata.pdf`
+  none of them; the licenses page runs no scripts, and its styles moved from
+  an inline block to `licenses/licenses.css`, so the policy `_headers` sends
+  for every path holds there too: a review finding, since a host that reads
+  `_headers` would have refused the block). Every browser test now fails on a
+  policy violation in the document, reported from a `securitypolicyviolation`
+  listener through the console; the preview comparison hides the edit layer
+  through each element's own style object while the picture is taken, not
+  with a style element. `tests/fixtures/hostile-metadata.pdf`
   (made by `scripts/make-hostile-fixture.mjs`) carries HTML and script in its
   title, author, creator, producer, field names, labels, options and bookmark,
   an OpenAction and a `javascript:` link; the hostile test opens it under a
@@ -702,8 +705,8 @@ source review does not replace the owner’s browser verification.
   what the user added isn't tagged. Engine test: the four artifacts, one text
   run each, the added text outside them, the note; an untagged PDF gets neither.
 - Tests: the seven Node suites are `node:test` tests now (81 named tests where
-  there were seven scripts chained with `&&`; 84 with those added since for
-  `{date}` and `{filename}` and for the stamped copy); `npm test` runs them in one
+  there were seven scripts chained with `&&`; 85 with those added since for
+  `{date}` and `{filename}`, for the stamped copy and for the one policy); `npm test` runs them in one
   `node --test`, each file in its own process, so a failure is reported by name
   and hides nothing (checked: with pictures not drawn, one test fails and 80
   pass). The conversion was done by a script that wraps each section in a
@@ -723,6 +726,26 @@ source review does not replace the owner’s browser verification.
   at 800, 1024, 1280 and 1600 px: no overlap with page navigation, zoom or the
   status line); the privacy sentence shows with the first document only.
   Notices keep their five seconds: shortening them would cost reading time.
+- The adversarial review of this section (five reviewers by area, then four
+  verifiers who reproduced each finding independently): 28 findings, 27
+  confirmed and one that could not be run here (Windows), none refuted, all
+  fixed. Beyond those listed under their items above: a tagged PDF is one with
+  a structure tree (`/MarkInfo` alone got artifacts and a note about screen
+  readers); answers flattened into a tagged PDF are noted as untagged; a
+  decomposed file name (as macOS hands it over) in `{filename}` stopped the
+  export for Hangul, and is now drawn composed; a handout keeps the notes of
+  the export it was made from; Download selected pages is named after the
+  first file among those pages; the download's name is made safe by the
+  editor (`safeBaseName`), which the hostile test now reads from the link the
+  editor clicks instead of from what the browser made of it; `_headers` and
+  the pages declare one policy, which the site-integrity suite compares, and
+  a browser test opens the licenses page and the editor with it sent as a
+  header too; `expectToast` now requires that the notice was shown (the page
+  keeps a list of the notices it shows), where it had come to read the text
+  of a hidden one; two Node tests that checked nothing when selected by name
+  now say they need their file; the hostile names are given to the page as
+  bytes, never as files on disk, and the library check runs npm through a
+  shell, for Windows.
   Review findings fixed: in a window shorter than the editor (1024 x 500, a
   phone on its side) the notice at the foot of the pages was below the window's
   edge, and now stays inside it; Delete pages still started with page 1

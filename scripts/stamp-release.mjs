@@ -37,6 +37,7 @@ const MODULES = (await readdir(site)).filter((name) => name.endsWith('.js')).sor
 const FIRST_PARTY = [
   'index.html',
   'licenses/index.html',
+  'licenses/licenses.css',
   ...TOOL_PAGE_FILES,
   ...MODULES,
   'style.css',
@@ -81,7 +82,7 @@ const RULES = {
     [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
     [/(rel="modulepreload" href="\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
   ],
-  'licenses/index.html': [[/(href="\.\.\/(?:style|studio)\.css)"/g, `$1?v=${release}"`, 2]],
+  'licenses/index.html': [[/(href="(?:\.\.\/(?:style|studio)|\.\/licenses)\.css)"/g, `$1?v=${release}"`, 3]],
   ...Object.fromEntries(
     TOOL_PAGE_FILES.map((name) => [
       name,
