@@ -469,6 +469,23 @@ test('Delete pages starts empty on its own page, after Reset, and after Undo', a
   await expect(page.locator('#tool-panel')).toContainText('1 of 3 pages selected for deletion');
 });
 
+test('selected pages are downloaded under the name of the first file among them', async ({ page }) => {
+  await openSample(page);
+  await page.locator('[data-action="add-files"]').first().click();
+  await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
+  await expect(page.locator('#document-info')).toHaveText(/^7 pages/);
+  await useTool(page, 'pages');
+  await page.click('[data-action="select-none"]');
+  // Pages 5 and 6 are the second file's.
+  await page.locator('[data-page-select]').nth(4).check();
+  await page.locator('[data-page-select]').nth(5).check();
+  const selected = await download(page, () => page.click('[data-action="extract"]'));
+  expect(selected.name).toBe('rotated-cropped-selected.pdf');
+  // The whole document is named after its first file.
+  const whole = await download(page, () => page.click('#download-button'));
+  expect(whole.name).toBe('A little room to create-merged.pdf');
+});
+
 test('the first document opened is told its files stay on the device; later ones are simply ready', async ({
   page,
 }) => {

@@ -6,23 +6,19 @@
 // security policy violation (helpers.mjs).
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import {
-  test,
-  expect,
-  download,
-  fixture,
-  openFiles,
-  ready,
-  root,
-  useTool,
-  writeTemporary,
-} from './helpers.mjs';
+import { test, expect, download, fixture, openFiles, ready, root, useTool } from './helpers.mjs';
 
 const { createCanvas } = createRequire(import.meta.url)(`${root}/node_modules/@napi-rs/canvas`);
 const NAME = '<img src=x onerror="window.__xssName=1">.pdf';
 
 test('a PDF with HTML and script in its strings runs nothing and injects nothing', async ({ page }) => {
-  const file = await writeTemporary(NAME, await readFile(fixture('hostile-metadata.pdf')));
+  // Given to the page as bytes with a name: no file system has to take the name
+  // (Windows refuses these characters).
+  const file = {
+    name: NAME,
+    mimeType: 'application/pdf',
+    buffer: await readFile(fixture('hostile-metadata.pdf')),
+  };
   await openFiles(page, file, 'fill-pdf-form/');
   const leaked = () => page.evaluate(() => Object.keys(window).filter((key) => key.startsWith('__xss')));
   const injected = () => page.locator('img[src="x"], [data-xss]').count();
@@ -61,18 +57,28 @@ test('a PDF with HTML and script in its strings runs nothing and injects nothing
   logo.getContext('2d').fillStyle = '#123456';
   logo.getContext('2d').fillRect(0, 0, 40, 40);
   await useTool(page, 'image');
-  await page.setInputFiles(
-    '#image-input',
-    await writeTemporary('<img src=x onerror="window.__xssImage=1">.png', logo.toBuffer('image/png')),
-  );
+  await page.setInputFiles('#image-input', {
+    name: '<img src=x onerror="window.__xssImage=1">.png',
+    mimeType: 'image/png',
+    buffer: logo.toBuffer('image/png'),
+  });
   await expect(page.locator('.edit-layer [data-item-id]')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await expect(page.locator('.file-chosen')).toHaveText('<img src=x onerror="window.__xssImage=1">.png');
   await check('Add an image');
-  // The download's name is made safe.
+  // The download's name is made safe by the editor, not left to the browser: read
+  // from the link it clicks.
+  await page.evaluate(() => {
+    const click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download) window.qaDownloadName = this.download;
+      return click.call(this);
+    };
+  });
   const { name } = await download(page, () => page.click('#download-button'));
-  expect(name).toMatch(/\.pdf$/);
-  expect(name).not.toMatch(/[<>"]/);
+  const given = await page.evaluate(() => window.qaDownloadName);
+  expect(given).toBe('_img src=x onerror=_window.__xssName=1__-edited.pdf');
+  expect(name).toBe(given);
   // The batch workspace lists the file by name, as text.
   await useTool(page, 'watermark');
   await page.click('[data-action="batch-from-editor"]');

@@ -305,6 +305,21 @@ await test('{date} and {filename}: today’s date, and the name of the file each
   assert.ok(shows(pages[2], 'Printed DATE'));
   assert.ok(pages[2].includes('p3/3'));
   assert.ok(shows(pages[2], 'Copy of , DATE'));
+
+  // macOS hands file names over decomposed. Hangul letters on their own have no
+  // glyphs in the fonts, so the name is drawn composed, as it would be typed.
+  const hangul = '\uD55C\uAE00';
+  assert.notEqual(hangul.normalize('NFD'), hangul);
+  assert.equal(baseName(hangul.normalize('NFD') + '.pdf'), hangul);
+  const named = await buildPdf({
+    sources: [{ id: 'k', bytes: await second.save(), name: hangul.normalize('NFD') + '.pdf' }],
+    pages: [{ id: 'k1', sourceId: 'k', index: 0 }],
+    headerFooter: { headerLeft: '{filename}' },
+  });
+  assert.ok(
+    (await extract(named))[0].items.some((item) => item.text.normalize('NFC') === hangul),
+    'a decomposed Hangul file name is drawn',
+  );
 });
 
 await test('headers, footers and page numbers mirrored on even pages', async () => {
@@ -1650,5 +1665,48 @@ await test('tagged PDFs: repeated content is marked as artifacts; untagged addit
     const plain = await build(false);
     assert.ok(!/BDC|EMC/.test(await contentOf(plain.bytes)), 'an untagged PDF gets no artifacts');
     assert.ok(!plain.notes.includes('additions-untagged'), 'and no note about tags');
+
+    // /MarkInfo without a structure tree tags nothing: no artifacts, no note
+    // (the notes about what a copy leaves out read the structure tree too).
+    const marked = await PDFDocument.create();
+    marked.addPage([400, 500]).drawText('Body text', { x: 40, y: 400, size: 14 });
+    marked.catalog.set(PDFName.of('MarkInfo'), marked.context.obj({ Marked: false }));
+    const markedOnly = await buildPdfWithNotes({
+      sources: [{ id: 'm', bytes: await marked.save() }],
+      pages: [{ id: 'p', sourceId: 'm', index: 0 }],
+      annotations: [
+        { type: 'text', pageId: 'p', text: 'Added note', x: 0.1, y: 0.2, width: 0.6, fontSize: 12 },
+      ],
+      pageNumbers: { format: 'Page {page}', position: 'bottom-right', margin: 24, size: 8 },
+    });
+    assert.ok(!/BDC|EMC/.test(await contentOf(markedOnly.bytes)), '/MarkInfo alone gets no artifacts');
+    assert.deepEqual(markedOnly.notes, [], 'and no note about tags');
+
+    // Answers flattened into a tagged PDF's pages are untagged additions too;
+    // kept in their fields, they are not.
+    const form = await PDFDocument.create();
+    form.addPage([400, 500]);
+    form
+      .getForm()
+      .createTextField('answer')
+      .addToPage(form.getPage(0), { x: 40, y: 300, width: 200, height: 24 });
+    form.catalog.set(PDFName.of('MarkInfo'), form.context.obj({ Marked: true }));
+    form.catalog.set(PDFName.of('StructTreeRoot'), form.context.obj({ Type: 'StructTreeRoot' }));
+    const formBytes = await form.save();
+    const answered = (flattenForms) =>
+      buildPdfWithNotes({
+        sources: [{ id: 'f', bytes: formBytes }],
+        pages: [{ id: 'p', sourceId: 'f', index: 0 }],
+        formValues: { f: { answer: 'My answer' } },
+        flattenForms,
+      });
+    assert.ok(
+      (await answered(true)).notes.includes('additions-untagged'),
+      'flattened answers are noted as untagged',
+    );
+    assert.ok(
+      !(await answered(false)).notes.includes('additions-untagged'),
+      'answers kept in their fields are not additions to the pages',
+    );
   }
 });

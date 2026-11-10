@@ -489,9 +489,15 @@ export function isoDate(date = new Date()) {
   const pad = (value) => String(value).padStart(2, '0');
   return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
 }
-/** A file's name without the extension of a file the editor opens: "Report v1.2.pdf" is "Report v1.2". */
+/**
+ * A file's name without the extension of a file the editor opens: "Report
+ * v1.2.pdf" is "Report v1.2". In composed form (NFC): macOS hands names over
+ * decomposed, and the fonts have no glyphs for Hangul letters on their own.
+ */
 export function baseName(name) {
-  return String(name ?? '').replace(/\.(pdf|jpe?g|png)$/i, '');
+  return String(name ?? '')
+    .normalize('NFC')
+    .replace(/\.(pdf|jpe?g|png)$/i, '');
 }
 /**
  * What {date} and {filename} stand for on a page: today's date, and the name of

@@ -93,7 +93,6 @@ test('added margins are blank, in the preview as in the download', async ({ page
   expect(drawn.dark, 'the text is drawn').toBeGreaterThan(50);
   expect(drawn.red, 'the square the CropBox hid stays hidden in the margin').toBe(0);
   const { bytes } = await download(page, () => page.click('#download-button'));
-  // (This hides notices for the rest of the test.)
   expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.003);
 });
 
@@ -135,5 +134,14 @@ test('a handout from a tagged PDF says the tags are left behind', async ({ page 
   doc.catalog.set(PDFLib.PDFName.of('MarkInfo'), doc.context.obj({ Marked: true }));
   await openFiles(page, await writeTemporary('tagged.pdf', await doc.save()), 'pdf-pages-per-sheet/');
   await download(page, () => page.click('#tool-form [type="submit"]'));
-  await expect(page.locator('#toast-message')).toContainText('without the original’s accessibility tags');
+  await expectToast(page, /without the original’s accessibility tags/);
+  // With a page deleted first, the export is already a copy without the tags:
+  // the handout says what that copy left out, as a plain download does.
+  await useTool(page, 'delete');
+  await page.locator('[data-page-select]').nth(1).check();
+  await page.click('[data-action="delete-pages"]');
+  await expect(page.locator('#document-info')).toHaveText(/^1 page/);
+  await useTool(page, 'sheets');
+  await download(page, () => page.click('#tool-form [type="submit"]'));
+  await expectToast(page, /^Your sheet has been downloaded\..*without the original’s accessibility tags/);
 });

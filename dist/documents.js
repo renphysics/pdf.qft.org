@@ -5,6 +5,7 @@
 
 import { buildPdfWithNotes, imagesToPdf, loadPdfLib, openPdf, passwordProblem } from './pdf-engine.js';
 import { baseName, rescaledMargins } from './layout.js';
+import { safeBaseName } from './workflows.js';
 import { isPicture, pictureForPage } from './convert.js';
 import { closeDocuments, loadPdfjs, previewFont } from './preview.js';
 import {
@@ -159,9 +160,13 @@ export function downloadBytes(bytes, name) {
 export function usedSources() {
   return state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
 }
-/** A download is named after the first file in it (blank pages aside), without its extension. */
-export function outputBase() {
-  const first = state.pages
+/**
+ * A download is named after the first file in it (blank pages aside), without
+ * its extension. `pages`: the pages in the download, when they are not the
+ * whole document (Download selected pages).
+ */
+export function outputBase(pages = state.pages) {
+  const first = pages
     .map((page) => state.sources.find((source) => source.id === page.sourceId))
     .find((source) => source && !source.blank);
   return first ? baseName(first.name) : 'document';
@@ -211,8 +216,9 @@ function outputKind() {
     kinds.add('organized');
   return kinds.size === 1 ? [...kinds][0] : 'edited';
 }
-export function outputName(suffix = outputKind()) {
-  return outputBase() + '-' + suffix + '.pdf';
+/** The download's name, in a form every system takes (safeBaseName): not left to the browser. */
+export function outputName(suffix = outputKind(), pages = state.pages) {
+  return safeBaseName(outputBase(pages)) + '-' + suffix + '.pdf';
 }
 /**
  * What a download message adds about the file, or the files of a split
@@ -291,7 +297,7 @@ export async function downloadSelected() {
     const problem = formProblem(extraction.pages);
     if (problem) throw new Error(problem);
     const { bytes, notes } = await exportDocument(extraction, 'Preparing selected pages…');
-    downloadBytes(bytes, outputName('selected'));
+    downloadBytes(bytes, outputName('selected', extraction.pages));
     toast(
       extraction.pages.length +
         ' selected page' +

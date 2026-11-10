@@ -102,8 +102,11 @@ async function saveSheets() {
     const base = safeBaseName(outputBase());
     downloadBytes(sheets, base + '-' + draft.perSheet + '-per-sheet.pdf');
     const count = Math.ceil(state.pages.length / draft.perSheet);
-    // A handout is a new PDF: it says what the original's pages left behind.
-    const losses = await copyNotes(bytes);
+    // A handout is a new PDF: it says what the original's pages left behind, here
+    // or already in the export (pages deleted or files combined make a copy).
+    const losses = [
+      ...new Set([...notes.filter((note) => note.endsWith('-dropped')), ...(await copyNotes(bytes))]),
+    ];
     toast(
       'Your ' +
         (count === 1 ? 'sheet has' : count + ' sheets have') +

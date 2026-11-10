@@ -966,10 +966,8 @@ async function drawAnnotation(doc, page, geometry, annotation, getFont, pageInde
  */
 function artifactMarker(doc) {
   const { PDFDict, PDFName, PDFOperator, PDFOperatorNames } = library();
-  const tagged =
-    doc.catalog.lookup(PDFName.of('StructTreeRoot')) instanceof PDFDict ||
-    doc.catalog.lookup(PDFName.of('MarkInfo')) instanceof PDFDict;
-  if (!tagged) return null;
+  // A structure tree, as copyLosses has it: /MarkInfo alone tags nothing.
+  if (!(doc.catalog.lookup(PDFName.of('StructTreeRoot')) instanceof PDFDict)) return null;
   return (subtype) =>
     PDFOperator.of(PDFOperatorNames.BeginMarkedContentSequence, [
       PDFName.of('Artifact'),
@@ -1890,7 +1888,8 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  if (artifact && annotated) losses.add('additions-untagged');
+  // Answers flattened into the pages are drawn there untagged, like what was added.
+  if (artifact && (annotated || (formFilled && state.flattenForms))) losses.add('additions-untagged');
   const notes = [...losses];
   // New field appearances use fonts that PDF/A requires to be embedded.
   added ||= formFilled;
