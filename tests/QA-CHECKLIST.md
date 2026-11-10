@@ -654,3 +654,9 @@ source review does not replace the owner’s browser verification.
   attachments behind (`copyNotes`), like Extract and Delete do. Tests:
   accessibility (focus), settings (the announced range), phone (the tap area),
   margins-sheets (a tagged handout's note), copy (copyNotes).
+- Tagged PDFs: when the download keeps a PDF's structure tree, the page
+  numbers, headers, footers and watermark it adds are each wrapped in
+  `/Artifact <</Type /Pagination /Subtype /PageNum|Header|Footer|Watermark>>
+  BDC … EMC`, so screen readers skip them, and the download note says that
+  what the user added isn't tagged. Engine test: the four artifacts, one text
+  run each, the added text outside them, the note; an untagged PDF gets neither.

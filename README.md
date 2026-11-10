@@ -329,7 +329,11 @@ carried over: page labels other than plain numbers from 1, file attachments and
 tags (the structure screen readers use); the download message says when a copy
 leaves any of these out. Edits that keep every page of one PDF exactly once
 (adding content, reordering, rotating, cropping) change the original document
-instead, so all of these stay.
+instead, so all of these stay. In a tagged PDF kept this way, the page numbers,
+headers, footers and watermark the editor adds are marked as pagination
+artifacts (`/Artifact <</Type /Pagination /Subtype …>>`), which screen readers
+skip; text, pictures, highlights, drawings and signatures you add are not
+tagged, and the download message says so.
 
 A page whose PDF sets a larger unit (`/UserUnit`) is shown and edited in the
 PDF's own units, as its download is drawn: sizes such as 10 pt text are in those

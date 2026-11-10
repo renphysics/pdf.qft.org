@@ -202,6 +202,9 @@ export function exportNotes(notes, { several = false } = {}) {
     text +=
       ' The original was digitally signed: its signature isn’t valid in ' +
       (several ? 'these copies.' : 'this copy.');
+  if (notes.includes('additions-untagged'))
+    text +=
+      ' What you added isn’t tagged for screen readers; they skip the page numbers, headers, footers and watermark, which are marked as artifacts.';
   return text;
 }
 export async function downloadDocument() {

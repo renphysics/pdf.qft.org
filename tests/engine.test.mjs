@@ -1397,6 +1397,71 @@ assert.deepEqual(parsePageRange('', 2), [0, 1]);
 assert.throws(() => parsePageRange('0, 1', 4), /between/);
 assert.throws(() => parsePageRange('3-1', 4), /between/);
 assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
+// A tagged PDF (a structure tree, which screen readers follow): page numbers,
+// headers, footers and the watermark are each marked as a pagination artifact
+// of their kind, which readers skip; the added text is not, and the notes say
+// so. An untagged PDF gets neither.
+{
+  const { PDFName, decodePDFRawStream } = globalThis.PDFLib;
+  const contentOf = async (bytes) => {
+    const doc = await PDFDocument.load(bytes);
+    const page = doc.getPage(0);
+    return page.node
+      .Contents()
+      .asArray()
+      .map((ref) => Buffer.from(decodePDFRawStream(doc.context.lookup(ref)).decode()).toString('latin1'))
+      .join('\n');
+  };
+  const source = async (tagged) => {
+    const doc = await PDFDocument.create();
+    doc.addPage([400, 500]).drawText('Body text', {
+      x: 40,
+      y: 400,
+      size: 14,
+      font: await doc.embedFont(StandardFonts.Helvetica),
+    });
+    if (tagged) {
+      doc.catalog.set(PDFName.of('MarkInfo'), doc.context.obj({ Marked: true }));
+      doc.catalog.set(PDFName.of('StructTreeRoot'), doc.context.obj({ Type: 'StructTreeRoot' }));
+    }
+    return doc.save();
+  };
+  const build = async (tagged) =>
+    buildPdfWithNotes({
+      sources: [{ id: 't', bytes: await source(tagged) }],
+      pages: [{ id: 'p', sourceId: 't', index: 0 }],
+      annotations: [
+        { type: 'text', pageId: 'p', text: 'Added note', x: 0.1, y: 0.2, width: 0.6, fontSize: 12 },
+      ],
+      watermark: { text: 'DRAFT', angle: 0, opacity: 0.16, size: 36 },
+      headerFooter: { headerLeft: 'Head', footerRight: 'Foot {page}', margin: 24, size: 8 },
+      pageNumbers: { format: 'Page {page} of {total}', position: 'bottom-right', margin: 24, size: 8 },
+    });
+  const tagged = await build(true);
+  const content = await contentOf(tagged.bytes);
+  const spans = [
+    ...content.matchAll(/\/Artifact <<\s*\/Type \/Pagination\s*\/Subtype \/(\w+)\s*>> BDC\n([\s\S]*?)\nEMC/g),
+  ];
+  assert.deepEqual(
+    spans.map((span) => span[1]).sort(),
+    ['Footer', 'Header', 'PageNum', 'Watermark'],
+    'each repeated item is a pagination artifact of its kind',
+  );
+  for (const span of spans)
+    assert.equal((span[2].match(/\bT[Jj]\b/g) || []).length, 1, `the ${span[1]} artifact holds one text run`);
+  // Outside the artifacts: the page's own text and the note that was added.
+  const outside = spans.reduce((text, span) => text.replace(span[0], ''), content);
+  assert.equal(
+    (outside.match(/\bT[Jj]\b/g) || []).length,
+    2,
+    'the page’s text and the added text are outside the artifacts',
+  );
+  assert.ok(tagged.notes.includes('additions-untagged'), 'the notes say what was added is untagged');
+  const plain = await build(false);
+  assert.ok(!/BDC|EMC/.test(await contentOf(plain.bytes)), 'an untagged PDF gets no artifacts');
+  assert.ok(!plain.notes.includes('additions-untagged'), 'and no note about tags');
+}
+
 console.log(
   JSON.stringify(
     {

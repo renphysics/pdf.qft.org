@@ -957,11 +957,31 @@ async function drawAnnotation(doc, page, geometry, annotation, getFont, pageInde
   return false;
 }
 
-async function drawWatermark(page, geometry, setting, getFont, pageIndex, total) {
+/**
+ * In a tagged PDF (one with a structure tree, which screen readers follow),
+ * what the export repeats on every page is marked as a pagination artifact of
+ * its kind, so readers skip it: `/Artifact <</Type /Pagination /Subtype ...>>
+ * BDC` ... `EMC` around each item. Null for an untagged PDF.
+ */
+function artifactMarker(doc) {
+  const { PDFDict, PDFName, PDFOperator, PDFOperatorNames } = library();
+  const tagged =
+    doc.catalog.lookup(PDFName.of('StructTreeRoot')) instanceof PDFDict ||
+    doc.catalog.lookup(PDFName.of('MarkInfo')) instanceof PDFDict;
+  if (!tagged) return null;
+  return (subtype) =>
+    PDFOperator.of(PDFOperatorNames.BeginMarkedContentSequence, [
+      PDFName.of('Artifact'),
+      doc.context.obj({ Type: 'Pagination', Subtype: subtype }),
+    ]);
+}
+
+async function drawWatermark(page, geometry, setting, getFont, pageIndex, total, artifact = null) {
   const text = watermarkText(setting, pageIndex + 1, total);
   if (!text.trim()) return false;
   const font = await fontFor(getFont, text, pageIndex, 'watermark');
   const mark = layoutWatermark(setting, geometry, font, text);
+  if (artifact) page.pushOperators(artifact('Watermark'));
   page.drawText(text, {
     x: mark.x,
     y: mark.y,
@@ -971,16 +991,21 @@ async function drawWatermark(page, geometry, setting, getFont, pageIndex, total)
     opacity: number(setting.opacity, 0.15, 0, 1),
     rotate: library().degrees(mark.angle),
   });
+  if (artifact) page.pushOperators(library().endMarkedContent());
   return true;
 }
 
-async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, fallback) {
+async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, fallback, artifact = null) {
   let drew = false;
   for (const item of items) {
     if (!item.text.trim()) continue;
     const font = await fontFor(getFont, item.text, pageIndex, item.key);
     const placed = layoutMarginText(geometry, item, font);
     if (placed.problem) throw pageError(placed.problem, pageIndex, item.key);
+    if (artifact)
+      page.pushOperators(
+        artifact(item.key === 'pageNumber' ? 'PageNum' : item.key.startsWith('header') ? 'Header' : 'Footer'),
+      );
     page.drawText(placed.text, {
       x: placed.x,
       y: placed.y,
@@ -988,6 +1013,7 @@ async function drawMarginItems(page, geometry, items, hex, getFont, pageIndex, f
       font,
       color: color(hex, fallback),
     });
+    if (artifact) page.pushOperators(library().endMarkedContent());
     drew = true;
   }
   return drew;
@@ -1783,7 +1809,11 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const getFont = fontsFor(doc);
   const annotations = state.annotations || [];
   const total = outputPages.length;
-  let added = false;
+  // A tagged PDF: repeated content is marked for screen readers to skip, and
+  // additions, which are not tagged, are noted.
+  const artifact = artifactMarker(doc);
+  let added = false,
+    annotated = false;
   for (let index = 0; index < total; index++) {
     const page = outputPages[index];
     const descriptor = descriptors[index];
@@ -1807,12 +1837,15 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     for (const annotation of annotations.filter((item) => item.pageId === descriptor.id)) {
       const placement = placementGeometry(source, descriptor, annotation);
       page.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(...placement.matrix));
-      added = (await drawAnnotation(doc, page, placement, annotation, getFont, index)) || added;
+      const drew = await drawAnnotation(doc, page, placement, annotation, getFont, index);
+      added = drew || added;
+      annotated = drew || annotated;
       page.pushOperators(lib.popGraphicsState());
     }
     page.pushOperators(lib.pushGraphicsState(), lib.concatTransformationMatrix(...geometry.matrix));
     if (applies(state.watermark, descriptor.id))
-      added = (await drawWatermark(page, geometry, state.watermark, getFont, index, total)) || added;
+      added =
+        (await drawWatermark(page, geometry, state.watermark, getFont, index, total, artifact)) || added;
     if (applies(state.headerFooter, descriptor.id)) {
       added =
         (await drawMarginItems(
@@ -1823,6 +1856,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
           getFont,
           index,
           '#53635d',
+          artifact,
         )) || added;
     }
     if (applies(state.pageNumbers, descriptor.id)) {
@@ -1835,6 +1869,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
           getFont,
           index,
           '#53635d',
+          artifact,
         )) || added;
     }
     page.pushOperators(lib.popGraphicsState());
@@ -1842,6 +1877,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
+  if (artifact && annotated) losses.add('additions-untagged');
   const notes = [...losses];
   // New field appearances use fonts that PDF/A requires to be embedded.
   added ||= formFilled;
