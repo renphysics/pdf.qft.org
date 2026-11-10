@@ -170,10 +170,8 @@ test('nothing scrolls sideways from 320 px to 414 px', async ({ page }) => {
 
 test('Fill form zooms the page to the field you tap, and Fit shows it whole again', async ({ page }) => {
   await openFiles(page, fixture('form-fields.pdf'));
-  await page
-    .locator('[data-action="dismiss-toast"]')
-    .click({ timeout: 2000 })
-    .catch(() => {});
+  // Escape puts the opened notice away, if it is still showing.
+  await page.keyboard.press('Escape');
   const name = page.locator('.form-field[data-field="applicant.name"]').first();
   expect((await name.boundingBox()).height).toBeLessThan(20);
   await name.tap();

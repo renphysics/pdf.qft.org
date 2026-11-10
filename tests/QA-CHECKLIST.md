@@ -660,3 +660,14 @@ source review does not replace the owner’s browser verification.
   BDC … EMC`, so screen readers skip them, and the download note says that
   what the user added isn't tagged. Engine test: the four artifacts, one text
   run each, the added text outside them, the note; an untagged PDF gets neither.
+- Tests: the seven Node suites are `node:test` tests now (81 named tests where
+  there were seven scripts chained with `&&`); `npm test` runs them in one
+  `node --test`, each file in its own process, so a failure is reported by name
+  and hides nothing (checked: with pictures not drawn, one test fails and 80
+  pass). The conversion was done by a script that wraps each section in a
+  test, hoists what later sections use and keeps the number of assertions
+  (5 suites), and by hand (release-stamp, whose temporary copy is removed when
+  the process ends). Browser tests: `expectToast` waits for a notice instead of
+  reading whichever is showing; the two batch clicks that swallowed their
+  errors now wait for the batch workspace; the browser's language and time
+  zone are fixed (en-US, UTC), with a German case for the A4 default.

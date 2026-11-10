@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { test } from 'node:test';
 
 const require = createRequire(import.meta.url);
 const runtime =
@@ -77,283 +78,315 @@ async function inspectIndependent(bytes) {
 function approx(actual, expected, message) {
   assert.ok(Math.abs(actual - expected) < 0.01, `${message}: ${actual} != ${expected}`);
 }
-
-// Interleave: fronts 1-3 scanned, then backs: from the last sheet (6 is the back of 1), or from the first.
-assert.deepEqual(interleaveOrder(6), [0, 5, 1, 4, 2, 3]);
-assert.deepEqual(interleaveOrder(6, false), [0, 3, 1, 4, 2, 5]);
-// An odd count: the last sheet's back was left out, so the last front ends the document.
-assert.deepEqual(interleaveOrder(5), [0, 4, 1, 3, 2]);
-assert.deepEqual(interleaveOrder(5, false), [0, 3, 1, 4, 2]);
-assert.deepEqual(interleaveOrder(2), [0, 1]);
-assert.deepEqual(interleaveOrder(1), [0]);
-for (const count of [3, 8, 11])
-  assert.deepEqual(
-    [...interleaveOrder(count)].sort((a, b) => a - b),
-    [...Array(count).keys()],
-    'every page once',
-  );
-assert.deepEqual(planSplit({ mode: 'each' }, 3), [[0], [1], [2]]);
-assert.deepEqual(planSplit({ mode: 'chunks', size: '2' }, 5), [[0, 1], [2, 3], [4]]);
-assert.deepEqual(planSplit({ mode: 'chunks', size: 20 }, 3), [[0, 1, 2]]);
-assert.deepEqual(planSplit({ mode: 'ranges', ranges: '3, 1-2, 2; 4-5' }, 5), [
-  [2, 0, 1],
-  [3, 4],
-]);
-assert.equal(planSplit({ mode: 'each' }, 350).length, 350, 'Split does not reintroduce a 300-page cap');
-for (const options of [
-  { mode: 'ranges', ranges: '' },
-  { mode: 'ranges', ranges: '1;;2' },
-  { mode: 'ranges', ranges: '1;' },
-  { mode: 'ranges', ranges: '0' },
-  { mode: 'ranges', ranges: '2-1' },
-  { mode: 'ranges', ranges: '1-6' },
-  { mode: 'ranges', ranges: 'one' },
-  { mode: 'chunks', size: 0 },
-  { mode: 'chunks', size: 1.5 },
-  { mode: 'invalid' },
-])
-  assert.throws(() => planSplit(options, 5), undefined, `Invalid split settings: ${JSON.stringify(options)}`);
-assert.throws(() => planSplit({ mode: 'each' }, 0));
-
-const inputPreset = {
-  version: 1,
-  name: 'Lecture handout',
-  watermark: { text: 'DRAFT', size: '30', color: '#58765b', opacity: '.15', angle: '0', position: 'center' },
-  headerFooter: {
-    headerLeft: 'Course notes',
-    footerCenter: 'Reading copy',
-    size: '8',
-    margin: '20',
-    color: '#244e41',
-  },
-  pageNumbers: {
-    format: 'Sheet {page}/{total}',
-    start: '10',
-    size: '8',
-    margin: '20',
-    position: 'bottom-right',
-    color: '#244e41',
-  },
-  crop: { left: '.1', right: '.1', top: '.1', bottom: '.05' },
-  ignored: { scope: 'this file only' },
-};
-const originalPreset = structuredClone(inputPreset);
-const preset = normalizePreset(inputPreset);
-assert.deepEqual(inputPreset, originalPreset, 'Normalization does not mutate caller settings');
-assert.equal(preset.version, 1);
-assert.equal(preset.watermark.opacity, 0.15);
-assert.equal(preset.crop.left, 0.1);
-assert.equal(preset.pageNumbers.start, 10);
-assert.ok(!('ignored' in preset));
-assert.deepEqual(
-  normalizePreset(JSON.parse(JSON.stringify(preset))),
-  preset,
-  'Canonical preset survives JSON persistence',
-);
-assert.equal(preset.pageNumbers.mirror, false, 'Not mirrored unless asked');
-const mirroredPreset = normalizePreset({
-  name: 'Two-sided',
-  headerFooter: { footerRight: 'Notes', mirror: true },
-  pageNumbers: { format: '{page}', mirror: true },
-});
-assert.equal(mirroredPreset.headerFooter.mirror, true);
-assert.equal(mirroredPreset.pageNumbers.mirror, true);
-assert.equal(
-  normalizePreset({ name: 'Odd', pageNumbers: { format: '{page}', mirror: 'yes' } }).pageNumbers.mirror,
-  false,
-  'Only true mirrors',
-);
-const disabled = normalizePreset({
-  name: 'Only numbering',
-  watermark: false,
-  headerFooter: { enabled: false },
-  crop: null,
-  pageNumbers: { format: '{page}' },
-});
-assert.equal(disabled.watermark, null);
-assert.equal(disabled.headerFooter, null);
-assert.equal(disabled.crop, null);
-for (const invalid of [
-  {},
-  { version: 2, watermark: { text: 'DRAFT' } },
-  { watermark: { text: '' } },
-  { watermark: { text: 'X', opacity: 2 } },
-  { watermark: { text: 'X', color: 'red' } },
-  { pageNumbers: { format: '', start: 1 } },
-  { pageNumbers: { format: '{page}', start: 1.5 } },
-  { crop: { left: 0.8, right: 0.3 } },
-  { crop: { top: -0.1 } },
-  { headerFooter: { footerCenter: 'X', size: Infinity } },
-])
-  assert.throws(() => normalizePreset(invalid), undefined, `Invalid preset: ${JSON.stringify(invalid)}`);
-
-const source = await fixture();
-const sourceCopy = source.slice();
-const originalGeometry = (await inspectPdf(source)).pages;
-const batchProgress = [];
-const processed = await applyPreset(source, preset, (fraction) => batchProgress.push(fraction));
-assert.deepEqual(source, sourceCopy, 'Batch operation leaves original source bytes intact');
-assert.equal(batchProgress.at(-1), 1);
-assert.ok(
-  batchProgress.every(
-    (fraction, i) => fraction >= 0 && fraction <= 1 && (!i || fraction >= batchProgress[i - 1]),
-  ),
-);
-const processedPages = await inspectIndependent(processed);
-assert.equal(processedPages.length, 5);
-for (let i = 0; i < processedPages.length; i++) {
-  approx(
-    processedPages[i].width,
-    0.8 * originalGeometry[i].width,
-    `Cropped width at rotation ${(i % 4) * 90}`,
-  );
-  approx(
-    processedPages[i].height,
-    0.85 * originalGeometry[i].height,
-    `Cropped height at rotation ${(i % 4) * 90}`,
-  );
-  assert.ok(processedPages[i].text.includes(`Original page ${i + 1}`), 'Source text remains searchable');
-  for (const expected of ['Course notes', 'Reading copy', 'DRAFT', `Sheet ${10 + i}/5`]) {
-    assert.ok(processedPages[i].text.includes(expected), `Missing ${expected} on page ${i + 1}`);
-  }
-}
-const secondProcessed = await inspectIndependent(await applyPreset(await fixture(1), preset));
-assert.ok(
-  secondProcessed[0].text.includes('Sheet 10/1'),
-  'Each batch file restarts numbering using its own page count',
-);
-await writeFile(path.join(outputDir, 'workflow-batch.pdf'), processed);
-
-const processedCopy = processed.slice();
-const groups = planSplit({ mode: 'ranges', ranges: '3,1;2,4-5' }, 5);
-const splitProgress = [];
-const { parts: outputs } = await splitPdf(processed, groups, {
-  onProgress: (fraction) => splitProgress.push(fraction),
-});
-assert.equal(outputs.length, 2);
-assert.deepEqual(processed, processedCopy, 'Splitting does not mutate edited PDF input');
-assert.equal(splitProgress.at(-1), 1);
-const splitPages = await Promise.all(outputs.map(inspectIndependent));
-assert.deepEqual(
-  splitPages.map((pages) => pages.length),
-  [2, 3],
-);
-for (let part = 0; part < groups.length; part++) {
-  for (let page = 0; page < groups[part].length; page++) {
-    const sourceIndex = groups[part][page];
-    const actual = splitPages[part][page];
-    assert.ok(actual.text.includes(`Original page ${sourceIndex + 1}`), 'Split preserves chosen order');
-    assert.ok(
-      actual.text.includes(`Sheet ${10 + sourceIndex}/5`),
-      'Split preserves applied numbering instead of renumbering',
+await test('interleaving the fronts and backs of a double-sided scan', async () => {
+  // Interleave: fronts 1-3 scanned, then backs: from the last sheet (6 is the back of 1), or from the first.
+  assert.deepEqual(interleaveOrder(6), [0, 5, 1, 4, 2, 3]);
+  assert.deepEqual(interleaveOrder(6, false), [0, 3, 1, 4, 2, 5]);
+  // An odd count: the last sheet's back was left out, so the last front ends the document.
+  assert.deepEqual(interleaveOrder(5), [0, 4, 1, 3, 2]);
+  assert.deepEqual(interleaveOrder(5, false), [0, 3, 1, 4, 2]);
+  assert.deepEqual(interleaveOrder(2), [0, 1]);
+  assert.deepEqual(interleaveOrder(1), [0]);
+  for (const count of [3, 8, 11])
+    assert.deepEqual(
+      [...interleaveOrder(count)].sort((a, b) => a - b),
+      [...Array(count).keys()],
+      'every page once',
     );
-    approx(actual.width, processedPages[sourceIndex].width, 'Split preserves visible width');
-    approx(actual.height, processedPages[sourceIndex].height, 'Split preserves visible height');
-  }
-}
-const processedPdf = await PDFDocument.load(processed);
-const firstPartPdf = await PDFDocument.load(outputs[0]);
-assert.equal(firstPartPdf.getPage(0).getRotation().angle, processedPdf.getPage(2).getRotation().angle);
-assert.deepEqual(firstPartPdf.getPage(0).getCropBox(), processedPdf.getPage(2).getCropBox());
-for (const invalidGroups of [[], [[]], [[-1]], [[5]], [[0.5]]])
-  await assert.rejects(splitPdf(source, invalidGroups));
-await assert.rejects(
-  splitPdf(source, [[0]], { shouldCancel: () => true }),
-  (error) => error.name === 'AbortError',
-);
-let cancel = false;
-await assert.rejects(
-  splitPdf(source, [[0], [1]], {
-    onProgress: (fraction) => {
-      if (fraction > 0) cancel = true;
-    },
-    shouldCancel: () => cancel,
-  }),
-  (error) => error.name === 'AbortError',
-);
-
-// Split parts can need a password; batches open PDFs that only restrict changes,
-// and explain that a PDF needing a password must be unlocked in the editor first.
-const { parts: protectedParts } = await splitPdf(processed, [[0], [1, 2]], { password: 'part secret' });
-for (const part of protectedParts) {
-  assert.equal(
-    await PDFDocument.load(part).then(
-      () => 'opened',
-      (error) => error.constructor.name,
-    ),
-    'EncryptedPDFError',
-    'Each part is encrypted',
-  );
-  const task = pdfjs.getDocument({ data: part.slice(), verbosity: 0 });
-  await assert.rejects(
-    task.promise,
-    (error) => error.name === 'PasswordException',
-    'Each part needs its password',
-  );
-  await task.destroy();
-  assert.equal((await PDFDocument.load(part, { password: 'part secret' })).getPageCount() > 0, true);
-}
-await assert.rejects(splitPdf(processed, [[0]], { password: '' }), /Enter a password/);
-const fixtureFile = (name) =>
-  readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', name)).then(
-    (bytes) => new Uint8Array(bytes),
-  );
-const ownerOnlyBatch = await inspectIndependent(
-  await applyPreset(await fixtureFile('owner-only-aes256.pdf'), {
-    name: 'Numbers',
-    pageNumbers: { format: 'No. {page}' },
-  }),
-);
-assert.deepEqual(
-  ownerOnlyBatch.map((page) => page.text.includes('No.')),
-  [true, true],
-  'A PDF with only an owner password is processed',
-);
-await assert.rejects(
-  applyPreset(await fixtureFile('password-aes128.pdf'), preset),
-  (error) => error.code === 'password-required' && /Unlock PDF/.test(error.message),
-);
-
-const form = await PDFDocument.create();
-const formPage = form.addPage([400, 600]);
-form.addPage([400, 600]);
-const field = form.getForm().createTextField('student');
-field.setText('Retain this value');
-field.addToPage(formPage, { x: 50, y: 300, width: 200, height: 25 });
-const formBytes = await form.save();
-await assert.rejects(
-  splitPdf(formBytes, [[0], [1]]),
-  /Flatten fields on download/,
-  'Split rejects interactive forms and points to flattening',
-);
-const formProcessed = await applyPreset(formBytes, {
-  name: 'Footer',
-  headerFooter: { footerCenter: 'Course notes' },
 });
-assert.equal(
-  (await PDFDocument.load(formProcessed)).getForm().getTextField('student').getText(),
-  'Retain this value',
-);
 
-assert.equal(safeBaseName('../lecture.pdf'), 'lecture');
-assert.equal(safeBaseName('C:\\notes\\lecture.PDF'), 'lecture');
-const seen = new Set();
-assert.equal(uniqueFilename('lecture.pdf', seen), 'lecture.pdf');
-assert.equal(uniqueFilename('lecture.pdf', seen), 'lecture (2).pdf');
-const zip = createZip([
-  { name: 'lecture.pdf', bytes: outputs[0] },
-  { name: 'lecture.pdf', bytes: outputs[1] },
-  { name: '../量子力学.pdf', bytes: new Uint8Array([0, 1, 2, 255]) },
-]);
-assert.equal(zip.type, 'application/zip');
-const zipPath = path.join(outputDir, 'workflow-download.zip');
-await writeFile(zipPath, new Uint8Array(await zip.arrayBuffer()));
-const report = JSON.parse(
-  execFileSync(
-    process.env.PYTHON || process.env.CODEX_PRIMARY_RUNTIME_PYTHON || 'python3',
-    [
-      '-c',
-      `
+await test('split planning: every page, chunks, page groups, 350 pages, invalid settings', async () => {
+  assert.deepEqual(planSplit({ mode: 'each' }, 3), [[0], [1], [2]]);
+  assert.deepEqual(planSplit({ mode: 'chunks', size: '2' }, 5), [[0, 1], [2, 3], [4]]);
+  assert.deepEqual(planSplit({ mode: 'chunks', size: 20 }, 3), [[0, 1, 2]]);
+  assert.deepEqual(planSplit({ mode: 'ranges', ranges: '3, 1-2, 2; 4-5' }, 5), [
+    [2, 0, 1],
+    [3, 4],
+  ]);
+  assert.equal(planSplit({ mode: 'each' }, 350).length, 350, 'Split does not reintroduce a 300-page cap');
+  for (const options of [
+    { mode: 'ranges', ranges: '' },
+    { mode: 'ranges', ranges: '1;;2' },
+    { mode: 'ranges', ranges: '1;' },
+    { mode: 'ranges', ranges: '0' },
+    { mode: 'ranges', ranges: '2-1' },
+    { mode: 'ranges', ranges: '1-6' },
+    { mode: 'ranges', ranges: 'one' },
+    { mode: 'chunks', size: 0 },
+    { mode: 'chunks', size: 1.5 },
+    { mode: 'invalid' },
+  ])
+    assert.throws(
+      () => planSplit(options, 5),
+      undefined,
+      `Invalid split settings: ${JSON.stringify(options)}`,
+    );
+  assert.throws(() => planSplit({ mode: 'each' }, 0));
+});
+
+let preset;
+await test('presets: canonical form, JSON persistence, mirroring, switched-off parts, validation', async () => {
+  const inputPreset = {
+    version: 1,
+    name: 'Lecture handout',
+    watermark: {
+      text: 'DRAFT',
+      size: '30',
+      color: '#58765b',
+      opacity: '.15',
+      angle: '0',
+      position: 'center',
+    },
+    headerFooter: {
+      headerLeft: 'Course notes',
+      footerCenter: 'Reading copy',
+      size: '8',
+      margin: '20',
+      color: '#244e41',
+    },
+    pageNumbers: {
+      format: 'Sheet {page}/{total}',
+      start: '10',
+      size: '8',
+      margin: '20',
+      position: 'bottom-right',
+      color: '#244e41',
+    },
+    crop: { left: '.1', right: '.1', top: '.1', bottom: '.05' },
+    ignored: { scope: 'this file only' },
+  };
+  const originalPreset = structuredClone(inputPreset);
+  preset = normalizePreset(inputPreset);
+  assert.deepEqual(inputPreset, originalPreset, 'Normalization does not mutate caller settings');
+  assert.equal(preset.version, 1);
+  assert.equal(preset.watermark.opacity, 0.15);
+  assert.equal(preset.crop.left, 0.1);
+  assert.equal(preset.pageNumbers.start, 10);
+  assert.ok(!('ignored' in preset));
+  assert.deepEqual(
+    normalizePreset(JSON.parse(JSON.stringify(preset))),
+    preset,
+    'Canonical preset survives JSON persistence',
+  );
+  assert.equal(preset.pageNumbers.mirror, false, 'Not mirrored unless asked');
+  const mirroredPreset = normalizePreset({
+    name: 'Two-sided',
+    headerFooter: { footerRight: 'Notes', mirror: true },
+    pageNumbers: { format: '{page}', mirror: true },
+  });
+  assert.equal(mirroredPreset.headerFooter.mirror, true);
+  assert.equal(mirroredPreset.pageNumbers.mirror, true);
+  assert.equal(
+    normalizePreset({ name: 'Odd', pageNumbers: { format: '{page}', mirror: 'yes' } }).pageNumbers.mirror,
+    false,
+    'Only true mirrors',
+  );
+  const disabled = normalizePreset({
+    name: 'Only numbering',
+    watermark: false,
+    headerFooter: { enabled: false },
+    crop: null,
+    pageNumbers: { format: '{page}' },
+  });
+  assert.equal(disabled.watermark, null);
+  assert.equal(disabled.headerFooter, null);
+  assert.equal(disabled.crop, null);
+  for (const invalid of [
+    {},
+    { version: 2, watermark: { text: 'DRAFT' } },
+    { watermark: { text: '' } },
+    { watermark: { text: 'X', opacity: 2 } },
+    { watermark: { text: 'X', color: 'red' } },
+    { pageNumbers: { format: '', start: 1 } },
+    { pageNumbers: { format: '{page}', start: 1.5 } },
+    { crop: { left: 0.8, right: 0.3 } },
+    { crop: { top: -0.1 } },
+    { headerFooter: { footerCenter: 'X', size: Infinity } },
+  ])
+    assert.throws(() => normalizePreset(invalid), undefined, `Invalid preset: ${JSON.stringify(invalid)}`);
+});
+
+let source, processed, processedPages;
+await test('batch: crop geometry and annotations, numbering restarts per file, the source is untouched', async () => {
+  source = await fixture();
+  const sourceCopy = source.slice();
+  const originalGeometry = (await inspectPdf(source)).pages;
+  const batchProgress = [];
+  processed = await applyPreset(source, preset, (fraction) => batchProgress.push(fraction));
+  assert.deepEqual(source, sourceCopy, 'Batch operation leaves original source bytes intact');
+  assert.equal(batchProgress.at(-1), 1);
+  assert.ok(
+    batchProgress.every(
+      (fraction, i) => fraction >= 0 && fraction <= 1 && (!i || fraction >= batchProgress[i - 1]),
+    ),
+  );
+  processedPages = await inspectIndependent(processed);
+  assert.equal(processedPages.length, 5);
+  for (let i = 0; i < processedPages.length; i++) {
+    approx(
+      processedPages[i].width,
+      0.8 * originalGeometry[i].width,
+      `Cropped width at rotation ${(i % 4) * 90}`,
+    );
+    approx(
+      processedPages[i].height,
+      0.85 * originalGeometry[i].height,
+      `Cropped height at rotation ${(i % 4) * 90}`,
+    );
+    assert.ok(processedPages[i].text.includes(`Original page ${i + 1}`), 'Source text remains searchable');
+    for (const expected of ['Course notes', 'Reading copy', 'DRAFT', `Sheet ${10 + i}/5`]) {
+      assert.ok(processedPages[i].text.includes(expected), `Missing ${expected} on page ${i + 1}`);
+    }
+  }
+  const secondProcessed = await inspectIndependent(await applyPreset(await fixture(1), preset));
+  assert.ok(
+    secondProcessed[0].text.includes('Sheet 10/1'),
+    'Each batch file restarts numbering using its own page count',
+  );
+  await writeFile(path.join(outputDir, 'workflow-batch.pdf'), processed);
+});
+
+let outputs;
+await test('split: text, page order, crop and rotation; printed numbering kept; invalid groups; cancellation', async () => {
+  const processedCopy = processed.slice();
+  const groups = planSplit({ mode: 'ranges', ranges: '3,1;2,4-5' }, 5);
+  const splitProgress = [];
+  ({ parts: outputs } = await splitPdf(processed, groups, {
+    onProgress: (fraction) => splitProgress.push(fraction),
+  }));
+  assert.equal(outputs.length, 2);
+  assert.deepEqual(processed, processedCopy, 'Splitting does not mutate edited PDF input');
+  assert.equal(splitProgress.at(-1), 1);
+  const splitPages = await Promise.all(outputs.map(inspectIndependent));
+  assert.deepEqual(
+    splitPages.map((pages) => pages.length),
+    [2, 3],
+  );
+  for (let part = 0; part < groups.length; part++) {
+    for (let page = 0; page < groups[part].length; page++) {
+      const sourceIndex = groups[part][page];
+      const actual = splitPages[part][page];
+      assert.ok(actual.text.includes(`Original page ${sourceIndex + 1}`), 'Split preserves chosen order');
+      assert.ok(
+        actual.text.includes(`Sheet ${10 + sourceIndex}/5`),
+        'Split preserves applied numbering instead of renumbering',
+      );
+      approx(actual.width, processedPages[sourceIndex].width, 'Split preserves visible width');
+      approx(actual.height, processedPages[sourceIndex].height, 'Split preserves visible height');
+    }
+  }
+  const processedPdf = await PDFDocument.load(processed);
+  const firstPartPdf = await PDFDocument.load(outputs[0]);
+  assert.equal(firstPartPdf.getPage(0).getRotation().angle, processedPdf.getPage(2).getRotation().angle);
+  assert.deepEqual(firstPartPdf.getPage(0).getCropBox(), processedPdf.getPage(2).getCropBox());
+  for (const invalidGroups of [[], [[]], [[-1]], [[5]], [[0.5]]])
+    await assert.rejects(splitPdf(source, invalidGroups));
+  await assert.rejects(
+    splitPdf(source, [[0]], { shouldCancel: () => true }),
+    (error) => error.name === 'AbortError',
+  );
+  let cancel = false;
+  await assert.rejects(
+    splitPdf(source, [[0], [1]], {
+      onProgress: (fraction) => {
+        if (fraction > 0) cancel = true;
+      },
+      shouldCancel: () => cancel,
+    }),
+    (error) => error.name === 'AbortError',
+  );
+});
+
+await test('passwords: protected split parts; batches with owner-password and password PDFs', async () => {
+  // Split parts can need a password; batches open PDFs that only restrict changes,
+  // and explain that a PDF needing a password must be unlocked in the editor first.
+  const { parts: protectedParts } = await splitPdf(processed, [[0], [1, 2]], { password: 'part secret' });
+  for (const part of protectedParts) {
+    assert.equal(
+      await PDFDocument.load(part).then(
+        () => 'opened',
+        (error) => error.constructor.name,
+      ),
+      'EncryptedPDFError',
+      'Each part is encrypted',
+    );
+    const task = pdfjs.getDocument({ data: part.slice(), verbosity: 0 });
+    await assert.rejects(
+      task.promise,
+      (error) => error.name === 'PasswordException',
+      'Each part needs its password',
+    );
+    await task.destroy();
+    assert.equal((await PDFDocument.load(part, { password: 'part secret' })).getPageCount() > 0, true);
+  }
+  await assert.rejects(splitPdf(processed, [[0]], { password: '' }), /Enter a password/);
+  const fixtureFile = (name) =>
+    readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', name)).then(
+      (bytes) => new Uint8Array(bytes),
+    );
+  const ownerOnlyBatch = await inspectIndependent(
+    await applyPreset(await fixtureFile('owner-only-aes256.pdf'), {
+      name: 'Numbers',
+      pageNumbers: { format: 'No. {page}' },
+    }),
+  );
+  assert.deepEqual(
+    ownerOnlyBatch.map((page) => page.text.includes('No.')),
+    [true, true],
+    'A PDF with only an owner password is processed',
+  );
+  await assert.rejects(
+    applyPreset(await fixtureFile('password-aes128.pdf'), preset),
+    (error) => error.code === 'password-required' && /Unlock PDF/.test(error.message),
+  );
+});
+
+await test('forms: Split refuses a PDF with fields; a batch keeps their values', async () => {
+  const form = await PDFDocument.create();
+  const formPage = form.addPage([400, 600]);
+  form.addPage([400, 600]);
+  const field = form.getForm().createTextField('student');
+  field.setText('Retain this value');
+  field.addToPage(formPage, { x: 50, y: 300, width: 200, height: 25 });
+  const formBytes = await form.save();
+  await assert.rejects(
+    splitPdf(formBytes, [[0], [1]]),
+    /Flatten fields on download/,
+    'Split rejects interactive forms and points to flattening',
+  );
+  const formProcessed = await applyPreset(formBytes, {
+    name: 'Footer',
+    headerFooter: { footerCenter: 'Course notes' },
+  });
+  assert.equal(
+    (await PDFDocument.load(formProcessed)).getForm().getTextField('student').getText(),
+    'Retain this value',
+  );
+});
+
+await test('safe, unique file names', async () => {
+  assert.equal(safeBaseName('../lecture.pdf'), 'lecture');
+  assert.equal(safeBaseName('C:\\notes\\lecture.PDF'), 'lecture');
+  const seen = new Set();
+  assert.equal(uniqueFilename('lecture.pdf', seen), 'lecture.pdf');
+  assert.equal(uniqueFilename('lecture.pdf', seen), 'lecture (2).pdf');
+});
+
+await test('ZIP: names in Unicode and CRCs, checked by an independent reader', async () => {
+  const zip = createZip([
+    { name: 'lecture.pdf', bytes: outputs[0] },
+    { name: 'lecture.pdf', bytes: outputs[1] },
+    { name: '../量子力学.pdf', bytes: new Uint8Array([0, 1, 2, 255]) },
+  ]);
+  assert.equal(zip.type, 'application/zip');
+  const zipPath = path.join(outputDir, 'workflow-download.zip');
+  await writeFile(zipPath, new Uint8Array(await zip.arrayBuffer()));
+  const report = JSON.parse(
+    execFileSync(
+      process.env.PYTHON || process.env.CODEX_PRIMARY_RUNTIME_PYTHON || 'python3',
+      [
+        '-c',
+        `
 import json, sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as z:
     assert z.testzip() is None
@@ -366,40 +399,11 @@ with zipfile.ZipFile(sys.argv[1]) as z:
     assert all(i.compress_type == zipfile.ZIP_STORED for i in z.infolist())
     print(json.dumps({'names':names,'sizes':[z.getinfo(n).file_size for n in names]},ensure_ascii=False))
 `,
-      zipPath,
-    ],
-    { encoding: 'utf8' },
-  ),
-);
-assert.deepEqual(report.names, ['lecture.pdf', 'lecture (2).pdf', '量子力学.pdf']);
-assert.deepEqual(report.sizes, [outputs[0].length, outputs[1].length, 4]);
-
-console.log(
-  JSON.stringify(
-    {
-      status: 'passed',
-      checks: [
-        'split planning and ranges',
-        '350-page planning',
-        'canonical preset persistence',
-        'preset validation',
-        'batch crop geometry and annotations',
-        'per-file numbering reset',
-        'split text, page order, crop, and rotation',
-        'printed numbering retained',
-        'password-protected split parts',
-        'batch with owner-password and password PDFs',
-        'source immutability',
-        'cancellation',
-        'interactive form handling',
-        'safe unique filenames',
-        'independent ZIP CRC and Unicode verification',
-        'interleaving double-sided scans',
-        'mirrored presets',
+        zipPath,
       ],
-      artifacts: ['workflow-batch.pdf', 'workflow-download.zip'],
-    },
-    null,
-    2,
-  ),
-);
+      { encoding: 'utf8' },
+    ),
+  );
+  assert.deepEqual(report.names, ['lecture.pdf', 'lecture (2).pdf', '量子力学.pdf']);
+  assert.deepEqual(report.sizes, [outputs[0].length, outputs[1].length, 4]);
+});

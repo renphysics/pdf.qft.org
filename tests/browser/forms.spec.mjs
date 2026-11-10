@@ -10,7 +10,7 @@ import {
   ready,
   useTool,
   download,
-  toastText,
+  expectToast,
   pdfText,
   PDFLib,
 } from './helpers.mjs';
@@ -32,7 +32,7 @@ test('a form opens in Fill form, its fields fill in on the page, and the downloa
 }) => {
   await openFiles(page, fixture('form-fields.pdf'));
   await expect(page.locator('#tool-select')).toHaveValue('form');
-  expect(await toastText(page)).toContain('fields to fill in');
+  await expectToast(page, /fields to fill in/);
   await expect(summary(page)).toContainText('0 of 11 fields filled in.');
   await expect(summary(page)).toContainText('2 required fields are still empty.');
   // A read-only field shows as it is, with nothing to type in.
@@ -109,8 +109,7 @@ test('flattened downloads, and flattening lets a form join other PDFs', async ({
   // Fields stay fillable: another PDF can't join.
   await page.click('[data-action="add-files"]');
   await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
-  // Wait for this message: the one about the form's fields may still be showing.
-  await expect(page.locator('#toast-message')).toContainText('Flatten fields on download');
+  await expectToast(page, /Flatten fields on download/);
   await page.click('[data-action="dismiss-toast"]');
   await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
 

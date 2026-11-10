@@ -6,7 +6,7 @@ import {
   openFiles,
   ready,
   useTool,
-  toastText,
+  expectToast,
   download,
   pdfText,
   previewDifference,
@@ -31,7 +31,7 @@ test('adds margins to every page or one, as one undo step, and removes them', as
   await page.click('[data-action="margins-notes"]');
   await expect(page.locator('#tool-form [name="marginRight"]')).toHaveValue('60');
   await page.click('#tool-form [type="submit"]');
-  expect(await toastText(page)).toBe('Margins added to 3 pages.');
+  await expectToast(page, 'Margins added to 3 pages.');
   await expect
     .poll(async () => (await sheet.boundingBox()).width / (await sheet.boundingBox()).height)
     .toBeGreaterThan(before.width / before.height + 0.15);
@@ -49,14 +49,14 @@ test('adds margins to every page or one, as one undo step, and removes them', as
   await page.selectOption('#tool-form [name="marginScope"]', 'current');
   await page.fill('#tool-form [name="marginTop"]', '10');
   await page.click('#tool-form [type="submit"]');
-  expect(await toastText(page)).toBe('Margins added to the page.');
+  await expectToast(page, 'Margins added to the page.');
   const once = (await download(page, () => page.click('#download-button'))).bytes;
   expect((await size(once, 0))[1]).toBeCloseTo(original[1] + 10 * MM, 1);
   expect(await size(once, 1)).toEqual(original);
 
   // Remove added margins brings the page back.
   await page.click('[data-action="margins-remove"]');
-  expect(await toastText(page)).toBe('The added margins are removed.');
+  await expectToast(page, 'The added margins are removed.');
   expect(await size((await download(page, () => page.click('#download-button'))).bytes, 0)).toEqual(original);
 });
 
@@ -109,7 +109,7 @@ test('puts 2 or 4 pages on each sheet, with the edits, and the document stays as
   );
   const sheets = await download(page, () => page.click('#tool-form [type="submit"]'));
   expect(sheets.name).toBe('A little room to create-4-per-sheet.pdf');
-  expect(await toastText(page)).toBe('Your sheet has been downloaded.');
+  await expectToast(page, 'Your sheet has been downloaded.');
   const doc = await PDFLib.PDFDocument.load(sheets.bytes);
   expect(doc.getPageCount()).toBe(1);
   expect(await size(sheets.bytes)).toEqual([595.28, 841.89]);

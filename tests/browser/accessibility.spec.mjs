@@ -31,11 +31,8 @@ test('home page, tool pages, licenses and batch', async ({ page }) => {
     expect(await violations(page), address).toEqual([]);
   }
   await page.goto('batch-edit-pdf/');
-  await page
-    .locator('[data-action="batch-choose"]')
-    .first()
-    .click()
-    .catch(() => {});
+  await page.locator('[data-action="batch-choose"]').first().click();
+  await expect(page.locator('#batch-workspace')).toBeVisible();
   await page.setInputFiles('#batch-file-input', [fixture('rotated-cropped.pdf')]);
   expect(await violations(page), 'batch with a file').toEqual([]);
 });

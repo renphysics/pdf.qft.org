@@ -354,6 +354,16 @@ layers stay hidden (by rendering with PDF.js); and the download notes about page
 labels, attachments, tags and digital signatures.
 They use the development dependencies installed by `npm ci`.
 
+The Node suites (`tests/*.test.mjs`) are [`node:test`](https://nodejs.org/api/test.html)
+tests. `npm test` runs the static checks (`npm run check:static`: the font, the
+generated pages, formatting) and then every suite, each in its own process, so
+one failure hides nothing, and every check is a named test in the report. Run
+one suite with `node --test tests/engine.test.mjs`, and one test with
+`--test-name-pattern="page ranges"`. The tests in a suite run in order and some
+use what an earlier one built: a test that stands alone can be run by name,
+the others with their file. `npm run check` runs the static checks and the
+site-integrity suite only.
+
 Browser tests in `tests/browser/` drive the real site with
 [Playwright](https://playwright.dev) in Chromium, WebKit (Safari's engine) and
 Firefox: opening files and the sample, typing and
@@ -363,7 +373,11 @@ password-protected files, signatures, filling forms, JPG to PDF and PDF to
 JPG, batch processing, continuous scrolling (the current page, editing any
 page, zoom, a 400-page document), phones (layout, 44 px targets, no sideways
 scrolling, swiping between pages; an iPhone in Chromium and in WebKit) and axe
-accessibility checks. A `release` project stamps a copy of the site and serves
+accessibility checks. Every test also fails on an uncaught error in the page and
+on a content security policy violation; the tests' browser language and time
+zone are fixed (en-US, UTC), with one case in German; notices are awaited
+(`expectToast`), so one still showing from the step before is not read by
+mistake. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
 before every deployment (the Pages workflow runs the Test workflow, so the

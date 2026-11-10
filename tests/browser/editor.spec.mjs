@@ -8,7 +8,7 @@ import {
   openFiles,
   ready,
   useTool,
-  toastText,
+  expectToast,
   download,
   overlayLines,
   pdfText,
@@ -90,7 +90,7 @@ test('reports characters the fonts cannot draw, on their page', async ({ page })
   await expect(page.locator('#panel-problems')).toContainText('cannot display');
   await page.locator('[data-page-open]').nth(2).click();
   await page.click('#download-button');
-  expect(await toastText(page)).toMatch(/^Page 1: The available font cannot display/);
+  await expectToast(page, /^Page 1: The available font cannot display/);
   await expect(page.locator('#page-jump')).toHaveValue('1');
 });
 
@@ -306,7 +306,7 @@ test('crops by dragging, and restores the original boundary', async ({ page }) =
   expect(Math.abs(crop.width - 595.28 * 0.8)).toBeLessThan(1.3);
   expect(Math.abs(crop.height - 841.89 * 0.7)).toBeLessThan(1.8);
   await page.click('[data-action="restore-crop"]');
-  expect(await toastText(page)).toContain('Original page boundaries restored');
+  await expectToast(page, /Original page boundaries restored/);
 });
 
 test('merges another PDF, undoes and redoes it, and splits into a ZIP', async ({ page }) => {
@@ -369,7 +369,7 @@ test('PDFs with form fields keep them, and refuse changes that would lose them',
   await page.locator('[data-page-select]').nth(1).check();
   await page.locator('[data-page-select]').nth(0).uncheck();
   await page.click('[data-action="delete-pages"]');
-  expect(await toastText(page)).toMatch(/form/i);
+  await expectToast(page, /form/i);
   await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
 });
 
@@ -379,12 +379,12 @@ test('files that are not PDFs, or are damaged, get a clear message', async ({ pa
     '#file-input',
     await writeTemporary('notes.txt', new TextEncoder().encode('plain text')),
   );
-  expect(await toastText(page)).toContain('Please choose PDF files');
+  await expectToast(page, /Please choose PDF files/);
   await page.click('[data-action="dismiss-toast"]');
   await page.setInputFiles(
     '#file-input',
     await writeTemporary('broken.pdf', new TextEncoder().encode('%PDF-1.7 broken')),
   );
-  expect(await toastText(page)).toContain('could not be opened as a PDF');
+  await expectToast(page, /could not be opened as a PDF/);
   await expect(page.locator('#landing')).toBeVisible();
 });

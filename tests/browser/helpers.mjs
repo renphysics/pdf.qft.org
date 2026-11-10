@@ -23,6 +23,9 @@ export const test = base.extend({
     page.on('pageerror', (error) => errors.push(String(error)));
     await page.addInitScript(() => {
       document.addEventListener('securitypolicyviolation', (event) => {
+        // While it takes a screenshot, Playwright adds a style element of its own, which
+        // WebKit holds to the page's policy: not the site's doing (see previewDifference).
+        if (window.qaScreenshot && event.violatedDirective === 'style-src-elem' && !event.sourceFile) return;
         console.error(
           `CSP violation: ${event.violatedDirective} blocked ${event.blockedURI || 'inline'} at ${event.sourceFile}:${event.lineNumber}`,
         );
@@ -120,9 +123,14 @@ export async function useTool(page, tool) {
   else await page.locator(`.tool-tabs [data-tool="${tool}"]`).click();
 }
 
-export async function toastText(page) {
-  await expect(page.locator('#toast')).toBeVisible();
-  return page.locator('#toast-message').textContent();
+/**
+ * The notice shows `expected`: a string is its whole text, a pattern a part of
+ * it. Retried until it does, so a notice still showing from the step before
+ * is not read by mistake.
+ */
+export async function expectToast(page, expected) {
+  // The text stays when a notice hides itself, so a slow step before this cannot miss it.
+  await expect(page.locator('#toast-message')).toHaveText(expected);
 }
 
 /** Click something that downloads a file; returns its name and bytes. */
@@ -155,13 +163,19 @@ export async function previewDifference(page, bytes, pageNumber, siteRoot) {
     .nth(pageNumber - 1)
     .click();
   await ready(page);
-  // Hidden with a constructed stylesheet: an inline <style> would break the content security policy.
-  await page.evaluate(() => {
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync('.edit-layer, .toast, .stage-caption { visibility: hidden !important; }');
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-  });
+  // Hidden through each element's own style object while the picture is taken: a
+  // style element would break the content security policy, which every test
+  // checks. (Playwright's own, added for the screenshot, is let through: qaScreenshot.)
+  const hide = (hidden) =>
+    page.evaluate((hidden) => {
+      window.qaScreenshot = hidden;
+      for (const element of document.querySelectorAll('.edit-layer, .toast, .stage-caption'))
+        if (hidden) element.style.setProperty('visibility', 'hidden', 'important');
+        else element.style.removeProperty('visibility');
+    }, hidden);
+  await hide(true);
   const preview = (await page.locator('.page-view.current').screenshot()).toString('base64');
+  await hide(false);
   return page.evaluate(
     async ({ preview, data, pageNumber, siteRoot }) => {
       const lib = await import(new URL('assets/vendor/pdf.mjs', siteRoot).href);

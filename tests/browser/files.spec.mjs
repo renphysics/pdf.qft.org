@@ -6,7 +6,7 @@ import {
   openFiles,
   ready,
   useTool,
-  toastText,
+  expectToast,
   download,
   pdfText,
   opensWith,
@@ -39,12 +39,12 @@ test('a PDF/A-1 file downloads, and stops claiming PDF/A once content is added',
   await openFiles(page, await pdfaFile());
   const unchanged = await download(page, () => page.click('#download-button'));
   expect(await opensWith(unchanged.bytes)).toBe('open');
-  expect(await toastText(page)).toBe('Your edited PDF has been downloaded.');
+  await expectToast(page, 'Your edited PDF has been downloaded.');
   await useTool(page, 'watermark');
   await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   const marked = await download(page, () => page.click('#download-button'));
   expect((await pdfText(marked.bytes))[0]).toContain('DRAFT');
-  expect(await toastText(page)).toContain('no longer marked as PDF/A');
+  await expectToast(page, /no longer marked as PDF\/A/);
 });
 
 test('asks for the password, keeps asking while it is wrong, and keeps it for the download', async ({
@@ -67,7 +67,7 @@ test('asks for the password, keeps asking while it is wrong, and keeps it for th
   await page.click('#password-submit');
   await ready(page);
   await expect(dialog(page)).toBeHidden();
-  expect(await toastText(page)).toContain('keep the same password');
+  await expectToast(page, /keep the same password/);
   await expect(page.locator('#download-button use')).toHaveAttribute('href', '#i-lock');
   await expect(page.locator('#download-button')).toHaveAccessibleName(
     'Download PDF (protected with a password)',
@@ -107,8 +107,7 @@ test('Protect PDF sets a new password, also for split parts', async ({ page }) =
 
   await useTool(page, 'split');
   await page.click('#tool-form [type="submit"]');
-  // Wait for this message: the download's message may still be showing.
-  await expect(page.locator('#toast-message')).toContainText('Each needs your password to open');
+  await expectToast(page, /Each needs your password to open/);
   const part = await download(page, () => page.locator('[data-action="download-split"]').first().click());
   expect(await opensWith(part.bytes)).toBe('password');
   expect((await pdfText(part.bytes, 'Grüße 1'))[0]).toContain('ROTATION 0');
@@ -119,7 +118,7 @@ test('a PDF that only restricts changes opens without asking, and its limits are
 }) => {
   await openFiles(page, fixture('owner-only-aes256.pdf'), 'add-page-numbers-to-pdf/');
   await expect(dialog(page)).toBeHidden();
-  expect(await toastText(page)).toContain('limits on printing, copying or changes');
+  await expectToast(page, /limits on printing, copying or changes/);
   const copy = await download(page, () => page.click('#download-button'));
   expect(await opensWith(copy.bytes)).toBe('open');
 });
@@ -149,7 +148,7 @@ test('opening several files skips the one whose password is not given', async ({
   await expect(page.locator('#password-cancel')).toHaveText('Skip this file');
   await page.click('#password-cancel');
   await ready(page);
-  expect(await toastText(page)).toContain('“password-rc4.pdf” wasn’t opened');
+  await expectToast(page, /“password-rc4\.pdf” wasn’t opened/);
   await expect(page.locator('#document-info')).toHaveText(/^6 pages/);
 });
 
@@ -159,7 +158,7 @@ test('on Unlock PDF, a file opened with its password downloads without one', asy
   await page.fill('#password-input', 'Grüße 密码');
   await page.click('#password-submit');
   await ready(page);
-  expect(await toastText(page)).toContain('Your PDF is unlocked');
+  await expectToast(page, /Your PDF is unlocked/);
   const copy = await download(page, () => page.click('#download-button'));
   expect(await opensWith(copy.bytes)).toBe('open');
   expect(await pdfText(copy.bytes)).toEqual(['Secret page 1', 'Secret page 2']);
@@ -201,7 +200,8 @@ test('the download says what a copy leaves out, and that a signature no longer h
   await page.locator('[data-page-select]').nth(0).check();
   await page.click('[data-action="delete-pages"]');
   await download(page, () => page.click('#download-button'));
-  expect(await toastText(page)).toBe(
+  await expectToast(
+    page,
     'Your edited PDF has been downloaded. Its pages were copied into a new PDF, without the original’s page labels (such as i, ii, iii) and accessibility tags.',
   );
 
@@ -235,7 +235,8 @@ test('the download says what a copy leaves out, and that a signature no longer h
   signed.catalog.set(PDFLib.PDFName.of('AcroForm'), context.obj({ Fields: [field], SigFlags: 3 }));
   await openFiles(page, await writeTemporary('signed.pdf', await signed.save()));
   await download(page, () => page.click('#download-button'));
-  expect(await toastText(page)).toBe(
+  await expectToast(
+    page,
     'Your edited PDF has been downloaded. The original was digitally signed: its signature isn’t valid in this copy.',
   );
 });
