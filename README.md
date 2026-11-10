@@ -32,8 +32,9 @@ normal reload just after a deploy could pair the new page with the previous
 release's scripts. First-party files share one release id derived from their
 contents; each engine bundle is versioned by its own bytes, so it is downloaded
 again only when it changes. `tests/release-stamp.test.mjs` keeps the script in
-step with the sources. No server, API keys, or external document-processing service
-is needed.
+step with the sources, and runs the site-integrity suite on a stamped copy, as
+the Pages workflow does before it deploys. No server, API keys, or external
+document-processing service is needed.
 
 The two text fonts are versioned the same way, and the app keeps them in Cache
 Storage under that URL (`fetchFont` in `pdf-engine.js`): GitHub Pages marks

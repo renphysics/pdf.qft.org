@@ -602,7 +602,10 @@ source review does not replace the owner’s browser verification.
   no editor), and every page preloads the three modules the shell imports at
   once. A browser test checks the landing fetches nothing but those. The site-integrity
   test checks the module graph and the preload list; the release test checks
-  that the dynamic import and the preloads carry the release id. Opening the
+  that the dynamic import and the preloads carry the release id, and runs the
+  site-integrity suite on a stamped copy, as the Pages workflow does before it
+  deploys (its module-graph checks read stamped addresses too: found by
+  rehearsing the deploy steps, where they failed). Opening the
   file picker stays synchronous with the click (browsers require it) while the
   editor loads; files dropped or picked before it arrives are opened once it has.
 - `tool-panel.js` (2,000 lines) is now the panel's frame (318 lines: the field
@@ -661,8 +664,8 @@ source review does not replace the owner’s browser verification.
   what the user added isn't tagged. Engine test: the four artifacts, one text
   run each, the added text outside them, the note; an untagged PDF gets neither.
 - Tests: the seven Node suites are `node:test` tests now (81 named tests where
-  there were seven scripts chained with `&&`, 83 with the two added for
-  `{date}` and `{filename}`); `npm test` runs them in one
+  there were seven scripts chained with `&&`; 84 with those added since for
+  `{date}` and `{filename}` and for the stamped copy); `npm test` runs them in one
   `node --test`, each file in its own process, so a failure is reported by name
   and hides nothing (checked: with pictures not drawn, one test fails and 80
   pass). The conversion was done by a script that wraps each section in a

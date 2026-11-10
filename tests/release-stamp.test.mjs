@@ -191,3 +191,30 @@ await test('stamping is single-shot and deterministic, and the release changes w
     release,
   );
 });
+
+await test('the site-integrity suite passes on a stamped copy, as the Pages workflow runs it before it deploys', async () => {
+  // pages.yml stamps dist/ and then runs tests/site-integrity.test.mjs on it. A
+  // check there that reads only unstamped addresses would stop every deploy.
+  const copy = path.join(workspace, 'deploy');
+  await cp(site, path.join(copy, 'dist'), { recursive: true });
+  for (const file of [
+    'tests/site-integrity.test.mjs',
+    'package.json',
+    'LICENSE',
+    'scripts/asset-checksums.json',
+  ])
+    await cp(path.join(root, file), path.join(copy, file));
+  stamp(path.join(copy, 'dist'));
+  // Run on its own, as the workflow does: not as a part of this test run.
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  try {
+    execFileSync(process.execPath, [path.join(copy, 'tests/site-integrity.test.mjs')], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env,
+    });
+  } catch (error) {
+    assert.fail(`site-integrity fails on a stamped copy:\n${error.stdout || ''}${error.stderr || ''}`);
+  }
+});

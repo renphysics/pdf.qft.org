@@ -18,6 +18,9 @@ const PAGES = {
     [...new Set(Object.values(TOOL_PAGES))].map((slug) => [`${slug}/index.html`, `${canonical}${slug}/`]),
   ),
 };
+// The Pages workflow runs this suite on the copy it deploys, where every address
+// between the site's own files carries the release ("./editor.js?v=0123456789ab").
+const RELEASE = String.raw`(?:\?v=[0-9a-f]{12})?`;
 const references = [];
 const add = (source, reference) => {
   if (!reference || reference.startsWith('#') || /^(?:https?:|data:|blob:|mailto:)/.test(reference)) return;
@@ -48,7 +51,9 @@ await test('module graph: a page loads app.js and its static imports only; the e
   {
     const source = async (name) => readFile(path.join(site, name), 'utf8');
     const staticImports = async (name, found = new Set()) => {
-      for (const [, dependency] of (await source(name)).matchAll(/from '\.\/([\w-]+\.js)'/g))
+      for (const [, dependency] of (await source(name)).matchAll(
+        new RegExp(String.raw`from '\./([\w-]+\.js)${RELEASE}'`, 'g'),
+      ))
         if (!found.has(dependency)) {
           found.add(dependency);
           await staticImports(dependency, found);
@@ -65,7 +70,10 @@ await test('module graph: a page loads app.js and its static imports only; the e
       'batch-ui.js',
     ])
       assert(!shell.has(name), `app.js loads ${name} before a file is opened`);
-    assert(/import\('\.\/editor\.js'\)/.test(await source('app.js')), 'app.js loads editor.js on demand');
+    assert(
+      new RegExp(String.raw`import\('\./editor\.js${RELEASE}'\)`).test(await source('app.js')),
+      'app.js loads editor.js on demand',
+    );
     let shellBytes = 0;
     for (const name of ['app.js', ...shell]) shellBytes += (await stat(path.join(site, name))).size;
     assert(
@@ -74,19 +82,24 @@ await test('module graph: a page loads app.js and its static imports only; the e
     );
     for (const name of (await readdir(site)).filter((file) => file.endsWith('.js')))
       assert(
-        !/from '\.\/(?:app|editor)\.js'/.test(await source(name)),
+        !new RegExp(String.raw`from '\./(?:app|editor)\.js${RELEASE}'`).test(await source(name)),
         `${name} imports an entry module back`,
       );
     for (const leaf of ['history.js', 'views.js']) {
-      const imports = [...(await source(leaf)).matchAll(/from '\.\/([\w-]+\.js)'/g)].map((match) => match[1]);
+      const imports = [
+        ...(await source(leaf)).matchAll(new RegExp(String.raw`from '\./([\w-]+\.js)${RELEASE}'`, 'g')),
+      ].map((match) => match[1]);
       assert(
         imports.every((name) => ['editor-core.js', 'routes.js'].includes(name)),
         `${leaf} imports only editor-core.js and routes.js, so any module can import it`,
       );
     }
     const preloaded = [
-      ...(await source('index.html')).matchAll(/rel="modulepreload" href="\.\/([\w-]+\.js)"/g),
+      ...(await source('index.html')).matchAll(
+        new RegExp(String.raw`rel="modulepreload" href="\./([\w-]+\.js)${RELEASE}"`, 'g'),
+      ),
     ].map((match) => match[1]);
+    assert(preloaded.length >= 2, 'index.html preloads modules');
     assert.deepEqual(
       preloaded.sort(),
       [...shell].sort(),
@@ -119,7 +132,7 @@ await test('panels: every tool with a tab has a panel module that exports fields
         `${name} exports fields()`,
       );
       assert.equal(
-        toolPanel.match(new RegExp(`import \\* as \\w+ from '\\./${name}'`, 'g'))?.length,
+        toolPanel.match(new RegExp(String.raw`import \* as \w+ from '\./${name}${RELEASE}'`, 'g'))?.length,
         1,
         `tool-panel.js imports ${name} once, as a namespace`,
       );
