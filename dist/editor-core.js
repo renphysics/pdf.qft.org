@@ -5,7 +5,6 @@
  * nothing from the other editor modules, so they can all rely on it as they load.
  */
 
-import { savedSignature } from './signature.js';
 import { TOOL_PAGES, TOOLS } from './routes.js';
 
 // Resolve assets beside this module, including GitHub Pages project subpaths.
@@ -64,12 +63,16 @@ export const emptyState = () => ({
 });
 export let state = emptyState();
 export const ui = {
+  batch: null, // the batch workspace (batch-ui.js initBatch), set by editor.js
   tool: 'text',
   activeId: null,
   selected: new Set(),
+  selectedByDefault: false, // the selection is the one a document opens with (its first page), not a choice
+  zoomByHand: false, // the zoom was set with the buttons or the wheel since a form field last got focus (form-ui.js)
   item: null, // the selected item on the current page
   editing: null, // the text item being typed into on the page
   zoom: 1,
+  formZoom: null, // phones: the zoom before a form field zoomed the page (form-ui.js)
   past: [],
   future: [],
   lastChange: null,
@@ -154,10 +157,6 @@ export const ui = {
   },
   pictureExport: { format: 'jpg', dpi: 150, scope: 'all' },
 };
-{
-  const kept = savedSignature();
-  if (kept) Object.assign(ui, { signature: kept, signatureKept: true });
-}
 // Tool pages (routes.js) name their tool on <body data-tool>; it opens first.
 export const pageTool = TOOL_PAGES[document.body.dataset.tool] ? document.body.dataset.tool : null;
 if (pageTool && pageTool !== 'batch') ui.tool = pageTool;
@@ -309,13 +308,41 @@ export function focusKey(element = document.activeElement) {
   if (element.id) return ['#' + esc(element.id), panelFallback];
   return panelFallback ? [panelFallback] : null;
 }
-/** Focus the first visible, enabled match of a focusKey() description. */
+/**
+ * Delete pages starts with nothing to delete: the page a document opens with
+ * selected was not chosen. Called wherever the selection is set for the user
+ * (a document opens, Reset, Undo and Redo) and when the tool is chosen. Pages
+ * selected on purpose stay selected.
+ */
+export function dropDefaultSelection() {
+  if (ui.tool !== 'delete' || !ui.selectedByDefault) return;
+  ui.selected = new Set();
+  ui.selectedByDefault = false;
+  $$('[data-page-select]').forEach((input) => (input.checked = false));
+}
+/**
+ * Focus the first visible, enabled match of a focusKey() description. A control
+ * that disabled itself (Delete, once the selected pages are gone) hands focus
+ * to the nearest enabled control in its group, the one before it first, so a
+ * keyboard user keeps their place.
+ */
 export function restoreFocus(key) {
   for (const selector of [].concat(key || [])) {
     if (!selector) continue;
-    const target = $$(selector).find((element) => !element.disabled && element.getClientRects().length);
+    const shown = $$(selector).filter((element) => element.getClientRects().length);
+    const target = shown.find((element) => !element.disabled);
     if (target) {
       target.focus({ preventScroll: true });
+      return true;
+    }
+    const group = shown[0]?.closest('.mini-actions, .selection-buttons, .field-row, #tool-form');
+    const controls = group ? $$('button, input, select, textarea, [tabindex="0"]', group) : [],
+      at = controls.indexOf(shown[0]),
+      usable = (element) => element && !element.disabled && element.getClientRects().length;
+    for (let step = 1; at >= 0 && step < controls.length; step++) {
+      const neighbour = [controls[at - step], controls[at + step]].find(usable);
+      if (!neighbour) continue;
+      neighbour.focus({ preventScroll: true });
       return true;
     }
   }
@@ -336,18 +363,36 @@ export function toast(message, error = false, { announce = true } = {}) {
   if (announce) announceMessage(message, error);
   scheduleToastHide();
 }
-/** In the editor, centre the notice between page navigation and zoom controls. */
+/**
+ * In the editor, the notice sits in the gap between page navigation and the zoom
+ * controls, as wide as the gap allows, so it covers neither. Where the gap is
+ * too narrow for it, it sits at the foot of the pages instead, above the status
+ * line.
+ */
 export function positionToast() {
   const node = $('#toast');
   if (!document.body.classList.contains('editing') || phone()) return;
   const bar = $('.preview-toolbar').getBoundingClientRect(),
     nav = $('.page-navigation').getBoundingClientRect(),
     zoom = $('.zoom-controls').getBoundingClientRect(),
-    center = bar.left + bar.width / 2,
-    room = 2 * (Math.min(center - nav.right, zoom.left - center) - 12);
-  node.style.setProperty('--toast-left', center + 'px');
-  node.style.setProperty('--toast-top', bar.top + 4 + 'px');
-  node.style.setProperty('--toast-width', Math.max(240, Math.min(460, room)) + 'px');
+    room = zoom.left - nav.right - 24;
+  const place = (left, top, bottom, width) => {
+    node.style.setProperty('--toast-left', left + 'px');
+    node.style.setProperty('--toast-top', top);
+    node.style.setProperty('--toast-bottom', bottom);
+    node.style.setProperty('--toast-width', width + 'px');
+  };
+  if (room >= 280) place((nav.right + zoom.left) / 2, bar.top + 4 + 'px', 'auto', Math.min(460, room));
+  else {
+    const stage = $('#canvas-scroll').getBoundingClientRect();
+    place(
+      stage.left + stage.width / 2,
+      'auto',
+      // In a short window the pages end below its edge: the notice stays in the window.
+      Math.max(8, innerHeight - stage.bottom + 8) + 'px',
+      Math.max(240, Math.min(460, stage.width - 32)),
+    );
+  }
 }
 export function scheduleToastHide() {
   clearTimeout(ui.toastTimer);
@@ -430,4 +475,39 @@ export function rangeText(indexes) {
 /** Replace the document state (undo, redo, opening and resetting documents). */
 export function setState(next) {
   state = next;
+}
+
+/** Whether keystrokes on this element are text being typed (so shortcuts leave them alone). */
+export const typing = (element) =>
+  ['INPUT', 'TEXTAREA', 'SELECT'].includes(element?.tagName) || element?.isContentEditable;
+
+// ---- Protection ----------------------------------------------------------------
+
+/** Whether downloads will need a password to open. */
+export function protectedDownload() {
+  return Boolean(state.protection && state.protection.enabled !== false && state.protection.password);
+}
+/** Protected PDFs in use: opened with a password, or limiting printing, copying or changes. */
+export function lockedSources() {
+  return state.sources.filter(
+    (source) => source.protection && state.pages.some((page) => page.sourceId === source.id),
+  );
+}
+/** Whether Unlock PDF is giving a protected PDF back without its password. */
+export function unlockedDownload() {
+  return ui.tool === 'unlock' && !protectedDownload() && lockedSources().length > 0;
+}
+
+// ---- The help and privacy dialogs ------------------------------------------------
+
+/** Open the privacy or help dialog (on any page; the editor need not be loaded). */
+export function showInfo(kind) {
+  const content = $('#dialog-content');
+  if (kind === 'privacy')
+    content.innerHTML =
+      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data. So do the settings of Watermark, Headers &amp; footers and Page numbers, when you tick “Remember these settings on this device”; unticking it forgets them.</p><p>Passwords are used only in this tab: to open a protected PDF, and to protect your download. They are never saved, not even in presets. Your signature is kept in this browser only if you choose “Keep it on this device”; unticking it removes it.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
+  if (kind === 'help')
+    content.innerHTML =
+      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, drawings, watermarks, headers, footers, and page numbers. Fill in PDF forms. Merge PDFs or reorder, reverse, rotate, delete, crop, extract, and split their pages, interleave a double-sided scan, and add blank pages or margins. Put 2 or 4 pages on each sheet for handouts. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Each button says which step it will take. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete pages &amp; Crop PDF</h3><p>Delete pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Signatures</h3><p>With Sign PDF, draw your signature, type your name in a handwriting style, or upload a picture of it. Click the page to place it, or add it to every page; drag it to move it and a corner to resize it. It is a picture of your signature, not a certificate-based digital signature.</p><h3>Forms</h3><p>With Fill form, click a field to type in it, or tick its box; Tab moves to the next field. On a phone, the page zooms in to the field you tap; Fit shows the whole page again. Your download keeps the fields fillable, or turn on Flatten fields on download to make your answers part of the pages. Calculations built into a form don’t run, and forms made only in Adobe’s XFA format can’t be filled.</p><h3>Drawing</h3><p>With Draw, drag on the page to draw with the pen, or choose a line, an arrow, a rectangle or an ellipse. Each stroke is one undo step. Select a drawing to move it, resize it, or change its color and line width. On a touch screen, one finger draws and two fingers scroll.</p><h3>Document properties</h3><p>Document properties shows the title, author, subject, keywords and language saved in your PDF. Change them, or choose Remove all before you share the file: it also removes which app made the PDF and when. The language stays, because screen readers need it.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). JPG and PNG pictures open as pages (JPG to PDF); PDF to JPG saves pages as pictures. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. To combine, remove, extract or split pages of a PDF with form fields, first turn on Flatten fields on download in Fill form.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Japanese kanji and Traditional Chinese characters use the font’s Simplified Chinese shapes, so some of them look slightly different. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
+  $('#info-dialog').showModal();
 }

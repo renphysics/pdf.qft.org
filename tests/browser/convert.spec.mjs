@@ -63,10 +63,10 @@ test('pictures become pages: turned upright, on Letter or their own size, in one
   await expect(page.locator('#tool-select')).toHaveValue('jpgtopdf');
   await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
   await expect(page.locator('#toast-message')).toContainText('2 pictures are PDF pages now');
-  // The browser's language is en-US: Letter, turned to suit each picture.
+  // The tests' browser language is en-US (playwright.config.mjs): Letter, turned to suit each picture.
   await expect(page.locator('#tool-form [name="pictureSize"]')).toHaveValue('letter');
   let file = await download(page, () => page.click('#download-button'));
-  expect(file.name).toBe('combined-converted.pdf');
+  expect(file.name).toBe('wide-converted.pdf');
   expect(await pageSizes(file.bytes)).toEqual([
     [792, 612],
     [612, 792],
@@ -128,4 +128,16 @@ test('with Add an image, a picture added from the page strip goes on the page', 
   await page.setInputFiles('#file-input', logo);
   await expect(page.locator('.edit-layer [data-item-id]')).toHaveCount(1);
   await expect(page.locator('#document-info')).toHaveText(/^3 pages/);
+});
+
+test.describe('in a browser set to German', () => {
+  test.use({ locale: 'de-DE' });
+  test('pictures and handouts go on A4 where Letter is not the usual paper', async ({ page }) => {
+    await page.goto('jpg-to-pdf/');
+    await page.setInputFiles('#file-input', await writeTemporary('wide-de.png', picture(800, 400, 'png')));
+    await ready(page);
+    await expect(page.locator('#tool-form [name="pictureSize"]')).toHaveValue('a4');
+    await useTool(page, 'sheets');
+    await expect(page.locator('#tool-form [name="sheetPaper"]')).toHaveValue('a4');
+  });
 });

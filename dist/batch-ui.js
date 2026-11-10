@@ -129,7 +129,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
                 'Headers & footers',
                 'Consistent details at the page edges.',
                 `
-                <p class="batch-field-note">Use {page} and {total} for page numbers within each file.</p>
+                <p class="batch-field-note">Use {page} and {total} for page numbers within each file, {date} for today’s date and {filename} for each file’s name.</p>
                 <div class="batch-subheading">Header</div>${field('Header left', 'headerLeft', 'text', 'maxlength="300"')}${field('Header center', 'headerCenter', 'text', 'maxlength="300"')}${field('Header right', 'headerRight', 'text', 'maxlength="300"')}
                 <div class="batch-subheading">Footer</div>${field('Footer left', 'footerLeft', 'text', 'maxlength="300"')}${field('Footer center', 'footerCenter', 'text', 'maxlength="300"')}${field('Footer right', 'footerRight', 'text', 'maxlength="300"')}
                 <div class="batch-fields-3">${field('Size (pt)', 'footer-size', 'number', 'min="6" max="24" step="1" required')}${field('Margin (pt)', 'footer-margin', 'number', 'min="0" max="100" step="1" required')}${field('Text color', 'footer-color', 'color')}</div>
@@ -142,7 +142,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
                 'Number each document independently.',
                 `
                 ${field('Number format', 'numbers-format', 'text', 'maxlength="300" required')}
-                <p class="batch-field-note">Use {page} for the number and {total} for each file’s page count.</p>
+                <p class="batch-field-note">Use {page} for the number and {total} for each file’s page count. {date} and {filename} work too.</p>
                 ${select('Number position', 'numbers-position', [
                   ['bottom-right', 'Bottom right'],
                   ['bottom-center', 'Bottom center'],
@@ -549,7 +549,12 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
         await tick();
         try {
           const bytes = new Uint8Array(await entry.file.arrayBuffer());
-          entry.bytes = await applyPreset(bytes, preset, (fraction) => setProgress(index, fraction));
+          entry.bytes = await applyPreset(
+            bytes,
+            preset,
+            (fraction) => setProgress(index, fraction),
+            entry.file.name,
+          );
           entry.outputName = uniqueFilename(`${safeBaseName(entry.file.name)}-processed.pdf`, usedNames);
           entry.status = 'done';
         } catch (error) {

@@ -120,6 +120,26 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }
+/* aria-disabled: a button that cannot act now but keeps keyboard focus (Move
+   earlier at the first page), so focus does not jump when it reaches its limit.
+   Dimmed like a disabled one, but in its text, icon and border only: opacity
+   would fade the focus ring that shows where the keyboard is. */
+button[aria-disabled='true'] {
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  color: color-mix(in srgb, currentColor 42%, transparent);
+}
+.button.secondary[aria-disabled='true'] {
+  border-color: var(--color-border);
+  border-color: color-mix(in srgb, var(--color-border-strong) 42%, transparent);
+}
+@media (forced-colors: active) {
+  button[aria-disabled='true'],
+  .button.secondary[aria-disabled='true'] {
+    color: GrayText;
+    border-color: GrayText;
+  }
+}
 a {
   color: inherit;
   text-decoration: none;
@@ -180,6 +200,12 @@ p,
 /* Headings that receive focus on a view change are not controls: no ring. */
 [tabindex='-1']:focus {
   outline: none;
+}
+/* The tool panel's heading shows where focus went when a control it was on is gone. */
+#tool-panel h2:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 .icon-defs {
   position: absolute;
@@ -452,7 +478,7 @@ p,
     transform 0.15s,
     border-color 0.15s;
 }
-.button:hover:not(:disabled) {
+.button:hover:not(:disabled, [aria-disabled='true']) {
   transform: translateY(-1px);
 }
 .button.primary {
@@ -466,7 +492,7 @@ p,
   background: var(--color-surface);
   border-color: var(--color-border-strong);
 }
-.button.secondary:hover:not(:disabled) {
+.button.secondary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--color-surface-muted);
 }
 .button.subtle {
@@ -1323,12 +1349,28 @@ body.editing {
   outline-color: var(--color-on-brand);
   outline-offset: 1px;
 }
-/* In the editor, notices sit in the empty middle of the preview toolbar, so they
-   cover neither the page nor the tool controls (positioned by positionToast()). */
+/* On touch screens the close button's tap area is 44 px, around its 28 px drawing. */
+@media (pointer: coarse) {
+  .toast-close {
+    position: relative;
+  }
+  .toast-close::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+/* In the editor, notices sit in the gap of the preview toolbar between page
+   navigation and zoom, or at the foot of the pages where that gap is too narrow,
+   so they cover no control (positioned by positionToast()). */
 @media (min-width: 721px) {
   body.editing .toast {
     top: var(--toast-top, 112px);
-    bottom: auto;
+    bottom: var(--toast-bottom, auto);
     left: var(--toast-left, 50%);
     max-width: var(--toast-width, 420px);
   }

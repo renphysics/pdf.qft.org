@@ -8,7 +8,10 @@
  * the new index.html but may reuse the previous release's app.js and modules
  * from cache for up to ten minutes. Mixed releases can fail in confusing ways
  * (for example, every PDF reported as unreadable). Versioned URLs make each
- * release load as one consistent set.
+ * release load as one consistent set. The editor is fetched later than the
+ * page (app.js loads it on first use), so a page from before a deploy can be
+ * given the next release's editor: app.js checks for that (sameRelease) and
+ * reloads when the visitor opens something (refresh).
  *
  * - First-party files share one release id: a hash of their contents, so
  *   redeploying identical code keeps visitors' caches.
@@ -34,6 +37,7 @@ const MODULES = (await readdir(site)).filter((name) => name.endsWith('.js')).sor
 const FIRST_PARTY = [
   'index.html',
   'licenses/index.html',
+  'licenses/licenses.css',
   ...TOOL_PAGE_FILES,
   ...MODULES,
   'style.css',
@@ -65,22 +69,27 @@ const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
 
 // [pattern, replacement, expected number of matches, or null for any number].
 // A mismatch means the sources changed shape and this script must be updated,
-// so it fails loudly. Every module's imports of its neighbours are versioned;
-// the check below fails on any relative import left unversioned.
-const imports = [/(from '\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
+// so it fails loudly. Every module's imports of its neighbours are versioned,
+// static (from) and dynamic (import()); the check below fails on any relative
+// import left unversioned.
+const imports = [/((?:from |import\()'\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
+// The modules a page preloads alongside app.js (scripts/build-pages.mjs).
+const preloads = (sources['index.html'].match(/rel="modulepreload"/g) || []).length;
 const RULES = {
   ...Object.fromEntries(MODULES.map((name) => [name, [imports]])),
   'index.html': [
     [/(href="\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
     [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
+    [/(rel="modulepreload" href="\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
   ],
-  'licenses/index.html': [[/(href="\.\.\/(?:style|studio)\.css)"/g, `$1?v=${release}"`, 2]],
+  'licenses/index.html': [[/(href="(?:\.\.\/(?:style|studio)|\.\/licenses)\.css)"/g, `$1?v=${release}"`, 3]],
   ...Object.fromEntries(
     TOOL_PAGE_FILES.map((name) => [
       name,
       [
         [/(href="\.\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
         [/(src="\.\.\/app\.js)"/g, `$1?v=${release}"`, 1],
+        [/(rel="modulepreload" href="\.\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
       ],
     ]),
   ),

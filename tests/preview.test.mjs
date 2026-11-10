@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { test } from 'node:test';
 
 // The editor preview (dist/preview.js) draws edits as SVG over the source pages
 // instead of building a PDF. This checks, independently of the browser, that
@@ -117,13 +118,6 @@ const state = {
   pageNumbers: { format: 'No. {page}', position: 'bottom-center', size: 8, margin: 30, pages: ['p1', 'p3'] },
 };
 
-// Fonts load on first use; wait for both.
-for (const kind of ['standard', 'latin']) previewFont(kind);
-for (let wait = 0; !(previewFont('standard').font && previewFont('latin').font); wait++) {
-  assert(wait < 200, 'preview fonts did not load');
-  await new Promise((resolve) => setTimeout(resolve, 10));
-}
-
 const decode = (text) =>
   text.replace(/&(amp|lt|gt|quot);/g, (match, name) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[name]);
 const number = (value) => Number(value);
@@ -154,61 +148,53 @@ function previewLines(markup) {
   }
   return lines;
 }
-
-const output = await buildPdf(state);
-const doc = await pdfjs.getDocument({
-  data: output.slice(),
-  verbosity: 0,
-  standardFontDataUrl: path.join(runtime, 'pdfjs-dist/standard_fonts/'),
-}).promise;
-let checked = 0;
-for (let index = 0; index < pages.length; index++) {
-  const overlay = pageOverlay(state, index);
-  assert.equal(overlay.problems.length, 0, `page ${index + 1}: no problems`);
-  const page = await doc.getPage(index + 1);
-  const viewport = page.getViewport({ scale: 1 });
-  assert(
-    Math.abs(viewport.width - overlay.geometry.width) < 0.01 &&
-      Math.abs(viewport.height - overlay.geometry.height) < 0.01,
-    `page ${index + 1}: preview size ${overlay.geometry.width}×${overlay.geometry.height} matches the export ${viewport.width}×${viewport.height}`,
-  );
-  const exported = (await page.getTextContent()).items
-    .filter((item) => item.str.trim())
-    .map((item) => {
-      const [a, b, , , e, f] = pdfjs.Util.transform(viewport.transform, item.transform);
-      return { text: item.str, x: e, y: f, size: Math.hypot(a, b) };
-    });
-  const lines = previewLines(overlay.markup);
-  assert.equal(lines.length, 8 + (index % 2), `page ${index + 1}: the preview draws every line`);
-  for (const line of lines) {
-    const match = exported.find(
-      (item) =>
-        item.text === line.text && Math.abs(item.x - line.x) < 0.05 && Math.abs(item.y - line.y) < 0.05,
-    );
-    assert(
-      match,
-      `page ${index + 1}: "${line.text}" is drawn at (${line.x.toFixed(2)}, ${line.y.toFixed(2)}) in the preview; the export has ${JSON.stringify(exported.filter((item) => item.text === line.text))}`,
-    );
-    assert(Math.abs(match.size - line.size) < 0.01, `page ${index + 1}: "${line.text}" size`);
-    checked++;
+await test('the preview’s fonts load on first use', async () => {
+  // Fonts load on first use; wait for both.
+  for (const kind of ['standard', 'latin']) previewFont(kind);
+  for (let wait = 0; !(previewFont('standard').font && previewFont('latin').font); wait++) {
+    assert(wait < 200, 'preview fonts did not load');
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
-}
-await doc.loadingTask.destroy();
-console.log(
-  JSON.stringify(
-    {
-      status: 'passed',
-      checks: [
-        `${checked} preview lines match the export in position and size`,
-        'all intrinsic rotations',
-        'CropBox offsets',
-        'turn and crop after placing',
-        'auto-width and wrapped text',
-        'watermark, headers, footers, page numbers',
-        'Noto Sans text',
-      ],
-    },
-    null,
-    2,
-  ),
-);
+});
+
+await test('the preview draws every line where the export does: rotations, CropBox offsets, turned and cropped pages, wrapped text, watermark, headers, footers, page numbers, Noto Sans', async () => {
+  const output = await buildPdf(state);
+  const doc = await pdfjs.getDocument({
+    data: output.slice(),
+    verbosity: 0,
+    standardFontDataUrl: path.join(runtime, 'pdfjs-dist/standard_fonts/'),
+  }).promise;
+  let checked = 0;
+  for (let index = 0; index < pages.length; index++) {
+    const overlay = pageOverlay(state, index);
+    assert.equal(overlay.problems.length, 0, `page ${index + 1}: no problems`);
+    const page = await doc.getPage(index + 1);
+    const viewport = page.getViewport({ scale: 1 });
+    assert(
+      Math.abs(viewport.width - overlay.geometry.width) < 0.01 &&
+        Math.abs(viewport.height - overlay.geometry.height) < 0.01,
+      `page ${index + 1}: preview size ${overlay.geometry.width}×${overlay.geometry.height} matches the export ${viewport.width}×${viewport.height}`,
+    );
+    const exported = (await page.getTextContent()).items
+      .filter((item) => item.str.trim())
+      .map((item) => {
+        const [a, b, , , e, f] = pdfjs.Util.transform(viewport.transform, item.transform);
+        return { text: item.str, x: e, y: f, size: Math.hypot(a, b) };
+      });
+    const lines = previewLines(overlay.markup);
+    assert.equal(lines.length, 8 + (index % 2), `page ${index + 1}: the preview draws every line`);
+    for (const line of lines) {
+      const match = exported.find(
+        (item) =>
+          item.text === line.text && Math.abs(item.x - line.x) < 0.05 && Math.abs(item.y - line.y) < 0.05,
+      );
+      assert(
+        match,
+        `page ${index + 1}: "${line.text}" is drawn at (${line.x.toFixed(2)}, ${line.y.toFixed(2)}) in the preview; the export has ${JSON.stringify(exported.filter((item) => item.text === line.text))}`,
+      );
+      assert(Math.abs(match.size - line.size) < 0.01, `page ${index + 1}: "${line.text}" size`);
+      checked++;
+    }
+  }
+  await doc.loadingTask.destroy();
+});

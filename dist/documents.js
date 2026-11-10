@@ -4,7 +4,8 @@
  */
 
 import { buildPdfWithNotes, imagesToPdf, loadPdfLib, openPdf, passwordProblem } from './pdf-engine.js';
-import { rescaledMargins } from './layout.js';
+import { baseName, rescaledMargins } from './layout.js';
+import { safeBaseName } from './workflows.js';
 import { isPicture, pictureForPage } from './convert.js';
 import { closeDocuments, loadPdfjs, previewFont } from './preview.js';
 import {
@@ -13,29 +14,29 @@ import {
   busy,
   cancellable,
   confirmDialog,
+  dropDefaultSelection,
   emptyState,
   friendly,
   pageTool,
   phone,
+  protectedDownload,
   setState,
   snapshot,
   state,
   toast,
   ui,
   uid,
+  unlockedDownload,
 } from './editor-core.js';
 import { resetStage } from './page-view.js';
 import { documentFields, focusField } from './form-ui.js';
-import { selectItem, stopEditing } from './page-items.js';
-import {
-  protectedDownload,
-  renderTool,
-  showSettingDefaults,
-  unlockedDownload,
-  updateProtectionStatus,
-} from './tool-panel.js';
+import { addImageFile, selectItem, stopEditing } from './page-items.js';
+import { renderTool } from './tool-panel.js';
+import { showSettingDefaults } from './panel-settings.js';
+import { updateProtectionStatus } from './panel-protect.js';
 import { choosePage, chooseTool, formProblem, selectedIds, setSheet } from './pages.js';
-import { addImageFile, batch, change, documentChanged, recordView } from './app.js';
+import { change, documentChanged } from './history.js';
+import { recordView } from './views.js';
 
 // ---- Building the PDF ---------------------------------------------------------------
 // The PDF is built only to download, extract or split, in a worker when possible.
@@ -159,18 +160,65 @@ export function downloadBytes(bytes, name) {
 export function usedSources() {
   return state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
 }
-export function outputName(
-  suffix = protectedDownload()
-    ? 'protected'
-    : unlockedDownload()
-      ? 'unlocked'
-      : usedSources().every((source) => source.picture)
-        ? 'converted'
-        : 'edited',
-) {
-  const sources = usedSources();
-  const base = sources.length === 1 ? sources[0].name.replace(/\.(pdf|jpe?g|png)$/i, '') : 'combined';
-  return base + '-' + suffix + '.pdf';
+/**
+ * A download is named after the first file in it (blank pages aside), without
+ * its extension. `pages`: the pages in the download, when they are not the
+ * whole document (Download selected pages).
+ */
+export function outputBase(pages = state.pages) {
+  const first = pages
+    .map((page) => state.sources.find((source) => source.id === page.sourceId))
+    .find((source) => source && !source.blank);
+  return first ? baseName(first.name) : 'document';
+}
+/**
+ * What a download's name says was done: its protection; "converted" for
+ * pictures made into pages; "merged" for several files; one word when the
+ * edits are of one kind (numbered, watermarked, cropped, signed, filled,
+ * organized); and "edited" for anything else.
+ */
+function outputKind() {
+  if (protectedDownload()) return 'protected';
+  if (unlockedDownload()) return 'unlocked';
+  const files = usedSources().filter((source) => !source.blank);
+  if (files.length && files.every((source) => source.picture)) return 'converted';
+  if (files.length > 1) return 'merged';
+  const on = (key) => state[key] && state[key].enabled !== false;
+  const kinds = new Set();
+  if (on('pageNumbers')) kinds.add('numbered');
+  if (on('watermark') && String(state.watermark.text || '').trim()) kinds.add('watermarked');
+  if (
+    on('headerFooter') &&
+    ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].some((slot) =>
+      String(state.headerFooter[slot] || '').trim(),
+    )
+  )
+    kinds.add('edited');
+  for (const annotation of state.annotations)
+    kinds.add(annotation.type === 'signature' ? 'signed' : 'edited');
+  if (state.pages.some((page) => page.crop))
+    kinds.add(state.pages.some((page) => page.crop?.content) ? 'edited' : 'cropped');
+  if (
+    state.flattenForms ||
+    Object.values(state.formValues || {}).some((values) => Object.keys(values).length)
+  )
+    kinds.add('filled');
+  if (state.properties) kinds.add('edited');
+  // Pages moved, turned, removed, repeated or added.
+  const [file] = files;
+  if (
+    file &&
+    (state.pages.length !== file.pageCount ||
+      state.pages.some(
+        (page, index) => page.sourceId !== file.id || page.index !== index || (page.rotation || 0) !== 0,
+      ))
+  )
+    kinds.add('organized');
+  return kinds.size === 1 ? [...kinds][0] : 'edited';
+}
+/** The download's name, in a form every system takes (safeBaseName): not left to the browser. */
+export function outputName(suffix = outputKind(), pages = state.pages) {
+  return safeBaseName(outputBase(pages)) + '-' + suffix + '.pdf';
 }
 /**
  * What a download message adds about the file, or the files of a split
@@ -203,6 +251,9 @@ export function exportNotes(notes, { several = false } = {}) {
     text +=
       ' The original was digitally signed: its signature isn’t valid in ' +
       (several ? 'these copies.' : 'this copy.');
+  if (notes.includes('additions-untagged'))
+    text +=
+      ' What you added isn’t tagged for screen readers; they skip the page numbers, headers, footers and watermark, which are marked as artifacts.';
   return text;
 }
 export async function downloadDocument() {
@@ -246,7 +297,7 @@ export async function downloadSelected() {
     const problem = formProblem(extraction.pages);
     if (problem) throw new Error(problem);
     const { bytes, notes } = await exportDocument(extraction, 'Preparing selected pages…');
-    downloadBytes(bytes, outputName('selected'));
+    downloadBytes(bytes, outputName('selected', extraction.pages));
     toast(
       extraction.pages.length +
         ' selected page' +
@@ -258,17 +309,6 @@ export async function downloadSelected() {
   } catch (error) {
     showExportError(error);
   }
-}
-
-export function showInfo(kind) {
-  const content = $('#dialog-content');
-  if (kind === 'privacy')
-    content.innerHTML =
-      '<div class="eyebrow">YOUR FILES, YOUR SPACE</div><h2 id="dialog-title">Private by design.</h2><p>QFT PDF processes your PDFs in this browser. The editor does not send document contents, filenames, or your edits to a processing server.</p><h3>What stays on your device?</h3><p>Your PDF files, added images, text, and the edited document. PDF files and generated results are held in this tab’s memory. Closing or refreshing the tab clears them. Saved presets contain your chosen text and settings; they stay in this browser until you delete them or clear site data.</p><p>Passwords are used only in this tab: to open a protected PDF, and to protect your download. They are never saved, not even in presets. Your signature is kept in this browser only if you choose “Keep it on this device”; unticking it removes it.</p><h3>What uses the internet?</h3><p>Your browser loads this website, its PDF libraries, and font assets. The hosting provider may receive ordinary website requests. QFT PDF does not include advertising or analytics scripts.</p><p>Use Download PDF to save your finished copy. Your original file is not overwritten.</p>';
-  if (kind === 'help')
-    content.innerHTML =
-      '<div class="eyebrow">A LITTLE GUIDANCE</div><h2 id="dialog-title">Make yourself at home.</h2><p>Open a PDF, choose a tool, and edit right on the page. Every change shows at once, exactly as it will appear in your PDF. Download PDF saves a new copy.</p><h3>What can I edit?</h3><p>Add text, PNG/JPG images, highlights, drawings, watermarks, headers, footers, and page numbers. Fill in PDF forms. Merge PDFs or reorder, reverse, rotate, delete, crop, extract, and split their pages, interleave a double-sided scan, and add blank pages or margins. Put 2 or 4 pages on each sheet for handouts. Batch tools apply a saved preset to several PDFs separately.</p><h3>Text, images and highlights</h3><p>With Add text, click the page and type. Drag an item to move it; drag a handle to resize it. Select an item to change it in the panel, or press Delete to remove it. With an item selected, arrow keys nudge it (hold Shift for bigger steps) and Enter edits text.</p><h3>Undo and redo</h3><p>Undo (Ctrl+Z or ⌘Z) reverses your recent edits; Redo (Ctrl+Shift+Z or ⌘⇧Z) brings them back. Reset returns to the first document you opened. Your workspace is not saved after you close or refresh this tab.</p><h3>Delete pages &amp; Crop PDF</h3><p>Delete pages lets you select thumbnails or a page range, such as 2, 4-6. Keep at least one page. Crop PDF lets you drag an area to keep or enter margin percentages, then apply to the current, selected, or every page. Each crop trims the current visible area. Restore original crop brings back the original page boundary for your chosen scope. Cropping hides content; it is not secure redaction.</p><p>Add text creates new content; it does not rewrite existing paragraphs. Highlights are annotations, not secure redaction. Changes can invalidate existing digital signatures.</p><h3>Signatures</h3><p>With Sign PDF, draw your signature, type your name in a handwriting style, or upload a picture of it. Click the page to place it, or add it to every page; drag it to move it and a corner to resize it. It is a picture of your signature, not a certificate-based digital signature.</p><h3>Forms</h3><p>With Fill form, click a field to type in it, or tick its box; Tab moves to the next field. Your download keeps the fields fillable, or turn on Flatten fields on download to make your answers part of the pages. Calculations built into a form don’t run, and forms made only in Adobe’s XFA format can’t be filled.</p><h3>Drawing</h3><p>With Draw, drag on the page to draw with the pen, or choose a line, an arrow, a rectangle or an ellipse. Each stroke is one undo step. Select a drawing to move it, resize it, or change its color and line width. On a touch screen, one finger draws and two fingers scroll.</p><h3>Document properties</h3><p>Document properties shows the title, author, subject, keywords and language saved in your PDF. Change them, or choose Remove all before you share the file: it also removes which app made the PDF and when. The language stays, because screen readers need it.</p><h3>Passwords</h3><p>A PDF that needs a password asks for it when you open it. Your download keeps that password: change it in Protect PDF, or remove it in Unlock PDF. PDFs that only limit printing, copying or changes open without asking, and your download won’t have those limits. Passwords stay on your device and aren’t saved.</p><h3>Supported files</h3><p>PDFs with no fixed file-size or page-count limit, including password-protected PDFs (not those protected with a certificate). JPG and PNG pictures open as pages (JPG to PDF); PDF to JPG saves pages as pictures. Processing capacity depends on your device and available browser memory. Very large files can be slow or may not open, especially on mobile devices. To combine, remove, extract or split pages of a PDF with form fields, first turn on Flatten fields on download in Fill form.</p><h3>Fonts</h3><p>Latin and Chinese text are supported, as well as Japanese kana and Korean Hangul. Japanese kanji and Traditional Chinese characters use the font’s Simplified Chinese shapes, so some of them look slightly different. Only the characters you use are embedded, so Chinese text adds kilobytes to your PDF. The Chinese font (16 MB) downloads once, the first time you type it. Other scripts depend on the bundled font coverage.</p><h3>Split PDF and batch presets</h3><p>Split by individual page, every N pages, or custom groups such as 1-3; 4-6. A semicolon starts a new output PDF. Download individual results or a ZIP. Batch tools combine watermarks, headers/footers, page numbers, and cropping. Numbering restarts for each file. Presets are saved in this browser; PDFs are not.</p>';
-  $('#info-dialog').showModal();
 }
 
 // ---- Opening documents ------------------------------------------------------------
@@ -376,6 +416,13 @@ async function openWithPassword(name, bytes, several) {
   }));
 }
 /** What to say once files are open: protection kept or removed, files skipped. */
+let reassured = false;
+/** Said with the first document opened in this tab; later ones are simply ready. */
+function reassurance() {
+  if (reassured) return '';
+  reassured = true;
+  return ' Everything happens on your device.';
+}
 function openedMessage(sources, { added, kept, skipped, shown = null }) {
   const withPassword = sources.some((source) => source.protection === 'password'),
     limited = sources.some((source) => source.protection === 'owner'),
@@ -396,8 +443,8 @@ function openedMessage(sources, { added, kept, skipped, shown = null }) {
     );
   else if (withPassword) parts.push('Your PDF is unlocked for editing, here on your device.');
   else if (!added && ui.tool === 'form' && documentFields().length)
-    parts.push('Your PDF has fields to fill in: click one to type in it. Everything happens on your device.');
-  else parts.push('Your PDF is ready. Everything happens on your device.');
+    parts.push('Your PDF has fields to fill in: click one to type in it.' + reassurance());
+  else parts.push('Your PDF is ready.' + reassurance());
   if (kept) parts.push('Your download will keep the same password. Change it in Protect PDF.');
   if (limited && ui.tool !== 'unlock')
     parts.push('It had limits on printing, copying or changes, which your download won’t have.');
@@ -452,7 +499,7 @@ export async function relayoutPictures() {
           return { ...page, sourceId: source.id, crop };
         });
       },
-      { layout: true },
+      { layout: true, label: 'Page size' },
     );
   } catch (error) {
     toast(friendly(error), true);
@@ -461,7 +508,7 @@ export async function relayoutPictures() {
   }
 }
 export async function openFiles(files, append = false) {
-  if (ui.busy || batch.isBusy() || !files.length) return;
+  if (ui.busy || ui.batch?.isBusy() || !files.length) return;
   const list = [...files];
   // The picker is cleared only after its files are read (see finally below), or
   // when we stop early, so choosing the same file again still fires a change event.
@@ -554,7 +601,7 @@ export async function openFiles(files, append = false) {
           state.pages.push(...pages);
           if (keep) state.protection = { enabled: true, password };
         },
-        { layout: true },
+        { layout: true, label: 'Add files' },
       );
       renderTool();
       toast(openedMessage(sources, { added: pages.length, kept: keep, skipped }));
@@ -569,6 +616,7 @@ export async function openFiles(files, append = false) {
       });
       ui.activeId = pages[0].id;
       ui.selected = new Set([pages[0].id]);
+      ui.selectedByDefault = true;
       ui.item = null;
       ui.past = [];
       ui.future = [];
@@ -585,9 +633,11 @@ export async function openFiles(files, append = false) {
       ui.shownSettings = new Set();
       ui.image = null;
       ui.zoom = 1;
+      ui.formZoom = null;
       resetStage();
       // A PDF with fields to fill in, opened from the home page, opens in Fill form.
       if (!pageTool && documentFields().length) ui.tool = 'form';
+      dropDefaultSelection();
       // Phones: tools you use on the page start with their settings folded away.
       if (phone()) setSheet(!['text', 'highlight', 'draw'].includes(ui.tool));
       showWorkspace();
@@ -608,7 +658,7 @@ export async function openFiles(files, append = false) {
   }
 }
 export function showWorkspace() {
-  if (!batch.close()) return;
+  if (ui.batch && !ui.batch.close()) return;
   document.body.classList.remove('batching');
   $('#landing').hidden = true;
   $('#workspace').hidden = false;
@@ -616,7 +666,7 @@ export function showWorkspace() {
   window.scrollTo(0, 0);
 }
 export function showLanding() {
-  if (!batch.close()) return;
+  if (ui.batch && !ui.batch.close()) return;
   stopEditing();
   document.body.classList.remove('batching');
   $('#landing').hidden = false;

@@ -1991,6 +1991,17 @@ input.form-checkbox:checked {
 input.form-radio:checked {
   background-image: radial-gradient(circle, #111111 0 34%, transparent 37%);
 }
+/* Touch screens: a check box or radio can be tapped around its drawn box, as far as
+   --tap says: up to 44 px across, and never where another field is as near (tapAreas
+   in form-ui.js). */
+@media (pointer: coarse) {
+  input.form-checkbox::before,
+  input.form-radio::before {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--tap, 0px));
+  }
+}
 select.form-dropdown {
   padding-right: 1.1em;
   cursor: pointer;

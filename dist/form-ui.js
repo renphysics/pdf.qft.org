@@ -9,6 +9,8 @@ import {
   $,
   $$,
   activeIndex,
+  announceMessage,
+  hideToast,
   icon,
   pageIndexOf,
   phone,
@@ -18,10 +20,18 @@ import {
   touch,
   ui,
 } from './editor-core.js';
-import { inView, pageById, revealElement, scrollToPage, setCurrentPage } from './page-view.js';
+import {
+  inView,
+  pageById,
+  renderStage,
+  revealElement,
+  scrollToPage,
+  setCurrentPage,
+  setZoom,
+} from './page-view.js';
 import { rememberThumb, setSheet, thumbKey } from './pages.js';
 import { usedSources } from './documents.js';
-import { change, typing } from './app.js';
+import { change } from './history.js';
 
 // ---- Filling in forms ------------------------------------------------------------
 // With Fill form open, each page shows inputs over its form fields, and PDF.js
@@ -127,7 +137,10 @@ function fieldControl(source, field, widget) {
   if (field.kind === 'text') control.style.textAlign = ['left', 'center', 'right'][field.align] || 'left';
   return control;
 }
-/** Place an input over its widget, turned and cropped with the page; returns its top-left corner on the page. */
+/**
+ * Place an input over its widget, turned and cropped with the page. Returns its
+ * top-left corner on the page (points) and its box there as shown (px).
+ */
 function placeControl(control, entry, field, widget) {
   const [x, y, width, height] = widget.rect,
     inverse = invert(entry.geometry.matrix),
@@ -165,7 +178,13 @@ function placeControl(control, entry, field, widget) {
     origin.y * scale,
   ];
   style.transform = 'matrix(' + matrix.map((value) => Math.round(value * 1000) / 1000).join(',') + ')';
-  return { x: Math.min(origin.x, far.x), y: Math.min(origin.y, far.y) };
+  const left = Math.min(origin.x, far.x),
+    top = Math.min(origin.y, far.y);
+  return {
+    x: left,
+    y: top,
+    box: [left * scale, top * scale, Math.max(origin.x, far.x) * scale, Math.max(origin.y, far.y) * scale],
+  };
 }
 /** Show a field's value in its input (not while it is being typed in). */
 function syncControl(control, field, value) {
@@ -210,6 +229,7 @@ export function renderFormLayer(view) {
     syncControl(control, field, fieldValue(state, source, field));
   }
   for (const control of existing.values()) control.remove();
+  tapAreas(placed, entry);
   // Reading order, row by row: also the order Tab moves in.
   placed.sort((a, b) => Math.round(a[0].y / 6) - Math.round(b[0].y / 6) || a[0].x - b[0].x);
   const ordered = placed.map(([, control]) => control);
@@ -238,7 +258,7 @@ function commitControl(control) {
         [source.id]: { ...(state.formValues[source.id] || {}), [field.name]: value },
       };
     },
-    { key: field.kind === 'text' ? 'form:' + source.id + ':' + field.name : null },
+    { key: field.kind === 'text' ? 'form:' + source.id + ':' + field.name : null, label: 'Fill in a field' },
   );
   refreshThumbnailsSoon();
 }
@@ -257,6 +277,91 @@ export function focusField({ source, field, pageId }) {
   if (!control) return;
   control.focus({ preventScroll: true });
   revealElement(control);
+}
+// ---- Fields on phones --------------------------------------------------------------
+// At Fit a phone shows a form's fields 6 to 13 px tall, and 300% is not enough for
+// the 44 px a finger needs, so a field zooms the page to itself when it gets focus.
+
+const TOUCH_TARGET = 44, // px: a field tall enough to tap and to read
+  TOUCH_BOX = 24, // px: a check box or radio as drawn (its tap area is up to 44 px: tapAreas)
+  FIELD_ZOOM_MAX = 8;
+/**
+ * Touch screens: a check box or radio can be tapped around its drawn box, up to
+ * TOUCH_TARGET px across, but never where another field is as near: its tap
+ * area (--tap, studio.css) grows by half the gap to its nearest neighbour at
+ * most, and stays on the page. So a tap on a field always reaches that field,
+ * however small the page is shown.
+ */
+function tapAreas(placed, entry) {
+  const width = entry.geometry.width * entry.scale,
+    height = entry.geometry.height * entry.scale,
+    fingers = touch();
+  for (const [{ box }, control] of placed) {
+    if (control.type !== 'checkbox' && control.type !== 'radio') continue;
+    let room = 0;
+    if (fingers && !control.disabled) {
+      room = Math.min(
+        (TOUCH_TARGET - Math.min(box[2] - box[0], box[3] - box[1])) / 2,
+        box[0],
+        box[1],
+        width - box[2],
+        height - box[3],
+      );
+      for (const [{ box: other }] of placed) {
+        if (room <= 0) break;
+        if (other === box) continue;
+        // How far apart the two boxes are, along the axis that separates them most.
+        const gap = Math.max(other[0] - box[2], box[0] - other[2], other[1] - box[3], box[1] - other[3]);
+        room = Math.min(room, gap / 2);
+      }
+    }
+    const value = room >= 0.5 ? Math.floor(room * 10) / 10 + 'px' : '';
+    if (control.style.getPropertyValue('--tap') === value) continue;
+    if (value) control.style.setProperty('--tap', value);
+    else control.style.removeProperty('--tap');
+  }
+}
+/**
+ * Phones, under a finger: zoom the page so the focused field is large enough to
+ * tap and read, then bring it into the upper part of the view (room for the
+ * keyboard). Does nothing with a mouse, on a wider screen, without a focused
+ * field, or when the field is already large enough. `again`: after a relayout
+ * (the keyboard, a turn) the field keeps its size, unless the zoom was changed
+ * by hand since the field got focus.
+ */
+export function fitFieldForTouch(control = document.activeElement, { again = false } = {}) {
+  if (!phone() || !touch() || !control?.classList?.contains('form-field') || !control.isConnected) return;
+  if (again && ui.zoomByHand) return;
+  // The tool sheet may just have folded: lay the pages out for the stage as it is now.
+  renderStage();
+  const scroll = $('#canvas-scroll'),
+    area = scroll.getBoundingClientRect(),
+    box = control.getBoundingClientRect(),
+    target = control.type === 'checkbox' || control.type === 'radio' ? TOUCH_BOX : TOUCH_TARGET,
+    // On a turned page a field lies on its side: its height is its width on the screen.
+    turn = new DOMMatrixReadOnly(control.style.transform),
+    size = Math.abs(turn.b) > Math.abs(turn.a) ? box.width : box.height;
+  if (size > 0 && size < target - 0.5) {
+    // Sizes scale with the zoom; the field's centre stays put while the page grows around it.
+    const zoom = Math.min(FIELD_ZOOM_MAX, (ui.zoom * target) / size);
+    ui.formZoom ??= { before: ui.zoom };
+    setZoom(
+      zoom,
+      {
+        x: box.left + box.width / 2 - area.left - scroll.clientLeft,
+        y: box.top + box.height / 2 - area.top - scroll.clientTop,
+      },
+      { max: FIELD_ZOOM_MAX, across: true },
+    );
+    ui.formZoom.zoom = ui.zoom;
+  }
+  revealElement(control, { upper: true });
+}
+/** Leaving Fill form: back to the zoom from before the first field zoom, unless the user zoomed since. */
+export function restoreFormZoom() {
+  const kept = ui.formZoom;
+  ui.formZoom = null;
+  if (kept && Math.abs(ui.zoom - kept.zoom) < 0.0001) setZoom(kept.before, null, { across: true });
 }
 /** The first empty field from the current page on, or from the start. */
 export function nextEmptyField() {
@@ -328,12 +433,15 @@ export function clearForm() {
   );
   if (!fields.length) return;
   const empty = { text: '', checkbox: false, radio: null, dropdown: '', list: [] };
-  change(() => {
-    const values = { ...state.formValues };
-    for (const { source, field } of fields)
-      values[source.id] = { ...(values[source.id] || {}), [field.name]: empty[field.kind] };
-    state.formValues = values;
-  });
+  change(
+    () => {
+      const values = { ...state.formValues };
+      for (const { source, field } of fields)
+        values[source.id] = { ...(values[source.id] || {}), [field.name]: empty[field.kind] };
+      state.formValues = values;
+    },
+    { label: 'Clear the form' },
+  );
   refreshThumbnailsSoon();
   toast('Fields cleared. Undo brings their values back.');
 }
@@ -380,8 +488,23 @@ export function initFormInputs() {
     if (!control) return;
     const view = control.closest('.page-view');
     if (view) setCurrentPage(view.dataset.viewId);
-    // Phones: fold the tool sheet away so the field stays visible above the keyboard.
-    if (phone() && control.matches('input[type="text"], input[type="password"], textarea')) setSheet(false);
+    // A zoom set by hand is kept for the field that had focus then, not for this one
+    // (in any layout: a phone may be turned upright with the field still in focus).
+    ui.zoomByHand = false;
+    if (!phone()) return;
+    // Phones: the tool sheet folds away from a field that is typed in (room for the keyboard).
+    if (control.matches('input[type="text"], input[type="password"], textarea')) setSheet(false);
+    if (!touch()) return;
+    // Under a finger the page also zooms to the field, once the tap that focused
+    // it has been delivered in full: a box or a list that moved under the finger
+    // before its click would not toggle or open. Their sheet folds then, too.
+    requestAnimationFrame(() => {
+      if (document.activeElement !== control) return;
+      setSheet(false);
+      // A notice still showing lies over the zoom buttons and the top of the page.
+      if (!$('#toast').hidden && !$('#toast').classList.contains('error')) hideToast();
+      fitFieldForTouch(control);
+    });
   });
   // Tab moves through the fields in reading order, also to pages not shown yet.
   stageStack.addEventListener('keydown', (event) => {
@@ -419,4 +542,18 @@ export function initFormInputs() {
       return;
     }
   });
+}
+
+// ---- The Fill form panel (tool-panel.js describes the panel interface) ------------
+
+export function fields() {
+  return formPanel();
+}
+export function afterRender() {
+  updateFormSummary();
+}
+export function onInput(name, value) {
+  if (name !== 'flattenForms') return;
+  change(() => (state.flattenForms = value), { label: 'Flatten fields' });
+  announceMessage(value ? 'Fields will be flattened on download.' : 'Fields will stay fillable.');
 }

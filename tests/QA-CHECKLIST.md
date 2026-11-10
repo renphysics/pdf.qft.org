@@ -382,7 +382,7 @@ source review does not replace the owner’s browser verification.
   axe and a turned page (/Rotate 90) whose inputs turn with it.
 - Known limits: calculations and checks built into a form do not run; XFA-only forms
   are not supported; signature fields stay empty (Sign PDF places a picture of a
-  signature). On phones, fields are small at Fit: zoom in to fill them comfortably.
+  signature). On phones, the page zooms to the field you tap (see the 2026-11-07 section).
 
 ## Split and forms; help and FAQs — 2026-11-02
 
@@ -592,3 +592,199 @@ source review does not replace the owner’s browser verification.
   group is keyed by the calling workflow and cancels only pull-request runs, so a
   run of Test on main cannot cancel the tests a deploy waits for.
 
+## The “next” list: lazy editor, panels, forms on phones, CSP, focus, artifacts, tests, dependencies, polish — 2026-11-10
+
+- Edit history (`history.js`) and view recording (`views.js`) left `app.js`, so
+  no module imports an entry module back; `app.js` is a landing shell that
+  loads `editor.js` when a file is opened, or as soon as a visitor hovers,
+  focuses or touches the upload area, a tool card or the sample (a reader never
+  downloads it; the help and privacy dialogs and the landing's own buttons need
+  no editor), and every page preloads the three modules the shell imports at
+  once. A browser test checks the landing fetches nothing but those. The site-integrity
+  test checks the module graph and the preload list; the release test checks
+  that the dynamic import and the preloads carry the release id, and runs the
+  site-integrity suite on a stamped copy, as the Pages workflow does before it
+  deploys (its module-graph checks read stamped addresses too: found by
+  rehearsing the deploy steps, where they failed). Opening the
+  file picker stays synchronous with the click (browsers require it) while the
+  editor loads; files dropped or picked before it arrives are opened once it has.
+- Review of the lazy editor, each point reproduced before fixing. (1) A page
+  loaded before a deploy was given the new release's editor, whose modules
+  have other addresses and so were second copies with their own state: Add
+  another PDF replaced the document. The shell now checks that the editor
+  works on its own state (`sameRelease`) and otherwise does not use it; when
+  the visitor then opens something, the page reloads into the new release,
+  once, with a notice to try again (`refresh`); a reload that does not help
+  says so. (2) When the editor could not be fetched, the notice was
+  the browser's own text, it also appeared on a mere hover, the picker kept
+  its file (so choosing it again did nothing), and trying again cannot work in
+  Chromium, which never fetches a module twice in a page (probed in three
+  engines). The notice now says to check the connection and reload, warm-ups
+  fail silently, and the picker is emptied. (3) On the batch page, Choose PDFs
+  pressed before the editor had arrived opened the workspace but could not
+  open the picker later; the shell now opens a picker of its own at once and
+  hands the files over. (4) Module headers and the README described the
+  layout from before the split. Landing tests, in three engines: with the
+  new release's editor arriving while the file picker is open, the page stays
+  until the file is chosen, then reloads once with the notice, and afterwards
+  opens the file and adds another to it; a warm-up leaves the page and its
+  search text alone, the next click on Choose PDF reloads before a picker
+  opens, and a second mismatch asks for a reload by hand; a refused editor
+  gives the notice and an empty picker; the batch picker opens while the
+  editor is held back. Each fails with its fix taken out.
+- A second review pass, over the fixes themselves (three reviewers, then
+  verifiers). The first version of the reload above was silent on the usual
+  path: Choose PDF warms the editor up, so the page reloaded under the open
+  file picker without a notice, and a mere hover wiped the search text. It now
+  waits for an action, as described. Also from that pass: `expectToast`
+  threw when it met a page that was loading, instead of asking again; the
+  focus ring of an unavailable Move earlier or Move later was faded with the
+  button (it is dimmed in its text and border now, not as a whole); a zoom
+  set by hand was remembered until a field got focus in the phone layout, so
+  a field focused with the phone on its side stayed small when the phone was
+  turned upright; a text field on a turned page was never zoomed to, because
+  its height on the screen is its length (it is measured across its line
+  now); the size checks in the phone tests allowed no rounding (pages are
+  laid out on whole px); one window size of the short-window notice test and
+  two phone tests passed without their fixes, and were replaced or tightened;
+  a tagged form flattened with nothing typed in it was told that what was
+  added is untagged, and is now told so only when answers were typed.
+- `tool-panel.js` (2,000 lines) is now the panel's frame (318 lines: the field
+  builders, `renderTool`, `fillForm`, the input prologue and the `PANELS`
+  registry) plus twelve `panel-*.js` modules, one per tool or family, behind
+  one interface (`fields`, `values`, `onInput`, `onSubmit`, `afterRender`,
+  `afterFill`, `title`); Fill form's panel is `form-ui.js`. The code moved
+  verbatim; the protection queries moved to `editor-core.js` and signature
+  placement to `page-items.js`. A scripted check confirmed every named import
+  is exported and every call resolves; the site-integrity test checks the
+  registry covers exactly the tools with a tab and that each module exports
+  `fields()`. Browser suites in Chromium, WebKit and Firefox.
+- Dependencies: Dependabot proposes npm and GitHub Actions updates weekly (the
+  PDF libraries grouped apart, since their bundles are updated by hand); the
+  site-integrity test fails when `package.json` and `versions.json` disagree;
+  a monthly workflow compares the bundles with npm and opens or updates one
+  issue (`scripts/check-vendored-versions.mjs`, also runnable locally).
+- Forms on phones: at Fit, the fixture's fields were 9 px tall (6 px on the
+  iPhone 13 project) and the 300% zoom cap could not reach 44 px. A field that
+  gets focus now folds the sheet, lays the pages out again and zooms the page
+  so the field is 44 px tall (boxes 24 px, with a 44 px `::before` tap area on
+  coarse pointers), anchored on the field, then brings it into the top third of
+  the view; the zoom buttons step down from there, Fit shows the whole page,
+  leaving Fill form restores the zoom, and a refit (the keyboard, a turn)
+  re-asserts the size. Phone test (Chromium and WebKit): a tapped field reaches
+  44 px inside the stage with the sheet folded, Tab keeps the next field in
+  view, a check box toggles from a tap, and Fit returns. Desktop: the zoom stays
+  at Fit (forms test guard).
+- Review of the above, reproduced in Chromium and WebKit before fixing: every
+  box had a 44 px tap area whatever its neighbours, so at Fit a tap on the
+  "member" box chose a "plan" radio and, in WebKit, a tap on the e-mail field
+  did too; the sheet folded as soon as a box got focus, so on a last page the
+  first tap zoomed to the box without ticking it; the zoom also ran for a
+  mouse in a narrow window. Now a box's tap area grows by half the gap to its
+  nearest neighbour at most (`tapAreas`), the sheet folds with the zoom after
+  the tap for boxes and lists, the zoom needs a coarse pointer, and a zoom set
+  by hand is not put back. Phone tests: at Fit every field is on top of its
+  own surface; the first tap ticks a box 4 to 7 px wide and zooms it to 24 px;
+  a tap beside the zoomed box toggles it; leaving Fill form restores the zoom;
+  a last-page box is ticked by its first tap; a notice is put away when a
+  field is tapped. Desktop test: a 683 px window with a mouse is not zoomed.
+  Each new test fails with its fix taken out.
+- The content security policy no longer allows inline styles, `data:` or
+  `blob:` fonts or `blob:` workers, and forbids frames and media (the app uses
+  none of them; the licenses page runs no scripts, and its styles moved from
+  an inline block to `licenses/licenses.css`, so the policy `_headers` sends
+  for every path holds there too: a review finding, since a host that reads
+  `_headers` would have refused the block). Every browser test now fails on a
+  policy violation in the document, reported from a `securitypolicyviolation`
+  listener through the console; the preview comparison hides the edit layer
+  through each element's own style object while the picture is taken, not
+  with a style element. `tests/fixtures/hostile-metadata.pdf`
+  (made by `scripts/make-hostile-fixture.mjs`) carries HTML and script in its
+  title, author, creator, producer, field names, labels, options and bookmark,
+  an OpenAction and a `javascript:` link; the hostile test opens it under a
+  hostile file name on the Fill form page, adds a hostilely named image, and
+  visits Fill form, Document properties, Merge PDFs, Organize pages, Add an
+  image, the download name and the batch list: no flag set, nothing injected.
+- Focus and announcements: a panel control that disables itself (Delete, once
+  the selected pages are gone) hands focus to the nearest enabled control in
+  its group, the one before it first, instead of the panel heading, and the
+  heading shows a ring when it does get focus; Move earlier and Move later are
+  unavailable (`aria-disabled`) at the first and the last page, not disabled,
+  so focus stays on the button that reached the end and one Enter too many
+  says "This page is already the first" instead of moving the page back (a
+  review finding: focus used to go to the opposite button); the page-range hint is a live region, so an out-of-range number is
+  announced; the landing scroll respects reduced motion; on touch screens the
+  notice's close button has a 44 px tap area around its 28 px drawing; Pages
+  per sheet says when a handout leaves a tagged PDF's tags, labels or
+  attachments behind (`copyNotes`), like Extract and Delete do. Tests:
+  accessibility (focus), settings (the announced range), phone (the tap area),
+  margins-sheets (a tagged handout's note), copy (copyNotes).
+- Tagged PDFs: when the download keeps a PDF's structure tree, the page
+  numbers, headers, footers and watermark it adds are each wrapped in
+  `/Artifact <</Type /Pagination /Subtype /PageNum|Header|Footer|Watermark>>
+  BDC … EMC`, so screen readers skip them, and the download note says that
+  what the user added isn't tagged. Engine test: the four artifacts, one text
+  run each, the added text outside them, the note; an untagged PDF gets neither.
+- Tests: the seven Node suites are `node:test` tests now (81 named tests where
+  there were seven scripts chained with `&&`; 85 with those added since for
+  `{date}` and `{filename}`, for the stamped copy and for the one policy); `npm test` runs them in one
+  `node --test`, each file in its own process, so a failure is reported by name
+  and hides nothing (checked: with pictures not drawn, one test fails and 80
+  pass). The conversion was done by a script that wraps each section in a
+  test, hoists what later sections use and keeps the number of assertions
+  (5 suites), and by hand (release-stamp, whose temporary copy is removed when
+  the process ends). Browser tests: `expectToast` waits for a notice instead of
+  reading whichever is showing; the two batch clicks that swallowed their
+  errors now wait for the batch workspace; the browser's language and time
+  zone are fixed (en-US, UTC), with a German case for the A4 default.
+- Everyday details: undo steps have names (the tool's, or the action's: Rotate
+  pages, Move page, Delete text…), shown by Undo and Redo and in the notice
+  after undoing; Delete pages starts with nothing selected unless pages were
+  selected on purpose; a download's name says what was done (numbered,
+  watermarked, cropped, signed, filled, organized, merged, converted, edited),
+  after its first file's name; notices sit in the toolbar's free gap, at its
+  real width, or at the foot of the pages where the gap is too narrow (tested
+  at 800, 1024, 1280 and 1600 px: no overlap with page navigation, zoom or the
+  status line); the privacy sentence shows with the first document only.
+  Notices keep their five seconds: shortening them would cost reading time.
+- The adversarial review of this section (five reviewers by area, then four
+  verifiers who reproduced each finding independently): 28 findings, 27
+  confirmed and one that could not be run here (Windows), none refuted, all
+  fixed. Beyond those listed under their items above: a tagged PDF is one with
+  a structure tree (`/MarkInfo` alone got artifacts and a note about screen
+  readers); answers flattened into a tagged PDF are noted as untagged; a
+  decomposed file name (as macOS hands it over) in `{filename}` stopped the
+  export for Hangul, and is now drawn composed; a handout keeps the notes of
+  the export it was made from; Download selected pages is named after the
+  first file among those pages; the download's name is made safe by the
+  editor (`safeBaseName`), which the hostile test now reads from the link the
+  editor clicks instead of from what the browser made of it; `_headers` and
+  the pages declare one policy, which the site-integrity suite compares, and
+  a browser test opens the licenses page and the editor with it sent as a
+  header too; `expectToast` now requires that the notice was shown (the page
+  keeps a list of the notices it shows), where it had come to read the text
+  of a hidden one; two Node tests that checked nothing when selected by name
+  now say they need their file; the hostile names are given to the page as
+  bytes, never as files on disk, and the library check runs npm through a
+  shell, for Windows.
+  Review findings fixed: in a window shorter than the editor (1024 x 500, a
+  phone on its side) the notice at the foot of the pages was below the window's
+  edge, and now stays inside it; Delete pages still started with page 1
+  selected on its own page, after Reset and after Undo, and now starts empty
+  there too (tests for each).
+- `{date}` and `{filename}` in watermarks, headers, footers and page numbers:
+  today's date as 2026-11-10 and the name of the file each page came from,
+  without its extension. Engine test: two merged files and a blank page (each
+  page its own file's name, the blank page none), a name with `$&` and braces
+  in it put in as it is. Workflow test: a batch uses each file's name. Browser
+  tests: the preview and the download agree; with the clock at half past noon
+  UTC, a browser in Auckland shows the next day's date.
+- Remembered settings: Watermark, Headers & footers and Page numbers keep
+  their text and options in this browser only while "Remember these settings
+  on this device" is ticked. Browser tests: nothing is stored until it is
+  ticked; what is stored has neither the switch nor the pages; it follows an
+  edit and its Undo; the next PDF starts from it, on every page, with a notice
+  that says the saved ones are shown; unticking removes the key; saved headers
+  and footers go on when the tool opens, one Undo takes them off and the switch
+  then reads off; stored values of the wrong kind, and text that is no JSON,
+  are left out; a browser that refuses to store says so and unticks the box.

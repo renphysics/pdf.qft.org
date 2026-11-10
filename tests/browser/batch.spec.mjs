@@ -7,11 +7,8 @@ test('applies a footer and a crop to each PDF, isolates one that needs a passwor
   page,
 }) => {
   await page.goto('batch-edit-pdf/');
-  await page
-    .locator('[data-action="batch-choose"]')
-    .first()
-    .click()
-    .catch(() => {});
+  await page.locator('[data-action="batch-choose"]').first().click();
+  await expect(page.locator('#batch-workspace')).toBeVisible();
   await page.setInputFiles('#batch-file-input', [
     path.join(root, 'dist/assets/sample.pdf'),
     fixture('rotated-cropped.pdf'),

@@ -1,9 +1,14 @@
 // Watermark, headers and footers, page numbers: on as soon as they open, edge
-// margins down to 0, and a number out of range set to the nearest one allowed.
-import { test, expect, openSample, useTool } from './helpers.mjs';
+// margins down to 0, a number out of range set to the nearest one allowed,
+// {date} and {filename}, and settings remembered on this device.
+import { test, expect, download, expectToast, openSample, pdfText, useTool } from './helpers.mjs';
 
 const toggle = (page) => page.locator('[data-action="toggle-setting"]');
 const overlay = (page) => page.locator('.page-view.current .page-overlay');
+const remember = (page) => page.locator('#tool-form [name="rememberSetting"]');
+/** What the editor keeps in this browser for "Remember these settings on this device". */
+const STORAGE = 'qft-pdf.settings.v1';
+const stored = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), STORAGE);
 
 test('Page numbers and Watermark are on when they open; turned off or undone, they stay off', async ({
   page,
@@ -163,4 +168,216 @@ test('opened on the Watermark page, the opened message says the watermark is sho
   await expect(page.locator('#toast-message')).toHaveText(
     'Your PDF is ready. Everything happens on your device. Watermark “DRAFT” shown on every page. Undo takes it away.',
   );
+});
+
+test('a page range outside the document is announced', async ({ page }) => {
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  await page.selectOption('#tool-form [name="scope"]', 'pages');
+  const hint = page.locator('#scope-hint');
+  await expect(hint).toHaveAttribute('aria-live', 'polite');
+  await page.fill('#tool-form [name="scopePages"]', '99');
+  await page.keyboard.press('Tab');
+  await expect(hint).toContainText('between 1 and 3');
+  await expect(hint).toHaveClass(/invalid/);
+});
+
+test('{date} and {filename} in a footer and a page number, in the preview and in the download', async ({
+  page,
+}) => {
+  await openSample(page, 'add-header-and-footer-to-pdf/');
+  await expect(page.locator('#tool-panel')).toContainText(
+    '{date} is today’s date and {filename} the file’s name.',
+  );
+  // The browser's time zone is UTC (playwright.config.mjs); the test may run across midnight.
+  const today = () => new Date().toISOString().slice(0, 10);
+  const before = today();
+  await page.fill('#tool-form [name="footerLeft"]', '{filename}, {date}');
+  await useTool(page, 'numbers');
+  await page.fill('#tool-form [name="format"]', '{filename} {page}/{total}');
+  await expect(overlay(page)).toContainText('A little room to create 1/3');
+  const shown = (await overlay(page).textContent()).match(/A little room to create, (\d{4}-\d{2}-\d{2})/);
+  expect(shown, 'the footer in the preview').not.toBeNull();
+  expect([before, today()]).toContain(shown[1]);
+  const { bytes } = await download(page, () => page.click('#download-button'));
+  const text = await pdfText(bytes);
+  expect(text).toHaveLength(3);
+  for (let index = 0; index < 3; index++) {
+    expect(text[index]).toContain(`A little room to create ${index + 1}/3`);
+    expect([before, today()].some((date) => text[index].includes('A little room to create, ' + date))).toBe(
+      true,
+    );
+  }
+});
+
+test.describe('where the date is already tomorrow', () => {
+  test.use({ timezoneId: 'Pacific/Auckland' });
+  test('{date} is the date where the reader is', async ({ page }) => {
+    // Half past noon in UTC on 4 March is half past one at night on 5 March in Auckland.
+    await page.clock.setFixedTime(new Date('2026-03-04T12:30:00Z'));
+    await openSample(page, 'add-watermark-to-pdf/');
+    await page.fill('#tool-form [name="text"]', 'Copy of {date}');
+    await expect(overlay(page)).toContainText('Copy of 2026-03-05');
+  });
+});
+
+test('ticked, the settings of Page numbers start the tool next time, follow edits and Undo, and are forgotten when unticked', async ({
+  page,
+}) => {
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  await expect(remember(page)).not.toBeChecked();
+  await page.fill('#tool-form [name="format"]', 'p. {page}');
+  await page.selectOption('#tool-form [name="position"]', 'bottom-center');
+  await page.selectOption('#tool-form [name="scope"]', 'pages');
+  // Nothing is kept unless it is asked for.
+  expect(await stored(page)).toBeNull();
+  await remember(page).check();
+  // The text and options: not whether they are shown, nor on which pages.
+  expect(await stored(page)).toEqual({
+    pageNumbers: {
+      format: 'p. {page}',
+      start: 1,
+      size: 10,
+      color: '#53635d',
+      margin: 28,
+      position: 'bottom-center',
+      mirror: false,
+    },
+  });
+  // What is remembered follows what is used: an edit, and its Undo.
+  await page.fill('#tool-form [name="format"]', 'x {page}');
+  await expect.poll(() => stored(page)).toMatchObject({ pageNumbers: { format: 'x {page}' } });
+  await page.click('#undo-button');
+  await expect(overlay(page)).toContainText('p. 1');
+  await expect.poll(() => stored(page)).toMatchObject({ pageNumbers: { format: 'p. {page}' } });
+
+  // The next PDF starts from them, on every page, and the notice says whose they are.
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  await expect(overlay(page)).toContainText('p. 1');
+  await expectToast(
+    page,
+    'Your PDF is ready. Everything happens on your device. Your saved page numbers are shown on every page. Undo takes them away.',
+  );
+  await expect(remember(page)).toBeChecked();
+  await expect(page.locator('#tool-form [name="position"]')).toHaveValue('bottom-center');
+  await expect(page.locator('#tool-form [name="scope"]')).toHaveValue('all');
+  // Undo takes them off this PDF; they stay remembered.
+  await page.click('#undo-button');
+  await expect(overlay(page)).not.toContainText('p. 1');
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'false');
+  expect(await stored(page)).toMatchObject({ pageNumbers: { format: 'p. {page}' } });
+
+  // Unticked, they are forgotten, and the tool starts as it does for everyone.
+  await remember(page).uncheck();
+  expect(await stored(page)).toBeNull();
+  expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE)).toBeNull();
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  await expect(overlay(page)).toContainText('Page 1 of 3');
+  await expect(remember(page)).not.toBeChecked();
+  await expectToast(
+    page,
+    'Your PDF is ready. Everything happens on your device. Page numbers shown on every page. Undo takes them away.',
+  );
+});
+
+test('remembered headers and footers go on the next PDF when the tool opens, as one step to undo', async ({
+  page,
+}) => {
+  await openSample(page, 'add-header-and-footer-to-pdf/');
+  // Remembered with nothing typed, there is nothing to put on the next PDF.
+  await remember(page).check();
+  await openSample(page, 'add-header-and-footer-to-pdf/');
+  await expect(remember(page)).toBeChecked();
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#undo-button')).toBeDisabled();
+  await page.fill('#tool-form [name="footerLeft"]', 'Draft of {filename}');
+  await page.locator('#tool-form [name="mirror"]').check();
+  await expect
+    .poll(() => stored(page))
+    .toMatchObject({ headerFooter: { footerLeft: 'Draft of {filename}', mirror: true } });
+
+  // Opened on another tool, the PDF is left as it is until Headers & footers is used.
+  await openSample(page);
+  await expect(overlay(page)).not.toContainText('Draft of');
+  await expect(page.locator('#undo-button')).toBeDisabled();
+  await useTool(page, 'footer');
+  await expect(overlay(page)).toContainText('Draft of A little room to create');
+  await expectToast(page, 'Your saved headers and footers are shown on every page. Undo takes them away.');
+  await expect(page.locator('#tool-form [name="footerLeft"]')).toHaveValue('Draft of {filename}');
+  await expect(page.locator('#tool-form [name="mirror"]')).toBeChecked();
+  // One step takes them away; the switch then says they are off, and puts them back.
+  await page.click('#undo-button');
+  await expect(overlay(page)).not.toContainText('Draft of');
+  await expect(page.locator('#undo-button')).toBeDisabled();
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'false');
+  await toggle(page).click();
+  await expect(overlay(page)).toContainText('Draft of A little room to create');
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
+});
+
+test('what the browser kept is used only where it is of the kind the tool expects', async ({ page }) => {
+  await page.goto('add-page-numbers-to-pdf/');
+  await page.evaluate((key) => {
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        pageNumbers: {
+          format: 7,
+          size: 'big',
+          start: 5,
+          position: 'bottom-left',
+          enabled: false,
+          pages: ['nowhere'],
+          more: 'x',
+        },
+        watermark: 'DRAFT',
+        headerFooter: ['Left'],
+      }),
+    );
+  }, STORAGE);
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  // The start and the position are taken; the format and the size are the tool's own; shown, on every page.
+  await expect(overlay(page)).toContainText('Page 5 of 3');
+  await expect(page.locator('#tool-form [name="size"]')).toHaveValue('10');
+  await expect(page.locator('#tool-form [name="position"]')).toHaveValue('bottom-left');
+  await expect(page.locator('#tool-form [name="scope"]')).toHaveValue('all');
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
+  // The next edit writes them back as the tool keeps them.
+  await page.fill('#tool-form [name="format"]', 'n {page}');
+  await expect
+    .poll(() => stored(page))
+    .toMatchObject({
+      pageNumbers: { format: 'n {page}', start: 5, size: 10, position: 'bottom-left' },
+    });
+  const kept = (await stored(page)).pageNumbers;
+  for (const name of ['enabled', 'pages', 'more']) expect(kept).not.toHaveProperty(name);
+  // Something that is not a set of settings is not one: the watermark is the tool's own.
+  await useTool(page, 'watermark');
+  await expect(overlay(page)).toContainText('DRAFT');
+  await expect(remember(page)).not.toBeChecked();
+  await expectToast(page, 'Watermark “DRAFT” shown on every page. Undo takes it away.');
+  await useTool(page, 'footer');
+  await expect(remember(page)).not.toBeChecked();
+  await expect(page.locator('#tool-form [name="headerLeft"]')).toHaveValue('');
+
+  // Text that cannot be read at all is nothing remembered.
+  await page.evaluate((key) => localStorage.setItem(key, '{"pageNumbers":'), STORAGE);
+  await openSample(page, 'add-page-numbers-to-pdf/');
+  await expect(overlay(page)).toContainText('Page 1 of 3');
+  await expect(remember(page)).not.toBeChecked();
+});
+
+test('a browser that will not keep the settings says so, and the box is left unticked', async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    };
+  });
+  await openSample(page, 'add-watermark-to-pdf/');
+  // A click, not check(): the box is expected to be unticked again.
+  await remember(page).click();
+  await expectToast(page, 'This browser could not keep these settings.');
+  await expect(remember(page)).not.toBeChecked();
+  // The watermark itself is unaffected.
+  await page.fill('#tool-form [name="text"]', 'SAMPLE');
+  await expect(overlay(page)).toContainText('SAMPLE');
 });

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="theme-color" content="#244e41">
   <!-- page:meta -->
   <title>Fill in a PDF form for free, in your browser — QFT PDF</title>
@@ -28,6 +28,11 @@
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="../studio.css">
   <link rel="stylesheet" href="../batch.css">
+  <!-- modules:preload -->
+  <link rel="modulepreload" href="../editor-core.js">
+  <link rel="modulepreload" href="../routes.js">
+  <link rel="modulepreload" href="../views.js">
+  <!-- /modules:preload -->
   <script type="module" src="../app.js"></script>
 </head>
 <body data-tool="form">
@@ -108,7 +113,7 @@
       <section class="how-section tool-how section-wrap" aria-labelledby="how-title">
         <div class="how-title"><div class="eyebrow">HOW IT WORKS</div><h2 id="how-title">How to fill in<br> <em>a PDF form.</em></h2></div>
         <div class="how-step"><span>01</span><h3>Open your PDF.</h3><p>Choose a file from your device. It opens right here in your browser.</p></div>
-        <div class="how-step"><span>02</span><h3>Fill in the fields.</h3><p>Click a field and type, tick check boxes, and choose options. Tab takes you to the next field, and Go to the next empty field finds what is left.</p></div>
+        <div class="how-step"><span>02</span><h3>Fill in the fields.</h3><p>Click a field and type, tick check boxes, and choose options. Tab takes you to the next field, and Go to the next empty field finds what is left. On a phone, the page zooms in to the field you tap.</p></div>
         <div class="how-step"><span>03</span><h3>Download.</h3><p>Keep the form fillable, or flatten it so it looks the same in every app. Add your signature with Sign PDF if it needs one.</p></div>
       </section>
       <section class="faq-section section-wrap" aria-labelledby="faq-title">

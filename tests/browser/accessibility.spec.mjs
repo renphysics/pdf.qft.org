@@ -31,11 +31,8 @@ test('home page, tool pages, licenses and batch', async ({ page }) => {
     expect(await violations(page), address).toEqual([]);
   }
   await page.goto('batch-edit-pdf/');
-  await page
-    .locator('[data-action="batch-choose"]')
-    .first()
-    .click()
-    .catch(() => {});
+  await page.locator('[data-action="batch-choose"]').first().click();
+  await expect(page.locator('#batch-workspace')).toBeVisible();
   await page.setInputFiles('#batch-file-input', [fixture('rotated-cropped.pdf')]);
   expect(await violations(page), 'batch with a file').toEqual([]);
 });
@@ -107,7 +104,9 @@ test('switches and segmented controls show their state in forced-colours mode', 
   browserName,
 }) => {
   test.skip(browserName !== 'chromium', 'Playwright emulates forced colours in Chromium only');
-  await page.emulateMedia({ forcedColors: 'active' });
+  // Reduced motion too: the switch fades between its colours, and a colour read
+  // as the fade starts is still the one it had.
+  await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
   await openSample(page, 'add-page-numbers-to-pdf/');
   const style = (locator) =>
     locator.evaluate((node) => {
@@ -129,4 +128,59 @@ test('switches and segmented controls show their state in forced-colours mode', 
   const chosen = await style(page.locator('.segmented input:checked + span'));
   const other = await style(page.locator('.segmented input:not(:checked) + span').first());
   expect(chosen.background, 'the chosen segment looks different').not.toBe(other.background);
+});
+
+test('a button that reaches its limit keeps focus; one that disables itself hands focus to its neighbour', async ({
+  page,
+}) => {
+  await openSample(page);
+  await useTool(page, 'pages');
+  await page.locator('[data-page-open]').nth(1).click();
+  await ready(page);
+  const earlier = page.locator('[data-action="move-earlier"]'),
+    order = () =>
+      page
+        .locator('#page-list [data-page-id]')
+        .evaluateAll((items) => items.map((item) => item.dataset.pageId));
+  const before = await order();
+  await earlier.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#announce-status')).toContainText('Page moved to position 1.');
+  // At the first page the button is unavailable, not disabled: focus stays on it,
+  // not on Move later, where one Enter too many would move the page back.
+  await expect(earlier).toHaveAttribute('aria-disabled', 'true');
+  await expect(earlier).toBeFocused();
+  // It looks unavailable in its text, not as a whole: fading the button would
+  // fade the focus ring that shows where the keyboard is.
+  const look = (locator) =>
+    locator.evaluate((button) => {
+      const style = getComputedStyle(button);
+      return {
+        opacity: style.opacity,
+        color: style.color,
+        ring: style.outlineStyle + ' ' + style.outlineWidth,
+      };
+    });
+  const unavailable = await look(earlier),
+    available = await look(page.locator('[data-action="move-later"]'));
+  expect(unavailable.opacity).toBe('1');
+  expect(unavailable.ring).toBe('solid 3px');
+  expect(unavailable.color).not.toBe(available.color);
+  const moved = await order();
+  expect(moved).toEqual([before[1], before[0], before[2]]);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#announce-status')).toContainText('This page is already the first.');
+  expect(await order()).toEqual(moved);
+  await expect(page.locator('[data-action="move-later"]')).not.toHaveAttribute('aria-disabled', 'true');
+
+  // Delete pages: the button disables itself when the selected pages are gone, and
+  // focus goes to the control next to it, not to the first one in the panel.
+  await useTool(page, 'delete');
+  await page.locator('[data-page-select]').nth(2).check();
+  const remove = page.locator('[data-action="delete-pages"]');
+  await remove.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#document-info')).toHaveText(/^2 pages/);
+  await expect(remove).toBeDisabled();
+  await expect(page.locator('[data-action="select-range"]')).toBeFocused();
 });

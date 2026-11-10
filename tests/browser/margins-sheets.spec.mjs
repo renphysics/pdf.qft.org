@@ -6,7 +6,7 @@ import {
   openFiles,
   ready,
   useTool,
-  toastText,
+  expectToast,
   download,
   pdfText,
   previewDifference,
@@ -31,7 +31,7 @@ test('adds margins to every page or one, as one undo step, and removes them', as
   await page.click('[data-action="margins-notes"]');
   await expect(page.locator('#tool-form [name="marginRight"]')).toHaveValue('60');
   await page.click('#tool-form [type="submit"]');
-  expect(await toastText(page)).toBe('Margins added to 3 pages.');
+  await expectToast(page, 'Margins added to 3 pages.');
   await expect
     .poll(async () => (await sheet.boundingBox()).width / (await sheet.boundingBox()).height)
     .toBeGreaterThan(before.width / before.height + 0.15);
@@ -49,14 +49,14 @@ test('adds margins to every page or one, as one undo step, and removes them', as
   await page.selectOption('#tool-form [name="marginScope"]', 'current');
   await page.fill('#tool-form [name="marginTop"]', '10');
   await page.click('#tool-form [type="submit"]');
-  expect(await toastText(page)).toBe('Margins added to the page.');
+  await expectToast(page, 'Margins added to the page.');
   const once = (await download(page, () => page.click('#download-button'))).bytes;
   expect((await size(once, 0))[1]).toBeCloseTo(original[1] + 10 * MM, 1);
   expect(await size(once, 1)).toEqual(original);
 
   // Remove added margins brings the page back.
   await page.click('[data-action="margins-remove"]');
-  expect(await toastText(page)).toBe('The added margins are removed.');
+  await expectToast(page, 'The added margins are removed.');
   expect(await size((await download(page, () => page.click('#download-button'))).bytes, 0)).toEqual(original);
 });
 
@@ -93,7 +93,6 @@ test('added margins are blank, in the preview as in the download', async ({ page
   expect(drawn.dark, 'the text is drawn').toBeGreaterThan(50);
   expect(drawn.red, 'the square the CropBox hid stays hidden in the margin').toBe(0);
   const { bytes } = await download(page, () => page.click('#download-button'));
-  // (This hides notices for the rest of the test.)
   expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.003);
 });
 
@@ -109,7 +108,7 @@ test('puts 2 or 4 pages on each sheet, with the edits, and the document stays as
   );
   const sheets = await download(page, () => page.click('#tool-form [type="submit"]'));
   expect(sheets.name).toBe('A little room to create-4-per-sheet.pdf');
-  expect(await toastText(page)).toBe('Your sheet has been downloaded.');
+  await expectToast(page, 'Your sheet has been downloaded.');
   const doc = await PDFLib.PDFDocument.load(sheets.bytes);
   expect(doc.getPageCount()).toBe(1);
   expect(await size(sheets.bytes)).toEqual([595.28, 841.89]);
@@ -125,4 +124,24 @@ test('puts 2 or 4 pages on each sheet, with the edits, and the document stays as
   expect(two.name).toBe('A little room to create-2-per-sheet.pdf');
   expect((await PDFLib.PDFDocument.load(two.bytes)).getPageCount()).toBe(2);
   expect(await size(two.bytes)).toEqual([792, 612]);
+});
+
+test('a handout from a tagged PDF says the tags are left behind', async ({ page }) => {
+  const doc = await PDFLib.PDFDocument.create();
+  for (let number = 1; number <= 2; number++)
+    doc.addPage([300, 300]).drawText(`PAGE-${number}`, { x: 40, y: 150, size: 16 });
+  doc.catalog.set(PDFLib.PDFName.of('StructTreeRoot'), doc.context.obj({ Type: 'StructTreeRoot' }));
+  doc.catalog.set(PDFLib.PDFName.of('MarkInfo'), doc.context.obj({ Marked: true }));
+  await openFiles(page, await writeTemporary('tagged.pdf', await doc.save()), 'pdf-pages-per-sheet/');
+  await download(page, () => page.click('#tool-form [type="submit"]'));
+  await expectToast(page, /without the original’s accessibility tags/);
+  // With a page deleted first, the export is already a copy without the tags:
+  // the handout says what that copy left out, as a plain download does.
+  await useTool(page, 'delete');
+  await page.locator('[data-page-select]').nth(1).check();
+  await page.click('[data-action="delete-pages"]');
+  await expect(page.locator('#document-info')).toHaveText(/^1 page/);
+  await useTool(page, 'sheets');
+  await download(page, () => page.click('#tool-form [type="submit"]'));
+  await expectToast(page, /^Your sheet has been downloaded\..*without the original’s accessibility tags/);
 });

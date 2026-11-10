@@ -40,6 +40,10 @@ export default defineConfig({
     : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4173/',
+    // The editor reads the browser's language (Letter or A4 by default) and dates
+    // follow the time zone: fixed, so a test means the same on every machine.
+    locale: 'en-US',
+    timezoneId: 'UTC',
     acceptDownloads: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

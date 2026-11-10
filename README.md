@@ -32,8 +32,9 @@ normal reload just after a deploy could pair the new page with the previous
 release's scripts. First-party files share one release id derived from their
 contents; each engine bundle is versioned by its own bytes, so it is downloaded
 again only when it changes. `tests/release-stamp.test.mjs` keeps the script in
-step with the sources. No server, API keys, or external document-processing service
-is needed.
+step with the sources, and runs the site-integrity suite on a stamped copy, as
+the Pages workflow does before it deploys. No server, API keys, or external
+document-processing service is needed.
 
 The two text fonts are versioned the same way, and the app keeps them in Cache
 Storage under that URL (`fetchFont` in `pdf-engine.js`): GitHub Pages marks
@@ -84,7 +85,24 @@ python3 -m http.server 8000 --directory dist
 Open `http://localhost:8000/`. For production, serve `dist/` over HTTPS.
 GitHub Pages ignores `_headers`; the HTML therefore also provides its content
 security policy and referrer policy through supported meta tags. `_headers`
-remains available for hosts that support that format.
+remains available for hosts that support that format, and sends the policy the
+pages declare (`tests/site-integrity.test.mjs` compares them).
+
+The content security policy allows only the site's own scripts, styles,
+fonts, workers and connections (plus WebAssembly, and `data:` and `blob:`
+images: the CSS icons and object URLs for pictures), and no frames or media:
+no page has an inline style or script (the licenses page's styles are a file,
+`licenses/licenses.css`), fonts come as bytes, and the PDF.js and export
+workers are files. A meta tag binds its document. A worker takes its policy
+from the headers of its own file, so on GitHub Pages, which sends none, the
+two workers run without one; a host that reads `_headers` sends it for them
+too. Every browser test fails on a policy violation in the document, one test
+opens the licenses page and the editor with the `_headers` policy sent as a
+header as well, and `tests/browser/hostile.spec.mjs` opens a PDF whose title,
+author, creator, producer, field names, labels, options and bookmark carry
+HTML and script (`scripts/make-hostile-fixture.mjs`), with a hostile file name
+and image name, and checks that nothing runs or is injected in any panel that
+shows them, and that the download is given a name without those characters.
 
 The large CJK font is stored losslessly as two chunks under `vendor/fonts/` to
 stay within the repository upload API's request limit. `prepare-assets.mjs`
@@ -120,9 +138,12 @@ page's canonical address, metadata and FAQ data.
 
 To add a tool: add it to `TOOLS` (and an icon symbol to `index.html` if it needs
 a new one); add its page's copy to `scripts/pages/content.mjs`; add its panel's
-description in `editor-core.js` and its panel (fields, values, input and submit)
-in `tool-panel.js`, with any button actions in `app.js`; run `npm run pages`;
-add a browser test and a QA checklist entry.
+description in `editor-core.js`; write its panel as a module, `panel-<tool>.js`,
+exporting `fields(item, index)` and, as needed, `values`, `onInput`, `onSubmit`,
+`afterRender`, `afterFill` and `title` (the interface is described at the top of
+`tool-panel.js`), and register it in `PANELS` there, with any button actions in
+`editor.js`; run `npm run pages`; add a browser test and a QA checklist entry.
+`npm test` checks that every tool with a tab has a panel module.
 
 Inside a page, the editor and the batch workspace are browser history entries,
 so Back and Forward move between views, the address names the tool in use, and
@@ -168,6 +189,42 @@ shows it without building a PDF:
   can also reverse the order of all pages, and interleave a double-sided scan:
   the first half of the pages are the fronts and the rest the backs, scanned
   from the last sheet or the first (`interleaveOrder` in `workflows.js`).
+- In a watermark, a header, a footer or a page number, `{page}` and `{total}`
+  stand for the page number and the page count, `{date}` for today's date
+  (2026-11-10, the date where the reader is) and `{filename}` for the name of
+  the file the page came from, without its extension: each page of a merged
+  document shows its own file, a blank page none, and each file of a batch its
+  own name (`variables` and `pageVariables` in `layout.js`). The name is drawn
+  in composed form, as it would be typed: macOS hands names over decomposed,
+  and the fonts have no glyphs for Hangul letters on their own.
+- Watermark, Headers & footers and Page numbers each have "Remember these
+  settings on this device". Ticked, the tool's text and options are kept in
+  this browser (not the PDF, nor which pages), follow what is used, Undo and
+  Redo included, and are where the tool starts with the next PDF, whose notice
+  says that the saved ones are shown; saved headers and footers go on when the
+  tool opens, as one undo step. Unticking forgets them. What the browser kept
+  is used only where it is of the kind the tool expects (`defaultSetting` in
+  `panel-settings.js`).
+- Every edit is an undo step with a name: Undo and Redo say which step they
+  take ("Undo: Rotate pages", in the button's tooltip and its accessible name),
+  and a notice says what was undone, in place of one that no longer holds.
+- A download is named after its first file and what was done to it:
+  `-numbered`, `-watermarked`, `-cropped`, `-signed`, `-filled` or `-organized`
+  when the edits are of one kind, `-merged` for several files, `-converted`
+  for pictures made into pages, `-protected` or `-unlocked` for passwords, and
+  `-edited` otherwise (`outputName` in `documents.js`). Download selected
+  pages is named after the first file among those pages. The editor gives the
+  name in a form every system takes (`safeBaseName`: no `< > : " | ? *` or
+  control characters), instead of leaving that to the browser.
+- On a desktop a notice covers no control: it sits in the toolbar's gap
+  between page navigation and zoom, as wide as the gap allows, or at the foot
+  of the pages where the gap is too narrow, and inside the window when that is
+  shorter than the editor. On a phone it stays at the top, under the document
+  bar and clear of the tools under the thumbs; there it lies over page
+  navigation and zoom until it goes, so it is put away when a form field is
+  tapped. Notices stay five seconds or longer, by their length; errors stay
+  until dismissed. "Everything happens on your device" is said with the first
+  document opened in a tab, not every time.
 - Every change is one undo step (typing, dragging and sliders merge into one
   step), with redo. Problems the export would report, such as a character the
   fonts cannot draw or a header too long for its page, are shown on the page
@@ -178,31 +235,68 @@ shows it without building a PDF:
 
 On phones the document comes first: the page fills the screen under a compact
 document bar, tools sit in a bottom bar, and each tool's settings open in a
-sheet that folds away. Controls are at least 44 px.
+sheet that folds away. Controls are at least 44 px, and in Fill form the page
+zooms in to the field you tap (below).
 
-The editor's code is split by what it does. `app.js` starts it (edit history,
-addresses, the actions behind buttons, listeners), and the rest lives in
-`editor-core.js` (state, helpers and messages; it imports no other editor
-module, so every module can use it as they load), `page-view.js` (the page
-preview), `page-items.js` (typing, moving and resizing items, crop drag),
-`form-ui.js` (Fill form), `tool-panel.js` (the tool panel), `pages.js` (pages,
-the page strip and choosing tools) and `documents.js` (opening, building and
-downloading PDFs). The modules import each other's functions freely; code that
-runs as a module loads uses only `editor-core.js` and the libraries. The release
-script versions every module's imports (`scripts/stamp-release.mjs`), so a new
-module needs no changes there.
+The editor's code is split by what it does. `app.js` runs on every page and is
+all a page needs before a file is opened: the tool search, opening files and the
+sample, dialogs and notices. It loads the editor, `editor.js`, when a file is
+opened, and starts loading it as soon as a visitor hovers, focuses or touches
+the upload area, a tool card or the sample, so it is usually there before the
+click, while a visitor who only reads the page never downloads its 400 KB; the
+few modules the page needs at once are preloaded on every page
+(`scripts/build-pages.mjs` writes the `<link rel="modulepreload">` tags). `editor.js` starts the editor (the actions
+behind buttons, what is redrawn after a change, listeners), and the rest lives
+in `editor-core.js` (state, helpers and messages; it imports no other editor
+module, so every module can use it as they load), `history.js` (edit history:
+`change()`, undo and redo; it imports only `editor-core.js` and `editor.js`
+registers what to redraw, so any module can record a change without importing
+an entry module back), `views.js` (addresses and browser history, built the same
+way), `page-view.js` (the page preview), `page-items.js` (typing, moving and
+resizing items, crop drag, placing signatures), `form-ui.js` (Fill form),
+`tool-panel.js` (the tool panel's frame: field builders, `renderTool()`,
+`fillForm()` and the panel registry) with one `panel-*.js` module per tool or
+family of tools (text, image and highlight; draw; watermark, headers and
+footers and page numbers; organize, delete and merge; crop; margins; sheets;
+split; protect and unlock; sign; convert; properties), `pages.js` (pages, the
+page strip and choosing tools) and `documents.js` (opening, building and
+downloading PDFs). The editor's modules import each
+other's functions freely; code that runs as a module loads uses only the leaf
+modules (`editor-core.js`, `history.js`, `views.js`) and the libraries, and no
+module imports `app.js` or `editor.js` (`tests/site-integrity.test.mjs` checks
+the graph). The release script versions every module's imports, static and
+dynamic (`scripts/stamp-release.mjs`), so a new module needs no changes there.
+
+The landing shell and the editor share their state by importing the same
+`editor-core.js`, and the editor is fetched later than the shell. After a
+deploy, a page that was loaded before it would be given the new release's
+editor, whose modules have other addresses and so their own state. The shell
+checks that the editor it loaded works on its own state (`sameRelease` in
+`app.js`) and otherwise does not use it. The page is left as it is until the
+visitor opens something (a warm-up never reloads: the file picker may be open,
+or the search in use); then it reloads into the new release, once, and says
+that the step has to be repeated (`refresh`). When the editor cannot be
+fetched at all, the notice asks for a reload: Chromium does not fetch a module
+a second time in the same page.
 
 ## Development
 
 The application uses plain ES modules, HTML, and CSS. Runtime assets are pinned
-in `dist/assets/vendor/versions.json`. The landing page loads no PDF engine:
+in `dist/assets/vendor/versions.json`. The landing page loads neither the editor (`editor.js` and its modules come when a
+file is opened, or when a visitor shows intent) nor a PDF engine:
 `pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
 non-ASCII text), and `preview.js` imports PDF.js when a document opens. Both
 start downloading as soon as a visitor opens the file picker, drags a file in,
 or opens the sample. The package manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
-change the project's MIT license.
+change the project's MIT license. Dependabot (`.github/dependabot.yml`)
+proposes updates to those packages and to the pinned GitHub Actions each week.
+The library bundles below are updated by hand: `npm test` fails when
+`package.json` and `dist/assets/vendor/versions.json` name different versions,
+and the Vendored libraries workflow (`.github/workflows/vendored-libraries.yml`,
+once a month) opens an issue when npm has a newer release;
+`node scripts/check-vendored-versions.mjs` runs the same comparison locally.
 
 pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
 maintained fork with the same API (the original project's last release was
@@ -242,7 +336,10 @@ that the editor preview draws text where the export puts it. Set `PYTHON`
 if Python 3 has another executable name on your machine.
 
 The editor keeps PDFs, edits, and generated files in tab memory. Saved presets
-store only settings and entered preset text in this browser's localStorage.
+store only settings and entered preset text in this browser's localStorage. So
+do Watermark, Headers & footers and Page numbers, each only while its "Remember
+these settings on this device" is ticked (`qft-pdf.settings.v1`); unticking
+removes them.
 Download creates a new file; originals are not overwritten. There is no upload
 endpoint, analytics script, sign-in, or billing integration. Ordinary website
 requests are still handled by the hosting platform.
@@ -291,7 +388,13 @@ carried over: page labels other than plain numbers from 1, file attachments and
 tags (the structure screen readers use); the download message says when a copy
 leaves any of these out. Edits that keep every page of one PDF exactly once
 (adding content, reordering, rotating, cropping) change the original document
-instead, so all of these stay.
+instead, so all of these stay. In a tagged PDF kept this way (one with a
+structure tree; `/MarkInfo` alone tags nothing), the page numbers, headers,
+footers and watermark the editor adds are marked as pagination artifacts
+(`/Artifact <</Type /Pagination /Subtype …>>`), which screen readers skip;
+text, pictures, highlights, drawings and signatures you add, and form answers
+flattened into the pages, are not tagged, and the download message says so. A
+handout (Pages per sheet) says what was left out on the way to it as well.
 
 A page whose PDF sets a larger unit (`/UserUnit`) is shown and edited in the
 PDF's own units, as its download is drawn: sizes such as 10 pt text are in those
@@ -312,6 +415,16 @@ layers stay hidden (by rendering with PDF.js); and the download notes about page
 labels, attachments, tags and digital signatures.
 They use the development dependencies installed by `npm ci`.
 
+The Node suites (`tests/*.test.mjs`) are [`node:test`](https://nodejs.org/api/test.html)
+tests. `npm test` runs the static checks (`npm run check:static`: the font, the
+generated pages, formatting) and then every suite, each in its own process, so
+one failure hides nothing, and every check is a named test in the report. Run
+one suite with `node --test tests/engine.test.mjs`, and one test with
+`--test-name-pattern="page ranges"`. The tests in a suite run in order and some
+use what an earlier one built: a test that stands alone can be run by name,
+the others with their file. `npm run check` runs the static checks and the
+site-integrity suite only.
+
 Browser tests in `tests/browser/` drive the real site with
 [Playwright](https://playwright.dev) in Chromium, WebKit (Safari's engine) and
 Firefox: opening files and the sample, typing and
@@ -321,7 +434,11 @@ password-protected files, signatures, filling forms, JPG to PDF and PDF to
 JPG, batch processing, continuous scrolling (the current page, editing any
 page, zoom, a 400-page document), phones (layout, 44 px targets, no sideways
 scrolling, swiping between pages; an iPhone in Chromium and in WebKit) and axe
-accessibility checks. A `release` project stamps a copy of the site and serves
+accessibility checks. Every test also fails on an uncaught error in the page and
+on a content security policy violation; the tests' browser language and time
+zone are fixed (en-US, UTC), with one case in German; notices are awaited
+(`expectToast`), so one still showing from the step before is not read by
+mistake. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
 before every deployment (the Pages workflow runs the Test workflow, so the
@@ -361,7 +478,12 @@ Browser acceptance journeys and review notes are under tests/.
 Delete Pages is available from the home toolkit and editor sidebar. Select
 thumbnail checkboxes or enter ranges such as `2, 4-6`; the editor marks pages
 for deletion and shows how many will remain. At least one page must remain.
-Deletion is undoable and the original source file is untouched.
+It starts with nothing selected: the first page, which a document opens with
+selected for Organize pages, is not a choice to delete it, while pages selected
+on purpose stay selected. That holds however the tool is reached: chosen from
+another tool, opened on its own page, after Reset, and after Undo or Redo of a
+step made before (`dropDefaultSelection` in `editor-core.js`). Deletion is
+undoable and the original source file is untouched.
 
 Crop PDF accepts a pointer-drawn rectangle or numeric margin percentages.
 Apply to the current page, selected pages, or every page. Percentages refer
@@ -450,6 +572,21 @@ dropdowns and lists. A PDF with fields opened from the home page opens in it.
   through them in reading order, on to the next page. In the other tools and
   the page strip, PDF.js draws the fields with the values typed (its annotation
   storage), as readers will show the download.
+- On phones (the layout under 720 px, under a finger), a field that gets focus
+  folds the tool sheet away and zooms the page so the field is at least 44 px
+  tall (check boxes and radios 24 px; on a turned page, where a field lies on
+  its side, 44 px across its line), in the upper part of the view above the
+  keyboard; Tab and Go to the next empty field keep the field in view, Fit
+  shows the whole page, and leaving Fill form returns to the zoom from before.
+  The zoom buttons step down from a field zoom, and a zoom set by hand is kept
+  until another field gets focus.
+  For a box or a list the sheet folds and the page zooms only after the tap
+  has been delivered, so the first tap ticks the box. A box can be tapped
+  around its drawn size, up to 44 px across, but never where another field is
+  as near: its tap area grows by half the gap to its nearest neighbour at most
+  (`tapAreas` in `form-ui.js`), so a tap on a field always reaches that field,
+  however small the page is shown. With a mouse in a narrow window nothing
+  zooms.
 - Values are part of the document state (`state.formValues`), so each change is
   an undo step. On export they are written to the fields, and changed fields get
   new appearances in a font that has their characters (Helvetica, Noto Sans or

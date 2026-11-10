@@ -17,6 +17,7 @@
  * Edit index.html or content.mjs, then rerun this script; `npm test` runs the
  * check, so a forgotten rebuild fails CI rather than shipping stale pages.
  */
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,13 +66,33 @@ const line = (block, pattern) => {
 };
 
 /** The text between two inline comments, replaced. */
-function replaceBetween(html, name, content) {
-  const open = `<!-- tools:${name} -->`,
-    close = `<!-- /tools:${name} -->`;
+function replaceBetween(html, name, content, kind = 'tools') {
+  const open = `<!-- ${kind}:${name} -->`,
+    close = `<!-- /${kind}:${name} -->`;
   const start = html.indexOf(open),
     end = html.indexOf(close);
-  if (start < 0 || end < start) throw new Error(`index.html is missing the tools:${name} region.`);
+  if (start < 0 || end < start) throw new Error(`index.html is missing the ${kind}:${name} region.`);
   return html.slice(0, start + open.length) + content + html.slice(end);
+}
+/** The modules a page loads at once: what app.js imports statically, in the order they are found. */
+function staticModules(entry = 'app.js') {
+  const found = [];
+  const visit = (name) => {
+    for (const [, dependency] of readFileSync(path.join(site, name), 'utf8').matchAll(
+      /from '\.\/([\w-]+\.js)'/g,
+    ))
+      if (!found.includes(dependency)) {
+        found.push(dependency);
+        visit(dependency);
+      }
+  };
+  visit(entry);
+  return found;
+}
+/** index.html with a modulepreload link for each module app.js needs, so they load alongside it, not after it. */
+function withPreloads(html) {
+  const links = staticModules().map((name) => `\n  <link rel="modulepreload" href="./${name}">`);
+  return replaceBetween(html, 'preload', links.join('') + '\n  ', 'modules');
 }
 const svg = (icon) => `<svg class="icon" aria-hidden="true"><use href="#i-${icon}"/></svg>`;
 /** index.html with its cards, tool menu and tabs written from the registry (dist/routes.js). */
@@ -225,7 +246,7 @@ function toolPage(template, page) {
   return { file: `${slug}/index.html`, html, url };
 }
 
-const template = withTools(await readFile(path.join(site, 'index.html'), 'utf8'));
+const template = withPreloads(withTools(await readFile(path.join(site, 'index.html'), 'utf8')));
 const outputs = PAGES.map((page) => toolPage(template, page));
 if (new Set(outputs.map((output) => output.file)).size !== outputs.length)
   throw new Error('Two pages share an address.');

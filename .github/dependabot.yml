@@ -1,0 +1,27 @@
+# Dependabot proposes updates to the npm packages (the test and tooling
+# dependencies: Playwright, axe, Prettier, and the npm builds of the PDF
+# libraries the Node suites run against) and to the pinned GitHub Actions,
+# keeping their commit pins and version comments in step.
+#
+# The library bundles under dist/assets/vendor are updated by hand (README:
+# "Updating the libraries"), so a Dependabot bump of @cantoo/pdf-lib, pdfjs-dist
+# or @cantoo/fontkit fails `npm test` until the bundle is updated with it: the
+# site-integrity test checks package.json against dist/assets/vendor/versions.json.
+# The Vendored libraries workflow opens an issue when a newer release exists.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      tooling:
+        patterns:
+          - '*'
+        exclude-patterns:
+          - '@cantoo/*'
+          - pdfjs-dist
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

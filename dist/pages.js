@@ -3,15 +3,18 @@
  * turning, deleting and selecting pages.
  */
 
-import { blankPdf, openPdf } from './pdf-engine.js';
+import { blankPdf, openPdf, parsePageRange } from './pdf-engine.js';
 import { formKey, geometryOf, pageOverlay, renderKey, renderPage } from './preview.js';
 import {
   $,
   $$,
+  activeIndex,
   annotationById,
   announceMessage,
   busy,
   currentPage,
+  dropDefaultSelection,
+  friendly,
   icon,
   names,
   pageIndexOf,
@@ -25,10 +28,13 @@ import {
   uid,
 } from './editor-core.js';
 import { renderEditLayers, renderStage, scrollToPage, updateCurrentPage } from './page-view.js';
-import { sourceOf } from './form-ui.js';
+import { restoreFormZoom, sourceOf } from './form-ui.js';
 import { endGesture, stopEditing } from './page-items.js';
-import { fillForm, renderTool, showSettingDefaults, updateDeletionMarks } from './tool-panel.js';
-import { change, recordView } from './app.js';
+import { fillForm, renderTool } from './tool-panel.js';
+import { showSettingDefaults } from './panel-settings.js';
+import { updateDeletionMarks } from './panel-pages.js';
+import { change } from './history.js';
+import { recordView } from './views.js';
 import { interleaveOrder } from './workflows.js';
 
 // ---- Pages -------------------------------------------------------------------------
@@ -61,6 +67,12 @@ export function movePage(id, offset, targetId = null) {
   if (ui.busy) return;
   const from = pageIndexOf(id),
     to = targetId ? pageIndexOf(targetId) : from + offset;
+  if (!targetId && from >= 0 && (to < 0 || to >= state.pages.length)) {
+    // Move earlier at the first page, Move later at the last: the button keeps
+    // focus (it is aria-disabled, not disabled) and says why nothing moved.
+    announceMessage(to < 0 ? 'This page is already the first.' : 'This page is already the last.');
+    return;
+  }
   if (from < 0 || to < 0 || to >= state.pages.length || from === to) return;
   stopEditing();
   change(
@@ -68,7 +80,7 @@ export function movePage(id, offset, targetId = null) {
       const [page] = state.pages.splice(from, 1);
       state.pages.splice(to, 0, page);
     },
-    { layout: true },
+    { layout: true, label: 'Move page' },
   );
   renderTool();
   announceMessage('Page moved to position ' + (to + 1) + '.');
@@ -77,7 +89,7 @@ export function movePage(id, offset, targetId = null) {
 export function reversePages() {
   if (ui.busy || state.pages.length < 2) return;
   stopEditing();
-  change(() => state.pages.reverse(), { layout: true });
+  change(() => state.pages.reverse(), { layout: true, label: 'Reverse pages' });
   renderTool();
   announceMessage('The pages are in reverse order.');
 }
@@ -95,7 +107,7 @@ export function interleavePages() {
       const pages = [...state.pages];
       state.pages.splice(0, pages.length, ...order.map((index) => pages[index]));
     },
-    { layout: true },
+    { layout: true, label: 'Interleave pages' },
   );
   renderTool();
   announceMessage('Fronts and backs are interleaved: each front is followed by its back.');
@@ -130,7 +142,7 @@ export async function insertBlankPage() {
         state.sources.push(source);
         state.pages.splice(at, 0, blank);
       },
-      { layout: true },
+      { layout: true, label: 'Add a blank page' },
     );
   } finally {
     busy(false);
@@ -152,7 +164,7 @@ export function rotateSelected() {
         if (ids.has(p.id)) p.rotation = (p.rotation + 90) % 360;
       });
     },
-    { layout: true },
+    { layout: true, label: 'Rotate pages' },
   );
   toast(ids.size === 1 ? 'Page rotated.' : ids.size + ' pages rotated.');
 }
@@ -169,7 +181,7 @@ export function deletePages() {
       state.pages = remaining;
       state.annotations = state.annotations.filter((a) => !ids.has(a.pageId));
     },
-    { layout: true },
+    { layout: true, label: 'Delete pages' },
   );
   renderTool();
   toast(
@@ -358,7 +370,9 @@ export function chooseTool(tool) {
   stopEditing();
   endGesture();
   if (ui.item && annotationById(ui.item)?.type !== tool) ui.item = null;
+  if (ui.tool === 'form' && tool !== 'form') restoreFormZoom();
   ui.tool = tool;
+  dropDefaultSelection();
   // Watermark and Page numbers show their defaults when chosen. Arrowing through
   // the menu to see what there is changes the tool with every key; then they
   // wait until focus leaves the menu, so looking at a tool does not edit the
@@ -395,4 +409,44 @@ export function setSheet(open) {
   const toggle = $('#sheet-toggle');
   toggle.setAttribute('aria-expanded', String(open));
   toggle.setAttribute('aria-label', open ? 'Hide tool settings' : 'Show tool settings');
+}
+
+// ---- The page strip and page navigation ------------------------------------------
+
+/** Scroll the page strip so a page's thumbnail is in view. */
+export function revealThumbnail(id) {
+  const node = $('[data-page-id="' + id + '"]'),
+    root = phone() ? $('#page-list') : $('.page-sidebar');
+  if (!node) return;
+  const rect = node.getBoundingClientRect(),
+    area = root.getBoundingClientRect();
+  if (phone()) {
+    if (rect.left < area.left) root.scrollLeft += rect.left - area.left;
+    else if (rect.right > area.right) root.scrollLeft += rect.right - area.right;
+  } else {
+    if (rect.top < area.top) root.scrollTop += rect.top - area.top;
+    else if (rect.bottom > area.bottom) root.scrollTop += rect.bottom - area.bottom;
+  }
+}
+/** The page number box and Previous and Next follow the current page (but not while a number is typed). */
+export function syncPageNavigation({ force = false } = {}) {
+  const field = $('#page-jump'),
+    index = activeIndex();
+  field.max = state.pages.length;
+  if (force || document.activeElement !== field) field.value = index + 1;
+  $('#page-counter').textContent = 'of ' + state.pages.length;
+  $('[data-action=previous]').disabled = index === 0;
+  $('[data-action=next]').disabled = index >= state.pages.length - 1;
+}
+/** Select the pages whose numbers were typed in the Organize pages or Delete pages panel. */
+export function selectRange() {
+  try {
+    const indices = parsePageRange(ui.rangeDraft, state.pages.length);
+    ui.selected = new Set(indices.map((i) => state.pages[i].id));
+    ui.selectedByDefault = false;
+    $$('[data-page-select]').forEach((input) => (input.checked = ui.selected.has(input.dataset.pageSelect)));
+    renderTool();
+  } catch (error) {
+    toast(friendly(error), true);
+  }
 }
