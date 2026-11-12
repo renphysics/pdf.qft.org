@@ -285,6 +285,10 @@ test('Organize pages: the first page ticked takes the place of the one a documen
   expect(await ticked()).toEqual([2]);
   await expect(page.locator('#tool-panel')).toContainText('1 of 3 pages selected');
   await expect(button('delete-pages')).toHaveText('Remove page 2');
+  // It is said: the count is the same as before, and the box that was cleared may be out of sight.
+  await expect(page.locator('#announce-status')).toHaveText(
+    'Page 2 selected, in place of page 1, which the document opened with.',
+  );
   // The next page ticked joins the first.
   await page.locator('[data-page-select]').nth(2).check();
   expect(await ticked()).toEqual([2, 3]);
@@ -337,6 +341,32 @@ test('Organize pages: the first page ticked takes the place of the one a documen
   await page.locator('[data-page-select]').nth(2).check();
   expect(await ticked()).toEqual([1, 3]);
   await expect(button('rotate')).toHaveText('Rotate 2 pages');
+
+  // A button that acted on the opening page did not choose it: the next page
+  // ticked still takes its place, so Rotate does not turn page 1 a second time.
+  await openSample(page, 'organize-pdf/');
+  await page.click('[data-action="rotate"]');
+  await expectToast(page, 'Page rotated.');
+  await page.locator('[data-page-select]').nth(2).check();
+  expect(await ticked()).toEqual([3]);
+  await expect(page.locator('#announce-status')).toHaveText(
+    'Page 3 selected, in place of page 1, which the document opened with.',
+  );
+  await expect(button('rotate')).toHaveText('Rotate page 3');
+  // The same for a tool that was told to use the selected page.
+  await openSample(page, 'add-watermark-to-pdf/');
+  await page.selectOption('#tool-form [name="scope"]', 'pages');
+  await expect(button('scope-selected')).toHaveText('Use the 1 selected page');
+  await button('scope-selected').click();
+  await expect(page.locator('#tool-form [name="scopePages"]')).toHaveValue('1');
+  await page.locator('[data-page-select]').nth(1).check();
+  expect(await ticked()).toEqual([2]);
+  await expect(page.locator('#announce-status')).toHaveText(
+    'Page 2 selected, in place of page 1, which the document opened with.',
+  );
+  await expect(button('scope-selected')).toHaveText('Use the 1 selected page');
+  // What the tool was told stays as it was until the button is used again.
+  await expect(page.locator('#tool-form [name="scopePages"]')).toHaveValue('1');
 });
 
 test('a page dragged in the page strip moves to where it is dropped', async ({ page }) => {
@@ -373,12 +403,17 @@ test('handles resize a highlight to where they are dragged, set where text wraps
       await page.mouse.move(x + dx, y + dy, { steps: 6 });
       await page.mouse.up();
     },
-    close = (actual, expected, what) => expect(Math.abs(actual - expected), what).toBeLessThan(2);
+    close = (actual, expected, what) => expect(Math.abs(actual - expected), what).toBeLessThan(2),
+    // The selected item's box, once the page has been redrawn (overlayLines waits two frames).
+    settled = async () => {
+      await overlayLines(page);
+      return item.boundingBox();
+    };
   await useTool(page, 'highlight');
   await page.click('[data-action="add-highlight"]');
   await expect(item).toHaveCount(1);
   const sheet = await page.locator('.page-view.current').boundingBox(),
-    start = await item.boundingBox();
+    start = await settled();
   // The right edge goes where the pointer goes: here, most of the way across the page.
   const across = sheet.x + sheet.width * 0.9 - (start.x + start.width);
   await pull('e', across, 0);
@@ -408,7 +443,7 @@ test('handles resize a highlight to where they are dragged, set where text wraps
   await page.click('[data-action="add-text"]');
   await page.keyboard.type('Words enough to fill a line of their own');
   await page.keyboard.press('Escape');
-  const line = await item.boundingBox();
+  const line = await settled();
   await pull('e', -line.width / 2, 0);
   await expect.poll(async () => (await item.boundingBox()).height).toBeGreaterThan(line.height * 1.5);
   close((await item.boundingBox()).width, line.width / 2, 'half as wide');
@@ -421,14 +456,23 @@ test('handles resize a highlight to where they are dragged, set where text wraps
   await page.locator('.pages-heading [data-action="add-files"]').click();
   await page.setInputFiles('#file-input', await writeTemporary('wide.png', logo.toBuffer('image/png')));
   await expect(item).toHaveCount(1);
-  const small = await item.boundingBox();
+  const small = await settled();
   await pull('se', 80, 10);
   await expect.poll(async () => (await item.boundingBox()).width).toBeGreaterThan(small.width + 70);
-  const large = await item.boundingBox();
+  const large = await settled();
   close(large.width, small.width + 80, 'as wide as the corner was pulled');
   expect(Math.abs(large.width / large.height - small.width / small.height)).toBeLessThan(0.02);
   close(large.x, small.x, 'the opposite corner stayed');
   close(large.y, small.y, 'the opposite corner stayed');
+  // From the upper left corner it shrinks towards the lower right one, which stays. (The
+  // corner is pulled further down than across: the size follows the larger of the two.)
+  await pull('nw', 40, Math.round((40 * large.height) / large.width) + 12);
+  await expect.poll(async () => (await item.boundingBox()).width).toBeLessThan(large.width - 30);
+  const smaller = await settled();
+  close(smaller.width, large.width - 40, 'narrower by what the corner was pulled');
+  expect(Math.abs(smaller.width / smaller.height - small.width / small.height)).toBeLessThan(0.02);
+  close(smaller.x + smaller.width, large.x + large.width, 'the lower right corner stayed');
+  close(smaller.y + smaller.height, large.y + large.height, 'the lower right corner stayed');
 });
 
 test('adds a blank page after the current one, shaped as that page shows', async ({ page }) => {

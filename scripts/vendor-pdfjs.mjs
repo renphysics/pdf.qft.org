@@ -18,8 +18,10 @@
  * A file that is new upstream is bundled, and one that is gone is removed: both
  * are listed. Read that list and the release notes before committing, then run
  * `npm test` and the browser tests (README: "Updating the libraries").
- * tests/site-integrity.test.mjs runs the comparison too (pdfjsBundle below), so
- * the bundle cannot drift from the package the Node suites use.
+ * tests/site-integrity.test.mjs makes the same comparison, of the files and of
+ * the records (pdfjsBundle and pdfjsRecords below), so neither can drift from
+ * the package the Node suites use. npm is asked for the tarball only when the
+ * provenance record is renewed: a check needs no network.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -57,13 +59,26 @@ async function filesUnder(base, folder) {
     .sort();
 }
 
+/** The installed pdfjs-dist: its version, and what package-lock.json holds for it. */
+async function installed() {
+  const { version } = await json('node_modules/pdfjs-dist/package.json').catch((error) => {
+    throw error.code === 'ENOENT' ? new Error('pdfjs-dist is not installed: run npm ci') : error;
+  });
+  const locked = (await json('package-lock.json')).packages['node_modules/pdfjs-dist'];
+  if (locked?.version !== version)
+    throw new Error(
+      `node_modules has pdfjs-dist ${version}, package-lock.json has ${locked?.version}: run npm ci`,
+    );
+  return { version, locked };
+}
+
 /**
  * The bundle compared with the installed package: `files` maps each bundled
  * path (under dist/assets/vendor) to its file in the package and that file's
  * bytes; `changed`, `added` and `removed` name the bundled paths that differ.
  */
 export async function pdfjsBundle() {
-  const { version } = await json('node_modules/pdfjs-dist/package.json');
+  const { version, locked } = await installed();
   const upstream = new Map(Object.entries(BUILDS));
   for (const folder of FOLDERS)
     for (const name of await filesUnder(pkg, folder))
@@ -84,20 +99,27 @@ export async function pdfjsBundle() {
     if (!bundled) added.push(name);
     else if (!bundled.equals(data)) changed.push(name);
   }
-  return { version, files, changed, added, removed: [...held].filter((name) => !upstream.has(name)) };
+  return {
+    version,
+    locked,
+    files,
+    changed,
+    added,
+    removed: [...held].filter((name) => !upstream.has(name)),
+  };
 }
 
-/** The npm tarball of a version: where it is, its SHA-256, and the integrity the lockfile holds for it. */
-async function tarball(version) {
-  const locked = (await json('package-lock.json')).packages['node_modules/pdfjs-dist'];
-  if (locked.version !== version)
-    throw new Error(
-      `package-lock.json has pdfjs-dist ${locked.version}, node_modules has ${version}: run npm install`,
-    );
+/** The npm tarball of the installed version: where it is, its SHA-256, and its integrity. */
+async function tarball({ version, locked }) {
+  // The version goes into a command line.
+  if (!/^[0-9A-Za-z.+-]+$/.test(version)) throw new Error(`pdfjs-dist has an odd version: ${version}`);
   const folder = await mkdtemp(path.join(tmpdir(), 'pdfjs-'));
   try {
-    // Through a shell: on Windows npm is npm.cmd. The version is the installed package's own.
-    execFileSync('npm', ['pack', `pdfjs-dist@${version}`, '--pack-destination', folder, '--silent'], {
+    // npm pack writes into the folder it runs in, so no path is in the command: a
+    // temporary folder with a space in its name would split it. Through a shell
+    // because on Windows npm is npm.cmd.
+    execFileSync('npm', ['pack', `pdfjs-dist@${version}`, '--silent'], {
+      cwd: folder,
       shell: true,
       stdio: ['ignore', 'ignore', 'inherit'],
     });
@@ -111,9 +133,15 @@ async function tarball(version) {
   }
 }
 
-async function main() {
-  const check = process.argv.includes('--check');
-  const { version, files, changed, added, removed } = await pdfjsBundle();
+/**
+ * The records of the bundle as the installed package wants them: `records` is
+ * each file with its contents, `stale` the files that differ now, `before` the
+ * version recorded so far. The provenance record names the npm tarball. Where
+ * it names another version, or another tarball than package-lock.json, it is
+ * stale; npm is asked for the tarball only to `renew` it.
+ */
+export async function pdfjsRecords({ bundle, renew = false } = {}) {
+  const { version, locked, files, removed } = bundle ?? (await pdfjsBundle());
   const versions = await json('dist/assets/vendor/versions.json'),
     checksums = await json('scripts/asset-checksums.json'),
     provenance = await json('scripts/vendor-license-provenance.json'),
@@ -142,7 +170,18 @@ async function main() {
   for (const [name, { source, data }] of files)
     if (!known.has('dist/' + key(name)))
       record.verified_assets.push({ path: 'dist/' + key(name), upstream_path: source, sha256: sha256(data) });
-  if (record.version !== version) Object.assign(record, { version }, await tarball(version));
+  const named =
+    record.version === version &&
+    record.tarball === locked.resolved &&
+    record.tarball_integrity === locked.integrity;
+  if (!named)
+    Object.assign(
+      record,
+      { version },
+      renew
+        ? await tarball({ version, locked })
+        : { tarball: locked.resolved, tarball_sha256: null, tarball_integrity: locked.integrity },
+    );
   record.not_vendored = NOT_BUNDLED.map(
     (name) => name + ' (the scripting sandbox and its notices: the two builds do not refer to it)',
   );
@@ -162,6 +201,14 @@ async function main() {
   const stale = [];
   for (const [file, wanted] of records)
     if (!Buffer.from(wanted).equals(await read(file).catch(() => Buffer.alloc(0)))) stale.push(file);
+  return { records, stale, before };
+}
+
+async function main() {
+  const check = process.argv.includes('--check');
+  const bundle = await pdfjsBundle(),
+    { version, files, changed, added, removed } = bundle;
+  const { records, stale, before } = await pdfjsRecords({ bundle, renew: !check });
 
   const list = (title, names) =>
     names.length && console.log(`${title}:\n${names.map((name) => '  ' + name).join('\n')}`);
@@ -187,4 +234,11 @@ async function main() {
   console.log('Updated. Read the release notes, then run npm test and the browser tests.');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+// Run as a script, not imported. (path.relative compares as the system does: on
+// Windows, without regard to the case of a drive letter.)
+if (process.argv[1] && path.relative(path.resolve(process.argv[1]), fileURLToPath(import.meta.url)) === '')
+  await main().catch((error) => {
+    // What went wrong and what to do about it, without the stack.
+    console.error(error.message);
+    process.exitCode = 1;
+  });

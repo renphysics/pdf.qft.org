@@ -803,7 +803,7 @@ source review does not replace the owner’s browser verification.
   with resources on the page tree; copies of one page share theirs too.
   `separatePages` gives a page its own copy of each dictionary an earlier page
   holds. ReportLab reports of 100, 300 and 600 pages with page numbers: 408 KB,
-  3.0 MB and 11.8 MB before, 111 KB, 331 KB and 665 KB now (476 KB to start
+  3.0 MB and 11.8 MB before, 111 KB, 331 KB and 664 KB now (476 KB to start
   with at 600 pages).
 - Reverse, Interleave or dragging a page, in a PDF whose pages inherit their
   size, turn, crop or fonts from a node inside the page tree, gave pages that
@@ -854,10 +854,49 @@ source review does not replace the owner’s browser verification.
   copies the files from the npm package and brings the checksums, the provenance
   record, the version and the licence along; the site-integrity suite now
   compares the bundle with the installed package on every run. README has the
-  section “Updating the libraries” that five files pointed to. Dependabot's
-  Actions updates come in one pull request. (The five Actions updates
-  themselves were merged on their own before this; the deploy with all five
-  succeeded.)
-- Runs: Node suites 90 of 90. Browser suites on Playwright 1.65 with PDF.js
-  6.5.438: Chromium 122, WebKit 114 with 3 skipped by design, Firefox 104 with
-  1 skipped by design.
+  section “Updating the libraries” that four files pointed to, in five places.
+  Dependabot's Actions updates come in one pull request. (The five Actions
+  updates themselves were merged on their own before this; the deploy with all
+  five succeeded.)
+- Review of the pull request. Five reviewers took one area each and broke the
+  code to see which test noticed: 18 findings, none serious, all answered.
+  - In the app. Flatten form fields on pages that share their resources named
+    every field's appearance on every page (the growth this list set out to
+    stop, by another door): the pages get their own resources before the form
+    is flattened. A Width or Height typed below 3 points was shown as typed and
+    not given: the least is now what the fields take, a tenth of a percent. A
+    picture's announced width went by the screen where its Width slider goes
+    by the picture, which differ on a turned page: each kind of item is now
+    announced in the measure its panel shows, and once the keys rest, not at
+    every repeat of a held key. The page that takes the place of the opening
+    one is announced, as nothing else told a screen reader that another box
+    was cleared. The FAQ said “Download 3 pages” for the range 1-3, 5.
+  - One finding was answered by writing the rule down, not by changing it: a
+    button that acts on the opening page (“Rotate page 1”) does not make that
+    page a choice, and the next page ticked still takes its place. Counting it
+    as chosen was tried: Delete pages then opened with page 1 selected for
+    deletion (an existing test said so), and Rotate would have turned page 1 a
+    second time. A test now holds the rule from both sides.
+  - In the tests. The engine fixture shares graphics states and pictures as
+    well as fonts, and each page gets a picture: leaving any of the three
+    dictionaries shared now fails. The resize test sends keys as a held key
+    does, compares what is said with what the panel shows, counts the
+    announcements, and covers the page edge, the least size, Height's
+    move-over and a turned page. The fixture counts WebSockets with the
+    requests to another origin (Playwright reports the page's and its workers'
+    in all three browsers; a worker's EventSource it does not report in
+    Firefox, so the site-integrity suite keeps EventSource, WebTransport and
+    WebRTC out of every shipped script), and pairs a notice with an
+    announcement made after it was shown, not an older one of the same text. A
+    picture's upper left handle, and PDFs dropped while the batch is open from
+    the editor, are covered; boxes are read once the page has settled.
+  - In the update script. `npm test` checks the PDF.js records as well as the
+    files (the version on the licences page, the provenance record), without
+    the network; `npm pack` runs in the temporary folder, where a path with a
+    space no longer splits the command; a missing or out-of-step installation
+    is named (“run npm ci”).
+  - 28 breakages, 25 of them new, each applied alone to a copy, were each
+    caught.
+- Runs, after the review: Node suites 92 of 92. Browser suites on Playwright
+  1.65 with PDF.js 6.5.438: Chromium 122, WebKit 114 with 3 skipped by design,
+  Firefox 104 with 1 skipped by design.

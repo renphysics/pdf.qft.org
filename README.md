@@ -176,7 +176,8 @@ shows it without building a PDF:
   drag: Alt and an arrow key resizes the item, moving its right or lower edge
   (Shift for bigger steps; a picture keeps its proportions, and text changes
   where its lines wrap), and a highlight or a drawing has Width and Height
-  fields in its panel, as shares of the page. Watermarks, headers and
+  fields in its panel, as shares of the page. The new size is announced once
+  the keys rest, not at every repeat of a held key. Watermarks, headers and
   footers, and page numbers update on every page as their settings change.
   Watermark and Page numbers show their defaults the first time they open for a
   document (one undo step; once undone or switched off, they stay off), and
@@ -191,9 +192,12 @@ shows it without building a PDF:
   odd pages on the left of even pages, by position in the document.
   Turning, moving and removing pages only changes the page list. A document
   opens with its first page selected, which is not a choice: the first page a
-  visitor ticks takes its place, and Rotate, Remove and Download in Organize
-  pages say in their labels what they will act on ("Remove page 1", "Remove 2
-  pages"), so none acts on a page it did not name. Organize pages
+  visitor ticks takes its place (and this is announced), and Rotate, Remove and
+  Download in Organize pages say in their labels what they will act on ("Remove
+  page 1", "Remove 2 pages"), so none acts on a page it did not name. A button
+  that acts on that first page does not make it a choice: the next page ticked
+  still takes its place, so Rotate does not turn page 1 a second time and
+  Delete pages still opens with nothing selected. Organize pages
   can also reverse the order of all pages, and interleave a double-sided scan:
   the first half of the pages are the fronts and the rest the backs, scanned
   from the last sheet or the first (`interleaveOrder` in `workflows.js`).
@@ -342,9 +346,10 @@ that changed, and those that are new upstream or gone. Read that list and the
 a new file under `wasm/` is a new decoder that visitors' browsers will run, a
 new notice belongs on the licenses page, and a new way of loading code (a
 second worker, say) has to fit the content security policy. `npm test` checks
-that the bundle is the installed package's files, byte for byte
-(`node scripts/vendor-pdfjs.mjs --check` does the same), so a bundle that was
-edited or left behind fails.
+that the bundle is the installed package's files, byte for byte, and that
+those records name that package (`node scripts/vendor-pdfjs.mjs --check` does
+the same; neither needs the network), so a bundle or a record that was edited
+or left behind fails.
 
 pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
 maintained fork with the same API (the original project's last release was
@@ -461,9 +466,10 @@ layers stay hidden (by rendering with PDF.js); and the download notes about page
 labels, attachments, tags and digital signatures.
 tests/odd-inputs.test.mjs writes PDFs whose structure is valid but unusual, object
 by object and without a PDF library: pages that share their resources (through
-the page tree, as one object, or as one font dictionary, the way ReportLab writes
-them) and pages that inherit their size, turn, crop and fonts from a node inside
-the page tree. It checks that page numbers, a header and a watermark add to each
+the page tree, as one object, or as one dictionary of fonts, graphics states or
+pictures, the way ReportLab writes its fonts) and pages that inherit their size,
+turn, crop and fonts from a node inside the page tree. It checks that page
+numbers, a header, a watermark, a picture and a flattened form field add to each
 page only what that page needs, so the file grows with its pages and not with
 their square, and that reordering keeps what the pages inherited.
 They use the development dependencies installed by `npm ci`.

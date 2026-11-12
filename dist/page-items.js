@@ -535,6 +535,7 @@ function fromScreen(item, box) {
     height: Math.abs(b.y - a.y),
   };
 }
+let sizeSaid = 0;
 /**
  * Give an item the box that `place` returns for it: `place` gets the item's box
  * and its page as they lie on the screen, and the smallest side it may have.
@@ -581,13 +582,20 @@ function resize(id, place) {
         { key, label: 'Resize text' },
       );
   } else change(() => setFrame(annotation, item, frame), { key, label: 'Resize ' + itemName(annotation) });
-  const size = itemSize(id);
-  if (size)
-    announceMessage(
-      text
-        ? `Width ${size.width}% of the page.`
-        : `Width ${size.width}% of the page, height ${size.height}%.`,
-    );
+  // The size is said in the measure the panel shows for the item: a highlight's
+  // or a shape's sides as they lie on the screen (its Width and Height fields), a
+  // picture's own width (its Width slider), and for text the width its lines wrap at.
+  // It is said once the keys rest: a held key resizes some thirty times a second,
+  // and a screen reader would queue every size on the way.
+  const own = () => (storedFrame(annotation, item).width / item.placement.width) * 100,
+    size = itemSize(id),
+    message = text
+      ? `Width ${Math.round(own() * 10) / 10}% of the page.`
+      : picture
+        ? `Width ${Math.round(own())}% of the page.`
+        : size && `Width ${size.width}% of the page, height ${size.height}%.`;
+  clearTimeout(sizeSaid);
+  if (message) sizeSaid = setTimeout(() => annotationById(id) && announceMessage(message), 300);
 }
 /**
  * Move an item's right or lower edge by `dx` or `dy` points on the screen (Alt
@@ -608,18 +616,21 @@ function resizeBy(id, dx, dy) {
 /**
  * Make an item `width` or `height` of its page, as shares from 0 to 1 (the
  * Width and Height fields). Where the page has no room for that to the right
- * of the item, or below it, the item moves over.
+ * of the item, or below it, the item moves over. The least is a thousandth of
+ * the page, which is the least the fields take and a document holds: what is
+ * typed is what the item gets.
  */
 export function resizeItemTo(id, { width, height }) {
-  resize(id, (box, page, least) => {
-    const next = { ...box };
+  resize(id, (box, page) => {
+    const next = { ...box },
+      share = (value, whole) => clamp(value, 0.001, 1) * whole;
     if (width !== undefined) {
-      const wanted = clamp(width * (page.right - page.left), least, page.right - page.left);
+      const wanted = share(width, page.right - page.left);
       next.left = clamp(box.left, page.left, page.right - wanted);
       next.right = next.left + wanted;
     }
     if (height !== undefined) {
-      const wanted = clamp(height * (page.bottom - page.top), least, page.bottom - page.top);
+      const wanted = share(height, page.bottom - page.top);
       next.top = clamp(box.top, page.top, page.bottom - wanted);
       next.bottom = next.top + wanted;
     }

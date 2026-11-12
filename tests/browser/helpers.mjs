@@ -21,7 +21,10 @@ export { expect };
  * And every test fails on a request to another origin, from the page or from its
  * workers. That files never leave the device is the site's promise, and the
  * document's policy does not bind the workers that read them, so the requests
- * are counted here and not left to the policy.
+ * are counted here and not left to the policy. A WebSocket is not a request to
+ * Playwright, so those are counted too: the site opens none. (What neither
+ * count sees in every browser, such as a worker's EventSource in Firefox, no
+ * shipped script may name: tests/site-integrity.test.mjs.)
  */
 export const test = base.extend({
   page: async ({ page, baseURL }, use) => {
@@ -34,6 +37,7 @@ export const test = base.extend({
       const url = request.url();
       if (!/^(blob|data|about):/.test(url) && new URL(url).origin !== origin) elsewhere.push(url);
     });
+    page.on('websocket', (socket) => elsewhere.push(socket.url()));
     await page.addInitScript(() => {
       document.addEventListener('securitypolicyviolation', (event) => {
         // While it takes a screenshot, Playwright adds a style element of its own, which
@@ -47,7 +51,8 @@ export const test = base.extend({
     await page.addInitScript(() => {
       // The notices shown since the page loaded, each when it became visible or
       // changed while visible: a notice that was only written, or hidden at once,
-      // is not in the list.
+      // is not in the list. With each, how much had been said by then (spokenFrom):
+      // a notice is announced after it is shown.
       window.qaNotices = [];
       window.qaNoticesRead = 0;
       // The name the app gives each file it hands to the browser: the download
@@ -72,12 +77,17 @@ export const test = base.extend({
         const notice = document.querySelector('#toast'),
           message = document.querySelector('#toast-message');
         if (!notice || !message) return;
-        const shown = () =>
+        const shown = (spokenFrom) =>
           !notice.hidden &&
-          window.qaNotices.push({ text: message.textContent, error: notice.classList.contains('error') });
-        // One shown as the page started (its modules run before this event).
-        shown();
-        new MutationObserver(shown).observe(notice, {
+          window.qaNotices.push({
+            text: message.textContent,
+            error: notice.classList.contains('error'),
+            spokenFrom,
+          });
+        // One shown as the page started (its modules run before this event), which
+        // may have been said by now.
+        shown(0);
+        new MutationObserver(() => shown(window.qaSpoken.length)).observe(notice, {
           attributes: true,
           attributeFilter: ['hidden'],
           childList: true,
@@ -187,7 +197,9 @@ export async function useTool(page, tool) {
  * never shown does not, and neither does one from before the last expectation.
  *
  * The notice must have been said as well as shown: its text put into the live
- * region for screen readers, the one that interrupts when the notice is an error.
+ * region for screen readers, the one that interrupts when the notice is an error,
+ * after the notice appeared. An announcement answers for one notice, so one left
+ * from an earlier showing of the same text does not count.
  */
 export async function expectToast(page, expected) {
   const wanted =
@@ -221,12 +233,13 @@ export async function expectToast(page, expected) {
     .poll(
       () =>
         page
-          .evaluate(({ text, error }) => {
+          .evaluate(({ text, error, spokenFrom }) => {
             const kind = error ? 'alert' : 'status',
-              at = window.qaSpoken.findIndex((said) => said.kind === kind && said.text === text);
-            if (at < 0) return window.qaSpoken.map((said) => said.kind + ': ' + said.text);
+              since = window.qaSpoken.slice(spokenFrom),
+              said = since.find((said) => !said.paired && said.kind === kind && said.text === text);
+            if (!said) return since.map((said) => said.kind + ': ' + said.text);
             // Each announcement answers for one notice: the same notice shown twice is said twice.
-            window.qaSpoken.splice(at, 1);
+            said.paired = true;
             return true;
           }, notice)
           .catch(loading),

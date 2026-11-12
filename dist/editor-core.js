@@ -67,7 +67,7 @@ export const ui = {
   tool: 'text',
   activeId: null,
   selected: new Set(),
-  selectedByDefault: false, // the selection is the one a document opens with (its first page), not a choice
+  selectedByDefault: false, // the selection is the one a document opens with (its first page), not a choice, until a page is ticked
   zoomByHand: false, // the zoom was set with the buttons or the wheel since a form field last got focus (form-ui.js)
   item: null, // the selected item on the current page
   editing: null, // the text item being typed into on the page

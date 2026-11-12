@@ -172,6 +172,30 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
       }),
     // How many presses' worth a length changed by.
     steps = (from, to, step) => Math.round((to - from) / step),
+    // Keys as a held-down key sends them: one after another, before the page is redrawn.
+    burst = (keys) =>
+      item.evaluate((node, keys) => {
+        for (const [key, modifiers] of keys)
+          node.dispatchEvent(
+            new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
+          );
+      }, keys),
+    said = page.locator('#announce-status'),
+    // The size the panel shows, as shares of the page.
+    shares = async () => [
+      Number(await form.locator('[name="boxWidth"]').inputValue()),
+      Number(await form.locator('[name="boxHeight"]').inputValue()),
+    ],
+    // What was said last is the size the panel shows now.
+    sizeSaid = () =>
+      expect
+        .poll(async () => {
+          const [width, height] = await shares(),
+            shown = `Width ${width}% of the page, height ${height}%.`,
+            heard = await said.textContent();
+          return heard === shown || `said "${heard}", shown "${shown}"`;
+        })
+        .toBe(true),
     sheet = await page.locator('.page-view.current .edit-layer').boundingBox();
   await page.selectOption('#tool-form [name="shape"]', 'rect');
   await page.click('[data-action="add-drawing"]');
@@ -200,17 +224,25 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
     })
     .toEqual([-5, 2]);
   // The upper left corner stayed where it was, and a plain arrow key still moves the item, at its new size.
-  const resized = await box();
-  expect(resized.slice(0, 2)).toEqual(start.slice(0, 2));
+  const first = await box();
+  expect(first.slice(0, 2)).toEqual(start.slice(0, 2));
   await page.keyboard.press('ArrowDown');
   await expect.poll(async () => steps(start[1], (await box())[1], step)).toBe(1);
-  expect((await box()).slice(2)).toEqual(resized.slice(2));
-  // The size is said, and the panel shows it: shares of the page.
-  await expect(page.locator('#announce-status')).toHaveText(/^Width [\d.]+% of the page, height [\d.]+%\.$/);
-  const shares = async () => [
-    Number(await form.locator('[name="boxWidth"]').inputValue()),
-    Number(await form.locator('[name="boxHeight"]').inputValue()),
-  ];
+  expect((await box()).slice(2)).toEqual(first.slice(2));
+  // A key held down: five resizes and a move arrive before the page is redrawn, and
+  // all count. (The move starts from the size the document holds, not the one drawn.)
+  await sizeSaid();
+  const held = await box(),
+    spoken = await page.evaluate(() => window.qaSpoken.length);
+  await burst([...new Array(5).fill(['ArrowRight', { altKey: true }]), ['ArrowDown', {}]]);
+  await expect
+    .poll(async () => {
+      const now = await box();
+      return [steps(held[2], now[2], step), steps(held[1], now[1], step)];
+    })
+    .toEqual([5, 1]);
+  const resized = await box();
+  // The panel shows the size, as shares of the page, and the size said is the one shown.
   await expect
     .poll(async () => {
       const [width, height] = await shares();
@@ -220,7 +252,16 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
       ].every((difference) => difference < 0.1);
     })
     .toBe(true);
-  // Width and Height set the size; with no room to the right, the item moves over.
+  await sizeSaid();
+  // Said once, when the key rests: not each of the five sizes on the way.
+  expect(await page.evaluate((from) => window.qaSpoken.slice(from).length, spoken)).toBe(1);
+  // The keys stop at the page's edge and at the least size: 3 points.
+  await burst(new Array(80).fill(['ArrowRight', { altKey: true, shiftKey: true }]));
+  await expect.poll(async () => Math.abs((await box())[0] + (await box())[2] - sheet.width)).toBeLessThan(1);
+  await burst(new Array(80).fill(['ArrowLeft', { altKey: true, shiftKey: true }]));
+  await expect.poll(async () => Math.abs((await box())[2] - 3 * step)).toBeLessThan(0.6);
+  expect((await box())[0]).toBe(resized[0]);
+  // Width and Height set the size; with no room to the right, or below, the item moves over.
   await form.locator('[name="boxWidth"]').fill('50');
   await form.locator('[name="boxHeight"]').fill('10');
   await expect
@@ -229,6 +270,7 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
       return [Math.round((now[2] / sheet.width) * 100), Math.round((now[3] / sheet.height) * 100)];
     })
     .toEqual([50, 10]);
+  await expect(said).toHaveText('Width 50% of the page, height 10%.');
   await form.locator('[name="boxWidth"]').fill('100');
   await expect
     .poll(async () => {
@@ -236,10 +278,26 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
       return [Math.round(now[0]), Math.round((now[2] / sheet.width) * 100)];
     })
     .toEqual([0, 100]);
-  // One step back undoes the sizes typed, by name; and the download has the shape as the page shows it.
+  await item.focus();
+  await burst(new Array(40).fill(['ArrowDown', { shiftKey: true }]));
+  await expect.poll(async () => (await box())[1]).toBeGreaterThan(sheet.height / 2);
+  await form.locator('[name="boxHeight"]').fill('100');
+  await expect
+    .poll(async () => {
+      const now = await box();
+      return [Math.round(now[1]), Math.round((now[3] / sheet.height) * 100)];
+    })
+    .toEqual([0, 100]);
+  // The least the fields take is what the item then has: a tenth of a percent.
+  await form.locator('[name="boxWidth"]').fill('0.1');
+  await expect.poll(async () => Math.abs(((await box())[2] / sheet.width) * 100 - 0.1)).toBeLessThan(0.05);
+  await form.locator('[name="boxHeight"]').focus();
+  await expect(form.locator('[name="boxWidth"]')).toHaveValue('0.1');
+  // One step back undoes the size typed last, by name (sizes typed in quick succession are one
+  // step); and the download has the shape as the page shows it.
   await expect(page.locator('#undo-button')).toHaveAttribute('title', 'Undo: Resize drawing');
   await page.click('#undo-button');
-  await expect.poll(async () => (await box()).slice(2)).toEqual(resized.slice(2));
+  await expect.poll(async () => Math.round(((await box())[2] / sheet.width) * 100)).toBe(100);
   const { bytes } = await download(page, () => page.click('#download-button'));
   expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.002);
 
@@ -270,6 +328,13 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
   for (let i = 0; i < 12; i++) await page.keyboard.press('Alt+Shift+ArrowLeft');
   await expect.poll(async () => (await box())[2]).toBeLessThan(words[2] - 100 * step);
   await expect.poll(async () => (await box())[3]).toBeGreaterThan(words[3] * 1.5);
+  // What is said for text is that width, as a share of the page.
+  await expect
+    .poll(async () => {
+      const heard = /^Width ([\d.]+)% of the page\.$/.exec(await said.textContent());
+      return heard ? Math.abs(Number(heard[1]) - ((await box())[2] / sheet.width) * 100) < 0.5 : false;
+    })
+    .toBe(true);
 
   // A picture keeps its proportions.
   await useTool(page, 'image');
@@ -284,6 +349,13 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
   await expect.poll(async () => steps(small[2], (await box())[2], step)).toBe(30);
   const large = await box();
   expect(Math.abs(large[2] / large[3] - small[2] / small[3])).toBeLessThan(0.01);
+  // For a picture the width said is the one its Width slider shows.
+  const pictureId = await item.getAttribute('data-item-id'),
+    slider = form.locator('[name="width"]');
+  await expect
+    .poll(async () => Number(await slider.inputValue()))
+    .toBe(Math.round((large[2] / sheet.width) * 100));
+  await expect(said).toHaveText(`Width ${await slider.inputValue()}% of the page.`);
 
   // A shape whose page was turned after it was placed: wider is still wider on the screen.
   await useTool(page, 'draw');
@@ -302,6 +374,21 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
   expect(Math.abs(wider.height - turned.height)).toBeLessThan(1);
   expect(Math.abs(wider.x - turned.x)).toBeLessThan(1);
   expect(Math.abs(wider.y - turned.y)).toBeLessThan(1);
+  // Its fields and what is said go by the screen as well: the width is the side that lies across.
+  const turnedSheet = await page.locator('.page-view.current .edit-layer').boundingBox();
+  await expect
+    .poll(async () => Math.abs((await shares())[0] - (wider.width / turnedSheet.width) * 100))
+    .toBeLessThan(0.2);
+  await sizeSaid();
+  // The picture on that page: what is said is still what its slider shows.
+  await useTool(page, 'image');
+  await page.locator(`.edit-layer [data-item-id="${pictureId}"]`).focus();
+  await expect(item).toHaveAttribute('data-item-id', pictureId);
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(said).toHaveText(/^Width \d+% of the page\.$/);
+  await expect
+    .poll(async () => `Width ${await slider.inputValue()}% of the page.`)
+    .toBe(await said.textContent());
 });
 
 test('the password prompt, with and without an error', async ({ page }) => {

@@ -1776,6 +1776,10 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
         ? Object.assign(new Error(message), { itemId })
         : pageError(message, pageIndex, itemId);
     };
+    // Flattening names each field's appearance in its page's resources: the pages
+    // get their own first (see separatePages), or pages that share them would each
+    // end up naming every field in the document.
+    if (state.flattenForms) separatePages(sourceDoc, sourceDoc.getPages());
     formFilled =
       (await fillForm(sourceDoc, values, {
         flatten: Boolean(state.flattenForms),

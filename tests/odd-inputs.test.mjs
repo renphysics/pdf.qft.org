@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const runtime = path.resolve(here, '../node_modules');
 globalThis.PDFLib = require(path.join(runtime, '@cantoo/pdf-lib'));
 globalThis.fontkit = require(path.join(runtime, '@cantoo/fontkit'));
-const { DOMMatrix, ImageData, Path2D } = require(path.join(runtime, '@napi-rs/canvas'));
+const { DOMMatrix, ImageData, Path2D, createCanvas } = require(path.join(runtime, '@napi-rs/canvas'));
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 const nativeFetch = globalThis.fetch;
 globalThis.fetch = async (url, options) => {
@@ -91,32 +91,40 @@ const stamps = {
 // ---- Pages that share their resources ------------------------------------------------
 
 /**
- * A report of `count` pages, each with a line in Helvetica and a line in Times,
- * whose pages share their resources in one of three ways:
- *   'font'       each page has its own resources, all pointing to one /Font dictionary
- *                (as ReportLab writes them);
+ * A report of `count` pages, each with a line in Helvetica, a line in Times and
+ * a small square drawn through a graphics state, whose pages share their
+ * resources in one of three ways:
+ *   'parts'      each page has its own resources, which point to one /Font, one
+ *                /ExtGState and one /XObject dictionary (ReportLab writes fonts so);
  *   'resources'  every page points to one resources object;
  *   'inherited'  the resources are on the root of the page tree, and no page has its own.
+ * The three dictionaries the engine adds names to are shared in each.
  */
 function report(count, sharing) {
-  const first = 7;
+  const first = 11,
+    parts = '<< /Font 3 0 R /ExtGState 7 0 R /XObject 8 0 R >>',
+    square = '0 0 20 20 re f';
   const pageRefs = Array.from({ length: count }, (_, index) => `${first + 2 * index} 0 R`);
-  const resources = { font: '/Resources << /Font 3 0 R >>', resources: '/Resources 4 0 R', inherited: '' }[
-    sharing
-  ];
+  const resources = { parts: `/Resources ${parts}`, resources: '/Resources 4 0 R', inherited: '' }[sharing];
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     `<< /Type /Pages /Kids [${pageRefs.join(' ')}] /Count ${count}${sharing === 'inherited' ? ' /Resources 4 0 R' : ''} >>`,
     '<< /F1 5 0 R /F2 6 0 R >>',
-    '<< /Font 3 0 R >>',
+    parts,
     font('Helvetica'),
     font('Times-Roman'),
+    '<< /G1 9 0 R >>',
+    '<< /X1 10 0 R >>',
+    '<< /Type /ExtGState /ca 0.5 >>',
+    `<< /Type /XObject /Subtype /Form /BBox [0 0 20 20] /Length ${square.length} >>\nstream\n${square}\nendstream`,
   ];
   for (let number = 1; number <= count; number++) {
     const contents = first + 2 * (number - 1) + 1;
     objects.push(
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] ${resources} /Contents ${contents} 0 R >>`,
-      stream(`BT /F1 16 Tf 40 440 Td (SHEET-${number}) Tj /F2 12 Tf 0 -24 Td (Serif ${number}) Tj ET`),
+      stream(
+        `q /G1 gs 1 0 0 1 340 440 cm /X1 Do Q BT /F1 16 Tf 40 440 Td (SHEET-${number}) Tj /F2 12 Tf 0 -24 Td (Serif ${number}) Tj ET`,
+      ),
     );
   }
   return pdfFile(objects);
@@ -135,13 +143,30 @@ await test('numbers, a header and a watermark on pages that share their resource
   // pdf-lib adds a name to a page's resources for each font and graphics state it
   // draws with. With resources that pages share, every page used to end up holding
   // the names added for all the others: a file that grew with the square of its pages.
-  const count = 60;
-  for (const sharing of ['font', 'resources', 'inherited']) {
+  // The engine adds to three dictionaries: fonts (every text), graphics states
+  // (an opacity: the watermark) and pictures. So each page gets a picture too.
+  const count = 60,
+    dot = createCanvas(4, 4);
+  dot.getContext('2d').fillRect(0, 0, 4, 4);
+  const picture = dot.toBuffer('image/png');
+  for (const sharing of ['parts', 'resources', 'inherited']) {
     const bytes = report(count, sharing);
     const { bytes: output, notes } = await build(
       bytes,
       Array.from({ length: count }, (_, index) => index),
-      stamps,
+      {
+        ...stamps,
+        annotations: Array.from({ length: count }, (_, index) => ({
+          type: 'image',
+          pageId: `page-${index}`,
+          x: 0.1,
+          y: 0.5,
+          width: 0.05,
+          height: 0.04,
+          imageBytes: picture,
+          imageType: 'png',
+        })),
+      },
     );
     assert.deepEqual(notes, [], `${sharing}: nothing to report`);
     const pages = await read(output);
@@ -159,13 +184,21 @@ await test('numbers, a header and a watermark on pages that share their resource
       // The page's own two fonts still mean what they did.
       assert.deepEqual(page.families.slice(0, 2), ['sans-serif', 'serif'], `${sharing}, page ${number}`);
     });
-    for (const key of ['Font', 'ExtGState']) {
+    // The file's own names (two fonts, one graphics state, one square) and the page's additions.
+    for (const [key, most] of [
+      ['Font', 8],
+      ['ExtGState', 4],
+      ['XObject', 3],
+    ]) {
       const held = await names(output, key);
       assert.ok(
         held.every((size) => size === held[0]),
         `${sharing}: every page holds as many /${key} names as the first, not more with each page: ${held}`,
       );
-      assert.ok(held[0] <= 8, `${sharing}: a page holds its own /${key} names only: ${held[0]}`);
+      assert.ok(
+        held[0] > 1 && held[0] <= most,
+        `${sharing}: a page holds the file's /${key} names and its own, no others: ${held[0]}`,
+      );
     }
     const grown = (output.length - bytes.length) / count;
     assert.ok(grown < 1500, `${sharing}: the file grew by ${Math.round(grown)} bytes a page`);
@@ -175,7 +208,7 @@ await test('numbers, a header and a watermark on pages that share their resource
 await test('page numbers on many copies of one page: each copy holds only its own', async () => {
   // Copies of a page share its resources as well: pdf-lib copies them once.
   const count = 40;
-  const { bytes: output } = await build(report(1, 'font'), new Array(count).fill(0), {
+  const { bytes: output } = await build(report(1, 'parts'), new Array(count).fill(0), {
     pageNumbers: stamps.pageNumbers,
   });
   const pages = await read(output);
@@ -192,6 +225,60 @@ await test('page numbers on many copies of one page: each copy holds only its ow
     held.every((size) => size === held[0]) && held[0] <= 4,
     `each copy holds its own names only: ${held}`,
   );
+});
+
+/**
+ * A form of `count` pages that all point to one resources object, with one text
+ * field on each page, filled in, and its appearance.
+ */
+function form(count) {
+  const first = 6,
+    refs = (offset) => Array.from({ length: count }, (_, index) => `${first + 4 * index + offset} 0 R`);
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>',
+    `<< /Type /Pages /Kids [${refs(0).join(' ')}] /Count ${count} >>`,
+    '<< /Font << /F1 4 0 R >> >>',
+    font('Helvetica'),
+    `<< /Fields [${refs(2).join(' ')}] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 4 0 R >> >> >>`,
+  ];
+  for (let number = 1; number <= count; number++) {
+    const page = first + 4 * (number - 1),
+      shown = `BT /Helv 12 Tf 2 10 Td (Answer ${number}) Tj ET`;
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources 3 0 R /Contents ${page + 1} 0 R /Annots [${page + 2} 0 R] >>`,
+      stream(`BT /F1 16 Tf 40 440 Td (SHEET-${number}) Tj ET`),
+      `<< /Type /Annot /Subtype /Widget /FT /Tx /T (field${number}) /V (Answer ${number}) /Rect [40 300 240 330] /P ${page} 0 R /DA (/Helv 12 Tf 0 g) /AP << /N ${page + 3} 0 R >> >>`,
+      `<< /Type /XObject /Subtype /Form /BBox [0 0 200 30] /Resources << /Font << /Helv 4 0 R >> >> /Length ${shown.length} >>\nstream\n${shown}\nendstream`,
+    );
+  }
+  return pdfFile(objects);
+}
+
+await test('flattening a form on pages that share their resources: each page names its own field only', async () => {
+  // Flattening draws each field on its page by a name in the page's resources.
+  // It runs before the pages are otherwise prepared, so with shared resources
+  // every page ended up naming every field in the document.
+  const count = 40,
+    bytes = form(count);
+  for (const [what, order] of [
+    ['every page', Array.from({ length: count }, (_, index) => index)],
+    // Without its first page the document is copied, which shares what the pages shared.
+    ['a page deleted', Array.from({ length: count - 1 }, (_, index) => index + 1)],
+  ]) {
+    const { bytes: output } = await build(bytes, order, { flattenForms: true });
+    const pages = await read(output);
+    pages.forEach((page, index) => {
+      const number = order[index] + 1;
+      assert.deepEqual(page.texts, [`SHEET-${number}`, `Answer ${number}`], `${what}, page ${number}`);
+    });
+    const held = await names(output, 'XObject');
+    assert.ok(
+      held.every((size) => size === 1),
+      `${what}: each page names its own field's appearance, not the others': ${held}`,
+    );
+    const grown = (output.length - bytes.length) / count;
+    assert.ok(grown < 400, `${what}: the file grew by ${Math.round(grown)} bytes a page`);
+  }
 });
 
 // ---- Pages that inherit from a node inside the page tree -----------------------------

@@ -280,4 +280,28 @@ test('a PDF dropped on the page opens in the editor; PDFs dropped on the batch p
   await expect(page.locator('#batch-workspace')).toBeVisible();
   await expect(page.locator('.batch-file-row')).toHaveCount(2);
   await expect(page.locator('.batch-file-row').first()).toContainText('rotated-cropped.pdf');
+  // The same when the batch was opened from the editor, on another tool's page: the
+  // files join the batch, and the document in the editor stays as it is.
+  await page.goto('add-watermark-to-pdf/');
+  await page.locator('[data-action="sample"]').first().click();
+  await ready(page);
+  await page.click('[data-action="batch-from-editor"]');
+  await expect(page.locator('#batch-workspace')).toBeVisible();
+  await page.dispatchEvent('#batch-workspace', 'drop', {
+    dataTransfer: await page.evaluateHandle(
+      (data) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(
+          new File([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], 'dropped.pdf', {
+            type: 'application/pdf',
+          }),
+        );
+        return transfer;
+      },
+      (await readFile(fixture('rotated-cropped.pdf'))).toString('base64'),
+    ),
+  });
+  await expect(page.locator('.batch-file-row')).toHaveCount(1);
+  await expect(page.locator('.batch-file-row').first()).toContainText('dropped.pdf');
+  await expect(page.locator('#document-name')).toHaveText('A little room to create.pdf');
 });

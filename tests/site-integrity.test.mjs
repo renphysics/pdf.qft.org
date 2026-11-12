@@ -4,10 +4,11 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TOOL_PAGES, TOOLS } from '../dist/routes.js';
-import { pdfjsBundle } from '../scripts/vendor-pdfjs.mjs';
+import { pdfjsBundle, pdfjsRecords } from '../scripts/vendor-pdfjs.mjs';
 import { test } from 'node:test';
 
-// No package installation is needed: this validates exactly the shipped files.
+// This validates exactly the shipped files. One test compares the bundled PDF.js
+// with the pdfjs-dist package, so the packages must be installed (npm ci).
 const root = fileURLToPath(new URL('../', import.meta.url));
 const site = path.join(root, 'dist');
 const html = await readFile(path.join(site, 'index.html'), 'utf8');
@@ -156,16 +157,42 @@ await test('the npm packages are the versions bundled for browsers', async () =>
   }
 });
 
-await test('the bundled PDF.js is the installed npm package, file for file', async () => {
+await test('the bundled PDF.js is the installed npm package, file for file, and its records name that package', async () => {
   // PDF.js is served as npm ships it: scripts/vendor-pdfjs.mjs copies it from
   // node_modules. A bundle that was edited, or left behind by a version bump,
   // or that lacks a file the package now has, fails here.
-  const { version, changed, added, removed } = await pdfjsBundle();
+  const bundle = await pdfjsBundle(),
+    { version, changed, added, removed } = bundle;
   assert.deepEqual(
     { changed, added, removed },
     { changed: [], added: [], removed: [] },
     `dist/assets/vendor is not pdfjs-dist ${version} as installed: run node scripts/vendor-pdfjs.mjs (README: Updating the libraries)`,
   );
+  // And what is written down about it: the version on the licences page and in
+  // versions.json, the sizes and checksums, the npm tarball and each file in the
+  // provenance record, PDF.js's licence text. The script keeps them; an edit by
+  // hand, or a record put back, fails here.
+  const { stale } = await pdfjsRecords({ bundle });
+  assert.deepEqual(
+    stale,
+    [],
+    `records that do not match pdfjs-dist ${version} as installed: run node scripts/vendor-pdfjs.mjs (README: Updating the libraries)`,
+  );
+});
+
+await test('no shipped script names a connection the browser tests cannot count', async () => {
+  // The browser tests fail on a request or a WebSocket to another origin, from
+  // a page or its workers (tests/browser/helpers.mjs). These are not reported
+  // to them in every browser (a worker's EventSource in Firefox, for one), and
+  // the site has no use for them: no script it ships may name one, its own or a
+  // library's.
+  const uncounted = /\b(?:EventSource|WebTransport|RTCPeerConnection|RTCDataChannel)\b/;
+  const scripts = (await readdir(site, { recursive: true })).filter((file) => /\.m?js$/.test(file));
+  assert(scripts.length > 30, 'the scripts were found');
+  for (const name of scripts) {
+    const found = uncounted.exec(await readFile(path.join(site, name), 'utf8'));
+    assert(!found, `${name}: ${found?.[0]}`);
+  }
 });
 
 await test('every reference resolves at the custom domain and at the GitHub project path', async () => {
