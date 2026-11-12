@@ -5,6 +5,7 @@ import AxeBuilder from '@axe-core/playwright';
 import {
   test,
   expect,
+  expectToast,
   fixture,
   openSample,
   ready,
@@ -356,6 +357,16 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
       return heard ? Math.abs(Number(heard[1]) - ((await box())[2] / sheet.width) * 100) < 0.5 : false;
     })
     .toBe(true);
+  // It is said to a tenth of a percent: one point narrower is said as narrower.
+  const wide = Number(/[\d.]+/.exec(await said.textContent())[0]);
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect
+    .poll(async () => {
+      const heard = /^Width ([\d.]+)% of the page\.$/.exec(await said.textContent()),
+        tenths = heard ? Math.round((wide - Number(heard[1])) * 10) : null;
+      return tenths === 1 || tenths === 2 ? 'a tenth or two less' : tenths;
+    })
+    .toBe('a tenth or two less');
   const textId = await item.getAttribute('data-item-id');
 
   // A picture keeps its proportions.
@@ -497,6 +508,46 @@ test('a size that waits to be said gives way to what happens meanwhile', async (
   from = await mark();
   await keys([resize, ['Delete', {}]]);
   expect(await since(from)).toEqual(['Rectangle deleted.']);
+  // An error said at once: the size does not come after it.
+  const box = page.locator(`.edit-layer [data-item-id="${first}"]`);
+  await box.focus();
+  await expect(item).toHaveAttribute('data-item-id', first);
+  from = await mark();
+  await box.evaluate(async (node, [key, modifiers]) => {
+    const { toast } = await import(
+      performance.getEntriesByType('resource').find((entry) => /\/editor-core\.js/.test(entry.name)).name
+    );
+    node.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }));
+    toast('That did not work.', true);
+  }, resize);
+  expect(await since(from)).toEqual(['That did not work.']);
+
+  // An item can have focus without being the selected one: Undo of a step about
+  // something else leaves it so. A key that acts on it selects it again, and
+  // its size is said.
+  await useTool(page, 'watermark');
+  await expectToast(page, /^Watermark/);
+  await useTool(page, 'draw');
+  await box.focus();
+  await expect(item).toHaveAttribute('data-item-id', first);
+  await box.evaluate((node) =>
+    node.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }),
+    ),
+  );
+  await expectToast(page, 'Undone: Watermark.');
+  await expect(item).toHaveCount(0);
+  await expect(box).toBeFocused();
+  from = await mark();
+  await box.evaluate(
+    (node, [key, modifiers]) =>
+      node.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
+      ),
+    resize,
+  );
+  expect(await since(from)).toEqual([expect.stringMatching(/^Width [\d.]+% of the page, height [\d.]+%\.$/)]);
+  await expect(item).toHaveAttribute('data-item-id', first);
 });
 
 test('the password prompt, with and without an error', async ({ page }) => {

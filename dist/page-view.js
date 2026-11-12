@@ -262,6 +262,9 @@ export function renderStage({ position = null } = {}) {
   // it is now. From the position kept before the scroll, the layout would put the
   // view back there: a layout comes from a timer too (the stage changed size).
   const moved = movedSinceRead(),
+    // As a frame later (trackScroll): the current page follows the view once that
+    // has moved more than a hair from where the page was made current.
+    follow = moved && !(stage.lock && Math.abs(scroll.scrollTop - stage.lock.top) <= 2),
     keep = position || (moved ? positionAt(readingPoint().x, readingPoint().y) : stage.position);
   scroll.classList.toggle('snap-pages', phone() && ui.zoom === 1);
   layoutStage();
@@ -271,8 +274,7 @@ export function renderStage({ position = null } = {}) {
     const entry = stage.byId.get(stage.reveal);
     stage.reveal = null;
     if (entry && pageShare(entry) < 0.25) scroll.scrollTop = pageTop(entry);
-  } else if (moved) {
-    // And the current page follows the view, as it would have a frame later.
+  } else if (follow) {
     ui.activeId = pageInView() || ui.activeId;
   }
   lockCurrentPage();

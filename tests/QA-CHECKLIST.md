@@ -927,6 +927,23 @@ source review does not replace the owner’s browser verification.
     without a failure, and a test that asks for the layout right after the
     scroll.
   - 13 breakages, 11 of them new, each caught.
-- Runs, after both reviews: Node suites 92 of 92. Browser suites on Playwright
-  1.65 with PDF.js 6.5.438: Chromium 124, WebKit 116 with 3 skipped by design,
-  Firefox 106 with 1 skipped by design.
+- A third pass, by two reviewers, over the commit with the scroll fix.
+  - Nothing found in the scroll fix, after twelve checks in three browsers: the
+    reading position through resizing, zoom, the phone layout and its form
+    fields, leaving the editor and coming back, and scale factors that give
+    scroll offsets with fractions.
+  - A resize of an item that has focus without being the selected one was not
+    announced. Undo of a step about something else leaves an item so. A key
+    that moves or resizes an item now selects it.
+  - Two stated behaviours had no test that pinned them: an error announced at
+    once silences a size that waits, and a text's width is said to a tenth of
+    a percent. Both have one now.
+  - One note of the reviewer's is taken up: after a scroll that was not
+    followed yet, the current page follows the view by the rule that holds a
+    frame later, only once the view has moved more than a hair from where the
+    page was made current. A page made current by a click stays current
+    through a layout.
+  - 4 further breakages, each caught.
+- Runs, after the three reviews: Node suites 92 of 92. Browser suites on
+  Playwright 1.65 with PDF.js 6.5.438: Chromium 124, WebKit 116 with 3 skipped
+  by design, Firefox 106 with 1 skipped by design.

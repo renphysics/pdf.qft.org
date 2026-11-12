@@ -878,6 +878,9 @@ export function initPageItems() {
     const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
     if (moves[event.key]) {
       event.preventDefault();
+      // The item the keys act on is the selected one. It can have focus without
+      // being selected: Undo of a step about something else leaves it so.
+      if (id !== ui.item) selectItem(id, { focus: false });
       // With Alt the arrow keys resize: they move the item's right and lower edges.
       if (event.altKey) resizeBy(id, ...moves[event.key]);
       else nudge(id, ...moves[event.key]);
