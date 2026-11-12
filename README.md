@@ -299,21 +299,58 @@ or opens the sample. The package manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license. Dependabot (`.github/dependabot.yml`)
-proposes updates to those packages and to the pinned GitHub Actions each week.
-The library bundles below are updated by hand: `npm test` fails when
-`package.json` and `dist/assets/vendor/versions.json` name different versions,
-and the Vendored libraries workflow (`.github/workflows/vendored-libraries.yml`,
-once a month) opens an issue when npm has a newer release;
-`node scripts/check-vendored-versions.mjs` runs the same comparison locally.
+proposes updates to those packages and to the pinned GitHub Actions each week
+(the Actions in one pull request, since every merge to `main` is a deploy).
+
+### Updating the libraries
+
+The three libraries served to visitors (PDF.js, pdf-lib and fontkit, under
+`dist/assets/vendor/`) are copies of npm releases, and are updated by hand.
+Three things say when: Dependabot proposes the new npm version, and its pull
+request fails `npm test` until the copy is updated with it (`package.json` and
+`dist/assets/vendor/versions.json` must name the same versions); the Vendored
+libraries workflow (`.github/workflows/vendored-libraries.yml`, once a month)
+opens an issue when npm has a newer release; and
+`node scripts/check-vendored-versions.mjs` runs that comparison locally.
+`npm run check` verifies every file under `dist/assets/vendor/` and
+`dist/assets/fonts/` against its size and SHA-256 in
+`scripts/asset-checksums.json`.
+
+PDF.js is [`pdfjs-dist`](https://github.com/mozilla/pdf.js): its two legacy
+builds (`pdf.min.mjs` and `pdf.worker.min.mjs`, served as `pdf.mjs` and
+`pdf.worker.mjs`) and its `cmaps`, `iccs`, `standard_fonts` and `wasm` folders,
+without the scripting sandbox (`wasm/quickjs-eval.*`), which nothing here loads.
+It reads files that visitors did not write, so its updates matter most. To
+update it, on a branch (Dependabot's will do):
+
+```sh
+npm install --save-dev --save-exact pdfjs-dist@<version>
+node scripts/vendor-pdfjs.mjs
+npm test
+npm run test:browser
+```
+
+`scripts/vendor-pdfjs.mjs` copies the files from the installed package and
+brings the records along: the version in `versions.json` and in
+`dist/licenses/THIRD-PARTY.txt`, each file's size and SHA-256 in
+`scripts/asset-checksums.json`, the npm tarball and each file's SHA-256 in
+`scripts/vendor-license-provenance.json` (the tarball is fetched again and must
+be the one the lockfile names), and PDF.js's licence text. It lists the files
+that changed, and those that are new upstream or gone. Read that list and the
+[release notes](https://github.com/mozilla/pdf.js/releases) before committing:
+a new file under `wasm/` is a new decoder that visitors' browsers will run, a
+new notice belongs on the licenses page, and a new way of loading code (a
+second worker, say) has to fit the content security policy. `npm test` checks
+that the bundle is the installed package's files, byte for byte
+(`node scripts/vendor-pdfjs.mjs --check` does the same), so a bundle that was
+edited or left behind fails.
 
 pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
 maintained fork with the same API (the original project's last release was
 1.17.1, in 2021). To update it, copy the new release's `dist/pdf-lib.min.js`
 to `dist/assets/vendor/`, update the version in `package.json`,
-`dist/assets/vendor/versions.json` and `scripts/asset-checksums.json` (`npm run
-check` verifies every file under `dist/assets/vendor/` and `dist/assets/fonts/`
-against its size and SHA-256 there), then regenerate and check its notices and
-provenance:
+`dist/assets/vendor/versions.json` and `scripts/asset-checksums.json`, then
+regenerate and check its notices and provenance:
 
 ```sh
 npm pack @cantoo/pdf-lib@<version>    # in an empty directory

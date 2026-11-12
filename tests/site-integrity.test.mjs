@@ -4,6 +4,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TOOL_PAGES, TOOLS } from '../dist/routes.js';
+import { pdfjsBundle } from '../scripts/vendor-pdfjs.mjs';
 import { test } from 'node:test';
 
 // No package installation is needed: this validates exactly the shipped files.
@@ -153,6 +154,18 @@ await test('the npm packages are the versions bundled for browsers', async () =>
         `${name}: package.json and dist/assets/vendor/versions.json name different versions (README: Updating the libraries)`,
       );
   }
+});
+
+await test('the bundled PDF.js is the installed npm package, file for file', async () => {
+  // PDF.js is served as npm ships it: scripts/vendor-pdfjs.mjs copies it from
+  // node_modules. A bundle that was edited, or left behind by a version bump,
+  // or that lacks a file the package now has, fails here.
+  const { version, changed, added, removed } = await pdfjsBundle();
+  assert.deepEqual(
+    { changed, added, removed },
+    { changed: [], added: [], removed: [] },
+    `dist/assets/vendor is not pdfjs-dist ${version} as installed: run node scripts/vendor-pdfjs.mjs (README: Updating the libraries)`,
+  );
 });
 
 await test('every reference resolves at the custom domain and at the GitHub project path', async () => {
