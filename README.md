@@ -319,7 +319,8 @@ opens an issue when npm has a newer release; and
 PDF.js is [`pdfjs-dist`](https://github.com/mozilla/pdf.js): its two legacy
 builds (`pdf.min.mjs` and `pdf.worker.min.mjs`, served as `pdf.mjs` and
 `pdf.worker.mjs`) and its `cmaps`, `iccs`, `standard_fonts` and `wasm` folders,
-without the scripting sandbox (`wasm/quickjs-eval.*`), which nothing here loads.
+without the scripting sandbox and its notices (`wasm/quickjs-eval.*`,
+`wasm/LICENSE_*QUICKJS`), which the two builds never load.
 It reads files that visitors did not write, so its updates matter most. To
 update it, on a branch (Dependabot's will do):
 

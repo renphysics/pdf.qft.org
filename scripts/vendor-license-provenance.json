@@ -150,14 +150,16 @@
     }
   },
   "pdfjs": {
-    "version": "6.4.299",
+    "version": "6.5.438",
     "build": "legacy (pdf.min.mjs / pdf.worker.min.mjs from legacy/build/)",
-    "tarball": "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.4.299.tgz",
-    "tarball_sha256": "86269b40170eb41740ea05ad2102d71d33de4f122b34eb2f478be0ea7779c415",
-    "tarball_integrity": "sha512-AVl138zALtfaAPvADulE0PZThbYzCBS79nL4pOSL/6Sm/4AH5A21BD9VHt97OlCuzJuCpmeZtAtkinisF4Vb1g==",
+    "tarball": "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.5.438.tgz",
+    "tarball_sha256": "7461aefcd27c4ef0dd76f9ca5760f09466eb6b3f934432670c12132e7b3d6faa",
+    "tarball_integrity": "sha512-vg8Pw1x+AFKy4AMDvhuWl5cOYV8d698UoEANoFFhc79hqXDnZQqnOXoxw3HG907WHOg1JYOvLhP756boddFxpA==",
     "not_vendored": [
-      "wasm/quickjs-eval.js",
-      "wasm/quickjs-eval.wasm (scripting sandbox only; not referenced by pdf.min.mjs or pdf.worker.min.mjs)"
+      "wasm/quickjs-eval.js (the scripting sandbox and its notices: the two builds do not refer to it)",
+      "wasm/quickjs-eval.wasm (the scripting sandbox and its notices: the two builds do not refer to it)",
+      "wasm/LICENSE_QUICKJS (the scripting sandbox and its notices: the two builds do not refer to it)",
+      "wasm/LICENSE_PDFJS_QUICKJS (the scripting sandbox and its notices: the two builds do not refer to it)"
     ],
     "verified_assets": [
       {
@@ -1018,12 +1020,12 @@
       {
         "path": "dist/assets/vendor/pdf.mjs",
         "upstream_path": "legacy/build/pdf.min.mjs",
-        "sha256": "bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259"
+        "sha256": "522ad2c83bc8a0010e7f0cc60d0892b77c8d2bf2c9702dc12288311d94270f42"
       },
       {
         "path": "dist/assets/vendor/pdf.worker.mjs",
         "upstream_path": "legacy/build/pdf.worker.min.mjs",
-        "sha256": "145d2dd3ab0c86151011dba95acfa2d5336e2accd59388ea43dbee0efddaaec6"
+        "sha256": "b4c8353ded0d88d2e2009574a29eb4e0c3ff7e942ecdf51ef5f71566a9667f31"
       },
       {
         "path": "dist/assets/vendor/standard_fonts/FoxitDingbats.pfb",
@@ -1143,17 +1145,17 @@
       {
         "path": "dist/assets/vendor/wasm/jbig2_nowasm_fallback.js",
         "upstream_path": "wasm/jbig2_nowasm_fallback.js",
-        "sha256": "68686ced624a48c42f84cdaa482ec44b72b0de4dc84a0df903af1fb7b45b5d9a"
+        "sha256": "70150223396487e1ccfef7eac61fc780074ad7fcc9e843b702a8a3bc23107494"
       },
       {
         "path": "dist/assets/vendor/wasm/openjpeg.wasm",
         "upstream_path": "wasm/openjpeg.wasm",
-        "sha256": "95e5002597af0824004aa57b1900fe019715db389e37640b1e58395e42f00cc5"
+        "sha256": "7ea4b2b04613370ad4e9c1162da750cc88b4b176eac0d0c164b3caff23fc0a46"
       },
       {
         "path": "dist/assets/vendor/wasm/openjpeg_nowasm_fallback.js",
         "upstream_path": "wasm/openjpeg_nowasm_fallback.js",
-        "sha256": "9047b34b6bc142d85e4b0aa1b08b0b9baad4c6f8b7ac87641b9e8f90eb6fd23e"
+        "sha256": "2855f1590e7fd7abbbf204cd13a5c09d30c92fe2c9313fb72b64aa763fe8b4f3"
       },
       {
         "path": "dist/assets/vendor/wasm/qcms_bg.wasm",

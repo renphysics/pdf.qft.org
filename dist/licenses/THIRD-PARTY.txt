@@ -32,7 +32,7 @@ the font is not embedded in PDFs.
 Exact package: https://registry.npmjs.org/@fontsource/allura/-/allura-5.3.0.tgz
 Full license: Allura-OFL.txt
 
-PDF.js (pdfjs-dist) 6.4.299, legacy browser build
+PDF.js (pdfjs-dist) 6.5.438, legacy browser build
 Mozilla and contributors. Apache License 2.0.
 Source: https://github.com/mozilla/pdf.js
 Full license: pdfjs-Apache-2.0.txt

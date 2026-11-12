@@ -8,8 +8,8 @@
  *
  * Bundled: the two legacy builds (pdf.min.mjs and pdf.worker.min.mjs, served as
  * pdf.mjs and pdf.worker.mjs) and the cmaps, iccs, standard_fonts and wasm
- * folders, without the scripting sandbox (wasm/quickjs-eval.*), which nothing
- * here loads.
+ * folders, without the scripting sandbox and its notices (NOT_BUNDLED below):
+ * the two builds do not refer to it, which is checked here.
  * Recorded: the version in dist/assets/vendor/versions.json and in
  * dist/licenses/THIRD-PARTY.txt, each file's size and SHA-256 in
  * scripts/asset-checksums.json, the npm tarball and each file's SHA-256 in
@@ -33,7 +33,14 @@ const pkg = path.join(root, 'node_modules/pdfjs-dist');
 const vendor = path.join(root, 'dist/assets/vendor');
 const BUILDS = { 'pdf.mjs': 'legacy/build/pdf.min.mjs', 'pdf.worker.mjs': 'legacy/build/pdf.worker.min.mjs' };
 const FOLDERS = ['cmaps', 'iccs', 'standard_fonts', 'wasm'];
-const NOT_BUNDLED = /^wasm\/quickjs-eval\./;
+// The scripting sandbox (QuickJS, for JavaScript inside PDFs) and its licence
+// notices. The builds served here never load it.
+const NOT_BUNDLED = [
+  'wasm/quickjs-eval.js',
+  'wasm/quickjs-eval.wasm',
+  'wasm/LICENSE_QUICKJS',
+  'wasm/LICENSE_PDFJS_QUICKJS',
+];
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const read = (file) => readFile(path.join(root, file));
@@ -59,7 +66,8 @@ export async function pdfjsBundle() {
   const { version } = await json('node_modules/pdfjs-dist/package.json');
   const upstream = new Map(Object.entries(BUILDS));
   for (const folder of FOLDERS)
-    for (const name of await filesUnder(pkg, folder)) if (!NOT_BUNDLED.test(name)) upstream.set(name, name);
+    for (const name of await filesUnder(pkg, folder))
+      if (!NOT_BUNDLED.includes(name)) upstream.set(name, name);
   const held = new Set(Object.keys(BUILDS));
   for (const folder of FOLDERS) for (const name of await filesUnder(vendor, folder)) held.add(name);
   const files = new Map(),
@@ -67,6 +75,10 @@ export async function pdfjsBundle() {
     added = [];
   for (const [name, source] of upstream) {
     const data = await readFile(path.join(pkg, source));
+    if (name in BUILDS && data.includes('quickjs'))
+      throw new Error(
+        `${source} refers to the scripting sandbox, which is not bundled: decide whether it should be`,
+      );
     files.set(name, { source, data });
     const bundled = held.has(name) ? await readFile(path.join(vendor, name)).catch(() => null) : null;
     if (!bundled) added.push(name);
@@ -114,6 +126,11 @@ async function main() {
   const key = (name) => 'assets/vendor/' + name;
   for (const name of removed) delete checksums[key(name)];
   for (const [name, { data }] of files) checksums[key(name)] = { bytes: data.length, sha256: sha256(data) };
+  // versions.json is one of the recorded files itself.
+  checksums[key('versions.json')] = {
+    bytes: Buffer.byteLength(text(versions)),
+    sha256: sha256(text(versions)),
+  };
   const record = provenance.pdfjs,
     known = new Set(record.verified_assets.map((asset) => asset.path));
   record.verified_assets = record.verified_assets
@@ -126,6 +143,9 @@ async function main() {
     if (!known.has('dist/' + key(name)))
       record.verified_assets.push({ path: 'dist/' + key(name), upstream_path: source, sha256: sha256(data) });
   if (record.version !== version) Object.assign(record, { version }, await tarball(version));
+  record.not_vendored = NOT_BUNDLED.map(
+    (name) => name + ' (the scripting sandbox and its notices: the two builds do not refer to it)',
+  );
   const line = /^PDF\.js \(pdfjs-dist\) \S+, legacy browser build$/m;
   if (!line.test(notices)) throw new Error('dist/licenses/THIRD-PARTY.txt: the PDF.js line was not found');
 
