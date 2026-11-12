@@ -43,7 +43,9 @@ source review does not replace the owner’s browser verification.
     Preview and export agree on dimensions, opacity, and location. Highlighting
     is described as annotation, never as secure redaction.
 12. **Keyboard:** Add text with the panel button, finish with Escape, then move
-    it with the arrow keys, edit it with Enter and delete it with Delete.
+    it with the arrow keys, edit it with Enter and delete it with Delete. Add a
+    highlight and a shape the same way and resize them with Alt and the arrow
+    keys, and with Width and Height in the panel.
 
 ## Geometry and input cases
 
@@ -59,11 +61,12 @@ source review does not replace the owner’s browser verification.
 
 ## Accessibility and mobile
 
-- Each icon-only button has an accessible name; labels are tied to inputs.
+- Each icon-only button has an accessible name; labels are tied to inputs,
+  sliders included (a test finds each slider by role and name).
 - Buttons work by keyboard, focus is visible, and any dialog restores focus.
 - Processing progress and success/error messages are announced through a live
   region; disabled actions explain what is required when that is not evident.
-- Reorder works without dragging. Pointer placement does not block normal page
+- Reorder and resize work without dragging. Pointer placement does not block normal page
   scrolling on mobile outside the editing canvas.
 - On a phone the page is the first thing under the document bar; tools are in the
   bottom bar and their settings sheet folds away. Tap targets are at least 44 px.
@@ -788,3 +791,73 @@ source review does not replace the owner’s browser verification.
   and footers go on when the tool opens, one Undo takes them off and the switch
   then reads off; stored values of the wrong kind, and text that is no JSON,
   are left out; a browser that refuses to store says so and unticks the box.
+
+## The second evaluation’s “now” list: two engine faults, sliders, resizing without a drag, the page selection, tests, PDF.js and Playwright — 2026-11-12
+
+- Page numbers, headers, footers or a watermark on a PDF whose pages share
+  their resources made the download many times larger, with no notice. pdf-lib
+  names each font and graphics state it draws with in the page's resources and
+  takes the dictionaries there for the page's own, so every page ended up with
+  the names added for all the others. ReportLab writes such files (one font
+  dictionary for every page); so does any PDF with one resources object, or
+  with resources on the page tree; copies of one page share theirs too.
+  `separatePages` gives a page its own copy of each dictionary an earlier page
+  holds. ReportLab reports of 100, 300 and 600 pages with page numbers: 408 KB,
+  3.0 MB and 11.8 MB before, 111 KB, 331 KB and 665 KB now (476 KB to start
+  with at 600 pages).
+- Reverse, Interleave or dragging a page, in a PDF whose pages inherit their
+  size, turn, crop or fonts from a node inside the page tree, gave pages that
+  were unturned, uncropped and without their fonts, or failed with a library
+  message: the pages are put back under the root of the tree. The four
+  inheritable attributes are written onto each page first.
+  `tests/odd-inputs.test.mjs` writes both kinds of file object by object,
+  without a PDF library, and checks the exports with pdf-lib and PDF.js; its
+  three tests fail on the engine as it was.
+- Sliders had no name: the value shown beside the label was an output element
+  inside the label, which HTML lets a label name, so the label named the
+  read-out. axe passes a slider inside a label. The value is now a plain element
+  kept out of the name, and the slider says its value with the unit. A browser
+  test finds every slider by role and name in Watermark, Highlight, Draw, Add
+  image and Sign PDF.
+- Items can be resized without dragging: Alt and an arrow key moves the right
+  or lower edge (Shift for ten points), and a highlight or a drawing has Width
+  and Height in its panel, as shares of the page. The edges are those on the
+  screen, so a shape placed before its page was turned grows the way the arrow
+  points. The size is announced; the panel follows a drag and Undo. Moving with
+  the arrow keys starts from the stored size, where a move in the same
+  animation frame as a resize put the old size back.
+- Organize pages: the first page ticked takes the place of the page a document
+  opens with selected (it used to join it, so ticking pages 4 and 5 and pressing
+  Remove took page 1 as well), and Rotate, Remove and Download name what they
+  act on: “Remove page 1”, “Remove 2 pages”.
+- Tests. Every browser test fails on a request to another origin, workers
+  included, and `expectToast` requires that a notice was also put into the
+  live region for screen readers, the interrupting one for an error. The
+  watermark's opacity and colour are read from the exported page, and the
+  comparison of download and preview uses a watermark dark enough to be seen.
+  The hostile-PDF test covers what is drawn on the page as markup, the panel's
+  list of items and the parts of a split. New journeys: files dropped on the
+  page and on the batch page, handles on a highlight, text and a picture, a
+  page dragged in the strip, a saved batch preset after a reload, the arrow
+  keys down and up, Remove with every page selected. 26 breakages, each applied
+  alone to a copy, were each caught.
+  Two faults came out of writing them: the handle in the middle of a one-line
+  highlight's right edge lay under the corner handle below it (handles take the
+  pointer from further away than they show), so pulling it sideways halved the
+  highlight's height, and the nearest handle is now the one taken; and the
+  panel's list of items kept “Text: empty” after text was typed on the page.
+- Dependencies. `download()` returns the name the app chose and allows the
+  browser either spelling: Playwright 1.65 ships WebKit with libsoup 3.6.6,
+  which writes spaces in a download's name as underscores (Linux only; Safari
+  does not use libsoup). With that, @playwright/test 1.65.0 and @napi-rs/canvas
+  1.1.0. PDF.js 6.5.438, updated by the new `scripts/vendor-pdfjs.mjs`, which
+  copies the files from the npm package and brings the checksums, the provenance
+  record, the version and the licence along; the site-integrity suite now
+  compares the bundle with the installed package on every run. README has the
+  section “Updating the libraries” that five files pointed to. Dependabot's
+  Actions updates come in one pull request. (The five Actions updates
+  themselves were merged on their own before this; the deploy with all five
+  succeeded.)
+- Runs: Node suites 90 of 90. Browser suites on Playwright 1.65 with PDF.js
+  6.5.438: Chromium 122, WebKit 114 with 3 skipped by design, Firefox 104 with
+  1 skipped by design.
