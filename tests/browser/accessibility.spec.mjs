@@ -1,7 +1,10 @@
 // axe-core finds no accessibility violations on the pages, in the editor's
 // tools and states, and in the dialogs.
+import { createRequire } from 'node:module';
 import AxeBuilder from '@axe-core/playwright';
-import { test, expect, fixture, openSample, ready, useTool } from './helpers.mjs';
+import { test, expect, fixture, openSample, ready, useTool, writeTemporary, root } from './helpers.mjs';
+
+const { createCanvas } = createRequire(import.meta.url)(`${root}/node_modules/@napi-rs/canvas`);
 
 async function violations(page) {
   const { violations: found } = await new AxeBuilder({ page }).analyze();
@@ -86,6 +89,55 @@ test('every editor tool, with items selected and settings shown', async ({ page 
   await page.locator('.tool-sidebar [data-action="help"]').click();
   await expect(page.locator('#info-dialog')).toBeVisible();
   expect(await violations(page), 'help dialog').toEqual([]);
+});
+
+test('every slider is named by its label and says its value with its unit', async ({ page }) => {
+  // axe is content with a slider inside a label, whatever that label names. The
+  // value shown beside the label was once an element that took the label for
+  // itself, which left every slider without a name. So each slider is asked for
+  // as a screen reader finds it: by role and name.
+  const form = page.locator('#tool-form');
+  const sliders = async (where, expected) => {
+    await expect(form.locator('input[type=range]:visible'), where).toHaveCount(Object.keys(expected).length);
+    for (const [name, value] of Object.entries(expected)) {
+      const slider = form.getByRole('slider', { name, exact: true });
+      await expect(slider, `${where}: one slider named ${name}`).toHaveCount(1);
+      await expect(slider, `${where}, ${name}: its value as it is read out`).toHaveAttribute(
+        'aria-valuetext',
+        value,
+      );
+      expect(
+        await slider.evaluate((input) => input.labels.length === 1 && input.labels[0].control === input),
+        `${where}, ${name}: the label is the slider's own`,
+      ).toBe(true);
+    }
+  };
+  await openSample(page, 'add-watermark-to-pdf/');
+  await sliders('Watermark', { Opacity: '18%', Angle: '-35°' });
+  // The value that is read out follows the slider, as the one shown does.
+  const opacity = form.getByRole('slider', { name: 'Opacity', exact: true });
+  await opacity.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(opacity).toHaveAttribute('aria-valuetext', '19%');
+  await expect(form.locator('[data-for="opacity"]')).toHaveText('19%');
+  await useTool(page, 'highlight');
+  await page.click('[data-action="add-highlight"]');
+  await sliders('Highlight', { Opacity: /^\d+%$/ });
+  await useTool(page, 'draw');
+  await sliders('Draw', { 'Line width': /^\d+ pt$/ });
+  await useTool(page, 'image');
+  const picture = createCanvas(120, 60);
+  picture.getContext('2d').fillRect(0, 0, 120, 60);
+  await page.locator('.pages-heading [data-action="add-files"]').click();
+  await page.setInputFiles('#file-input', await writeTemporary('slider.png', picture.toBuffer('image/png')));
+  await expect(page.locator('.edit-layer [data-item-id].selected')).toHaveCount(1);
+  await sliders('Add image', { Width: /^\d+%$/, Opacity: '100%' });
+  await useTool(page, 'signature');
+  await page.locator('label:has(input[name="signatureMode"][value="type"])').click();
+  await page.fill('#tool-form [name="signatureText"]', 'Alex Morgan');
+  await page.click('[data-action="signature-use"]');
+  await page.click('[data-action="signature-place"]');
+  await sliders('Sign PDF', { Width: /^\d+%$/ });
 });
 
 test('the password prompt, with and without an error', async ({ page }) => {

@@ -120,9 +120,15 @@ export function numberField(label, name, min, max, step = 1) {
 export function colorField(name = 'color') {
   return makeField('Color', '<input name="' + name + '" type="color">');
 }
+/**
+ * A slider. The label names it, so the value shown beside the label is kept out of
+ * the name (a read-out element there would even take the label for itself and
+ * leave the slider without one). The slider says its own value, with the unit:
+ * updateOutputs() below.
+ */
 export function rangeField(label, name, min, max, unit = '%') {
   return makeField(
-    label + ' <output data-for="' + name + '"></output>',
+    label + ' <span data-for="' + name + '" aria-hidden="true"></span>',
     '<input name="' +
       name +
       '" type="range" min="' +
@@ -280,11 +286,16 @@ export function renderTool() {
   updateStageHint();
   if (restoreKey) restoreFocus(restoreKey);
 }
+/** Each slider's value with its unit: shown beside its label, and what the slider says. */
 function updateOutputs() {
-  $$('input[type=range]', $('#tool-form') || document.createElement('form')).forEach((input) => {
-    const output = $('output[data-for="' + input.name + '"]', $('#tool-form'));
-    if (output) output.textContent = input.value + (input.dataset.unit || '');
-  });
+  const form = $('#tool-form');
+  if (!form) return;
+  for (const input of $$('input[type=range]', form)) {
+    const value = input.value + (input.dataset.unit || '');
+    input.setAttribute('aria-valuetext', value.trim());
+    const shown = $('[data-for="' + input.name + '"]', form);
+    if (shown) shown.textContent = value;
+  }
 }
 function validNumber(field) {
   return field.type !== 'number' || (field.value !== '' && field.checkValidity());
