@@ -110,19 +110,10 @@ test('a PDF with HTML and script in its strings runs nothing and injects nothing
       ]),
     );
   await check('Watermark and header');
-  // The download's name is made safe by the editor, not left to the browser: read
-  // from the link it clicks.
-  await page.evaluate(() => {
-    const click = HTMLAnchorElement.prototype.click;
-    HTMLAnchorElement.prototype.click = function () {
-      if (this.download) window.qaDownloadName = this.download;
-      return click.call(this);
-    };
-  });
+  // The download's name is made safe by the editor, not left to the browser:
+  // download() reads it from the link the editor clicks.
   const { name } = await download(page, () => page.click('#download-button'));
-  const given = await page.evaluate(() => window.qaDownloadName);
-  expect(given).toBe('_img src=x onerror=_window.__xssName=1__-edited.pdf');
-  expect(name).toBe(given);
+  expect(name).toBe('_img src=x onerror=_window.__xssName=1__-edited.pdf');
   // The batch workspace lists the file by name, as text.
   await useTool(page, 'watermark');
   await page.click('[data-action="batch-from-editor"]');

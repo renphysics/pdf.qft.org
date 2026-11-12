@@ -50,6 +50,14 @@ export const test = base.extend({
       // is not in the list.
       window.qaNotices = [];
       window.qaNoticesRead = 0;
+      // The name the app gives each file it hands to the browser: the download
+      // attribute of the link it clicks (see download below).
+      window.qaDownloadNames = [];
+      const click = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () {
+        if (this.hasAttribute('download')) window.qaDownloadNames.push(this.download);
+        return click.call(this);
+      };
       // What screen readers were told: each text put into the two live regions,
       // and into which ('status' waits its turn, 'alert' interrupts).
       window.qaSpoken = [];
@@ -229,10 +237,23 @@ export async function expectToast(page, expected) {
     .toBe(true);
 }
 
-/** Click something that downloads a file; returns its name and bytes. */
+/**
+ * Click something that downloads a file; returns its name and bytes. The name
+ * is the one the app chose: the download attribute of the link it clicked. A
+ * browser may offer the file under its own spelling of that name, and one does:
+ * WebKit on Linux writes spaces as underscores, since the libsoup 3.6.6 that
+ * Playwright 1.65 ships inside it. (Safari does not use libsoup.) So the name
+ * the browser offers is checked against the app's, in either spelling.
+ */
 export async function download(page, click) {
   const [file] = await Promise.all([page.waitForEvent('download'), click()]);
-  return { name: file.suggestedFilename(), bytes: new Uint8Array(await readFile(await file.path())) };
+  const name = await page.evaluate(() => window.qaDownloadNames.at(-1));
+  expect(name, 'the app named the file it downloaded').toEqual(expect.any(String));
+  expect(
+    [name, name.replace(/\s/g, '_')],
+    'the browser offers the file under the name the app chose',
+  ).toContain(file.suggestedFilename());
+  return { name, bytes: new Uint8Array(await readFile(await file.path())) };
 }
 
 /** Text lines the preview draws on the current page, after it has painted. */
