@@ -10,7 +10,18 @@ import { selectRange } from './pages.js';
 import { change } from './history.js';
 import { textField } from './tool-panel.js';
 
+/**
+ * What Rotate, Remove and Download will act on, for their labels: "page 4" for
+ * one selected page, "3 pages" for more. The page a document opens with
+ * selected is named like any other, so no button acts on a page it did not name.
+ */
+function selectedWords() {
+  if (ui.selected.size > 1) return ui.selected.size + ' pages';
+  const index = state.pages.findIndex((page) => ui.selected.has(page.id));
+  return index < 0 ? null : 'page ' + (index + 1);
+}
 export function fields(item, index) {
+  const chosen = selectedWords();
   switch (ui.tool) {
     case 'pages':
       return (
@@ -22,11 +33,15 @@ export function fields(item, index) {
         textField('Select page numbers', 'range', 'e.g. 1-3, 5', true) +
         '<button type="button" class="button secondary" data-action="select-range">Select range</button><div class="field-section wide">SELECTED PAGES</div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="rotate">' +
         icon('rotate') +
-        'Rotate 90°</button><button type="button" class="button danger" data-action="delete-pages">' +
+        // With nothing selected the buttons keep their plain names, and say what to select when pressed.
+        (chosen ? 'Rotate ' + chosen : 'Rotate 90°') +
+        '</button><button type="button" class="button danger" data-action="delete-pages">' +
         icon('trash') +
-        'Remove</button></div><button type="button" class="button secondary" data-action="extract">' +
+        (chosen ? 'Remove ' + chosen : 'Remove') +
+        '</button></div><button type="button" class="button secondary" data-action="extract">' +
         icon('download') +
-        'Download selected pages</button><div class="field-section wide">CURRENT PAGE · <span data-current-page>' +
+        (chosen ? 'Download ' + chosen : 'Download selected pages') +
+        '</button><div class="field-section wide">CURRENT PAGE · <span data-current-page>' +
         (index + 1) +
         '</span></div><div class="mini-actions wide"><button type="button" class="button secondary" data-action="move-earlier"' +
         (index === 0 ? ' aria-disabled="true"' : '') +

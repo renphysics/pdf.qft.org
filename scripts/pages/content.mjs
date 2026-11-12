@@ -351,7 +351,7 @@ export const PAGES = [
     faqs: [
       [
         'Can I extract pages into a new PDF?',
-        'Yes. Select the pages, or type a range such as 1-3, 5, and choose Download selected pages.',
+        'Yes. Select the pages, or type a range such as 1-3, 5. A button then downloads just those pages, and says how many: “Download 3 pages”.',
       ],
       [
         'Can I reorder pages without dragging?',

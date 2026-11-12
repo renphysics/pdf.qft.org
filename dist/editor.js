@@ -580,6 +580,13 @@ $('#signature-input').addEventListener('change', async (event) => {
 $('#page-list').addEventListener('change', (event) => {
   const id = event.target.dataset.pageSelect;
   if (!id) return;
+  // The page a document opens with selected was not chosen, so the first page
+  // that is ticked takes its place. (It used to join it: ticking pages 4 and 5
+  // and pressing Remove took page 1 as well.)
+  if (ui.selectedByDefault && event.target.checked) {
+    ui.selected = new Set();
+    $$('[data-page-select]').forEach((input) => (input.checked = input === event.target));
+  }
   if (event.target.checked) ui.selected.add(id);
   else ui.selected.delete(id);
   ui.selectedByDefault = false;

@@ -189,7 +189,11 @@ shows it without building a PDF:
   For printing on both sides, Swap left and right on even pages (headers and
   footers, page numbers, and their batch presets) puts what is on the right of
   odd pages on the left of even pages, by position in the document.
-  Turning, moving and removing pages only changes the page list. Organize pages
+  Turning, moving and removing pages only changes the page list. A document
+  opens with its first page selected, which is not a choice: the first page a
+  visitor ticks takes its place, and Rotate, Remove and Download in Organize
+  pages say in their labels what they will act on ("Remove page 1", "Remove 2
+  pages"), so none acts on a page it did not name. Organize pages
   can also reverse the order of all pages, and interleave a double-sided scan:
   the first half of the pages are the fronts and the rest the backs, scanned
   from the last sheet or the first (`interleaveOrder` in `workflows.js`).
