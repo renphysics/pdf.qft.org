@@ -1,12 +1,23 @@
 // A PDF with HTML and JavaScript in every string the editor shows (made by
 // scripts/make-hostile-fixture.mjs: title, author, creator, producer, field
 // names, labels, options, a bookmark, an OpenAction, a javascript: link), plus
-// a hostile file name and image name: nothing runs and nothing is injected, in
-// every panel that shows those strings. Every test also fails on a content
-// security policy violation (helpers.mjs).
+// a hostile file name and image name, and the same typed into the editor:
+// nothing runs and nothing is injected, in every panel that shows those strings
+// and on the page, where what is added is drawn as markup. Every test also fails
+// on a content security policy violation (helpers.mjs).
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { test, expect, download, fixture, openFiles, ready, root, useTool } from './helpers.mjs';
+import {
+  test,
+  expect,
+  download,
+  fixture,
+  openFiles,
+  overlayLines,
+  ready,
+  root,
+  useTool,
+} from './helpers.mjs';
 
 const { createCanvas } = createRequire(import.meta.url)(`${root}/node_modules/@napi-rs/canvas`);
 const NAME = '<img src=x onerror="window.__xssName=1">.pdf';
@@ -66,6 +77,39 @@ test('a PDF with HTML and script in its strings runs nothing and injects nothing
   await page.keyboard.press('Escape');
   await expect(page.locator('.file-chosen')).toHaveText('<img src=x onerror="window.__xssImage=1">.png');
   await check('Add an image');
+  // What is typed is drawn on the page as markup, and listed in the panel: text in both.
+  const typed = '<img src=x onerror="window.__xssTyped=1">';
+  // Everything written on the current page, line by line (a watermark is one line).
+  const written = async () => {
+    await overlayLines(page);
+    return page.locator('.page-view.current .page-overlay text').allTextContents();
+  };
+  await useTool(page, 'text');
+  await page.click('[data-action="add-text"]');
+  await page.keyboard.insertText(typed);
+  await page.keyboard.press('Escape');
+  expect(await written()).toContain(typed);
+  await expect(page.locator('.annotation-list')).toContainText('Text: “' + typed.slice(0, 40) + '…”');
+  await expect(page.locator('.annotation-list [data-remove-annotation]').last()).toHaveAttribute(
+    'aria-label',
+    'Delete Text: “' + typed.slice(0, 40) + '…”',
+  );
+  await check('Add text');
+  // A watermark and a header take the file's name through {filename}, and their own text.
+  const named = NAME.replace(/\.pdf$/, '');
+  await useTool(page, 'watermark');
+  await page.fill('#tool-form [name="text"]', '{filename} <b data-xss="Watermark">!</b>');
+  await useTool(page, 'footer');
+  await page.fill('#tool-form [name="headerLeft"]', '{filename} <b data-xss="Header">!</b>');
+  await expect
+    .poll(written)
+    .toEqual(
+      expect.arrayContaining([
+        named + ' <b data-xss="Watermark">!</b>',
+        named + ' <b data-xss="Header">!</b>',
+      ]),
+    );
+  await check('Watermark and header');
   // The download's name is made safe by the editor, not left to the browser: read
   // from the link it clicks.
   await page.evaluate(() => {
@@ -85,4 +129,29 @@ test('a PDF with HTML and script in its strings runs nothing and injects nothing
   await page.setInputFiles('#batch-file-input', file);
   await expect(page.locator('.batch-file-row').first()).toContainText(NAME);
   await check('Batch');
+});
+
+test('a file name that reads like character references is shown as it is, in the parts of a split too', async ({
+  page,
+}) => {
+  // The parts of a split are named after the file. The name is made safe for a
+  // file system first, which takes out "<" and ">" but leaves "&": text that
+  // markup would read as a character reference still has to come out as typed.
+  const name = 'a&lt;b&gt;&amp;c.pdf';
+  await openFiles(
+    page,
+    { name, mimeType: 'application/pdf', buffer: await readFile(fixture('rotated-cropped.pdf')) },
+    'split-pdf/',
+  );
+  await expect(page.locator('#document-name')).toHaveText(name);
+  await page.selectOption('#tool-form [name="mode"]', 'chunks');
+  await page.fill('#tool-form [name="size"]', '2');
+  await page.click('#tool-form [type="submit"]');
+  const part = page.locator('.split-result').first();
+  await expect(part.locator('strong')).toHaveText(/^a&lt;b&gt;&amp;c\b.*\.pdf$/);
+  await expect(part.locator('[data-action="download-split"]')).toHaveAttribute(
+    'aria-label',
+    /^Download a&lt;b&gt;&amp;c\b.*\.pdf$/,
+  );
+  expect(await page.locator('.split-result b, .split-result img').count()).toBe(0);
 });

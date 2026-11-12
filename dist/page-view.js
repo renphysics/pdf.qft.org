@@ -627,6 +627,8 @@ export function renderOverlays() {
   // what was done to the item on the page (a drag, a key, Undo). A field that is
   // being typed in keeps what is typed.
   if (ui.item) fillForm();
+  // So does its list of the items on this page, which names a text by its words.
+  refreshAnnotationList();
   positionInlineEditor();
   updateProblems(currentOverlay()?.problems || []);
   updateStageHint();
@@ -809,6 +811,8 @@ function refreshAnnotationList() {
     holder = document.createElement('div');
   holder.innerHTML = markup;
   const next = holder.firstElementChild;
+  // Left alone while it says the same: this runs with every redraw of the page.
+  if (old && next && old.isEqualNode(next)) return;
   if (old && next) old.replaceWith(next);
   else if (old) old.remove();
   else panel.append(next);

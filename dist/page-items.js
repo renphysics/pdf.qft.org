@@ -169,6 +169,32 @@ export function createText(page, point) {
 // ---- Moving and resizing items --------------------------------------------------
 
 /** A pointer position on a page, in points from its top-left corner. */
+/**
+ * The handle a pointer went down on. A handle takes the pointer from further
+ * away than it shows (see .handle::before), and on a small item those areas
+ * overlap: on a one-line highlight the handle in the middle of the right edge
+ * lay under the corner below it, and pulling it sideways resized from that
+ * corner, so the highlight jumped to half its height. The handle whose centre
+ * is nearest is the one meant.
+ */
+function handleAt(event) {
+  const hit = event.target.closest('[data-handle]');
+  if (!hit) return null;
+  let nearest = hit,
+    least = Infinity;
+  for (const handle of hit.parentElement.querySelectorAll('[data-handle]')) {
+    const rect = handle.getBoundingClientRect(),
+      distance = Math.hypot(
+        event.clientX - (rect.left + rect.width / 2),
+        event.clientY - (rect.top + rect.height / 2),
+      );
+    if (distance < least) {
+      least = distance;
+      nearest = handle;
+    }
+  }
+  return nearest;
+}
 function pagePoint(event, view) {
   const rect = view.el.getBoundingClientRect(),
     scale = ui.stage.byId.get(view.id)?.scale || ui.stage.scale;
@@ -726,7 +752,7 @@ export function initPageItems() {
       return;
     }
     if (!ANNOTATION_TOOLS.includes(ui.tool)) return;
-    const handle = event.target.closest('[data-handle]'),
+    const handle = handleAt(event),
       point = pagePoint(event, view);
     let box = event.target.closest('[data-item-id]');
     // Draw: a stroke may start over another drawing; a tap on one selects it (pointerup).

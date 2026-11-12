@@ -52,3 +52,46 @@ test('settings from the editor open in batch as a preset', async ({ page }) => {
   await expect(page.locator('[name="watermark-text"]')).toHaveValue('CONFIDENTIAL');
   await expect(page.locator('input[name="enable-watermark"]')).toBeChecked();
 });
+
+test('a saved preset is there after a reload with its settings, and gone once it is deleted', async ({
+  page,
+}) => {
+  const open = async () => {
+    await page.goto('batch-edit-pdf/');
+    await page.locator('[data-action="batch-choose"]').first().click();
+    await expect(page.locator('#batch-workspace')).toBeVisible();
+  };
+  const saved = () => page.locator('#batch-preset-select optgroup[label="Your saved presets"] option');
+  await open();
+  await expect(saved()).toHaveCount(0);
+  await page.locator('input[name="enable-watermark"]').check();
+  await page.fill('[name="watermark-text"]', 'HANDOUT');
+  await page.fill('[name="preset-name"]', 'Course handout');
+  await page.click('[data-batch-action="save-preset"]');
+  await expect(page.locator('#batch-status')).toHaveText('“Course handout” saved in this browser.');
+  await expect(saved()).toHaveText(['Course handout']);
+  // Kept by the browser, without a file: only the preset's name and settings.
+  const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('qft-pdf.presets.v1')));
+  expect(kept.map((entry) => entry.preset.name)).toEqual(['Course handout']);
+  expect(kept[0].preset.watermark.text).toBe('HANDOUT');
+
+  // After a reload it is in the menu, and choosing it brings its settings back.
+  await page.reload();
+  await open();
+  await expect(saved()).toHaveText(['Course handout']);
+  await page.selectOption('#batch-preset-select', { label: 'Course handout' });
+  await expect(page.locator('[name="watermark-text"]')).toHaveValue('HANDOUT');
+  await expect(page.locator('input[name="enable-watermark"]')).toBeChecked();
+  await expect(page.locator('[name="preset-name"]')).toHaveValue('Course handout');
+
+  // Deleted, it is gone after the next reload too.
+  await page.click('[data-batch-action="delete-preset"]');
+  await expect(page.locator('#batch-status')).toHaveText(
+    'Saved preset deleted. Its settings remain here until you change them.',
+  );
+  await expect(saved()).toHaveCount(0);
+  await page.reload();
+  await open();
+  await expect(saved()).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('qft-pdf.presets.v1')))).toEqual([]);
+});

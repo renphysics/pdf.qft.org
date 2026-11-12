@@ -222,6 +222,54 @@ await test('geometry export: the picture and the highlight are drawn on every pa
   }
 });
 
+await test('a watermark is drawn at its opacity and in its colour: the ones chosen, and the defaults', async () => {
+  // A watermark's text can be read in the download at any opacity and in any
+  // colour (an export a hundred times too faint passed every test), so the
+  // opacity and the colour are read from the page itself.
+  const { PDFName, decodePDFRawStream } = globalThis.PDFLib;
+  const blank = await PDFDocument.create();
+  blank.addPage([400, 500]);
+  const bytes = await blank.save();
+  const drawn = async (watermark) => {
+    const doc = await PDFDocument.load(
+      await buildPdf({
+        sources: [{ id: 'blank', bytes }],
+        pages: [{ id: 'page', sourceId: 'blank', index: 0 }],
+        watermark,
+      }),
+    );
+    const node = doc.getPage(0).node,
+      states = node.Resources().lookup(PDFName.of('ExtGState')),
+      content = node
+        .Contents()
+        .asArray()
+        .map((ref) => Buffer.from(decodePDFRawStream(doc.context.lookup(ref)).decode()).toString('latin1'))
+        .join('\n');
+    return {
+      // The opacity of everything filled: the one graphics state the page has.
+      opacities: states.keys().map((key) => states.lookup(key).lookup(PDFName.of('ca')).asNumber()),
+      // The fill colour set before the text is shown.
+      fill: /([\d.]+) ([\d.]+) ([\d.]+) rg\n(?:[^\n]*\n){1,12}?[^\n]* Tj\n/
+        .exec(content)
+        ?.slice(1)
+        .map(Number),
+    };
+  };
+  const rgb = (hex) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255);
+  for (const [watermark, opacity, colour] of [
+    [{ text: 'DRAFT', opacity: 0.4, color: '#1b4fa0', angle: 0, size: 36 }, 0.4, '#1b4fa0'],
+    [{ text: 'DRAFT' }, 0.15, '#85948e'],
+  ]) {
+    const page = await drawn(watermark);
+    assert.equal(page.opacities.length, 1, `${colour}: one graphics state`);
+    approx(page.opacities[0], opacity, `${colour}: the watermark's opacity`, 0.001);
+    assert.ok(page.fill, `${colour}: a fill colour is set before the text`);
+    rgb(colour).forEach((part, index) =>
+      approx(page.fill[index], part, `${colour}: the watermark's colour, part ${index + 1}`, 0.002),
+    );
+  }
+});
+
 let merged;
 await test('merging two PDFs; a footer on selected pages only', async () => {
   const second = await PDFDocument.create();
