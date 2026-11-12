@@ -43,7 +43,7 @@ import {
   updateSelectionCaption,
   updateStageHint,
 } from './page-view.js';
-import { setFrame } from './page-items.js';
+import { itemSize, resizeItemTo, setFrame } from './page-items.js';
 import { change } from './history.js';
 import { updateCropOverlays } from './panel-crop.js';
 import { updateDeletionMarks } from './panel-pages.js';
@@ -139,6 +139,29 @@ export function rangeField(label, name, min, max, unit = '%') {
       unit +
       '">',
   );
+}
+/**
+ * Width and Height for the selected highlight or drawing, as percentages of its
+ * page: a way to size it without dragging. sizeValues() fills them and
+ * onSizeInput() uses them; a panel calls all three.
+ */
+export function sizeFields() {
+  return (
+    '<div class="field-row">' +
+    numberField('Width (%)', 'boxWidth', 0.1, 100, 0.1) +
+    numberField('Height (%)', 'boxHeight', 0.1, 100, 0.1) +
+    '</div>'
+  );
+}
+export function sizeValues(item) {
+  const size = item && itemSize(item.id);
+  return size ? { boxWidth: size.width, boxHeight: size.height } : {};
+}
+/** True when `name` was one of the two size fields, and the item now has that size. */
+export function onSizeInput(name, value, item) {
+  if (name !== 'boxWidth' && name !== 'boxHeight') return false;
+  if (item) resizeItemTo(item.id, { [name === 'boxWidth' ? 'width' : 'height']: Number(value) / 100 });
+  return true;
 }
 export function selectField(label, name, options, wide = false) {
   return makeField(

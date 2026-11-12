@@ -9,7 +9,17 @@ import { icon, safe, ui } from './editor-core.js';
 import { overlayItem } from './page-view.js';
 import { inlineEditor } from './page-items.js';
 import { change } from './history.js';
-import { alignField, colorField, makeField, numberField, rangeField, resizeImageTo } from './tool-panel.js';
+import {
+  alignField,
+  colorField,
+  makeField,
+  numberField,
+  onSizeInput,
+  rangeField,
+  resizeImageTo,
+  sizeFields,
+  sizeValues,
+} from './tool-panel.js';
 
 export function title(item) {
   if (item?.type === 'text') return 'Edit text';
@@ -28,7 +38,7 @@ export function fields(item, index) {
           colorField() +
           '</div>' +
           alignField() +
-          '<p class="field-hint wide">Drag the text to move it, or its right edge to set where lines wrap. With the text selected, arrow keys nudge it.</p>' +
+          '<p class="field-hint wide">Drag the text to move it, or its right edge to set where lines wrap. With the text selected, arrow keys move it, and with Alt they set where lines wrap.</p>' +
           '<button type="button" class="button danger" data-action="delete-item">' +
           icon('trash') +
           'Delete text</button>'
@@ -50,7 +60,7 @@ export function fields(item, index) {
         return (
           rangeField('Width', 'width', 2, 100) +
           rangeField('Opacity', 'opacity', 10, 100) +
-          '<p class="field-hint wide">Drag the image to move it, or a corner to resize it. Arrow keys nudge it.</p>' +
+          '<p class="field-hint wide">Drag the image to move it, or a corner to resize it. Arrow keys move it, and with Alt they resize it.</p>' +
           '<button type="button" class="button danger" data-action="delete-item">' +
           icon('trash') +
           'Delete image</button>'
@@ -79,7 +89,8 @@ export function fields(item, index) {
         rangeField('Opacity', 'opacity', 5, 80) +
         '</div>' +
         (item?.type === 'highlight'
-          ? '<p class="field-hint wide">Drag the highlight to move it, or a handle to resize it. Arrow keys nudge it.</p>' +
+          ? sizeFields() +
+            '<p class="field-hint wide">Drag the highlight to move it, or a handle to resize it. Arrow keys move it, and with Alt they resize it. Width and height are shares of the page.</p>' +
             '<button type="button" class="button danger" data-action="delete-item">' +
             icon('trash') +
             'Delete highlight</button>'
@@ -115,6 +126,7 @@ export function values(item) {
       return {
         color: hexColor(source.color, '#f5d85c'),
         opacity: Math.round(number(source.opacity, 0.3, 0, 1) * 100),
+        ...sizeValues(item?.type === 'highlight' ? item : null),
       };
     }
   }
@@ -136,6 +148,7 @@ export function onInput(name, value, field, item) {
     return;
   }
   if (ui.tool === 'highlight') {
+    if (onSizeInput(name, value, item?.type === 'highlight' ? item : null)) return;
     const parsed = name === 'opacity' ? Number(value) / 100 : value;
     ui.styles.highlight[name] = parsed;
     if (item?.type === 'highlight')

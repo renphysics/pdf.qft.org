@@ -172,7 +172,11 @@ shows it without building a PDF:
   the wheel) keeps the reading position, and undo shows the page it changes.
 - Text, images and highlights can be typed into, dragged and resized right on
   their page, or selected and changed in the panel; with an item selected,
-  arrow keys nudge it, Delete removes it and Enter edits text. Watermarks, headers and
+  arrow keys move it, Delete removes it and Enter edits text. Nothing needs a
+  drag: Alt and an arrow key resizes the item, moving its right or lower edge
+  (Shift for bigger steps; a picture keeps its proportions, and text changes
+  where its lines wrap), and a highlight or a drawing has Width and Height
+  fields in its panel, as shares of the page. Watermarks, headers and
   footers, and page numbers update on every page as their settings change.
   Watermark and Page numbers show their defaults the first time they open for a
   document (one undo step; once undone or switched off, they stay off), and

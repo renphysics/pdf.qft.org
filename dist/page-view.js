@@ -30,7 +30,7 @@ import {
 } from './editor-core.js';
 import { documentFields, fillingForm, renderFormLayer, updateFormSummary } from './form-ui.js';
 import { positionInlineEditor, stack } from './page-items.js';
-import { annotationList } from './tool-panel.js';
+import { annotationList, fillForm } from './tool-panel.js';
 import { updateCropOverlays } from './panel-crop.js';
 import { refreshThumbOverlays, revealThumbnail, syncPageNavigation, thumbKey } from './pages.js';
 
@@ -623,6 +623,10 @@ export function renderOverlays() {
   if (!state.pages.length) return;
   for (const view of ui.stage.views.values()) renderViewOverlay(view);
   if (ui.tool === 'form') updateFormSummary();
+  // The panel shows the selected item's settings, its size among them: they follow
+  // what was done to the item on the page (a drag, a key, Undo). A field that is
+  // being typed in keeps what is typed.
+  if (ui.item) fillForm();
   positionInlineEditor();
   updateProblems(currentOverlay()?.problems || []);
   updateStageHint();

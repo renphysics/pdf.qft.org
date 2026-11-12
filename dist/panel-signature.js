@@ -25,7 +25,7 @@ function signatureFields(item, index) {
   if (item?.type === 'signature')
     return (
       rangeField('Width', 'width', 2, 100) +
-      '<p class="field-hint wide">Drag the signature to move it, or a corner to resize it. Arrow keys nudge it.</p>' +
+      '<p class="field-hint wide">Drag the signature to move it, or a corner to resize it. Arrow keys move it, and with Alt they resize it.</p>' +
       '<button type="button" class="button secondary" data-action="signature-copy">' +
       icon('pages') +
       'Put it here on every page</button>' +

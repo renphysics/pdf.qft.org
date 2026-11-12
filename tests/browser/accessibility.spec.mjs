@@ -2,7 +2,18 @@
 // tools and states, and in the dialogs.
 import { createRequire } from 'node:module';
 import AxeBuilder from '@axe-core/playwright';
-import { test, expect, fixture, openSample, ready, useTool, writeTemporary, root } from './helpers.mjs';
+import {
+  test,
+  expect,
+  fixture,
+  openSample,
+  ready,
+  useTool,
+  download,
+  previewDifference,
+  writeTemporary,
+  root,
+} from './helpers.mjs';
 
 const { createCanvas } = createRequire(import.meta.url)(`${root}/node_modules/@napi-rs/canvas`);
 
@@ -138,6 +149,159 @@ test('every slider is named by its label and says its value with its unit', asyn
   await page.click('[data-action="signature-use"]');
   await page.click('[data-action="signature-place"]');
   await sliders('Sign PDF', { Width: /^\d+%$/ });
+});
+
+test('items are resized without dragging: Alt and the arrow keys, and Width and Height for a shape or a highlight', async ({
+  page,
+  baseURL,
+}) => {
+  // A handle was the only way to resize a highlight or a drawn shape, and a
+  // keyboard, a switch or a voice cannot drag one: a highlight added from the
+  // panel could not be made to cover the text it was meant for.
+  await openSample(page, 'draw-on-pdf/');
+  const item = page.locator('.edit-layer [data-item-id].selected'),
+    form = page.locator('#tool-form'),
+    // The selected item's box on the page, in CSS pixels: left, top, width, height.
+    box = () =>
+      item.evaluate((node) => {
+        const [, , , , x, y] = node.style.transform
+          .match(/matrix\(([^)]+)\)/)[1]
+          .split(',')
+          .map(Number);
+        return [x, y, parseFloat(node.style.width), parseFloat(node.style.height)];
+      }),
+    // How many presses' worth a length changed by.
+    steps = (from, to, step) => Math.round((to - from) / step),
+    sheet = await page.locator('.page-view.current .edit-layer').boundingBox();
+  await page.selectOption('#tool-form [name="shape"]', 'rect');
+  await page.click('[data-action="add-drawing"]');
+  await expect(item).toBeFocused();
+  await expect(item).toHaveAttribute('aria-describedby', 'item-help');
+  await expect(page.locator('#item-help')).toContainText('with Alt, resize it');
+  const start = await box();
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect.poll(async () => (await box())[2]).toBeGreaterThan(start[2]);
+  const step = (await box())[2] - start[2];
+  // Quick presses all count, as they do for moving.
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Alt+ArrowRight');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Alt+ArrowDown');
+  await expect
+    .poll(async () => {
+      const now = await box();
+      return [steps(start[2], now[2], step), steps(start[3], now[3], step)];
+    })
+    .toEqual([5, 3]);
+  await page.keyboard.press('Alt+Shift+ArrowLeft');
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect
+    .poll(async () => {
+      const now = await box();
+      return [steps(start[2], now[2], step), steps(start[3], now[3], step)];
+    })
+    .toEqual([-5, 2]);
+  // The upper left corner stayed where it was, and a plain arrow key still moves the item, at its new size.
+  const resized = await box();
+  expect(resized.slice(0, 2)).toEqual(start.slice(0, 2));
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(async () => steps(start[1], (await box())[1], step)).toBe(1);
+  expect((await box()).slice(2)).toEqual(resized.slice(2));
+  // The size is said, and the panel shows it: shares of the page.
+  await expect(page.locator('#announce-status')).toHaveText(/^Width [\d.]+% of the page, height [\d.]+%\.$/);
+  const shares = async () => [
+    Number(await form.locator('[name="boxWidth"]').inputValue()),
+    Number(await form.locator('[name="boxHeight"]').inputValue()),
+  ];
+  await expect
+    .poll(async () => {
+      const [width, height] = await shares();
+      return [
+        Math.abs(width - (resized[2] / sheet.width) * 100),
+        Math.abs(height - (resized[3] / sheet.height) * 100),
+      ].every((difference) => difference < 0.1);
+    })
+    .toBe(true);
+  // Width and Height set the size; with no room to the right, the item moves over.
+  await form.locator('[name="boxWidth"]').fill('50');
+  await form.locator('[name="boxHeight"]').fill('10');
+  await expect
+    .poll(async () => {
+      const now = await box();
+      return [Math.round((now[2] / sheet.width) * 100), Math.round((now[3] / sheet.height) * 100)];
+    })
+    .toEqual([50, 10]);
+  await form.locator('[name="boxWidth"]').fill('100');
+  await expect
+    .poll(async () => {
+      const now = await box();
+      return [Math.round(now[0]), Math.round((now[2] / sheet.width) * 100)];
+    })
+    .toEqual([0, 100]);
+  // One step back undoes the sizes typed, by name; and the download has the shape as the page shows it.
+  await expect(page.locator('#undo-button')).toHaveAttribute('title', 'Undo: Resize drawing');
+  await page.click('#undo-button');
+  await expect.poll(async () => (await box()).slice(2)).toEqual(resized.slice(2));
+  const { bytes } = await download(page, () => page.click('#download-button'));
+  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.002);
+
+  // A highlight is made taller and narrower, to fit the text it is for.
+  await useTool(page, 'highlight');
+  await page.click('[data-action="add-highlight"]');
+  await expect(item).toBeFocused();
+  const line = await box();
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Alt+ArrowDown');
+  await page.keyboard.press('Alt+Shift+ArrowLeft');
+  await expect
+    .poll(async () => {
+      const now = await box();
+      return [steps(line[2], now[2], step), steps(line[3], now[3], step)];
+    })
+    .toEqual([-10, 6]);
+  await expect(form.locator('[name="boxWidth"]')).toBeVisible();
+  await expect(form.locator('[name="boxHeight"]')).toBeVisible();
+
+  // Text has a width only, where its lines wrap: narrower, the line breaks in two.
+  await useTool(page, 'text');
+  await page.click('[data-action="add-text"]');
+  await page.keyboard.type('Words enough to fill a line of their own');
+  await page.keyboard.press('Escape');
+  await expect(item).toBeFocused();
+  const words = await box();
+  await page.keyboard.press('Alt+ArrowDown');
+  for (let i = 0; i < 12; i++) await page.keyboard.press('Alt+Shift+ArrowLeft');
+  await expect.poll(async () => (await box())[2]).toBeLessThan(words[2] - 100 * step);
+  await expect.poll(async () => (await box())[3]).toBeGreaterThan(words[3] * 1.5);
+
+  // A picture keeps its proportions.
+  await useTool(page, 'image');
+  const picture = createCanvas(120, 60);
+  picture.getContext('2d').fillRect(0, 0, 120, 60);
+  await page.locator('.pages-heading [data-action="add-files"]').click();
+  await page.setInputFiles('#file-input', await writeTemporary('wide.png', picture.toBuffer('image/png')));
+  await expect(item).toHaveCount(1);
+  await item.focus();
+  const small = await box();
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Alt+Shift+ArrowRight');
+  await expect.poll(async () => steps(small[2], (await box())[2], step)).toBe(30);
+  const large = await box();
+  expect(Math.abs(large[2] / large[3] - small[2] / small[3])).toBeLessThan(0.01);
+
+  // A shape whose page was turned after it was placed: wider is still wider on the screen.
+  await useTool(page, 'draw');
+  await page.click('[data-action="add-drawing"]');
+  const turnedId = await item.getAttribute('data-item-id');
+  await useTool(page, 'pages');
+  await page.click('[data-action="rotate"]');
+  await ready(page);
+  await useTool(page, 'draw');
+  await page.locator(`.edit-layer [data-item-id="${turnedId}"]`).focus();
+  await expect(item).toHaveAttribute('data-item-id', turnedId);
+  const turned = await item.boundingBox();
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Alt+Shift+ArrowRight');
+  await expect.poll(async () => (await item.boundingBox()).width).toBeGreaterThan(turned.width + 20);
+  const wider = await item.boundingBox();
+  expect(Math.abs(wider.height - turned.height)).toBeLessThan(1);
+  expect(Math.abs(wider.x - turned.x)).toBeLessThan(1);
+  expect(Math.abs(wider.y - turned.y)).toBeLessThan(1);
 });
 
 test('the password prompt, with and without an error', async ({ page }) => {
