@@ -1373,13 +1373,47 @@ function addLayers(doc, layers) {
  * annotations are copied, each copy pointing at its own page (/P) and at the
  * copies of its pop-up, parent and reply (/Popup, /Parent, /IRT). Form widgets
  * stay as they are: they belong to their field.
+ *
+ * Its own resources, too. pdf-lib names every font, picture and graphics state
+ * it draws with in the page's resources, under a new name each time, and takes
+ * the dictionaries it finds there for the page's own. Pages often share them:
+ * through the page tree, as one object, or as one /Font dictionary that every
+ * page's resources point to (ReportLab writes those). Each page would then
+ * carry the names added for all the others, so page numbers on 2,000 such pages
+ * made a 1 MB file 125 MB. A page gets a copy of each dictionary an earlier page
+ * already holds; the fonts and pictures named in them stay shared.
  */
 function separatePages(doc, pages) {
   const { PDFArray, PDFDict, PDFName, PDFRef } = library();
   const { context } = doc;
   const lists = new Set();
   const claimed = new Set();
+  const held = new Set();
+  const dictionary = (value) => {
+    const found = value instanceof PDFRef ? context.lookup(value) : value;
+    return found instanceof PDFDict ? found : null;
+  };
+  // The dictionary itself for the first page that holds it, a copy in `holder` for the next.
+  const own = (holder, name, found) => {
+    if (!found || !held.has(found)) {
+      if (found) held.add(found);
+      return found;
+    }
+    const copy = found.clone(context);
+    held.add(copy);
+    holder.set(PDFName.of(name), copy);
+    return copy;
+  };
   for (const page of pages) {
+    const resources = own(
+      page.node,
+      'Resources',
+      dictionary(page.node.getInheritableAttribute(PDFName.of('Resources'))),
+    );
+    if (resources) {
+      for (const name of ['Font', 'XObject', 'ExtGState'])
+        own(resources, name, dictionary(resources.get(PDFName.of(name))));
+    }
     const contents = page.node.lookup(PDFName.of('Contents'));
     if (contents instanceof PDFArray) {
       if (lists.has(contents)) page.node.set(PDFName.of('Contents'), context.obj(contents.asArray()));
@@ -1768,8 +1802,17 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     // Pages in their original order stay in place. To reorder, take every page out
     // of the page tree and add them back; removePage also deletes the page object,
     // so each one is registered again under its own reference (outlines, links and
-    // form widgets that point at a page keep working).
+    // form widgets that point at a page keep working). The pages come back directly
+    // under the root of the tree, so what a page inherited from a node in between
+    // (its size, crop, rotation or resources) is first written onto the page itself.
     if (outputPages.some((page, index) => page !== originalPages[index])) {
+      for (const page of originalPages) {
+        for (const key of ['Resources', 'MediaBox', 'CropBox', 'Rotate']) {
+          const name = lib.PDFName.of(key);
+          const inherited = page.node.getInheritableAttribute(name);
+          if (inherited && !page.node.has(name)) page.node.set(name, inherited);
+        }
+      }
       for (let index = doc.getPageCount() - 1; index >= 0; index--) doc.removePage(index);
       for (const page of outputPages) {
         doc.context.assign(page.ref, page.node);

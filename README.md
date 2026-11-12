@@ -413,6 +413,13 @@ PDF.js where each link and bookmark leads, and that no page is hidden in the fil
 that each copy of a duplicated page shows only its own additions; that hidden
 layers stay hidden (by rendering with PDF.js); and the download notes about page
 labels, attachments, tags and digital signatures.
+tests/odd-inputs.test.mjs writes PDFs whose structure is valid but unusual, object
+by object and without a PDF library: pages that share their resources (through
+the page tree, as one object, or as one font dictionary, the way ReportLab writes
+them) and pages that inherit their size, turn, crop and fonts from a node inside
+the page tree. It checks that page numbers, a header and a watermark add to each
+page only what that page needs, so the file grows with its pages and not with
+their square, and that reordering keeps what the pages inherited.
 They use the development dependencies installed by `npm ci`.
 
 The Node suites (`tests/*.test.mjs`) are [`node:test`](https://nodejs.org/api/test.html)
