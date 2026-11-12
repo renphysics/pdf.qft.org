@@ -63,6 +63,38 @@ test('the pages show one under another, and the page in view is the current page
   expect(Math.abs((await placeInView(page, 3)).top)).toBeLessThan(40);
 });
 
+test('a new layout does not undo a scroll that has not been followed yet', async ({ page }) => {
+  // The view is followed a frame after it scrolls, and the pages are laid out
+  // again when the stage changes size: from a timer, 120 ms later. A layout that
+  // fell between a scroll and its frame started from the position before the
+  // scroll: the view went back, and the page number stayed where it was. (The
+  // test below met this in WebKit about once in eighty runs.) Here the layout
+  // is asked for right after the scroll, in the same task.
+  await openSample(page, 'add-text-to-pdf/');
+  await expect(page.locator('#page-jump')).toHaveValue('1');
+  await page.evaluate(async () => {
+    const { renderStage } = await import(
+      performance.getEntriesByType('resource').find((entry) => /\/page-view\.js/.test(entry.name)).name
+    );
+    const scroll = document.querySelector('#canvas-scroll');
+    scroll.scrollTop = document.querySelector('.page-view[data-number="2"]').offsetTop - 8;
+    renderStage();
+  });
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  expect(
+    Math.abs((await placeInView(page, 2)).top - 8),
+    'page 2 is where the view was scrolled to',
+  ).toBeLessThan(3);
+  // Leaving the editor and coming back keeps the place. (Hidden, the stage's scroll
+  // offset reads 0; a browser gives it back when the stage shows again.)
+  await page.click('[data-action="back"]');
+  await expect(page.locator('#workspace')).toBeHidden();
+  await page.click('[data-action="resume"]');
+  await ready(page);
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  expect(Math.abs((await placeInView(page, 2)).top - 8), 'page 2 is where it was left').toBeLessThan(3);
+});
+
 test('any page can be edited where it is; undo shows the page of the change', async ({ page }) => {
   await openSample(page, 'add-text-to-pdf/');
   await scrollToTop(page, 2);

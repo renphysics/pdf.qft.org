@@ -12,6 +12,7 @@ import {
   ANNOTATION_TOOLS,
   annotationById,
   announceMessage,
+  announceRested,
   clamp,
   currentPage,
   friendly,
@@ -535,7 +536,6 @@ function fromScreen(item, box) {
     height: Math.abs(b.y - a.y),
   };
 }
-let sizeSaid = 0;
 /**
  * Give an item the box that `place` returns for it: `place` gets the item's box
  * and its page as they lie on the screen, and the smallest side it may have.
@@ -585,8 +585,7 @@ function resize(id, place) {
   // The size is said in the measure the panel shows for the item: a highlight's
   // or a shape's sides as they lie on the screen (its Width and Height fields), a
   // picture's own width (its Width slider), and for text the width its lines wrap at.
-  // It is said once the keys rest: a held key resizes some thirty times a second,
-  // and a screen reader would queue every size on the way.
+  // It is said once the keys rest, and only while the item is still the selected one.
   const own = () => (storedFrame(annotation, item).width / item.placement.width) * 100,
     size = itemSize(id),
     message = text
@@ -594,8 +593,7 @@ function resize(id, place) {
       : picture
         ? `Width ${Math.round(own())}% of the page.`
         : size && `Width ${size.width}% of the page, height ${size.height}%.`;
-  clearTimeout(sizeSaid);
-  if (message) sizeSaid = setTimeout(() => annotationById(id) && announceMessage(message), 300);
+  if (message) announceRested(message, () => ui.item === id);
 }
 /**
  * Move an item's right or lower edge by `dx` or `dy` points on the screen (Alt

@@ -185,8 +185,8 @@ await test('no shipped script names a connection the browser tests cannot count'
   // a page or its workers (tests/browser/helpers.mjs). These are not reported
   // to them in every browser (a worker's EventSource in Firefox, for one), and
   // the site has no use for them: no script it ships may name one, its own or a
-  // library's.
-  const uncounted = /\b(?:EventSource|WebTransport|RTCPeerConnection|RTCDataChannel)\b/;
+  // library's. A prefixed name counts (webkitRTCPeerConnection).
+  const uncounted = /(?:EventSource|WebTransport|RTCPeerConnection|RTCDataChannel)\b/;
   const scripts = (await readdir(site, { recursive: true })).filter((file) => /\.m?js$/.test(file));
   assert(scripts.length > 30, 'the scripts were found');
   for (const name of scripts) {

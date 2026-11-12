@@ -349,7 +349,9 @@ second worker, say) has to fit the content security policy. `npm test` checks
 that the bundle is the installed package's files, byte for byte, and that
 those records name that package (`node scripts/vendor-pdfjs.mjs --check` does
 the same; neither needs the network), so a bundle or a record that was edited
-or left behind fails.
+or left behind fails. One value is taken as written: the tarball's SHA-256 in
+the provenance record, which only the tarball could confirm. The tarball is
+pinned by its sha512 integrity, which must be the lockfile's.
 
 pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
 maintained fork with the same API (the original project's last release was

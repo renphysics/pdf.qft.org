@@ -25,6 +25,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -117,8 +118,8 @@ async function tarball({ version, locked }) {
   try {
     // npm pack writes into the folder it runs in, so no path is in the command: a
     // temporary folder with a space in its name would split it. Through a shell
-    // because on Windows npm is npm.cmd.
-    execFileSync('npm', ['pack', `pdfjs-dist@${version}`, '--silent'], {
+    // because on Windows npm is npm.cmd. Its errors are shown (no network, say).
+    execFileSync('npm', ['pack', `pdfjs-dist@${version}`, '--loglevel=error'], {
       cwd: folder,
       shell: true,
       stdio: ['ignore', 'ignore', 'inherit'],
@@ -137,8 +138,10 @@ async function tarball({ version, locked }) {
  * The records of the bundle as the installed package wants them: `records` is
  * each file with its contents, `stale` the files that differ now, `before` the
  * version recorded so far. The provenance record names the npm tarball. Where
- * it names another version, or another tarball than package-lock.json, it is
- * stale; npm is asked for the tarball only to `renew` it.
+ * it names another version, or another tarball than package-lock.json, or has
+ * no SHA-256 for it, it is stale; npm is asked for the tarball only to `renew`
+ * it. (A SHA-256 that is there is taken as written: only the tarball could
+ * confirm it. What pins the tarball is its integrity, which is the lockfile's.)
  */
 export async function pdfjsRecords({ bundle, renew = false } = {}) {
   const { version, locked, files, removed } = bundle ?? (await pdfjsBundle());
@@ -173,7 +176,8 @@ export async function pdfjsRecords({ bundle, renew = false } = {}) {
   const named =
     record.version === version &&
     record.tarball === locked.resolved &&
-    record.tarball_integrity === locked.integrity;
+    record.tarball_integrity === locked.integrity &&
+    /^[0-9a-f]{64}$/.test(record.tarball_sha256 ?? '');
   if (!named)
     Object.assign(
       record,
@@ -200,7 +204,12 @@ export async function pdfjsRecords({ bundle, renew = false } = {}) {
   ];
   const stale = [];
   for (const [file, wanted] of records)
-    if (!Buffer.from(wanted).equals(await read(file).catch(() => Buffer.alloc(0)))) stale.push(file);
+    if (
+      !Buffer.from(wanted).equals(await read(file).catch(() => Buffer.alloc(0))) ||
+      // Not renewed here, so not to be taken for current whatever its text.
+      (file === 'scripts/vendor-license-provenance.json' && !named && !renew)
+    )
+      stale.push(file);
   return { records, stale, before };
 }
 
@@ -234,9 +243,20 @@ async function main() {
   console.log('Updated. Read the release notes, then run npm test and the browser tests.');
 }
 
-// Run as a script, not imported. (path.relative compares as the system does: on
-// Windows, without regard to the case of a drive letter.)
-if (process.argv[1] && path.relative(path.resolve(process.argv[1]), fileURLToPath(import.meta.url)) === '')
+/**
+ * Run as a script, not imported. Real paths are compared, as the repository may
+ * be reached through a linked folder, and with path.relative, which compares
+ * as the system does: on Windows, without regard to the case of a drive letter.
+ */
+function runAsScript() {
+  try {
+    const self = realpathSync(fileURLToPath(import.meta.url));
+    return path.relative(realpathSync(process.argv[1]), self) === '';
+  } catch {
+    return false; // no script was named, or what was named is not a file
+  }
+}
+if (runAsScript())
   await main().catch((error) => {
     // What went wrong and what to do about it, without the stack.
     console.error(error.message);

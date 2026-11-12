@@ -897,6 +897,36 @@ source review does not replace the owner’s browser verification.
     is named (“run npm ci”).
   - 28 breakages, 25 of them new, each applied alone to a copy, were each
     caught.
-- Runs, after the review: Node suites 92 of 92. Browser suites on Playwright
-  1.65 with PDF.js 6.5.438: Chromium 122, WebKit 114 with 3 skipped by design,
-  Firefox 104 with 1 skipped by design.
+- A second pass over that commit, by three reviewers: 8 findings, one of them
+  a test that could not fail, the rest small. All fixed.
+  - The size that waits to be said gave way to nothing: after Undo, Escape or
+    a click on another item it was said all the same, over “Undone: Resize
+    drawing.” or for an item no longer selected. It now gives way to whatever
+    else is announced, and is said only while its item is still the selected
+    one.
+  - The held-key test sent its keys in one task, where one delay cannot be
+    told from another. It now sends a keydown every 33 ms, as a held key does,
+    and fails at a delay of 0, 20 or 5000 ms. Text on a turned page is tested,
+    and so are the cases where a waiting size must give way.
+  - The update script requires the tarball's SHA-256 to be there and well
+    formed (a check takes its value as written, which the README now says),
+    shows npm's own error when the tarball cannot be fetched, and runs when it
+    is reached through a linked folder, where it did nothing and exited 0. The
+    check on shipped scripts sees a prefixed name too
+    (`webkitRTCPeerConnection`).
+  - A fault the full run turned up, older than this list. In WebKit “any page
+    can be edited where it is” failed once: the view had been scrolled to page
+    2 and the page number stayed at 1. The view is followed a frame after it
+    scrolls, and that is when its position is remembered; the pages are laid
+    out again from that position, also from a timer, 120 ms after the stage
+    changes size. A layout that fell between a scroll and its frame started
+    from the position before the scroll and put the view back. Asked for right
+    after a scroll, the layout did so every time, in every browser; left to
+    chance, once in 80 runs in WebKit. A layout now starts from where the view
+    is, and the current page follows the view. 240 runs in WebKit since,
+    without a failure, and a test that asks for the layout right after the
+    scroll.
+  - 13 breakages, 11 of them new, each caught.
+- Runs, after both reviews: Node suites 92 of 92. Browser suites on Playwright
+  1.65 with PDF.js 6.5.438: Chromium 124, WebKit 116 with 3 skipped by design,
+  Firefox 106 with 1 skipped by design.

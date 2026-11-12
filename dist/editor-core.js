@@ -133,7 +133,8 @@ export const ui = {
     metrics: null,
     version: 0,
     views: new Map(),
-    position: null,
+    position: null, // where the view is, to bring it back there after a new layout
+    readAt: null, // the scroll offsets that position was read at
     lock: null,
     reveal: null,
     frame: 0,
@@ -408,13 +409,27 @@ export function hideToast() {
   if (hadFocus && ui.toastReturnFocus?.isConnected) ui.toastReturnFocus.focus({ preventScroll: true });
   ui.toastReturnFocus = null;
 }
+let rested = 0;
 export function announceMessage(message, assertive = false) {
+  // What waited for things to rest (announceRested) gives way to this.
+  clearTimeout(rested);
   const region = $(assertive ? '#announce-alert' : '#announce-status');
   region.textContent = '';
   // Inserting fresh text into an existing live region is announced, even for a repeated message.
   setTimeout(() => {
     region.textContent = message;
   }, 60);
+}
+/**
+ * Announce once things rest. Of a quick run only the last is said: a held key
+ * resizes an item some thirty times a second, and a screen reader would queue
+ * every size on the way. Nothing is said if something else is announced in the
+ * meantime (the resize was undone, the item deleted), or if `still()` no longer
+ * holds by then (the item is not the selected one any more).
+ */
+export function announceRested(message, still = () => true) {
+  clearTimeout(rested);
+  rested = setTimeout(() => still() && announceMessage(message), 300);
 }
 /**
  * Ask before a destructive step. Resolves true only for the confirm button;

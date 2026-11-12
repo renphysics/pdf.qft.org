@@ -172,13 +172,27 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
       }),
     // How many presses' worth a length changed by.
     steps = (from, to, step) => Math.round((to - from) / step),
-    // Keys as a held-down key sends them: one after another, before the page is redrawn.
+    // Keys sent in one task: all arrive before the page is redrawn.
     burst = (keys) =>
       item.evaluate((node, keys) => {
         for (const [key, modifiers] of keys)
           node.dispatchEvent(
             new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
           );
+      }, keys),
+    // Keys as a held-down key sends them: each in its own task, 33 ms after the last.
+    // Gives how many announcements were made while they came. (The page's timers
+    // fire in the order they are due, so a slow machine does not change the count.)
+    held = (keys) =>
+      item.evaluate(async (node, keys) => {
+        const before = window.qaSpoken.length;
+        for (const [key, modifiers] of keys) {
+          node.dispatchEvent(
+            new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
+          );
+          await new Promise((resolve) => setTimeout(resolve, 33));
+        }
+        return window.qaSpoken.length - before;
       }, keys),
     said = page.locator('#announce-status'),
     // The size the panel shows, as shares of the page.
@@ -229,18 +243,26 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
   await page.keyboard.press('ArrowDown');
   await expect.poll(async () => steps(start[1], (await box())[1], step)).toBe(1);
   expect((await box()).slice(2)).toEqual(first.slice(2));
-  // A key held down: five resizes and a move arrive before the page is redrawn, and
-  // all count. (The move starts from the size the document holds, not the one drawn.)
-  await sizeSaid();
-  const held = await box(),
-    spoken = await page.evaluate(() => window.qaSpoken.length);
+  // Five resizes and a move that arrive before the page is redrawn all count. (The
+  // move starts from the size the document holds, not the one drawn.)
+  const before = await box();
   await burst([...new Array(5).fill(['ArrowRight', { altKey: true }]), ['ArrowDown', {}]]);
   await expect
     .poll(async () => {
       const now = await box();
-      return [steps(held[2], now[2], step), steps(held[1], now[1], step)];
+      return [steps(before[2], now[2], step), steps(before[1], now[1], step)];
     })
     .toEqual([5, 1]);
+  // A key held down resizes some thirty times a second. Nothing is said while the
+  // keys keep coming, and the size once, soon after they stop: a screen reader
+  // would queue every size on the way.
+  await sizeSaid();
+  const spoken = await page.evaluate(() => window.qaSpoken.length);
+  expect(await held(new Array(8).fill(['ArrowRight', { altKey: true }]))).toBe(0);
+  await expect
+    .poll(() => page.evaluate((from) => window.qaSpoken.length - from, spoken), { timeout: 3000 })
+    .toBe(1);
+  await expect.poll(async () => steps(before[2], (await box())[2], step)).toBe(13);
   const resized = await box();
   // The panel shows the size, as shares of the page, and the size said is the one shown.
   await expect
@@ -253,8 +275,7 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
     })
     .toBe(true);
   await sizeSaid();
-  // Said once, when the key rests: not each of the five sizes on the way.
-  expect(await page.evaluate((from) => window.qaSpoken.slice(from).length, spoken)).toBe(1);
+  expect(await page.evaluate((from) => window.qaSpoken.length - from, spoken)).toBe(1);
   // The keys stop at the page's edge and at the least size: 3 points.
   await burst(new Array(80).fill(['ArrowRight', { altKey: true, shiftKey: true }]));
   await expect.poll(async () => Math.abs((await box())[0] + (await box())[2] - sheet.width)).toBeLessThan(1);
@@ -335,6 +356,7 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
       return heard ? Math.abs(Number(heard[1]) - ((await box())[2] / sheet.width) * 100) < 0.5 : false;
     })
     .toBe(true);
+  const textId = await item.getAttribute('data-item-id');
 
   // A picture keeps its proportions.
   await useTool(page, 'image');
@@ -389,6 +411,92 @@ test('items are resized without dragging: Alt and the arrow keys, and Width and 
   await expect
     .poll(async () => `Width ${await slider.inputValue()}% of the page.`)
     .toBe(await said.textContent());
+  // And the text: its lines now run down the screen, so its lower edge is where they
+  // wrap. What is said is that width, which is the box's height on the screen, not
+  // the side that lies across.
+  await useTool(page, 'text');
+  await page.locator(`.edit-layer [data-item-id="${textId}"]`).focus();
+  await expect(item).toHaveAttribute('data-item-id', textId);
+  const sideways = await item.boundingBox();
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Alt+Shift+ArrowDown');
+  await expect.poll(async () => (await item.boundingBox()).height).toBeGreaterThan(sideways.height + 15);
+  await expect
+    .poll(async () => {
+      const heard = /^Width ([\d.]+)% of the page\.$/.exec(await said.textContent()),
+        now = await item.boundingBox(),
+        down = (now.height / turnedSheet.height) * 100,
+        across = (now.width / turnedSheet.width) * 100;
+      // (The two sides differ by far more than the allowance, or this would show nothing.)
+      return heard && Math.abs(down - across) > 5 ? Math.abs(Number(heard[1]) - down) < 0.5 : false;
+    })
+    .toBe(true);
+});
+
+test('a size that waits to be said gives way to what happens meanwhile', async ({ page }) => {
+  // A size is said a moment after the last resize. What is said in that moment is
+  // not talked over (the resize was undone, the item deleted), and a size is not
+  // said for an item that is no longer the selected one.
+  await openSample(page, 'draw-on-pdf/');
+  const item = page.locator('.edit-layer [data-item-id].selected'),
+    resize = ['ArrowRight', { altKey: true }],
+    // Keys in one task, so that the second arrives while the size still waits.
+    keys = (list) =>
+      item.evaluate((node, list) => {
+        for (const [key, modifiers] of list)
+          node.dispatchEvent(
+            new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
+          );
+      }, list),
+    mark = () => page.evaluate(() => window.qaSpoken.length),
+    // What was said since `from`, once a size that waited would have been said. The
+    // waiting is done by the page's own timers, which fire in the order they are due.
+    since = (from) =>
+      page.evaluate(async (from) => {
+        for (const wait of [400, 150]) await new Promise((resolve) => setTimeout(resolve, wait));
+        return window.qaSpoken.slice(from).map((said) => said.text);
+      }, from),
+    sizes = (texts) => texts.filter((text) => text.startsWith('Width'));
+  await page.selectOption('#tool-form [name="shape"]', 'rect');
+  await page.click('[data-action="add-drawing"]');
+  await expect(item).toBeFocused();
+  const first = await item.getAttribute('data-item-id');
+  // A resize and nothing else: the size is said. (So it would be below, if nothing stopped it.)
+  let from = await mark();
+  await keys([resize]);
+  expect(await since(from)).toEqual([expect.stringMatching(/^Width [\d.]+% of the page, height [\d.]+%\.$/)]);
+  // Undone at once: what is said is that it was undone.
+  from = await mark();
+  await keys([resize, ['z', { ctrlKey: true }]]);
+  expect(await since(from)).toEqual(['Undone: Resize drawing.']);
+  // Deselected at once: nothing is said about an item that is not selected.
+  await expect(item).toHaveAttribute('data-item-id', first);
+  from = await mark();
+  await keys([resize, ['Escape', {}]]);
+  expect(sizes(await since(from))).toEqual([]);
+  await expect(item).toHaveCount(0);
+  // Another item selected at once: the first one's size is not said in its place.
+  await page.click('[data-action="add-drawing"]');
+  await expect(item).toBeFocused();
+  const second = await item.getAttribute('data-item-id');
+  expect(second).not.toBe(first);
+  from = await mark();
+  await page.evaluate(
+    ([first, second, [key, modifiers]]) => {
+      const node = (id) => document.querySelector(`.edit-layer [data-item-id="${id}"]`);
+      node(first).focus();
+      node(first).dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
+      );
+      node(second).focus();
+    },
+    [first, second, resize],
+  );
+  expect(sizes(await since(from))).toEqual([]);
+  await expect(item).toHaveAttribute('data-item-id', second);
+  // Deleted at once: what is said is that it is gone.
+  from = await mark();
+  await keys([resize, ['Delete', {}]]);
+  expect(await since(from)).toEqual(['Rectangle deleted.']);
 });
 
 test('the password prompt, with and without an error', async ({ page }) => {
