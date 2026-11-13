@@ -398,6 +398,10 @@ export const PAGES = [
       ],
       ['Can I delete every page?', 'No. At least one page has to remain in the document.'],
       ['Is my PDF uploaded?', 'No. Pages are removed in your browser and the file never leaves your device.'],
+      [
+        'Will deleting pages make my PDF smaller?',
+        'Yes, by what only those pages used, such as their pictures and fonts. Nothing else is compressed: QFT PDF can’t compress a PDF.',
+      ],
     ],
   },
   {
@@ -692,6 +696,10 @@ export const PAGES = [
       [
         'Can I mix pictures and PDFs?',
         'Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document.',
+      ],
+      [
+        'Will the text in my scans be searchable?',
+        'No. QFT PDF can’t read the text in a picture (OCR): a scanned page stays a picture, so its words can’t be searched or copied.',
       ],
       [
         'Can I convert Word or PowerPoint files?',

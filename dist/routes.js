@@ -27,7 +27,7 @@ export const TOOLS = Object.freeze([
     category: 'edit',
     color: 'blue',
     card: ['Draw, type or upload your signature.', 'Place it on one page or every page.'],
-    keywords: 'signature e-sign esign fill',
+    keywords: 'add signature e-sign esign fill',
   }),
   tool('form', 'fill-pdf-form', 'Fill form', 'Form', 'form', {
     category: 'edit',
@@ -45,31 +45,31 @@ export const TOOLS = Object.freeze([
     category: 'edit',
     color: 'sand',
     card: ['Draw with a pen, or add lines, arrows', 'and shapes to mark up a page.'],
-    keywords: 'draw pen annotate markup sketch line arrow rectangle circle ellipse shape',
+    keywords: 'draw drawing pen annotate markup sketch line arrow rectangle circle ellipse shape',
   }),
   tool('watermark', 'add-watermark-to-pdf', 'Watermark', 'Watermark', 'watermark', {
     category: 'automate',
     color: 'lavender',
     card: ['Give every page a subtle stamp', 'with text, color, and transparency.'],
-    keywords: 'draft confidential stamp',
+    keywords: 'add draft confidential stamp mark',
   }),
   tool('footer', 'add-header-and-footer-to-pdf', 'Headers & footers', 'Headers', 'footer', {
     category: 'automate',
     color: 'peach',
     card: ['Your name, your project, your details.', 'In the same place on every page.'],
-    keywords: 'header footer title date name running',
+    keywords: 'add header footer title date name running',
   }),
   tool('numbers', 'add-page-numbers-to-pdf', 'Page numbers', 'Numbers', 'number', {
     category: 'automate',
     color: 'pink',
     card: ['A little order goes a long way.', 'Custom numbers from start to finish.'],
-    keywords: 'numbering pagination',
+    keywords: 'add numbering pagination',
   }),
   tool('pages', 'organize-pdf', 'Organize pages', 'Organize', 'pages', {
     category: 'organize',
     color: 'sand',
     card: ['Reorder, rotate, remove, or extract', 'just the pages you need.'],
-    keywords: 'reorder rotate extract reverse interleave blank duplicate move',
+    keywords: 'add insert reorder rotate extract reverse interleave blank duplicate move',
   }),
   tool('delete', 'delete-pages-from-pdf', 'Delete pages', 'Delete', 'trash', {
     category: 'organize',
@@ -93,7 +93,7 @@ export const TOOLS = Object.freeze([
     category: 'edit',
     color: 'peach',
     card: ['Every page on A4 or Letter paper.', 'Scaled to fit, with nothing cut off.'],
-    keywords: 'page size paper a4 letter scale fit enlarge shrink standard print mixed sizes',
+    keywords: 'change page size paper a4 us letter scale fit enlarge shrink standard print mixed sizes',
   }),
   tool('merge', 'merge-pdf', 'Merge PDFs', 'Merge', 'merge', {
     category: 'organize',
@@ -117,7 +117,7 @@ export const TOOLS = Object.freeze([
     category: 'organize',
     color: 'pink',
     card: ['Photos and pictures as PDF pages.', 'A4, Letter or their own size.'],
-    keywords: 'png jpeg image picture photo convert',
+    keywords: 'png jpeg image picture photo scan convert',
   }),
   tool('pdftojpg', 'pdf-to-jpg', 'PDF to JPG', 'PDF to JPG', 'to-picture', {
     category: 'organize',
@@ -147,3 +147,131 @@ export const TOOLS = Object.freeze([
 
 /** Each tool's address (the slug of its page). The app shows it while the tool is in use. */
 export const TOOL_PAGES = Object.freeze(Object.fromEntries(TOOLS.map((item) => [item.id, item.slug])));
+
+/** The words of a text, for the tool search: lowercase letters and digits, "e-sign" as "e" and "sign". */
+export const searchWords = (text) =>
+  String(text)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+// Words that name no tool: "merge pdf" and "pdf to jpg" find what "merge" and "jpg" find.
+const COMMON = new Set('pdf pdfs a an the my to from of in on for and with'.split(' '));
+/** What the search reads for a tool: the name and copy on its card, and its keywords. */
+export const searchText = (item) =>
+  [item.title || item.name, ...(item.card || []), item.keywords || ''].join(' ');
+/**
+ * Whether the words typed (searchWords) find a text, such as a card's
+ * (searchText, with its category's name). Each typed word must be the start of
+ * one of its words, so "word" does not find "password", and words that name no
+ * tool are left out. A word ending in a single "s" also counts without it:
+ * "pages" finds "Page numbers".
+ */
+export function searchFinds(typed, text) {
+  const own = searchWords(text);
+  return typed
+    .filter((word) => !COMMON.has(word))
+    .every((word) => {
+      const single = word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word;
+      return own.some((found) => found.startsWith(word) || found.startsWith(single));
+    });
+}
+
+/**
+ * What the tool search says where the site has no tool for what was typed: one
+ * true sentence each, naming the nearest tool where it helps ([label](tool:id),
+ * the links of scripts/pages/content.mjs). `words` are the searches that bring
+ * it: each is one or more words that must all be typed, whole, or as the start
+ * of a typed word where they end in "*" ("compress*" also finds "compression";
+ * "word" is not found in "password", nor "doc" in "document"). `missing` names
+ * what no tool does: tests/search.test.mjs fails when a tool's name, copy or
+ * keywords come to offer it, so that the sentence goes when the tool comes.
+ */
+const note = (id, words, text, missing) => Object.freeze({ id, words, text, missing });
+export const SEARCH_NOTES = Object.freeze([
+  note(
+    'compress',
+    ['compress*', 'shrink*', 'smaller', 'optimi*', 'reduce size', 'reduce file', 'file size', 'downsiz*'],
+    'QFT PDF can’t compress a PDF, but leaving out pages you don’t need, with [Delete pages](tool:delete) or [Split PDF](tool:split), can make the copy smaller.',
+    ['compress', 'compression', 'optimize', 'file size'],
+  ),
+  note(
+    'ocr',
+    ['ocr', 'searchable', 'recogni*', 'scan text', 'scan* to text', 'text recogni*'],
+    'QFT PDF can’t turn a scan into text (OCR): scanned pages stay pictures, which [JPG to PDF](tool:jpgtopdf) can put in a PDF but not make searchable.',
+    ['ocr', 'searchable', 'text recognition'],
+  ),
+  note(
+    'redact',
+    [
+      'redact*',
+      'black out',
+      'blackout',
+      'censor*',
+      'remove text',
+      'hide text',
+      'delete text',
+      'erase*',
+      'white out',
+      'whiteout',
+      'anonymi*',
+    ],
+    'QFT PDF can’t redact: what you add on top of a page, or crop away, only hides what is there, and it stays in the file.',
+    ['redact', 'redaction', 'black out', 'censor'],
+  ),
+  note(
+    'edit-text',
+    [
+      'edit text',
+      'change text',
+      'replace text',
+      'modify text',
+      'fix text',
+      'correct text',
+      'edit words',
+      'change words',
+      'typo*',
+      'rewrite',
+      'edit existing',
+    ],
+    'QFT PDF can’t change the text already in a PDF; [Add text](tool:text) puts new text on top of the page.',
+    ['edit text', 'change text', 'replace text', 'edit existing'],
+  ),
+  note(
+    'office',
+    ['word', 'docx', 'doc', 'docs', 'excel', 'xls*', 'powerpoint', 'ppt*', 'office', 'odt', 'rtf'],
+    'QFT PDF can’t convert between PDF and Word, Excel or PowerPoint; to make a PDF from an Office file, save it as PDF in the app that made it.',
+    ['word', 'docx', 'excel', 'powerpoint'],
+  ),
+  note(
+    'images-out',
+    ['extract image*', 'extract picture*', 'extract photo*', 'image* out', 'picture* out'],
+    'QFT PDF can’t take the pictures out of a PDF; [PDF to JPG](tool:pdftojpg) saves whole pages as pictures.',
+    ['extract images', 'extract pictures'],
+  ),
+  note(
+    'bookmarks',
+    ['bookmark*', 'outline', 'table of contents', 'toc'],
+    'QFT PDF can’t add or edit bookmarks, except that [Merge PDFs](tool:merge) can give each PDF it combines a bookmark of its own.',
+    ['bookmark', 'bookmarks', 'outline'],
+  ),
+  note(
+    'digital-signature',
+    ['digital signature*', 'digital sign*', 'digitally', 'certif*'],
+    '[Sign PDF](tool:signature) places a picture of your signature; QFT PDF can’t add a certificate-based digital signature.',
+    ['digital signature', 'certificate'],
+  ),
+]);
+const wordMatches = (wanted, typed) =>
+  wanted.endsWith('*') ? typed.startsWith(wanted.slice(0, -1)) : typed === wanted;
+/** The note for the words typed (searchWords), or null: the first whose search is all there. */
+export function searchNote(typed) {
+  return (
+    SEARCH_NOTES.find((item) =>
+      item.words.some((search) =>
+        search.split(' ').every((wanted) => typed.some((word) => wordMatches(wanted, word))),
+      ),
+    ) || null
+  );
+}

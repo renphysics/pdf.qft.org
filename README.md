@@ -414,6 +414,9 @@ requests are still handled by the hosting platform.
   [Forms](#forms). Forms made only in XFA are not supported.
 
 Existing paragraphs are not rewritten. Highlighting is not secure redaction.
+There is no compression, OCR, redaction, or conversion to and from Word: a
+search of the tool list for them shows one sentence that says so, naming the
+nearest tool where one helps (`SEARCH_NOTES` in `routes.js`).
 A digitally signed PDF's signature is not valid in a download, as the file it
 covers has changed; the download message says so. Merging, duplicating,
 or subsetting pages from a PDF with form fields needs its fields flattened
@@ -505,6 +508,10 @@ readers, was judged once, by hand, with pypdf (strict), PyMuPDF and poppler
 (`pdfinfo`, `pdftotext`) as well as PDF.js: all four read every file as the
 catalogue describes it, and agree with PDF.js on the downloads of every
 operation. Those readers are not part of the tests.
+tests/search.test.mjs checks which cards a search of the tool list finds, and
+that each search note links to tools that exist, is one sentence, and says
+"can't" about nothing a tool offers (`tests/browser/search.spec.mjs` shows the
+notes in the page, and what a screen reader is told).
 They use the development dependencies installed by `npm ci`.
 
 The Node suites (`tests/*.test.mjs`) are [`node:test`](https://nodejs.org/api/test.html)
@@ -815,7 +822,13 @@ and generated results remain in memory. Storage failures leave the current
 preset usable in the tab. No external ZIP library or network service is used.
 ZIP32 size/count limits produce a message directing users to individual files.
 
-The home toolkit supports category filters and search. The editor uses a compact
+The home toolkit supports category filters and search. Each word typed must be
+the start of a word of a card's name, copy, keywords or category (`searchFinds`
+in `routes.js`): "word" does not find "password", words such as "pdf" and "to"
+are ignored, and "pages" also finds "page". On a tool page, a search that finds
+only the page's own tool, whose card is not there, says that this page is that
+tool. A search that ends in a note or in "No tools match" is announced to screen
+readers once typing rests. The editor uses a compact
 tool selector (a bottom tool bar on phones) and direct page navigation.
 Responsive checks cover 320px to 1280px layouts without horizontal overflow.
 

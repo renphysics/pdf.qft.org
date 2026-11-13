@@ -22,16 +22,19 @@
 import {
   $,
   $$,
+  announceMessage,
   busy,
   friendly,
   hideToast,
   pageTool,
   scheduleToastHide,
   showInfo,
+  state,
   toast,
   ui,
 } from './editor-core.js';
 import { finishLanding } from './views.js';
+import { TOOLS, TOOL_PAGES, searchFinds, searchNote, searchText, searchWords } from './routes.js';
 
 // ---- The editor, loaded once ----------------------------------------------------------
 
@@ -118,19 +121,77 @@ if (pageTool === 'batch') warmEditor();
 // ---- The tool cards -------------------------------------------------------------------
 
 let toolFilter = 'all';
+const siteRoot = new URL('./', import.meta.url);
+const toolOf = (id) => TOOLS.find((item) => item.id === id);
+/** What the search reads for a tool: its card (routes.js) and its category, named as on the filter buttons. */
+const cardText = (item) =>
+  searchText(item) + ' ' + ($(`[data-tool-filter="${item.category}"]`)?.textContent || '');
+/** A link to a tool that works as its card does: with a document open, the editor switches tools in place. */
+function toolLink(id, label) {
+  const link = document.createElement('a');
+  link.href = new URL(TOOL_PAGES[id] + '/', siteRoot).pathname;
+  if (toolOf(id).tab) link.dataset.startTool = id;
+  else link.dataset.action = id;
+  link.textContent = label;
+  return link;
+}
+const LINK = /\[([^\]]+)\]\(tool:([a-z]+)\)/g;
+/** A search note's text (routes.js), its [label](tool:id) links made into links. */
+function noteContent(text) {
+  const parts = [];
+  let at = 0;
+  for (const match of text.matchAll(LINK)) {
+    parts.push(text.slice(at, match.index), toolLink(match[2], match[1]));
+    at = match.index + match[0].length;
+  }
+  parts.push(text.slice(at));
+  return parts;
+}
+/**
+ * On a tool page, the search found only the page's own tool, which has no card
+ * there: this page is it. Its upload button says what to choose; with a
+ * document open, a link takes the document to the tool.
+ */
+function ownToolContent(item) {
+  const name = `This page is ${item.title || item.name}: `;
+  if (state.pages.length && item.tab) return [name, toolLink(item.id, 'use it on your open document'), '.'];
+  const choose = $('#drop-zone .upload-button').textContent.trim();
+  return [name + choose[0].toLowerCase() + choose.slice(1) + ' above.'];
+}
+let sayTimer = 0,
+  said = '';
+/**
+ * A dead end is said once typing rests, and only when it is new: a screen
+ * reader would otherwise speak at every key. Cards that match are not said.
+ */
+function sayResult(message) {
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => {
+    if (message && message !== said) announceMessage(message);
+    said = message;
+  }, 700);
+}
 function filterTools() {
-  // Every word typed must be in the card's text or its keywords (routes.js).
-  const words = $('#tool-search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // Every word typed (but "pdf", "to", "the"...) must start a word of the card's text,
+  // its keywords or its category (routes.js), so "word" does not find "password".
+  const typed = searchWords($('#tool-search').value),
+    shown = (item) => toolFilter === 'all' || item.category === toolFilter;
   let count = 0;
   $$('.tool-card').forEach((card) => {
-    const text = (card.textContent + ' ' + (card.dataset.keywords || '')).toLowerCase();
-    const visible =
-      (toolFilter === 'all' || card.dataset.category === toolFilter) &&
-      words.every((word) => text.includes(word));
-    card.hidden = !visible;
-    if (visible) count++;
+    const item = toolOf(card.dataset.card);
+    card.hidden = !(shown(item) && searchFinds(typed, cardText(item)));
+    if (!card.hidden) count++;
   });
-  $('#no-tools').hidden = count !== 0;
+  // What the site does not do, said plainly: above the cards, or in place of "No tools
+  // match". On a tool page, a search that finds only the page's own tool says so.
+  const found = searchNote(typed),
+    own = !found && !count && pageTool ? toolOf(pageTool) : null,
+    here = own && shown(own) && searchFinds(typed, cardText(own)),
+    note = $('#search-note');
+  note.replaceChildren(...(found ? noteContent(found.text) : here ? ownToolContent(own) : []));
+  note.hidden = !found && !here;
+  $('#no-tools').hidden = count !== 0 || !note.hidden;
+  sayResult(!note.hidden ? note.textContent : count ? '' : $('#no-tools').textContent);
 }
 $('#tool-search').addEventListener('input', filterTools);
 $$('[data-tool-filter]').forEach((button) =>

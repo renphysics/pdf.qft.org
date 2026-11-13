@@ -1044,3 +1044,53 @@ source review does not replace the owner’s browser verification.
   the identifier, first got through: the check read it with pdf-lib, which
   found it in the old cross-reference stream that the unlocked copy still
   holds as a loose object. The check now takes PDF.js's fingerprint.
+
+## The tool search: one plain sentence where no tool does it — 2026-11-13
+
+- A search for something the site does not do ended at “No tools match”, or
+  at cards that do not do it: “word” showed Document properties, Protect PDF
+  and Unlock PDF (“keywords”, “password”). Now compress, OCR, redact, editing
+  the text already there and Word, Excel or PowerPoint each bring one sentence
+  that says the site can’t, and names the nearest tool where one helps; so do
+  taking pictures out, bookmarks and digital signatures. The redact sentence
+  names none: nothing on the site removes what is under it. The sentences are
+  `SEARCH_NOTES` in `routes.js`, which the landing page loads already, so the
+  search still needs no other file.
+- The sentence takes the place of “No tools match”, or stands above cards that
+  match but do not do it (“edit text” shows Add text under it). Its tool names
+  are links that work as cards do: the tool’s page, or with a document open,
+  the tool in place.
+- A search finds a card when each word typed is the start of a word of its
+  name, copy, keywords or category: “word” no longer finds “password”, and
+  “edit” finds the seven cards under Edit & annotate. “pdf”, “to”, “the” and
+  such are left out (“rotate pdf” found nothing), and a word ending in one “s”
+  also counts without it (“number pages”, “sheets”). New keywords where a
+  plain search found nothing: add, mark, scan, insert, drawing. Measured on
+  274 searches (every card name, tab label and keyword, and likely searches):
+  80 found nothing before, 10 now (resize, scale, translate and the like),
+  and 44 bring a sentence; 54 show other cards than before, and in the 8 that
+  lost a card, none was a match anyone wanted (“pen” in “open”, “lock” in
+  “unlock”, “move” in “remove”, “word” in “password”).
+- On a tool page, its own card is not in the grid, so a search for it found
+  nothing (and “No tools match” on Crop PDF suggested “crop”). It now says
+  “This page is Crop PDF: choose a PDF above.”, in the words of the page’s
+  own button (“choose pictures” on JPG to PDF, “choose PDFs to merge” on
+  Merge), and with a document open, a link takes the document to the tool.
+- A dead end, a sentence or “No tools match”, is said to a screen reader once,
+  700 ms after typing stops; cards that match are not said.
+- The help and two FAQs say it too: Delete pages makes a copy smaller by what
+  only the deleted pages used, and nothing else is compressed; scans in JPG
+  to PDF are not searchable.
+- Tests. `tests/search.test.mjs` checks which cards searches find, that every
+  card is found by its name, tab label, keywords and category, and that each
+  sentence links to tools that exist by their names, is one sentence, and
+  says “can’t” about nothing a tool offers (a page-size tool may take resize,
+  scale, A4, Letter and fit). `tests/browser/search.spec.mjs` covers the five
+  dead ends on the home page and a tool page, the sentence above a card, the
+  links, the page’s own tool, what is said and when, 320 px and axe. 33
+  breakages, each applied alone to a copy, were each caught; one survived at
+  first (a dead end said once ever, not once each time), and the test now
+  repeats a dead end after an ordinary result.
+- Firefox crashes when axe runs on a tool page’s landing with a document open
+  (Crop PDF, or Add text after a tool was used), on the code before this
+  change too; axe is not run there.
