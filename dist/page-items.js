@@ -43,6 +43,18 @@ import { chooseTool, refreshThumbOverlays, setSheet } from './pages.js';
 import { change, documentChanged, record } from './history.js';
 import { recordView } from './views.js';
 
+/**
+ * The view of its page an item is placed in: how the page is turned and cropped
+ * and the sheet it is on. The item keeps it, and so stays where it is on the
+ * paper when the page is turned, cropped or resized later (layout.js:
+ * placementGeometry).
+ */
+const placedOn = (page) => ({
+  pageRotation: page.rotation,
+  pageCrop: page.crop ? { ...page.crop } : undefined,
+  pagePaper: page.paper,
+});
+
 // ---- Typing on the page ---------------------------------------------------------
 
 export const baselines = new Map();
@@ -149,8 +161,7 @@ export function createText(page, point) {
   const annotation = {
     id: uid(),
     pageId: page.id,
-    pageRotation: page.rotation,
-    pageCrop: page.crop ? { ...page.crop } : undefined,
+    ...placedOn(page),
     type: 'text',
     text: '',
     fontSize: size,
@@ -300,8 +311,7 @@ function drawHighlight(gesture, point) {
     const annotation = {
       id: gesture.id,
       pageId: page.id,
-      pageRotation: page.rotation,
-      pageCrop: page.crop ? { ...page.crop } : undefined,
+      ...placedOn(page),
       type: 'highlight',
       color: ui.styles.highlight.color,
       opacity: ui.styles.highlight.opacity,
@@ -322,8 +332,7 @@ export function addHighlight(page, point) {
   const annotation = {
     id: uid(),
     pageId: page.id,
-    pageRotation: page.rotation,
-    pageCrop: page.crop ? { ...page.crop } : undefined,
+    ...placedOn(page),
     type: 'highlight',
     color: ui.styles.highlight.color,
     opacity: ui.styles.highlight.opacity,
@@ -382,8 +391,7 @@ function sketch(gesture, point) {
     const annotation = {
       id: gesture.id,
       pageId: page.id,
-      pageRotation: page.rotation,
-      pageCrop: page.crop ? { ...page.crop } : undefined,
+      ...placedOn(page),
       type: 'drawing',
       shape: gesture.shape,
       color: style.color,
@@ -404,8 +412,7 @@ export function addDrawing(page) {
   const annotation = {
     id: uid(),
     pageId: page.id,
-    pageRotation: page.rotation,
-    pageCrop: page.crop ? { ...page.crop } : undefined,
+    ...placedOn(page),
     type: 'drawing',
     shape,
     color: style.color,
@@ -441,8 +448,7 @@ export function placeImage(image, point = null) {
   const annotation = {
     id: uid(),
     pageId: page.id,
-    pageRotation: page.rotation,
-    pageCrop: page.crop ? { ...page.crop } : undefined,
+    ...placedOn(page),
     type: 'image',
     x: x / geometry.width,
     y: y / geometry.height,
@@ -1008,8 +1014,7 @@ function signatureAnnotation(page, geometry, frame, bytes = ui.signature.bytes) 
   return {
     id: uid(),
     pageId: page.id,
-    pageRotation: page.rotation,
-    pageCrop: page.crop ? { ...page.crop } : undefined,
+    ...placedOn(page),
     type: 'signature',
     x: frame.x / geometry.width,
     y: frame.y / geometry.height,

@@ -14,6 +14,7 @@ const TOOLS = [
   'delete',
   'crop',
   'margins',
+  'resize',
   'merge',
   'split',
   'sheets',

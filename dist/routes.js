@@ -89,6 +89,12 @@ export const TOOLS = Object.freeze([
     card: ['A little more room around the edges.', 'Space for notes, binding or punching.'],
     keywords: 'space notes binding punch',
   }),
+  tool('resize', 'resize-pdf', 'Resize pages', 'Resize', 'resize', {
+    category: 'edit',
+    color: 'peach',
+    card: ['Every page on A4 or Letter paper.', 'Scaled to fit, with nothing cut off.'],
+    keywords: 'page size paper a4 letter scale fit enlarge shrink standard print mixed sizes',
+  }),
   tool('merge', 'merge-pdf', 'Merge PDFs', 'Merge', 'merge', {
     category: 'organize',
     color: 'blue',

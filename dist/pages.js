@@ -135,7 +135,11 @@ export async function insertBlankPage() {
       blank: true,
       pageCount: 1,
       hasForm: false,
-      pages: info.pages.map((sheet) => ({ box: sheet.cropBox, rotation: sheet.rotation })),
+      pages: info.pages.map((sheet) => ({
+        box: sheet.cropBox,
+        rotation: sheet.rotation,
+        userUnit: sheet.userUnit,
+      })),
     };
     change(
       () => {

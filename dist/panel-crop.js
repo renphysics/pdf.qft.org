@@ -5,7 +5,8 @@
  */
 
 import { contentMargins, cropMarginsForRotation } from './pdf-engine.js';
-import { geometryOf } from './preview.js';
+import { ownGeometry, pageGeometry, sheetCrop } from './layout.js';
+import { sourcePage } from './preview.js';
 import { $, clamp, friendly, icon, state, toast, ui } from './editor-core.js';
 import { change } from './history.js';
 import { batchLink, numberField, renderTool, selectField } from './tool-panel.js';
@@ -33,7 +34,11 @@ export function fields() {
     '<button type="submit" class="button primary">' +
     icon('crop') +
     'Crop to the outlined area</button>' +
-    '<button type="button" class="button secondary" data-action="clear-crop-margins">Clear margins</button><button type="button" class="button subtle" data-action="restore-crop">Restore original crop for scope</button><p class="field-hint wide">Cropping hides content outside the boundary; it does not securely remove it. Text and graphics keep their original quality.</p>' +
+    '<button type="button" class="button secondary" data-action="clear-crop-margins">Clear margins</button><button type="button" class="button subtle" data-action="restore-crop">Restore original crop for scope</button><p class="field-hint wide">Cropping hides content outside the boundary; it does not securely remove it. Text and graphics keep their original quality.' +
+    (state.pages.some((page) => page.paper)
+      ? ' A resized page stays on its sheet: what you keep of it is fitted to the sheet again.'
+      : '') +
+    '</p>' +
     batchLink(
       ui.lastCropPreset && !cropDraftActive()
         ? 'Reuse last applied crop in batch'
@@ -120,20 +125,33 @@ function applyCrop() {
       scope = scopedPages(ui.cropDraft.scope);
     if (!Object.values(margins).some((value) => value > 0))
       throw new Error('Set a margin or drag an area to keep before cropping.');
-    const targets = state.pages.filter((p) => scope === 'all' || scope.includes(p.id));
-    // Check every new boundary before changing anything.
-    for (const page of targets) {
-      const geometry = geometryOf(state, page);
-      if (
-        (1 - margins.left - margins.right) * geometry.width < 1 ||
-        (1 - margins.top - margins.bottom) * geometry.height < 1
-      )
+    // The margins are of what each page shows. A resized page shows its sheet,
+    // and the crop is of the page on it (layout.js: sheetCrop); where the outline
+    // only leaves out blank sheet, there is nothing to crop.
+    const cuts = new Map();
+    for (const page of state.pages.filter((p) => scope === 'all' || scope.includes(p.id))) {
+      const source = sourcePage(state, page),
+        own = ownGeometry(source, page),
+        cut = page.paper ? sheetCrop(margins, pageGeometry(source, page), own) : margins;
+      // Check every new boundary before changing anything.
+      if (cut.left + cut.right >= 1 || cut.top + cut.bottom >= 1)
+        throw new Error(
+          'The outlined area is on the blank part of a resized page’s sheet. Outline part of the page itself.',
+        );
+      if ((1 - cut.left - cut.right) * own.width < 1 || (1 - cut.top - cut.bottom) * own.height < 1)
         throw new Error('The cropped page must be at least 1 PDF point wide and high.');
+      if (Object.values(cut).some((value) => value > 0)) cuts.set(page, cut);
     }
+    const targets = [...cuts.keys()];
+    if (!targets.length)
+      throw new Error(
+        'The outlined area keeps the whole page: only blank sheet lies outside it. Outline less of the page.',
+      );
     change(
       () => {
         for (const p of targets) {
-          const old = cropMarginsForRotation(p.crop, p.rotation),
+          const margins = cuts.get(p),
+            old = cropMarginsForRotation(p.crop, p.rotation),
             // Margins added before stay blank (see contentMargins).
             shown = p.crop?.content ? contentMargins(p.crop, p.rotation) : null,
             width = 1 - old.left - old.right,

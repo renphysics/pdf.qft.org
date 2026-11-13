@@ -947,3 +947,52 @@ source review does not replace the owner’s browser verification.
 - Runs, after the three reviews: Node suites 92 of 92. Browser suites on
   Playwright 1.65 with PDF.js 6.5.438: Chromium 124, WebKit 116 with 3 skipped
   by design, Firefox 106 with 1 skipped by design.
+
+## Resize pages — 2026-11-13
+
+- Resize pages (`/resize-pdf/`): every page, the current page or selected pages
+  on A4 or Letter paper, as one undo step; Restore original size. Each page is
+  scaled in proportion to fit, in the middle of a sheet that lies the way the
+  page does; a page that is that size already is left as it is. Engine tests
+  with PDF.js on seven odd pages (small, A4 on its side, square and turned with
+  its boxes away from the origin, a long receipt, two in units of two points):
+  the sheets' sizes, each word's place and size, boxes at the origin, `/Rotate`
+  kept, `/UserUnit` gone. Page numbers, headers, the watermark and items placed
+  on the sheet have their own size; an item placed before is scaled with its
+  page (engine test; the preview draws every line where the export does, on
+  sheets of both papers).
+- What points at a page moves with it: highlights, ink, lines, borders and
+  dashes, the text size of free text, pop-ups; links to a place on the page, by
+  position or by name; bookmarks; named destinations; where the document opens
+  (engine test, read back with pdf-lib and PDF.js, with the page kept in place
+  and copied). Form fields move with their pages, stay fillable and show what
+  was typed; a field's text size is scaled for each widget, since one field can
+  be on sheets of two scales; flattened answers go on the sheet (form test;
+  browser test: the box to type in lies on its field).
+- A resized page stays on its sheet. Crop: the outline is drawn on the sheet
+  and crops the page; one that leaves out only blank sheet, or lies on it, is
+  refused with a sentence. Add margins: the page is made smaller until the
+  margins measure on the sheet what was typed (30 mm in a browser test, measured
+  in the preview). Preview and download agree after each (pixel comparison).
+- The blank of a sheet stays blank: what the page's own boxes hid, and what a
+  crop hid, does not show beside the page (engine: PDF.js pixels; browser:
+  canvas pixels). Found while building: both the preview and the download showed
+  what a crop had hidden, in the blank beside a resized page. `contentBox` now
+  ends at the crop.
+- Also fixed, in Add margins: comments, links and fields that lay wholly outside
+  what a page showed came into view in its new margins (a link that a crop had
+  taken away became a place to click in the blank). They are hidden now (the
+  annotation flag Hidden), in margins as on a sheet. One that lies across the
+  edge still shows whole.
+- One rule for the usual paper (Letter in the United States, Canada, Mexico and
+  the Philippines, by the region in the browser's language): Pages per sheet and
+  JPG to PDF had two, which disagreed for French in Canada. The paper is called
+  Letter in every tool.
+- The tool has its page, card, menu entry and tab; axe finds no violations in
+  its panel; the tablet and phone layout tests include it.
+- Known limits: a comment across the edge of what a page shows is shown whole;
+  rich-text comments keep their own text size; batch presets have no paper size.
+- 42 breakages, each applied alone to a copy, each caught. Four were not at
+  first, and have tests now: a page in larger units whose numbers are A4's,
+  hidden content beside a page that is not cropped, a named destination no link
+  uses, and the page strip's picture after resizing.

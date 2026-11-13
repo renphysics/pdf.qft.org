@@ -5,7 +5,8 @@
  */
 
 import { contentMargins, cropMarginsForRotation } from './pdf-engine.js';
-import { geometryOf } from './preview.js';
+import { ownGeometry, sheetMargins } from './layout.js';
+import { sourcePage } from './preview.js';
 import { friendly, icon, state, toast, ui } from './editor-core.js';
 import { change } from './history.js';
 import { scopedPages } from './panel-crop.js';
@@ -36,7 +37,11 @@ function marginFields() {
     '<button type="submit" class="button primary">' +
     icon('plus') +
     'Add margins</button><button type="button" class="button subtle" data-action="margins-remove">Remove added margins</button>' +
-    '<p class="field-hint wide">The margins are blank space around each page: nothing on it moves or shrinks. Page numbers, headers and footers go to the new edges.</p>'
+    '<p class="field-hint wide">The margins are blank space around each page: nothing on it moves or shrinks. Page numbers, headers and footers go to the new edges.' +
+    (state.pages.some((page) => page.paper)
+      ? ' A resized page stays on its sheet: the page is made smaller to leave the margins.'
+      : '') +
+    '</p>'
   );
 }
 /** A wide right margin for notes: 60 mm, the others none. */
@@ -57,18 +62,22 @@ function addMargins() {
     if (!Object.values(added).some((value) => value > 0))
       throw new Error('Enter the margins to add, in millimetres.');
     const targets = state.pages.filter((p) => scope === 'all' || scope.includes(p.id));
+    // Each page as it is without a sheet, and the margins it gets, in its own
+    // units. A resized page stays on its sheet, so it is made smaller, and its
+    // margins with it, until they measure on the sheet what was typed (layout.js:
+    // sheetMargins).
+    const plans = new Map();
     for (const page of targets) {
-      const geometry = geometryOf(state, page);
-      if (
-        geometry.width + added.left + added.right > 14400 ||
-        geometry.height + added.top + added.bottom > 14400
-      )
+      const geometry = ownGeometry(sourcePage(state, page), page),
+        own = page.paper ? sheetMargins(added, geometry, page.paper) : added;
+      if (geometry.width + own.left + own.right > 14400 || geometry.height + own.top + own.bottom > 14400)
         throw new Error('A page can’t be larger than 5 metres (200 inches).');
+      plans.set(page, { geometry, added: own });
     }
     change(
       () => {
         for (const p of targets) {
-          const geometry = geometryOf(state, p),
+          const { geometry, added } = plans.get(p),
             old = cropMarginsForRotation(p.crop, p.rotation),
             shown = contentMargins(p.crop, p.rotation),
             width = 1 - old.left - old.right,

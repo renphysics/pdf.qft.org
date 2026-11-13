@@ -7,7 +7,7 @@ import { buildPdfWithNotes, imagesToPdf, loadPdfLib, openPdf, passwordProblem } 
 import { baseName, rescaledMargins } from './layout.js';
 import { safeBaseName } from './workflows.js';
 import { isPicture, pictureForPage } from './convert.js';
-import { closeDocuments, loadPdfjs, previewFont } from './preview.js';
+import { closeDocuments, geometryOf, loadPdfjs, previewFont } from './preview.js';
 import {
   $,
   annotationById,
@@ -174,8 +174,8 @@ export function outputBase(pages = state.pages) {
 /**
  * What a download's name says was done: its protection; "converted" for
  * pictures made into pages; "merged" for several files; one word when the
- * edits are of one kind (numbered, watermarked, cropped, signed, filled,
- * organized); and "edited" for anything else.
+ * edits are of one kind (numbered, watermarked, cropped, resized, signed,
+ * filled, organized); and "edited" for anything else.
  */
 function outputKind() {
   if (protectedDownload()) return 'protected';
@@ -198,6 +198,8 @@ function outputKind() {
     kinds.add(annotation.type === 'signature' ? 'signed' : 'edited');
   if (state.pages.some((page) => page.crop))
     kinds.add(state.pages.some((page) => page.crop?.content) ? 'edited' : 'cropped');
+  // Pages a sheet changes (one that is that size already stays as it is).
+  if (state.pages.some((page) => page.paper && geometryOf(state, page).scale)) kinds.add('resized');
   if (
     state.flattenForms ||
     Object.values(state.formValues || {}).some((values) => Object.keys(values).length)
@@ -468,7 +470,11 @@ async function pictureSource(file, picture = null) {
     name: picture.name,
     pageCount: 1,
     hasForm: false,
-    pages: info.pages.map((page) => ({ box: page.cropBox, rotation: page.rotation })),
+    pages: info.pages.map((page) => ({
+      box: page.cropBox,
+      rotation: page.rotation,
+      userUnit: page.userUnit,
+    })),
     picture,
     pictureLayout: { ...layout },
   };
@@ -577,7 +583,11 @@ export async function openFiles(files, append = false) {
         hasForm: info.hasForm,
         form: info.form,
         details: info.details,
-        pages: info.pages.map((page) => ({ box: page.cropBox, rotation: page.rotation })),
+        pages: info.pages.map((page) => ({
+          box: page.cropBox,
+          rotation: page.rotation,
+          userUnit: page.userUnit,
+        })),
         protection: info.protection,
       });
       for (let index = 0; index < info.pageCount; index++)

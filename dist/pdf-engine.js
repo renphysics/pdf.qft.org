@@ -14,6 +14,9 @@
  * plus the descriptor rotation when those margins were chosen. Annotation
  * pageCrop captures the crop at placement, keeping annotations fixed on paper
  * when a later crop changes the visible area. Cropping hides, not redacts.
+ * A descriptor's paper ('a4' | 'letter') puts the page, as all of that leaves
+ * it, on a sheet of that size (layout.js: fittedGeometry); annotation pagePaper
+ * records the sheet an annotation was placed on.
  * All operations return new bytes; the input byte arrays remain untouched.
  * Encrypted PDFs open with their password (openPdf), or without one when they
  * only restrict changes; the editor works on an unencrypted copy in memory.
@@ -38,6 +41,7 @@ import {
   layoutWatermark,
   number,
   pageGeometry,
+  PAPER_SIZES,
   pageNumberItem,
   pageVariables,
   placementGeometry,
@@ -312,6 +316,13 @@ export function protectDocument(doc, password) {
 /** The page as viewers display it: CropBox ∩ MediaBox at the page's /Rotate. */
 function visibleGeometry(page) {
   return boxGeometry(visibleBox(page.getMediaBox(), page.getCropBox()), page.getRotation().angle);
+}
+
+/** The size of a page's unit in points (/UserUnit): 1, unless the PDF says otherwise. */
+function userUnit(page) {
+  const { PDFName, PDFNumber } = library();
+  const unit = page.node.lookup(PDFName.of('UserUnit'));
+  return unit instanceof PDFNumber && unit.asNumber() > 0 ? unit.asNumber() : 1;
 }
 
 /** The document's XMP metadata as text, or null. */
@@ -680,7 +691,7 @@ function flattenForm(form) {
 function describePdf(doc) {
   const pages = doc.getPages().map((page, index) => {
     const { width, height, rotation, cropBox } = visibleGeometry(page);
-    return { index, width, height, rotation, cropBox };
+    return { index, width, height, rotation, cropBox, userUnit: userUnit(page) };
   });
   const form = formFields(doc);
   return {
@@ -1494,6 +1505,206 @@ function addBlankMargins(page, content, box) {
     Math.max(media.y + media.height, box.y + box.height) - bottom,
   );
   for (const name of ['TrimBox', 'BleedBox', 'ArtBox']) page.node.delete(lib.PDFName.of(name));
+  // Comments, links and fields that lay wholly outside what the page showed were
+  // out of sight, and are hidden now that the page reaches them. (One that lay
+  // across the edge shows whole: an annotation cannot be cut.)
+  const { PDFArray, PDFDict, PDFName, PDFNumber } = lib;
+  const annotations = page.node.Annots();
+  for (let index = 0; annotations && index < annotations.size(); index++) {
+    const annotation = annotations.lookup(index),
+      rect = annotation instanceof PDFDict ? annotation.lookup(PDFName.of('Rect')) : null;
+    if (!(rect instanceof PDFArray) || rect.size() !== 4) continue;
+    const [x1, y1, x2, y2] = rect
+      .asArray()
+      .map((value) => (value instanceof PDFNumber ? value.asNumber() : NaN));
+    const outside =
+      Math.max(x1, x2) <= content.x ||
+      Math.min(x1, x2) >= content.x + content.width ||
+      Math.max(y1, y2) <= content.y ||
+      Math.min(y1, y2) >= content.y + content.height;
+    // A pop-up is the note of another annotation, and shows only when opened.
+    if (!outside || annotation.get(PDFName.of('Subtype')) === PDFName.of('Popup')) continue;
+    const flags = annotation.lookup(PDFName.of('F'));
+    annotation.set(
+      PDFName.of('F'),
+      PDFNumber.of((flags instanceof PDFNumber ? flags.asNumber() : 0) | HIDDEN),
+    );
+  }
+}
+
+// The annotation flag "Hidden": not shown, not printed, not reacting.
+const HIDDEN = 2;
+
+/**
+ * Put a page on its sheet (layout.js: fittedGeometry): everything on it is
+ * scaled and moved as one, by a matrix in the page's user space, so its /Rotate
+ * stays and its boxes become the sheet, in points. Returns the matrix, for what
+ * points at the page from elsewhere (moveDestinations). pdf-lib's own
+ * PDFPage.scale is no use here: it scales about the origin of user space, moves
+ * nothing, and leaves border widths, text sizes and destinations as they were.
+ */
+function fitToSheet(page, geometry) {
+  const lib = library();
+  const { PDFDict, PDFName } = lib;
+  const { context } = page.doc;
+  const scale = geometry.scale,
+    matrix = [scale, 0, 0, scale, -scale * geometry.cropBox.x, -scale * geometry.cropBox.y];
+  page.node.normalize();
+  page.node.wrapContentStreams(
+    context.register(
+      context.contentStream([lib.pushGraphicsState(), lib.concatTransformationMatrix(...matrix)]),
+    ),
+    context.register(context.contentStream([lib.popGraphicsState()])),
+  );
+  const turned = geometry.rotation % 180 !== 0,
+    width = turned ? geometry.height : geometry.width,
+    height = turned ? geometry.width : geometry.height;
+  page.setMediaBox(0, 0, width, height);
+  page.setCropBox(0, 0, width, height);
+  // The sheet is measured in points.
+  for (const name of ['TrimBox', 'BleedBox', 'ArtBox', 'UserUnit']) page.node.delete(PDFName.of(name));
+  const annotations = page.node.Annots();
+  for (let index = 0; annotations && index < annotations.size(); index++) {
+    const annotation = annotations.lookup(index);
+    if (annotation instanceof PDFDict) moveAnnotation(page.doc, annotation, matrix);
+  }
+  return matrix;
+}
+
+/**
+ * Move an annotation (a comment, a link, a form field's widget) with its page:
+ * `matrix` is a scale and a shift in user space. Every position it keeps goes
+ * through the matrix; widths and text sizes are scaled. Its appearance needs
+ * nothing: viewers fit it to the annotation's rectangle.
+ */
+function moveAnnotation(doc, annotation, matrix) {
+  const { PDFArray, PDFDict, PDFHexString, PDFName, PDFNumber, PDFString } = library();
+  const [scale, , , , shiftX, shiftY] = matrix;
+  const numberAt = (array, index) => {
+    const value = array.lookup(index);
+    return value instanceof PDFNumber ? value.asNumber() : null;
+  };
+  const points = (array) => {
+    for (let index = 0; array instanceof PDFArray && index + 1 < array.size(); index += 2) {
+      const x = numberAt(array, index),
+        y = numberAt(array, index + 1);
+      if (x === null || y === null) continue;
+      array.set(index, PDFNumber.of(scale * x + shiftX));
+      array.set(index + 1, PDFNumber.of(scale * y + shiftY));
+    }
+  };
+  const lengths = (array, end = Infinity) => {
+    for (let index = 0; array instanceof PDFArray && index < Math.min(end, array.size()); index++) {
+      const value = array.lookup(index);
+      if (value instanceof PDFNumber) array.set(index, PDFNumber.of(value.asNumber() * scale));
+      else if (value instanceof PDFArray) lengths(value);
+    }
+  };
+  const get = (name) => annotation.lookup(PDFName.of(name));
+  // Its rectangle, and the points of highlights, lines, shapes and ink.
+  for (const name of ['Rect', 'QuadPoints', 'Vertices', 'L', 'CL']) points(get(name));
+  for (const name of ['InkList', 'Path']) {
+    const lists = get(name);
+    for (let index = 0; lists instanceof PDFArray && index < lists.size(); index++)
+      points(lists.lookup(index));
+  }
+  // Distances: the space inside its rectangle, leader lines, border widths and dashes.
+  lengths(get('RD'));
+  for (const name of ['LL', 'LLE', 'LLO']) {
+    const value = get(name);
+    if (value instanceof PDFNumber) annotation.set(PDFName.of(name), PDFNumber.of(value.asNumber() * scale));
+  }
+  const style = get('BS');
+  if (style instanceof PDFDict) {
+    const width = style.lookup(PDFName.of('W'));
+    if (width instanceof PDFNumber) style.set(PDFName.of('W'), PDFNumber.of(width.asNumber() * scale));
+    lengths(style.lookup(PDFName.of('D')));
+  }
+  lengths(get('Border'));
+  // The size of text a viewer lays out itself: free text, and a field's when it
+  // is typed in. A field's is often kept by the field, or by the form, for all
+  // its widgets; a widget's own copy is what applies to it, and widgets of one
+  // field can be on sheets of different scales.
+  let appearance = get('DA');
+  if (annotation.get(PDFName.of('Subtype')) === PDFName.of('Widget')) {
+    const seen = new Set([annotation]);
+    for (let field = annotation; !appearance && field instanceof PDFDict;) {
+      field = field.lookup(PDFName.of('Parent'));
+      if (seen.has(field)) break;
+      seen.add(field);
+      appearance = field instanceof PDFDict ? field.lookup(PDFName.of('DA')) : null;
+    }
+    const form = doc.catalog.lookup(PDFName.of('AcroForm'));
+    if (!appearance && form instanceof PDFDict) appearance = form.lookup(PDFName.of('DA'));
+  }
+  if (appearance instanceof PDFString || appearance instanceof PDFHexString) {
+    const text = appearance.decodeText(),
+      sized = text.replace(
+        /(-?\d*\.?\d+)(\s+Tf)/,
+        (_, size, operator) => Math.round(Number(size) * scale * 1000) / 1000 + operator,
+      );
+    if (sized !== text) annotation.set(PDFName.of('DA'), PDFString.of(sized));
+  }
+}
+
+/**
+ * Links, bookmarks and named destinations that lead to a place on a page keep
+ * leading there when the page has been put on a sheet: `moved` maps a page's
+ * reference to the matrix that moved what is on it (fitToSheet).
+ */
+function moveDestinations(doc, moved) {
+  const { PDFArray, PDFDict, PDFName, PDFNumber } = library();
+  const done = new Set();
+  const move = (value) => {
+    const destination = value === undefined ? null : explicitDestination(doc, value);
+    const matrix = destination && !done.has(destination) ? moved.get(destination.get(0)) : null;
+    if (!matrix) return;
+    done.add(destination);
+    const [scale, , , , shiftX, shiftY] = matrix;
+    const kind = destination.lookup(1);
+    // Which of the numbers after the kind are positions across (x) and up (y) the page.
+    const axes = {
+      '/XYZ': 'xy',
+      '/FitH': 'y',
+      '/FitBH': 'y',
+      '/FitV': 'x',
+      '/FitBV': 'x',
+      '/FitR': 'xyxy',
+    }[kind instanceof PDFName ? kind.asString() : ''];
+    [...(axes || '')].forEach((axis, index) => {
+      const at = destination.lookup(index + 2);
+      if (at instanceof PDFNumber)
+        destination.set(index + 2, PDFNumber.of(at.asNumber() * scale + (axis === 'x' ? shiftX : shiftY)));
+    });
+  };
+  const follow = (item) => {
+    const slot = item instanceof PDFDict ? destinationSlot(item) : null;
+    if (slot) move(slot.holder.get(slot.key));
+  };
+  for (const page of doc.getPages()) {
+    const annotations = page.node.Annots();
+    for (let index = 0; annotations && index < annotations.size(); index++) follow(annotations.lookup(index));
+  }
+  const seen = new Set();
+  const walk = (parent) => {
+    for (
+      let item = parent.lookup(PDFName.of('First'));
+      item instanceof PDFDict && !seen.has(item);
+      item = item.lookup(PDFName.of('Next'))
+    ) {
+      seen.add(item);
+      follow(item);
+      walk(item);
+    }
+  };
+  const outlines = doc.catalog.lookup(PDFName.of('Outlines'));
+  if (outlines instanceof PDFDict) walk(outlines);
+  for (const value of namedDestinations(doc).values()) move(value);
+  // Where the document opens.
+  const open = doc.catalog.lookup(PDFName.of('OpenAction'));
+  if (open instanceof PDFArray) move(open);
+  else if (open instanceof PDFDict && open.get(PDFName.of('S')) === PDFName.of('GoTo'))
+    move(open.get(PDFName.of('D')));
 }
 
 /** Read a document detail, or nothing when it is damaged. */
@@ -1872,16 +2083,22 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const artifact = artifactMarker(doc);
   let added = false,
     annotated = false;
+  // Pages put on a sheet, with the matrix that moved what is on them.
+  const moved = new Map();
   for (let index = 0; index < total; index++) {
     const page = outputPages[index];
     const descriptor = descriptors[index];
     const source = {
       box: visibleBox(page.getMediaBox(), page.getCropBox()),
       rotation: page.getRotation().angle,
+      userUnit: userUnit(page),
     };
     const geometry = pageGeometry(source, descriptor);
     page.setRotation(lib.degrees(geometry.rotation));
-    if (descriptor.crop) {
+    // A page on a sheet (geometry.scale) first reaches out to the sheet in its own
+    // units, like a page with margins; when everything is drawn, all of it is
+    // scaled onto the sheet (fitToSheet).
+    if (descriptor.crop || geometry.scale) {
       const box = geometry.cropBox;
       const content = contentBox(source, descriptor);
       const beyond =
@@ -1934,10 +2151,12 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
         )) || added;
     }
     page.pushOperators(lib.popGraphicsState());
+    if (geometry.scale) moved.set(page.ref, fitToSheet(page, geometry));
     onProgress(0.1 + (0.8 * (index + 1)) / total);
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
   }
+  if (moved.size) moveDestinations(doc, moved);
   // Answers flattened into the pages are drawn there untagged, like what was added.
   // (A form flattened as it came says nothing of the kind: nothing was added.)
   if (artifact && (annotated || answersFlattened)) losses.add('additions-untagged');
@@ -1963,9 +2182,6 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   return { bytes: output, notes };
 }
 
-// Paper sizes in points, portrait.
-const PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
-
 /** A PDF of one blank page, `width` by `height` points (Insert a blank page). */
 export async function blankPdf(width, height) {
   const lib = await loadPdfLib();
@@ -1987,7 +2203,7 @@ export async function blankPdf(width, height) {
 export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
   const lib = await loadPdfLib();
   if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');
-  if (size !== 'fit' && !PAPER[size])
+  if (size !== 'fit' && !Object.hasOwn(PAPER_SIZES, size))
     throw new Error('Choose a page size: the picture’s own size, A4 or Letter.');
   const doc = await lib.PDFDocument.create();
   doc.setProducer('QFT PDF');
@@ -2004,7 +2220,7 @@ export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
       pageWidth = natural.width + 2 * margin;
       pageHeight = natural.height + 2 * margin;
     } else {
-      const [short, long] = PAPER[size];
+      const [short, long] = PAPER_SIZES[size];
       [pageWidth, pageHeight] = picture.width > picture.height ? [long, short] : [short, long];
     }
     const scale =
@@ -2032,7 +2248,7 @@ export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
 export function sheetLayout(count, paper, shape, margin, gap) {
   let best = null;
   for (const landscape of [false, true]) {
-    const [short, long] = PAPER[paper];
+    const [short, long] = PAPER_SIZES[paper];
     const [width, height] = landscape ? [long, short] : [short, long];
     for (let columns = 1; columns <= count; columns++) {
       if (count % columns) continue;
@@ -2064,7 +2280,7 @@ export async function pagesPerSheet(
 ) {
   const lib = await loadPdfLib();
   if (![2, 4].includes(perSheet)) throw new Error('Choose 2 or 4 pages per sheet.');
-  if (!PAPER[paper]) throw new Error('Choose A4 or Letter paper.');
+  if (!Object.hasOwn(PAPER_SIZES, paper)) throw new Error('Choose A4 or Letter paper.');
   if (!(margin >= 0 && gap >= 0)) throw new Error('Margins and gaps can’t be negative.');
   const source = await loadPdf(bytes);
   if (hasAcroForm(source) && source.getForm().getFields().length)

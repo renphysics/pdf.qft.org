@@ -19,6 +19,7 @@ import {
   layoutTextAnnotation,
   layoutWatermark,
   number,
+  ownGeometry,
   pageGeometry,
   pageNumberItem,
   pageVariables,
@@ -182,6 +183,8 @@ export function renderKey(descriptor) {
     crop?.content
       ? [crop.content.left, crop.content.top, crop.content.right, crop.content.bottom].join(',')
       : '',
+    // The sheet the page is on (Resize pages).
+    descriptor.paper || '',
   ].join(':');
 }
 
@@ -266,14 +269,19 @@ export function renderPage(state, descriptor, scale, { forms = false } = {}) {
     const geometry = pageGeometry(info, descriptor);
     const full = boxGeometry(info.box, angle);
     const margins = cropMarginsForRotation(descriptor.crop, descriptorRotation);
+    // A page on a sheet (Resize pages) is drawn `zoom` times its size, in the
+    // middle of the sheet: `gap` is the blank beside it.
+    const own = ownGeometry(info, descriptor),
+      zoom = geometry.scale || 1,
+      gap = { x: (geometry.width - zoom * own.width) / 2, y: (geometry.height - zoom * own.height) / 2 };
     // PDF.js draws a page whose PDF sets a larger unit (/UserUnit) that much
     // larger. The editor measures pages in the PDF's own units, as the export
     // draws on them, so the page is drawn at the editor's scale.
     const viewport = page.getViewport({
-      scale: scale / (page.userUnit || 1),
+      scale: (scale * zoom) / (page.userUnit || 1),
       rotation: angle,
-      offsetX: -margins.left * full.width * scale,
-      offsetY: -margins.top * full.height * scale,
+      offsetX: (gap.x - margins.left * full.width * zoom) * scale,
+      offsetY: (gap.y - margins.top * full.height * zoom) * scale,
     });
     canvas.width = Math.max(1, Math.round(geometry.width * scale));
     canvas.height = Math.max(1, Math.round(geometry.height * scale));
@@ -291,13 +299,16 @@ export function renderPage(state, descriptor, scale, { forms = false } = {}) {
     task = page.render({ canvasContext: context, viewport, annotationMode });
     if (cancelled) task.cancel();
     await task.promise;
-    // Margins added around the page are blank, even where the PDF has content
-    // there (as the export clips it; see contentMargins).
-    const shown = contentMargins(descriptor.crop, descriptorRotation);
-    const left = (shown.left - margins.left) * full.width * scale,
-      right = (1 - shown.right - margins.left) * full.width * scale,
-      top = (shown.top - margins.top) * full.height * scale,
-      bottom = (1 - shown.bottom - margins.top) * full.height * scale;
+    // Margins added around the page, and the sheet beside it, are blank, even
+    // where the PDF has content there: outside what the page showed when the
+    // margins were added, and outside what its crop keeps (as the export clips
+    // it; see contentBox).
+    const shown = contentMargins(descriptor.crop, descriptorRotation),
+      kept = (edge) => Math.max(shown[edge], margins[edge]);
+    const left = (gap.x + (kept('left') - margins.left) * full.width * zoom) * scale,
+      right = (gap.x + (1 - kept('right') - margins.left) * full.width * zoom) * scale,
+      top = (gap.y + (kept('top') - margins.top) * full.height * zoom) * scale,
+      bottom = (gap.y + (1 - kept('bottom') - margins.top) * full.height * zoom) * scale;
     context.fillStyle = '#ffffff';
     if (left > 0.5) context.fillRect(0, 0, left, canvas.height);
     if (right < canvas.width - 0.5) context.fillRect(right, 0, canvas.width - right, canvas.height);
@@ -401,8 +412,14 @@ export function pageOverlay(state, pageIndex, { hide } = {}) {
     if (annotation.pageId !== descriptor.id) continue;
     const placement = placementGeometry(info, descriptor, annotation);
     const matrix = viewTransform(placement, geometry);
+    // To a millionth: on a page put on a sheet the matrix scales, and a thousandth
+    // of a scale is a third of a point at the far side of a page.
     const group = (content) =>
-      '<g transform="matrix(' + matrix.map(fixed).join(' ') + ')">' + content + '</g>';
+      '<g transform="matrix(' +
+      matrix.map((value) => Math.round(value * 1e6) / 1e6).join(' ') +
+      ')">' +
+      content +
+      '</g>';
     const item = {
       id: annotation.id,
       type: annotation.type,

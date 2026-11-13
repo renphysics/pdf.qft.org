@@ -2,7 +2,7 @@
 
 QFT PDF is a static, browser-local PDF toolkit. The application adds text, images,
 highlights, watermarks, headers and footers, and page numbers, and can merge,
-reorder, rotate, delete, crop, extract, and split PDF pages. Reusable batch
+reorder, rotate, delete, crop, resize, extract, and split PDF pages. Reusable batch
 presets apply several edits to separate files in one workflow.
 
 ## License
@@ -221,8 +221,8 @@ shows it without building a PDF:
   take ("Undo: Rotate pages", in the button's tooltip and its accessible name),
   and a notice says what was undone, in place of one that no longer holds.
 - A download is named after its first file and what was done to it:
-  `-numbered`, `-watermarked`, `-cropped`, `-signed`, `-filled` or `-organized`
-  when the edits are of one kind, `-merged` for several files, `-converted`
+  `-numbered`, `-watermarked`, `-cropped`, `-resized`, `-signed`, `-filled` or
+  `-organized` when the edits are of one kind, `-merged` for several files, `-converted`
   for pictures made into pages, `-protected` or `-unlocked` for passwords, and
   `-edited` otherwise (`outputName` in `documents.js`). Download selected
   pages is named after the first file among those pages. The editor gives the
@@ -451,7 +451,8 @@ handout (Pages per sheet) says what was left out on the way to it as well.
 
 A page whose PDF sets a larger unit (`/UserUnit`) is shown and edited in the
 PDF's own units, as its download is drawn: sizes such as 10 pt text are in those
-units.
+units. Put on A4 or Letter paper (Resize pages), it is measured in points like
+any other page.
 
 ## Validation
 
@@ -584,11 +585,51 @@ and drawings stay vector; layer settings and the document's details come along.
 Links and comments do not carry over; form fields are flattened first, so their
 answers do. A password set in Protect PDF protects the sheets too.
 
+## Resize pages
+
+Resize pages (`/resize-pdf/`) puts pages on A4 or Letter paper (Letter where it
+is the usual paper): every page, the current page or selected pages. Each page
+is scaled in proportion until it fits its sheet, in the middle of it, and the
+sheet lies the way the page does (a page wider than it is tall goes on a sheet
+on its side). Small pages are enlarged. Nothing is cut off or stretched, and the
+sheet is blank beside a page of another shape. A page that is that size already,
+within half a millimetre, is left exactly as it is. Restore original size takes
+the sheet away again.
+
+In the page list a page keeps its sheet as `paper` (`'a4'` or `'letter'`), and
+the sheet comes last, after the page's turn, crop and added margins
+(`fittedGeometry` in `layout.js`), so a resized page stays on its sheet. Crop
+it, and what is kept is fitted to the sheet again: the outline is drawn on the
+sheet and becomes a crop of the page (`sheetCrop`). Add margins, and the page is
+made smaller until the margins measure on the sheet what was typed
+(`sheetMargins`). Items placed before stay on the page and are scaled with it.
+Items placed on the sheet have their own size there, and so have watermarks,
+headers, footers and page numbers; an item records the sheet it was placed on
+(`pagePaper`, beside `pageRotation` and `pageCrop`).
+
+The download scales everything on the page by one matrix (`fitToSheet` in
+`pdf-engine.js`): the content, and the page's comments, links and form fields,
+with every position they keep, their border widths and the text size a reader
+types with. Links, bookmarks and named destinations that lead to a place on the
+page lead to the same place on the sheet. Text stays text. The page's `/Rotate`
+stays, its boxes become the sheet, and a `/UserUnit` goes. The sheet is blank
+beside the page even where the PDF has content there. Comments, links and
+fields that lay wholly outside what the page showed are hidden there (the
+annotation flag Hidden), as they are in added margins. pdf-lib's own
+`PDFPage.scale` is not used: it scales about the origin of the page's
+coordinates and moves nothing, so pages with boxes away from the origin end up
+off their sheet, and it leaves destinations, border widths and text sizes as
+they were.
+
+Known limits: a comment that lies across the edge of what a page shows is shown
+whole, in the blank beside the page; rich-text comments keep the text size in
+their own markup; batch presets have no paper size.
+
 ## JPG to PDF and PDF to JPG
 
 JPG and PNG files open as pages, alone or with PDFs (`dist/convert.js`,
 `imagesToPdf` in `pdf-engine.js`). Each picture becomes a one-page source on A4 or
-US Letter (chosen from the browser's language), turned to suit the picture, or at
+Letter (Letter where it is the usual paper), turned to suit the picture, or at
 its own size (96 pixels per inch), with an optional margin; pictures are never
 enlarged. JPEG data goes into the PDF unchanged, except that a photo whose EXIF
 orientation turns it is saved again upright, since PDF ignores that tag. Changing

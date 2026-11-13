@@ -158,11 +158,20 @@ export function croppedGeometry(originalBox, angle, crop, descriptorRotation) {
   const original = boxGeometry(originalBox, angle);
   if (!crop) return original;
   const margins = cropMarginsForRotation(crop, descriptorRotation);
-  const [a, b, c, d, e, f] = original.matrix;
-  const left = margins.left * original.width;
-  const right = (1 - margins.right) * original.width;
-  const bottom = margins.bottom * original.height;
-  const top = (1 - margins.top) * original.height;
+  const box = userBox(
+    original.matrix,
+    margins.left * original.width,
+    margins.bottom * original.height,
+    (1 - margins.right) * original.width,
+    (1 - margins.top) * original.height,
+  );
+  if (!(box.width >= 1 && box.height >= 1))
+    throw new Error('The cropped page must be at least 1 PDF point wide and high.');
+  return boxGeometry(box, angle);
+}
+
+/** A rectangle of a view (display coordinates; `matrix` is the view's) as a box in user space. */
+function userBox([a, b, c, d, e, f], left, bottom, right, top) {
   const xs = [],
     ys = [];
   for (const x of [left, right])
@@ -172,19 +181,75 @@ export function croppedGeometry(originalBox, angle, crop, descriptorRotation) {
     }
   const x = Math.min(...xs),
     y = Math.min(...ys);
-  const width = Math.max(...xs) - x,
-    height = Math.max(...ys) - y;
-  if (!(width >= 1 && height >= 1))
-    throw new Error('The cropped page must be at least 1 PDF point wide and high.');
-  return boxGeometry({ x, y, width, height }, angle);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+}
+
+/** Paper sizes in points, portrait. */
+export const PAPER_SIZES = Object.freeze({ a4: [595.28, 841.89], letter: [612, 792] });
+
+// A page within this many points of a sheet, each way, is on that sheet already
+// (half a millimetre: 595 × 842 is A4).
+const SAME_SIZE = 1.5;
+
+/** A sheet of `paper`, lying on its side (`landscape`) or upright: [width, height] in points. */
+function sheetOf(paper, landscape) {
+  if (!Object.hasOwn(PAPER_SIZES, paper)) throw new Error('Choose a paper size: A4 or Letter.');
+  const [short, long] = PAPER_SIZES[paper];
+  return landscape ? [long, short] : [short, long];
+}
+
+/**
+ * A page put on a sheet of `paper` ('a4' | 'letter'; Resize pages). The sheet
+ * lies the way the page does, and the page is scaled in proportion until it
+ * fits, in the middle, so the sheet is blank beside it where their shapes
+ * differ. `geometry` is the page as it is shown without the sheet, in its own
+ * units of `unit` points each (/UserUnit). The result is the sheet: width and
+ * height in points, cropBox the sheet in the page's user space, a matrix from
+ * points on the sheet to user space, and `scale`, the points a user unit
+ * becomes. A page that is that sheet already is returned as it is.
+ */
+export function fittedGeometry(geometry, paper, unit = 1) {
+  const [width, height] = sheetOf(paper, geometry.width > geometry.height);
+  if (
+    unit === 1 &&
+    Math.abs(width - geometry.width) < SAME_SIZE &&
+    Math.abs(height - geometry.height) < SAME_SIZE
+  )
+    return geometry;
+  const scale = Math.min(width / geometry.width, height / geometry.height);
+  // The sheet around the page, in the page's display coordinates.
+  const left = (geometry.width - width / scale) / 2,
+    bottom = (geometry.height - height / scale) / 2;
+  const sheet = boxGeometry(
+    userBox(geometry.matrix, left, bottom, left + width / scale, bottom + height / scale),
+    geometry.rotation,
+  );
+  return {
+    ...sheet,
+    width,
+    height,
+    matrix: multiply(sheet.matrix, [1 / scale, 0, 0, 1 / scale, 0, 0]),
+    scale,
+  };
 }
 
 /**
  * The geometries an exported page uses. `source` describes the source page:
- * its visible `box` and its own `rotation`. The page geometry places repeated
- * settings; an annotation keeps the geometry of the view it was placed in.
+ * its visible `box`, its own `rotation` and its `userUnit` (when not 1). The
+ * page geometry places repeated settings; an annotation keeps the geometry of
+ * the view it was placed in.
  */
 export function pageGeometry(source, descriptor) {
+  const geometry = ownGeometry(source, descriptor);
+  return descriptor.paper ? fittedGeometry(geometry, descriptor.paper, source.userUnit || 1) : geometry;
+}
+
+/**
+ * A page as it is before it is put on a sheet (descriptor.paper): turned and
+ * cropped, with its added margins, in its own units. Crop and Add margins
+ * change this page; the sheet then holds what they leave.
+ */
+export function ownGeometry(source, descriptor) {
   const descriptorRotation = descriptor.rotation || 0;
   return croppedGeometry(
     source.box,
@@ -192,6 +257,49 @@ export function pageGeometry(source, descriptor) {
     descriptor.crop,
     descriptorRotation,
   );
+}
+
+/**
+ * Crop margins drawn on a page's sheet (fractions of the sheet, as it is
+ * shown), as fractions of the page fitted on it: the page is what gets cropped,
+ * and what the crop keeps is fitted to the sheet again. `sheet` and `own` are
+ * the page's geometry with and without its sheet. The blank of the sheet
+ * beside the page counts for nothing.
+ */
+export function sheetCrop(margins, sheet, own) {
+  if (!sheet.scale) return margins;
+  const width = sheet.scale * own.width,
+    height = sheet.scale * own.height;
+  const share = (margin, whole, part) =>
+    Math.min(1, Math.max(0, (margin * whole - (whole - part) / 2) / part));
+  return {
+    left: share(margins.left, sheet.width, width),
+    right: share(margins.right, sheet.width, width),
+    top: share(margins.top, sheet.height, height),
+    bottom: share(margins.bottom, sheet.height, height),
+  };
+}
+
+/**
+ * Margins to add to a page on a sheet of `paper`, in the page's own units, so
+ * that they measure `added` (points) on the sheet once the page, with them, is
+ * fitted to it again: the page is made smaller to leave them. `own` is the
+ * page's geometry without its sheet. The sheet lies the way the page with its
+ * margins does, which wide margins can change.
+ */
+export function sheetMargins(added, own, paper) {
+  const across = added.left + added.right,
+    down = added.top + added.bottom;
+  const wide = own.width > own.height;
+  for (const landscape of [wide, !wide]) {
+    const [width, height] = sheetOf(paper, landscape);
+    const scale = Math.min((width - across) / own.width, (height - down) / own.height);
+    if (!(scale > 0)) continue;
+    const grown = { width: own.width + across / scale, height: own.height + down / scale };
+    if (grown.width > grown.height === landscape)
+      return Object.fromEntries(Object.entries(added).map(([edge, value]) => [edge, value / scale]));
+  }
+  throw new Error('These margins leave no room for the page on its sheet. Make them smaller.');
 }
 
 /**
@@ -221,26 +329,46 @@ export function rescaledMargins(crop, from, to) {
 }
 
 /**
- * Where a page shows its source's content, in user space: its source's visible
- * box, or the part of it recorded when margins were added (crop.content).
- * Added margins outside it are blank.
+ * Where a page shows its source's content, in user space: what its crop keeps
+ * of its source's visible box, and, of that, the part recorded when margins
+ * were added (crop.content). Added margins outside it are blank, and so is the
+ * sheet beside a resized page, where a crop would otherwise show what it hid.
  */
 export function contentBox(source, descriptor) {
   const descriptorRotation = descriptor.rotation || 0;
   const angle = rotation(source.rotation + rotation(descriptorRotation));
   const crop = descriptor.crop;
-  if (!crop?.content) return boxGeometry(source.box, angle).cropBox;
+  if (!crop) return boxGeometry(source.box, angle).cropBox;
+  const cut = cropMarginsForRotation(crop, descriptorRotation),
+    shown = contentMargins(crop, descriptorRotation);
   return croppedGeometry(
     source.box,
     angle,
-    { ...contentMargins(crop, descriptorRotation), rotation: descriptorRotation },
+    {
+      ...Object.fromEntries(Object.keys(cut).map((edge) => [edge, Math.max(cut[edge], shown[edge])])),
+      rotation: descriptorRotation,
+    },
     descriptorRotation,
   ).cropBox;
 }
 
+/**
+ * The view of its page an item was placed in: the page as it was turned and
+ * cropped then, and on the sheet it had then (pageRotation, pageCrop and
+ * pagePaper record them), so the item stays where it is on the paper when its
+ * page is turned, cropped or resized later.
+ */
 export function placementGeometry(source, descriptor, annotation) {
   const placed = annotation.pageRotation ?? descriptor.rotation ?? 0;
-  return croppedGeometry(source.box, source.rotation + rotation(placed), annotation.pageCrop, placed);
+  const geometry = croppedGeometry(
+    source.box,
+    source.rotation + rotation(placed),
+    annotation.pageCrop,
+    placed,
+  );
+  return annotation.pagePaper
+    ? fittedGeometry(geometry, annotation.pagePaper, source.userUnit || 1)
+    : geometry;
 }
 
 /** Compose affine matrices [a b c d e f]: the result applies `inner` first, then `outer`. */
