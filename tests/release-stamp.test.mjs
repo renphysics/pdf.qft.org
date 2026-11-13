@@ -228,6 +228,43 @@ await test('stamping is single-shot and deterministic, and the release changes w
   );
 });
 
+await test('with --github-output, and only then, the release id is written as a step output', async () => {
+  // The Pages workflow passes it to the check after the deploy
+  // (scripts/check-live-release.mjs). GITHUB_OUTPUT is set in every step, and
+  // test jobs stamp copies too, so the script writes it only when asked.
+  const output = path.join(workspace, 'github-output');
+  await writeFile(output, 'earlier=1\n');
+  const stampWith = (args, env) =>
+    execFileSync(process.execPath, [script, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env,
+    });
+  const withOutput = { ...process.env, GITHUB_OUTPUT: output };
+  const asked = await copySite('output');
+  stampWith(['--github-output', asked], withOutput);
+  const stamped = (await readFile(path.join(asked, 'index.html'), 'utf8')).match(
+    /src="\.\/app\.js\?v=([0-9a-f]{12})"/,
+  )[1];
+  assert.equal(stamped, release, 'the same files make the same release');
+  assert.equal(
+    await readFile(output, 'utf8'),
+    `earlier=1\nrelease=${stamped}\n`,
+    'the release stamped into index.html is added to the step outputs, after what was there',
+  );
+  stampWith([await copySite('unasked')], withOutput);
+  assert.equal(await readFile(output, 'utf8'), `earlier=1\nrelease=${stamped}\n`, 'not written unless asked');
+  // Asked for outside GitHub Actions: refused before anything is stamped.
+  const outside = { ...process.env };
+  delete outside.GITHUB_OUTPUT;
+  const refused = await copySite('refused');
+  assert.throws(() => stampWith([refused, '--github-output'], outside), /GITHUB_OUTPUT is not set/);
+  assert(
+    (await readFile(path.join(refused, 'index.html'), 'utf8')).includes('src="./app.js"'),
+    'nothing stamped when refused',
+  );
+});
+
 await test('the site-integrity suite passes on a stamped copy, as the Pages workflow runs it before it deploys', async () => {
   // pages.yml stamps dist/ and then runs tests/site-integrity.test.mjs on it. A
   // check there that reads only unstamped addresses would stop every deploy.

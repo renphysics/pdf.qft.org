@@ -1177,3 +1177,55 @@ source review does not replace the owner’s browser verification.
   caught; one of them, pdf-lib's link with `crossorigin`, only in Chromium and
   Firefox (WebKit still asked for the file once) and by the site-integrity
   suite.
+
+## Deploys that do not wait on a package mirror — 2026-11-13
+
+- Every browser job ran `npx playwright install --with-deps`, which fetches the
+  browsers' system packages from an Ubuntu mirror. In 36 browser jobs from 10
+  to 13 November that step took from 16 seconds to 18 minutes 22 seconds (the
+  median 24 to 35 seconds, by engine); 6 took more than 2 minutes, in all three
+  engines. One ran a deploy past its time limit: the run showed “cancelled”,
+  not “failed”, and that merge went live 1 hour 29 minutes later, with the
+  next one. The log of a slow job shows the browser downloaded in 3 seconds
+  and the packages at 104 kB/s, so keeping the browsers in a cache would not
+  have helped.
+- The browser jobs now run in Playwright's own image
+  (`mcr.microsoft.com/playwright:v<version>-noble`, Ubuntu 24.04), which holds
+  the browsers and their system packages; the install step is gone. A first
+  job reads the version from `package-lock.json`, so a Dependabot update of
+  Playwright brings its image along. The tag is not pinned by its digest: the
+  image is Microsoft's, who published the browsers the jobs downloaded before,
+  and the jobs that run it only read the repository and get no secrets. The
+  WebKit in the image is the one the jobs installed, file for file (36 of 36).
+  A usual run is not expected to be faster (pulling the image is reported to
+  take about as long as the install usually did); the long waits go.
+- After the deploy, a new job, live, asks the site whether it serves the
+  release just built: the home page, a tool page and that release's app.js,
+  each with a query no cache has stored. It asks for up to 11 minutes (Pages
+  lets caches keep a file for 10), then fails with what it was served. It
+  rolls nothing back. `scripts/stamp-release.mjs --github-output` hands it the
+  release id; without the flag nothing is written, as test jobs stamp copies
+  too.
+- README: “What a deploy does” and “When a deploy goes wrong” (a failed or
+  cancelled run did not update the site; re-running; reverting a merge;
+  Unpublish).
+- Tests. `tests/ci.test.mjs` reads the workflows as text: the browser jobs take
+  their image from the image job and nothing installs browsers; the image
+  job's own script, run on the real lockfile, names the image of the installed
+  Playwright, and fails with a message when the lockfile has none; every action
+  is pinned to a commit with its version; where the image runs, permissions
+  are read-only and no secrets are passed; job outputs are wired at both ends,
+  and no jobs wait on each other in a circle. The live check, run against a
+  server in the test, passes on the release, waits through the old one, and
+  fails on another release, an old tool page, an old app.js under the new
+  address, a 404 and a closed port. The release test covers the flag.
+  actionlint 1.7.11, with shellcheck, finds nothing in the three workflows.
+  37 breakages, each applied alone to the workflows, the check and the stamp:
+  36 caught. The one that got through, a ten-second pause between attempts
+  however short the wait, changes nothing: a pause is cut to the time left.
+- Not run here: GitHub Actions itself (no runner, no Docker daemon). The first
+  runs show how long the image takes to start, and whether every test passes
+  inside it.
+- The manual check after each deploy stays (“Deploy check: reload after a
+  release”): the live job asks with new addresses, not as a tab opened before
+  the deploy does.

@@ -18,11 +18,12 @@ package hashes and source comparisons in `scripts/*license-provenance.json`.
 ## GitHub Pages
 
 The included `.github/workflows/pages.yml` publishes `dist/` on pushes to `main`
-and can also be run manually. It uses pinned action revisions, installs the test
-dependencies, and runs `npm test` (restoring the verified font asset, checking
-local resource paths, notices and metadata, then the PDF engine and workflow
-suites) before uploading only the static website; a failing test blocks the
-deployment. `.github/workflows/test.yml` runs the same checks on pull requests.
+and can also be run manually. It uses pinned action revisions, and first runs
+the Test workflow (`.github/workflows/test.yml`, which pull requests run too):
+`npm test` (restoring the verified font asset, checking local resource paths,
+notices and metadata, then the PDF engine and workflow suites) and the browser
+tests in three engines. A failing test blocks the deployment. Only the static
+website is uploaded. A deploy, step by step, is below ("What a deploy does").
 
 Before upload, the workflow also runs `scripts/stamp-release.mjs`, which adds a
 version query to every first-party module, stylesheet and PDF engine URL in the
@@ -53,6 +54,53 @@ The site supports both `https://renphysics.github.io/pdf.qft.org/` and the
 intended custom domain, `https://pdf.qft.org/`. The canonical URL is already set
 to the custom domain. Asset links remain relative so the project URL works
 before the domain is connected.
+
+### What a deploy does
+
+Every merge to `main` starts **Deploy QFT PDF to GitHub Pages** (in the
+**Actions** tab). Its jobs run one after another:
+
+1. **tests**: the Test workflow, the checks a pull request gets: `npm test`, and
+   the browser tests in Chromium, WebKit and Firefox. The browser tests run in
+   Playwright's own image from Microsoft's registry (`mcr.microsoft.com`), which
+   holds the browsers and what they need, so nothing is installed from an
+   Ubuntu mirror. A first small job reads the Playwright version from
+   `package-lock.json` and picks the image of that version, so a Dependabot
+   update of Playwright needs nothing else.
+2. **build**: versions a copy of `dist/` for this release (above), checks it,
+   and uploads it.
+3. **deploy**: GitHub puts the upload on the site.
+4. **live**: asks the site, past its caches, whether it now serves this release
+   (`scripts/check-live-release.mjs`). It asks every ten seconds for up to
+   eleven minutes, as GitHub Pages lets caches keep a file for ten.
+
+A run takes about seven minutes. One runs at a time. A run still waiting gives
+way to a newer one, so after several quick merges the last is deployed and the
+ones between show as cancelled.
+
+### When a deploy goes wrong
+
+Open the run in the **Actions** tab. A red cross or a grey "cancelled" on
+tests, build or deploy means the site was not updated: it still serves the
+previous release. A red cross on live means the files were deployed but the
+site was not seen to serve them; its log says what the site served instead.
+Nothing is rolled back on its own.
+
+- A failure that looks like chance (a network error, a time-out, a test that
+  passes on your machine): open the run and choose **Re-run jobs → Re-run
+  failed jobs**. It runs the same commit again. When only live failed, this
+  asks the site again and changes nothing on it.
+- Cancelled, with a newer run after it: nothing to do. The newer run deploys
+  the newer code.
+- A change that broke the site: revert it. On the merged pull request's page,
+  click **Revert**. GitHub opens a pull request that undoes the change; merge it
+  once its tests pass, and the deploy puts the earlier code back. (Or, in a
+  terminal: `git revert -m 1 <merge commit>` on a new branch, then a pull
+  request.) Do not re-run an old deploy instead: the site would then differ
+  from `main`, and the next merge would bring the fault back.
+- To take the site down at once: **Settings → Pages → Unpublish site**. Once
+  the fault is fixed, run the workflow again (**Actions → Deploy QFT PDF to
+  GitHub Pages → Run workflow**) to publish it.
 
 ### Connect pdf.qft.org
 
@@ -316,7 +364,9 @@ the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license. Dependabot (`.github/dependabot.yml`)
 proposes updates to those packages and to the pinned GitHub Actions each week
-(the Actions in one pull request, since every merge to `main` is a deploy).
+(the Actions in one pull request, since every merge to `main` is a deploy). An
+update of Playwright needs nothing more: the browser jobs take Playwright's
+image of the version in `package-lock.json`.
 
 ### Updating the libraries
 
@@ -553,11 +603,16 @@ mistake. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
 before every deployment (the Pages workflow runs the Test workflow, so the
-engines run in parallel there too), on Ubuntu 24.04 (pinned: `ubuntu-latest`
-became 26.04 in November 2026, and its libsoup 3.6 rewrites spaces in download
-file names as underscores in WebKit, which the file-name checks catch); every
-job has a timeout; when a browser job fails, the run keeps its screenshots,
-traces and HTML report for 14 days (an artifact on the run's summary page).
+engines run in parallel there too), inside Playwright's image for Ubuntu 24.04
+(`mcr.microsoft.com/playwright:v<version>-noble`, the version of
+`package-lock.json`), which carries the browsers and the system libraries they
+need; the other jobs run on Ubuntu 24.04 itself (pinned: `ubuntu-latest` became
+26.04 in November 2026). Every job has a timeout; when a browser job fails, the
+run keeps its screenshots, traces and HTML report for 14 days (an artifact on
+the run's summary page). `tests/ci.test.mjs` checks the workflows, which cannot
+run locally: the image the browser jobs get, pinned actions, read-only
+permissions where the image runs, job outputs wired at both ends, and the
+check after a deploy, against a local server.
 Locally:
 
 ```sh

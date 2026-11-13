@@ -21,14 +21,26 @@
  *   Storage under that URL (pdf-engine.js fetchFont), so they outlive Pages'
  *   ten-minute cache and are downloaded again only when they change.
  *
- * Usage: node scripts/stamp-release.mjs [siteDirectory]   (default: dist)
+ * Usage: node scripts/stamp-release.mjs [siteDirectory] [--github-output]
+ *
+ * The site directory defaults to dist. With --github-output, the release id is
+ * also written as the step output `release` (to the file GitHub Actions names
+ * in GITHUB_OUTPUT): the Pages workflow checks after the deploy that the live
+ * site serves it (scripts/check-live-release.mjs). Only on request, because
+ * test jobs stamp copies of the site too.
  */
 import { createHash } from 'node:crypto';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const site = path.resolve(process.argv[2] || fileURLToPath(new URL('../dist', import.meta.url)));
+const args = process.argv.slice(2);
+const toStepOutput = args.includes('--github-output');
+if (toStepOutput && !process.env.GITHUB_OUTPUT)
+  throw new Error('--github-output: GITHUB_OUTPUT is not set (GitHub Actions sets it in every step).');
+const site = path.resolve(
+  args.find((arg) => !arg.startsWith('--')) || fileURLToPath(new URL('../dist', import.meta.url)),
+);
 // One generated page per tool address (routes.js; scripts/build-pages.mjs).
 const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).href);
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
@@ -134,6 +146,7 @@ for (const [name, rules] of Object.entries(RULES)) {
   if (unversioned.length) throw new Error(`${name}: unversioned import(s): ${unversioned.join(', ')}`);
   await writeFile(path.join(site, name), text);
 }
+if (toStepOutput) await appendFile(process.env.GITHUB_OUTPUT, `release=${release}\n`);
 console.log(
   `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${cjkFont}) in ${site}.`,
 );
