@@ -1,6 +1,6 @@
 // The landing page works before the editor loads: until a file is opened, or a
 // visitor shows intent, only app.js and the modules it preloads are fetched.
-import { test, expect, expectToast, fixture, ready } from './helpers.mjs';
+import { test, expect, expectEachScriptOnce, expectToast, fixture, ready, warmUpList } from './helpers.mjs';
 
 const EDITOR = /\/(?:editor|tool-panel|pdf-engine|documents|page-view|panel-[\w-]+)\.js/;
 const scriptsRequested = (page) => {
@@ -38,6 +38,99 @@ test('hovering the upload area loads the editor before a file is chosen', async 
   await page.goto('./');
   await page.hover('#drop-zone');
   await expect.poll(() => scripts.some((path) => /\/editor\.js$/.test(path))).toBe(true);
+});
+
+const TOOL_PAGE = 'add-page-numbers-to-pdf/';
+const ENGINE = /\/assets\/vendor\/(?:pdf\.mjs|pdf\.worker\.mjs|pdf-lib\.min\.js|fontkit\.umd\.min\.js)$/;
+/** Every address the page and its workers ask for. */
+const requested = (page) => {
+  const urls = [];
+  page.context().on('request', (request) => urls.push(request.url()));
+  return urls;
+};
+const engines = (urls) => urls.filter((url) => ENGINE.test(new URL(url).pathname));
+
+for (const [address, name] of [
+  ['./', 'the home page'],
+  [TOOL_PAGE, 'a tool page'],
+])
+  test(`a visitor who only reads ${name} downloads neither the editor nor the engines`, async ({ page }) => {
+    const urls = requested(page);
+    await page.goto(address);
+    // Long enough for anything left to an idle moment, or to a timer, to have started.
+    await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const later = () => setTimeout(resolve, 3000);
+          if (window.requestIdleCallback) requestIdleCallback(later);
+          else later();
+        }),
+    );
+    const { editor, engines: hinted, unhinted } = await warmUpList(page);
+    expect(editor.length, 'the warm-editor template lists modules').toBeGreaterThan(5);
+    const warm = new Set([...editor, ...hinted, ...unhinted]);
+    expect(
+      urls.filter((url) => warm.has(url) || ENGINE.test(new URL(url).pathname)),
+      'the editor or an engine was asked for',
+    ).toEqual([]);
+    // Nor are the templates' links in the page, where they would start downloading.
+    const live = await page.evaluate(() => [...document.querySelectorAll('link')].map((link) => link.href));
+    expect(
+      live.filter((url) => warm.has(url)),
+      'warm-up links put in the page',
+    ).toEqual([]);
+  });
+
+test('intent asks for the editor and the engines at once, before editor.js has arrived and before a file is chosen', async ({
+  page,
+}) => {
+  // editor.js is held back: what the page asks for meanwhile it asked for in one wave,
+  // not after the editor's imports, level by level, and the engines after them.
+  let arrive;
+  const held = new Promise((resolve) => (arrive = resolve));
+  await page.route('**/editor.js', async (route) => {
+    await held;
+    await route.continue();
+  });
+  const urls = requested(page);
+  await page.goto(TOOL_PAGE);
+  const { editor, engines: hinted } = await warmUpList(page);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click(choosePdf)]);
+  await expect
+    .poll(() => [...editor, ...hinted].filter((url) => !urls.includes(url)), {
+      message: 'not asked for while editor.js was on its way and the picker open',
+    })
+    .toEqual([]);
+  arrive();
+  await chooser.setFiles(fixture('rotated-cropped.pdf'));
+  await ready(page);
+});
+
+test('with Save-Data on, intent loads the editor but not the engines; they come with the file', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(Navigator.prototype, 'connection', {
+      configurable: true,
+      get: () => ({ saveData: true }),
+    }),
+  );
+  const urls = requested(page);
+  await page.goto(TOOL_PAGE);
+  await page.locator('[data-action="sample"]').first().hover();
+  await editorRan(page);
+  // The editor would start the engines as it arrives: give that a moment.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 1000)));
+  expect(engines(urls), 'engines asked for on intent under Save-Data').toEqual([]);
+  await page.locator('[data-action="sample"]').first().click();
+  await ready(page);
+  expect(engines(urls).length, 'the engines load when the sample opens').toBeGreaterThan(0);
+});
+
+test('the first open asks for each script once: the editor, PDF.js, its worker and pdf-lib', async ({
+  page,
+}) => {
+  await expectEachScriptOnce(page, TOOL_PAGE);
 });
 
 /**

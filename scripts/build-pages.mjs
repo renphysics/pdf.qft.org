@@ -89,10 +89,31 @@ function staticModules(entry = 'app.js') {
   visit(entry);
   return found;
 }
-/** index.html with a modulepreload link for each module app.js needs, so they load alongside it, not after it. */
+/**
+ * index.html with a modulepreload link for each module app.js needs, so they load
+ * alongside it, not after it; and with what app.js asks for at the first sign of
+ * intent (warmUp), in two templates, where links do nothing until they are put in
+ * the page. warm-editor: the editor's modules, but not editor.js, which app.js
+ * imports itself, nor those the page has already. warm-engines: PDF.js and
+ * pdf-lib, at the addresses preview.js and pdf-engine.js load them from, and
+ * pdf-lib without crossorigin, as its script element has none: a link that
+ * differs is a second download. Not the PDF.js worker: WebKit downloads a worker
+ * again whatever the hint.
+ */
 function withPreloads(html) {
-  const links = staticModules().map((name) => `\n  <link rel="modulepreload" href="./${name}">`);
-  return replaceBetween(html, 'preload', links.join('') + '\n  ', 'modules');
+  const shell = staticModules();
+  const links = shell.map((name) => `\n  <link rel="modulepreload" href="./${name}">`);
+  const editor = staticModules('editor.js').filter((name) => !shell.includes(name));
+  const warm = [
+    '\n  <template id="warm-editor">',
+    ...editor.map((name) => `\n    <link rel="modulepreload" href="./${name}">`),
+    '\n  </template>',
+    '\n  <template id="warm-engines">',
+    '\n    <link rel="modulepreload" href="./assets/vendor/pdf.mjs">',
+    '\n    <link rel="preload" as="script" href="./assets/vendor/pdf-lib.min.js">',
+    '\n  </template>',
+  ];
+  return replaceBetween(html, 'preload', links.join('') + warm.join('') + '\n  ', 'modules');
 }
 const svg = (icon) => `<svg class="icon" aria-hidden="true"><use href="#i-${icon}"/></svg>`;
 /** index.html with its cards, tool menu and tabs written from the registry (dist/routes.js). */

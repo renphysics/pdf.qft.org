@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
-import { appendFile, cp, mkdtemp, readdir, readFile, stat, symlink } from 'node:fs/promises';
+import { appendFile, cp, mkdtemp, readdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -140,6 +140,21 @@ await test('engine bundles and fonts are versioned by their own bytes', async ()
       `new URL('./assets/vendor/fontkit.umd.min.js?v=${await hash(vendor('fontkit.umd.min.js'))}'`,
     ),
   );
+  // A page asks for PDF.js and pdf-lib at the first sign of intent (warm-engines) under the same
+  // addresses: a second spelling would be a second download, and a second copy of PDF.js.
+  const pdfjsLink = `assets/vendor/pdf.mjs?v=${await hash(vendor('pdf.mjs'))}`;
+  const pdfLibLink = `assets/vendor/pdf-lib.min.js?v=${await hash(vendor('pdf-lib.min.js'))}`;
+  for (const [name, up] of [['index.html', './'], ...toolPages.map((page) => [page, '../'])]) {
+    const page = await read(name);
+    assert(
+      page.includes(`<link rel="modulepreload" href="${up}${pdfjsLink}">`),
+      `${name}: PDF.js link versioned`,
+    );
+    assert(
+      page.includes(`<link rel="preload" as="script" href="${up}${pdfLibLink}">`),
+      `${name}: pdf-lib link versioned`,
+    );
+  }
   // Fonts too: the app keeps them in Cache Storage under this URL.
   for (const font of ['NotoSans-Regular.ttf', 'NotoSansCJKsc-Regular.otf']) {
     assert(
@@ -160,10 +175,11 @@ await test('every versioned reference points at a real file, and every reference
       checked++;
     }
   }
-  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads, 3 on the licenses page
-  // (its own stylesheet too), every import between modules, the export worker, PDF.js worker, pdf-lib and
-  // fontkit URLs, and two fonts.
-  let expected = (4 + preloads.length) * (1 + toolPages.length) + 3 + 4 + 2;
+  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads (the editor's in the
+  // warm-editor template too) and the two engines in warm-engines, 3 on the licenses page (its own
+  // stylesheet too), every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit
+  // URLs, and two fonts.
+  let expected = (4 + preloads.length + 2) * (1 + toolPages.length) + 3 + 4 + 2;
   for (const name of modules)
     expected += [
       ...(await readFile(path.join(site, name), 'utf8')).matchAll(
@@ -175,6 +191,24 @@ await test('every versioned reference points at a real file, and every reference
     expected,
     'every versioned reference: pages, imports between modules, workers and engines',
   );
+});
+
+await test('stamping fails on a page that lost a link it is expected to version', async () => {
+  // Each warm-up link has a rule that expects it, so a page written another way fails here
+  // and not on a visitor's connection: a link left unversioned is a download of its own.
+  const cases = [
+    ['<link rel="preload" as="script" href="../assets/vendor/pdf-lib.min.js">', /expected 1 match.*pdf-lib/],
+    ['<link rel="modulepreload" href="../assets/vendor/pdf.mjs">', /expected 1 match.*pdf\\\.mjs/],
+    ['<link rel="modulepreload" href="../documents.js">', /expected \d+ match.*modulepreload/],
+  ];
+  for (const [index, [lost, message]] of cases.entries()) {
+    const copy = await copySite(`lost-${index}`);
+    const name = path.join(copy, toolPages[0]);
+    const page = await readFile(name, 'utf8');
+    assert(page.includes(lost), `${toolPages[0]} has ${lost}`);
+    await writeFile(name, page.replace(lost, ''));
+    assert.throws(() => stamp(copy), message, `stamping a page without ${lost} must fail`);
+  }
 });
 
 await test('stamping is single-shot and deterministic, and the release changes with first-party content', async () => {

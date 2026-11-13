@@ -2,7 +2,7 @@
  * QFT PDF. This module runs on every page and is all a page needs before a file
  * is opened: the tool search, opening files and the sample, the help and
  * privacy dialogs, notices, and the browser's Back and Forward. The editor
- * (editor.js and the modules it imports, about 400 KB) loads when a file is
+ * (editor.js and the modules it imports, about 490 KB) loads when a file is
  * opened, and starts loading as soon as a visitor hovers, focuses or touches
  * the upload area, a tool card or the sample, so it is usually there before
  * the click; a visitor who only reads the page never downloads it. The
@@ -75,6 +75,17 @@ function refresh() {
   history.replaceState({ ...history.state, reloaded: { at: Date.now() } }, '');
   location.reload();
 }
+/**
+ * Put a template's links in the page, once (scripts/build-pages.mjs writes them):
+ * all their files download at once, not each level of imports after the last.
+ */
+const warmed = new Set();
+function warmUp(id) {
+  if (warmed.has(id)) return;
+  warmed.add(id);
+  const template = document.getElementById(id);
+  if (template) document.head.append(template.content.cloneNode(true));
+}
 /** The editor's module, loading it the first time (and again after a failed load). */
 export function loadEditor() {
   loading ||= import('./editor.js')
@@ -87,6 +98,8 @@ export function loadEditor() {
       });
     })
     .then((module) => (editor = module));
+  // After the import: editor.js is needed first, and connections are few.
+  warmUp('warm-editor');
   return loading;
 }
 /** Say why something could not be done; with another release's editor, reload into that release. */
@@ -101,13 +114,15 @@ function withEditor(run) {
 }
 // Intent: hovering, focusing or touching the upload area, a tool card or the sample
 // loads the editor; on Open and the sample the PDF engines start downloading too,
-// unless the visitor asked to save data. A warm-up that fails says nothing: the
-// click that follows does.
+// at the same time, unless the visitor asked to save data. A warm-up that fails
+// says nothing: the click that follows does.
 const warmEditor = () => loadEditor().catch(() => {});
-const warmEngines = () =>
-  loadEditor()
-    .then((module) => navigator.connection?.saveData || module.warm())
-    .catch(() => {});
+const saveData = () => Boolean(navigator.connection?.saveData);
+const warmEngines = () => {
+  const loaded = loadEditor();
+  if (!saveData()) warmUp('warm-engines');
+  return loaded.then((module) => saveData() || module.warm()).catch(() => {});
+};
 for (const [selector, warm] of [
   ['#drop-zone, .tool-card, [data-action="batch"], [data-action="batch-choose"]', warmEditor],
   ['[data-action="open"], [data-action="sample"]', warmEngines],

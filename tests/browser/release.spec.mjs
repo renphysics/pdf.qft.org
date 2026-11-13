@@ -1,6 +1,6 @@
 // The site as deployed: stamped with versioned URLs (scripts/stamp-release.mjs)
 // and served under the GitHub project path, /pdf.qft.org/.
-import { test, expect, openSample, download, pdfText } from './helpers.mjs';
+import { test, expect, expectEachScriptOnce, openSample, download, pdfText } from './helpers.mjs';
 
 test('loads one versioned release and builds downloads in the export worker', async ({ page }) => {
   const requests = [];
@@ -23,6 +23,12 @@ test('loads one versioned release and builds downloads in the export worker', as
   expect(code.length).toBeGreaterThan(5);
   expect(code.filter((url) => !/^\?v=[0-9a-f]{12}$/.test(url.search)).map((url) => url.pathname)).toEqual([]);
   expect(requests.every((url) => url.pathname.startsWith('/pdf.qft.org/'))).toBe(true);
+});
+
+test('the first open asks for each script once, at its versioned address', async ({ page }) => {
+  // The warm-up links in the stamped page, and the modules' own imports and loads,
+  // must name each file the same way, release and engine versions included.
+  await expectEachScriptOnce(page, 'add-page-numbers-to-pdf/');
 });
 
 test('a font is downloaded once and then comes from Cache Storage, even when the network no longer serves it', async ({

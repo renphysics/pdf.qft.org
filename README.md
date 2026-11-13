@@ -252,12 +252,16 @@ zooms in to the field you tap (below).
 
 The editor's code is split by what it does. `app.js` runs on every page and is
 all a page needs before a file is opened: the tool search, opening files and the
-sample, dialogs and notices. It loads the editor, `editor.js`, when a file is
-opened, and starts loading it as soon as a visitor hovers, focuses or touches
-the upload area, a tool card or the sample, so it is usually there before the
-click, while a visitor who only reads the page never downloads its 400 KB; the
-few modules the page needs at once are preloaded on every page
-(`scripts/build-pages.mjs` writes the `<link rel="modulepreload">` tags). `editor.js` starts the editor (the actions
+sample, dialogs and notices. The few modules it imports are preloaded on every
+page (`scripts/build-pages.mjs` writes the `<link rel="modulepreload">` tags).
+It loads the editor, `editor.js`, when a file is opened, and starts loading it
+as soon as a visitor hovers, focuses or touches the upload area, a tool card,
+“Choose a PDF” or “Try a sample”, so it is usually there before the click. It
+asks for `editor.js` first and, at the same moment, for all the editor's other
+modules: the page holds their links in a `<template id="warm-editor">`, which
+`app.js` puts in the page (`warmUp`), so they download together and not one
+level of imports after another. A visitor who only reads the page downloads
+none of the editor's 490 KB (155 KB compressed). `editor.js` starts the editor (the actions
 behind buttons, what is redrawn after a change, listeners), and the rest lives
 in `editor-core.js` (state, helpers and messages; it imports no other editor
 module, so every module can use it as they load), `history.js` (edit history:
@@ -298,8 +302,16 @@ in `dist/assets/vendor/versions.json`. The landing page loads neither the editor
 file is opened, or when a visitor shows intent) nor a PDF engine:
 `pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
 non-ASCII text), and `preview.js` imports PDF.js when a document opens. Both
-start downloading as soon as a visitor opens the file picker, drags a file in,
-or opens the sample. The package manifest and lockfile provide
+start downloading, together with the editor, as soon as a visitor hovers,
+focuses or touches “Choose a PDF” or “Try a sample”, opens the file picker or
+drags a file onto the page: their links are in a second template,
+`warm-engines`, which `app.js` puts in the page in the same moment as the
+editor's. A visitor who has asked the browser to save data (Save-Data, which
+only Chromium-based browsers report) gets the editor on such a sign, and the
+engines only once a file or the sample is opened. The PDF.js worker is not asked for early:
+WebKit would download it twice. Neither the editor nor an engine is downloaded
+while a visitor only reads the page, however long they stay. The package
+manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license. Dependabot (`.github/dependabot.yml`)

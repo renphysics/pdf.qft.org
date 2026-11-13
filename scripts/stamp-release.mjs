@@ -73,14 +73,18 @@ const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
 // static (from) and dynamic (import()); the check below fails on any relative
 // import left unversioned.
 const imports = [/((?:from |import\()'\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
-// The modules a page preloads alongside app.js (scripts/build-pages.mjs).
-const preloads = (sources['index.html'].match(/rel="modulepreload"/g) || []).length;
+// The modules a page preloads (scripts/build-pages.mjs): those app.js imports, and
+// the editor's in the warm-editor template. Counted with the rule's own pattern;
+// the engine links in warm-engines have rules of their own, with the engines' ids.
+const preloads = (sources['index.html'].match(/rel="modulepreload" href="\.\/[\w-]+\.js"/g) || []).length;
 const RULES = {
   ...Object.fromEntries(MODULES.map((name) => [name, [imports]])),
   'index.html': [
     [/(href="\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
     [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
     [/(rel="modulepreload" href="\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
+    [/(href="\.\/assets\/vendor\/pdf\.mjs)"/g, `$1?v=${pdfjs}"`, 1],
+    [/(href="\.\/assets\/vendor\/pdf-lib\.min\.js)"/g, `$1?v=${pdfLib}"`, 1],
   ],
   'licenses/index.html': [[/(href="(?:\.\.\/(?:style|studio)|\.\/licenses)\.css)"/g, `$1?v=${release}"`, 3]],
   ...Object.fromEntries(
@@ -90,6 +94,8 @@ const RULES = {
         [/(href="\.\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
         [/(src="\.\.\/app\.js)"/g, `$1?v=${release}"`, 1],
         [/(rel="modulepreload" href="\.\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
+        [/(href="\.\.\/assets\/vendor\/pdf\.mjs)"/g, `$1?v=${pdfjs}"`, 1],
+        [/(href="\.\.\/assets\/vendor\/pdf-lib\.min\.js)"/g, `$1?v=${pdfLib}"`, 1],
       ],
     ]),
   ),

@@ -178,6 +178,55 @@ export async function openSample(page, address = './') {
   await ready(page);
 }
 
+/**
+ * The addresses of what the page's warm-up templates list (scripts/build-pages.mjs):
+ * the editor's modules and the PDF engines, which app.js asks for at the first sign
+ * of intent. The scripts that are always needed beside them: editor.js, and the PDF.js
+ * worker, which is not hinted.
+ */
+export function warmUpList(page) {
+  return page.evaluate(() => {
+    const site = document.querySelector('script[src*="app.js"]').src;
+    const listed = (id) =>
+      [...(document.getElementById(id)?.content.querySelectorAll('link') || [])].map(
+        (link) => new URL(link.getAttribute('href'), document.baseURI).href,
+      );
+    return {
+      editor: listed('warm-editor'),
+      engines: listed('warm-engines'),
+      unhinted: [new URL('editor.js', site).href, new URL('assets/vendor/pdf.worker.mjs', site).href],
+    };
+  });
+}
+
+/**
+ * Open the sample on a page as a visitor does, and check that every script was asked
+ * for once: each of the editor's modules, PDF.js, its worker and pdf-lib among them.
+ * Two requests for one file are two downloads (the test server allows no caching,
+ * and a second spelling of an address is a second file to any cache); for a module,
+ * a second copy. Counted by path, so that a second spelling counts too.
+ */
+export async function expectEachScriptOnce(page, address) {
+  const asked = new Map();
+  page.context().on('request', (request) => {
+    const { pathname } = new URL(request.url());
+    if (/\.m?js$/.test(pathname)) asked.set(pathname, (asked.get(pathname) || 0) + 1);
+  });
+  await openSample(page, address);
+  const { editor, engines, unhinted } = await warmUpList(page);
+  expect(editor.length, 'the warm-editor template lists modules').toBeGreaterThan(5);
+  expect(engines.length, 'the warm-engines template lists PDF.js and pdf-lib').toBe(2);
+  const once = [...editor, ...engines, ...unhinted].map((url) => new URL(url).pathname);
+  expect(
+    once.filter((path) => asked.get(path) !== 1).map((path) => `${path}: ${asked.get(path) || 0}`),
+    "each of the editor's modules, the engines and the worker asked for once",
+  ).toEqual([]);
+  expect(
+    [...asked].filter(([, count]) => count > 1).map(([path, count]) => `${path}: ${count}`),
+    'scripts asked for more than once',
+  ).toEqual([]);
+}
+
 export async function openFiles(page, files, address = './') {
   await page.goto(address);
   await page.setInputFiles('#file-input', files);

@@ -1094,3 +1094,49 @@ source review does not replace the owner’s browser verification.
 - Firefox crashes when axe runs on a tool page’s landing with a document open
   (Crop PDF, or Add text after a tool was used), on the code before this
   change too; axe is not run there.
+
+## First open on a slow connection: the editor and the engines in one wave — 2026-11-13
+
+- Since the editor loads on demand, a visitor who opened a file at once waited
+  for it level by level: `editor.js`, then the 19 modules it imports, then the
+  10 those import, and only then for pdf-lib and PDF.js, which the editor asked
+  for once it had arrived (1.3 s after the click at 1.6 Mbit/s, 4.3 s at
+  400 kbit/s). README said the engines start “as soon as a visitor opens the
+  file picker”; they did not. Each page now holds two `<template>`s, written by
+  `scripts/build-pages.mjs` from the module graph: `warm-editor`, a
+  modulepreload link for every module the editor imports that the page does
+  not have, and `warm-engines`, links for PDF.js and pdf-lib at the addresses
+  the modules load them from. At the first sign of intent `app.js` asks for
+  `editor.js` and then puts the links in the page, so everything downloads at
+  once. A new module is picked up by `npm run pages`; the site-integrity suite
+  fails when the pages were not rebuilt.
+- What does not change. A visitor who only reads a page, on the home page or a
+  tool page, downloads neither the editor nor an engine, however long they
+  stay: there is no warm-up when the page is idle. Under Save-Data, intent
+  loads the editor and not the engines. The PDF.js worker is not asked for
+  early (WebKit downloads a worker twice whatever the hint), nor are the fonts
+  or the sample.
+- Measured in Chromium on a Pages-like server (gzip, max-age=600), tool page
+  “Add page numbers”, “Try a sample” clicked as soon as the page had loaded,
+  from the click to the first page painted, median of 7 runs, before and after
+  taken in turn: 6565 → 6286 ms at 1.6 Mbit/s and 150 ms, 24283 → 23679 ms at
+  400 kbit/s and 400 ms. The bytes after the click are the same (1.09 MB), so
+  most of the wait is still the download itself. Before any intent a page
+  asks for the same files as before (9; 10 in Firefox, which also takes the
+  touch icon); the templates add 240 bytes to a page and the new code 239 to
+  `app.js`, compressed.
+- The release script versions the links in both templates, PDF.js and pdf-lib
+  with their own ids, and expects each of them, so a page written another way
+  stops the deploy.
+- New tests: a visitor who only reads the home page or a tool page (an idle
+  moment and 3 s later) has asked for nothing of the editor or the engines and
+  has no warm-up link in the page; on intent the engines and every module of
+  the editor are asked for while `editor.js` is held back and the picker is
+  open; under Save-Data the engines wait for the file; on the first open each
+  of the editor's modules, PDF.js, its worker and pdf-lib is asked for exactly
+  once, in Chromium, WebKit and Firefox and on the stamped release; the
+  templates match the module graph and the engines' addresses; stamping fails
+  on a page that lost a link. 20 breakages, each applied alone, were each
+  caught; one of them, pdf-lib's link with `crossorigin`, only in Chromium and
+  Firefox (WebKit still asked for the file once) and by the site-integrity
+  suite.
