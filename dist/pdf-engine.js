@@ -1667,7 +1667,7 @@ function moveAnnotation(doc, annotation, matrix) {
   if (appearance instanceof PDFString || appearance instanceof PDFHexString) {
     const text = appearance.decodeText(),
       sized = text.replace(
-        /(-?\d*\.?\d+)(\s+Tf)/,
+        /(-?(?:\d+\.?\d*|\.\d+))(\s+Tf)/,
         (_, size, operator) => Math.round(Number(size) * scale * 1000) / 1000 + operator,
       );
     if (sized !== text) annotation.set(PDFName.of('DA'), PDFString.of(sized));

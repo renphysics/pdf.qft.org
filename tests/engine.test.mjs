@@ -1299,6 +1299,9 @@ await test('a resized page takes its comments, links and bookmarks along', async
     DA: PDFString.of('/Helv 12 Tf 0 g'),
     Contents: PDFString.of('Free'),
   });
+  // Sizes as PDF may write them: "12." and ".5" are numbers too.
+  annotate({ Subtype: 'FreeText', Rect: [200, 250, 350, 290], DA: PDFString.of('0 g /Helv 12. Tf') });
+  annotate({ Subtype: 'FreeText', Rect: [200, 200, 350, 240], DA: PDFString.of('/Helv .5 Tf') });
   annotate({ Subtype: 'Link', Rect: [50, 100, 150, 120], Dest: [first.ref, 'XYZ', 60, 480, null] });
   annotate({ Subtype: 'Link', Rect: [50, 60, 150, 80], A: { S: 'GoTo', D: [second.ref, 'FitH', 700] } });
   annotate({ Subtype: 'Link', Rect: [200, 60, 300, 80], Dest: PDFString.of('chapter') });
@@ -1384,6 +1387,14 @@ await test('a resized page takes its comments, links and bookmarks along', async
       `/Helv ${Math.round(12 * fit.scale * 1000) / 1000} Tf 0 g`,
       `${title}: the free text's size`,
     );
+    assert.deepEqual(
+      [1, 2].map((index) => of('FreeText', index).lookup(PDFName.of('DA')).decodeText()),
+      [
+        `0 g /Helv ${Math.round(12 * fit.scale * 1000) / 1000} Tf`,
+        `/Helv ${Math.round(0.5 * fit.scale * 1000) / 1000} Tf`,
+      ],
+      `${title}: sizes written "12." and ".5"`,
+    );
     near(get(of('Popup'), 'Rect'), [...point(420, 380), ...point(600, 480)], `${title}: the note's pop-up`);
     assert.equal(
       of('Popup').lookup(PDFName.of('F')),
@@ -1457,6 +1468,13 @@ await test('a resized page takes its comments, links and bookmarks along', async
     'copied: the link that led to a named place',
   );
   assert.equal(copied.of('Link', 3), undefined, 'copied: three links are left');
+  near(
+    copied
+      .get(copied.doc.catalog.lookup(PDFName.of('Outlines')).lookup(PDFName.of('First')), 'Dest')
+      .slice(1),
+    ['/FitV', x(30)],
+    'copied: the bookmark',
+  );
   assert.ok(PDFDict, 'pdf-lib');
 });
 

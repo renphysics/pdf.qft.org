@@ -102,3 +102,23 @@ test('a tool address opens that tool after a reload', async ({ page }) => {
   await page.locator('[data-action="sample"]').first().click();
   await expect(page.locator('#tool-select')).toHaveValue('crop');
 });
+
+test('a search note’s links lead to the tools’ pages, from the home page and from a tool page', async ({
+  page,
+}) => {
+  // The note's links are built in the page, from the address of the scripts: under
+  // the project path and with versioned scripts they must still name the tools' pages.
+  for (const address of ['./', 'crop-pdf/']) {
+    await page.goto(address);
+    await page.fill('#tool-search', 'compress');
+    const links = page.locator('#search-note a');
+    await expect(links).toHaveCount(2);
+    expect(await links.evaluateAll((nodes) => nodes.map((node) => new URL(node.href).pathname))).toEqual([
+      '/pdf.qft.org/delete-pages-from-pdf/',
+      '/pdf.qft.org/split-pdf/',
+    ]);
+  }
+  await page.locator('#search-note a').first().click();
+  await expect(page).toHaveURL(/\/pdf\.qft\.org\/delete-pages-from-pdf\/$/);
+  await expect(page.locator('#landing h1')).toContainText('Delete pages');
+});
