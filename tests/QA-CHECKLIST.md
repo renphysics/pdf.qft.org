@@ -1245,9 +1245,12 @@ source review does not replace the owner’s browser verification.
   37 breakages, each applied alone to the workflows, the check and the stamp:
   36 caught. The one that got through, a ten-second pause between attempts
   however short the wait, changes nothing: a pause is cut to the time left.
-- Not run here: GitHub Actions itself (no runner, no Docker daemon). The first
-  runs show how long the image takes to start, and whether every test passes
-  inside it.
+- Run on GitHub, by hand, on the branch (Test, run 53): all five jobs passed in
+  7 minutes 43 seconds. The image job took 7 seconds; the containers started
+  in 26 to 36 seconds; nothing was installed from a mirror. The suites passed
+  inside the image: Chromium in 2 min 23 s, Firefox in 3 min 15 s, WebKit in
+  6 min 44 s (137 passed, 3 skipped by design, as on this machine). The live
+  job has not run: it runs with the first deploy.
 - The manual check after each deploy stays (“Deploy check: reload after a
   release”): the live job asks with new addresses, not as a tab opened before
   the deploy does.
