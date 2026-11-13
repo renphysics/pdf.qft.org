@@ -213,3 +213,21 @@ test('in a narrow window with a mouse, a field is not zoomed to; the sheet folds
   await expect(page.locator('#zoom-label')).toHaveText('Fit');
   await expect(page.locator('.tool-sidebar')).toHaveClass(/collapsed/);
 });
+
+test('a field a crop has taken out of sight is not offered to fill in', async ({ page }) => {
+  await openFiles(page, fixture('form-fields.pdf'), 'crop-pdf/');
+  // The lower half of the first page goes: its list of interests lies wholly in it
+  // (so does a read-only field, which was never offered).
+  await page.fill('#tool-form [name="bottom"]', '50');
+  await page.click('#tool-form [type="submit"]');
+  await expectToast(page, 'Page cropped.');
+  await useTool(page, 'form');
+  await ready(page);
+  await expect(field(page, 'country')).toHaveCount(1);
+  await expect(field(page, 'interests')).toHaveCount(0);
+  await expect(summary(page)).toContainText('0 of 10 fields filled in.');
+  // Undo brings the field back.
+  await page.click('#undo-button');
+  await expect(field(page, 'interests')).toHaveCount(1);
+  await expect(summary(page)).toContainText('0 of 11 fields filled in.');
+});

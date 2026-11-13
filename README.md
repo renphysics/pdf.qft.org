@@ -664,15 +664,22 @@ page lead to the same place on the sheet. Text stays text. The page's `/Rotate`
 stays, its boxes become the sheet, and a `/UserUnit` goes. The sheet is blank
 beside the page even where the PDF has content there. Comments, links and
 fields that lay wholly outside what the page showed are hidden there (the
-annotation flag Hidden), as they are in added margins. pdf-lib's own
+annotation flag Hidden), and one that lay across the edge is cut at it: each of
+its appearances is put inside one that clips (`clipAnnotation`). Added margins
+do the same. pdf-lib's own
 `PDFPage.scale` is not used: it scales about the origin of the page's
 coordinates and moves nothing, so pages with boxes away from the origin end up
 off their sheet, and it leaves destinations, border widths and text sizes as
 they were.
 
-Known limits: a comment that lies across the edge of what a page shows is shown
-whole, in the blank beside the page; rich-text comments keep the text size in
-their own markup; batch presets have no paper size.
+Known limits: a comment without an appearance of its own, which each viewer
+draws in its own way, cannot be cut at the edge of what a page shows, nor can a
+note that keeps its size whatever the page does; rich-text comments keep the
+text size in their own markup; an item placed before a page was resized or
+given margins stays within the page as it was, and cannot be dragged onto the
+blank beside it; margins added to a resized picture page do not keep their size
+when the picture is laid out again (JPG to PDF's paper size); batch presets
+have no paper size.
 
 ## JPG to PDF and PDF to JPG
 

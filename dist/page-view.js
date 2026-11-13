@@ -736,6 +736,12 @@ function renderEditLayer(view) {
     node.style.width = Math.max(1, item.frame.width * scale) + 'px';
     node.style.height = Math.max(1, item.frame.height * scale) + 'px';
     node.style.transform = frameTransform(item, item.frame, scale);
+    // An item placed before its page went on a sheet is drawn at the page's scale;
+    // its handles and outline are not part of it, and keep their size.
+    node.style.setProperty(
+      '--unscale',
+      String(Math.round(1e4 / Math.hypot(item.matrix[0], item.matrix[1])) / 1e4),
+    );
     const handles = selected && item.id !== ui.editing ? HANDLES[item.type] : [];
     if (node.dataset.handles !== handles.join()) {
       node.dataset.handles = handles.join();

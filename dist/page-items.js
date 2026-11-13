@@ -1052,8 +1052,16 @@ export function placeSignatureEverywhere() {
 export function copySignature(item) {
   const own = pageById(item.pageId),
     from = geometryOf(state, own);
-  const width = item.width * from.width,
-    height = item.height * from.height;
+  // The signature as it lies on its page now: where its box is, and its own size
+  // at the scale it is shown at. What it keeps is of the page as it was when the
+  // signature was placed, which a resize, a crop or added margins have changed
+  // since. (Turned with its page, it is copied upright.)
+  const shown = overlayItem(item.id),
+    stored = storedFrame(item, shown),
+    scale = Math.hypot(shown.matrix[0], shown.matrix[1]),
+    { box } = onScreen(shown, stored);
+  const width = stored.width * scale,
+    height = stored.height * scale;
   const added = state.pages
     .filter((page) => page.id !== own.id)
     .map((page) => {
@@ -1061,8 +1069,8 @@ export function copySignature(item) {
         w = Math.min(width, geometry.width),
         h = Math.min(height, geometry.height);
       const frame = {
-        x: clamp(item.x * geometry.width, 0, geometry.width - w),
-        y: clamp(item.y * geometry.height, 0, geometry.height - h),
+        x: clamp((box.left / from.width) * geometry.width, 0, geometry.width - w),
+        y: clamp((box.top / from.height) * geometry.height, 0, geometry.height - h),
         width: w,
         height: h,
       };

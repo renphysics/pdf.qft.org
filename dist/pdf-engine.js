@@ -1532,35 +1532,122 @@ function addBlankMargins(page, content, box) {
     Math.max(media.y + media.height, box.y + box.height) - bottom,
   );
   for (const name of ['TrimBox', 'BleedBox', 'ArtBox']) page.node.delete(lib.PDFName.of(name));
-  // Comments, links and fields that lay wholly outside what the page showed were
-  // out of sight, and are hidden now that the page reaches them. (One that lay
-  // across the edge shows whole: an annotation cannot be cut.)
+  // Comments, links and fields outside what the page showed were out of sight,
+  // and stay so now that the page reaches them: one that lay wholly outside is
+  // hidden, one that lay across the edge is cut there.
   const { PDFArray, PDFDict, PDFName, PDFNumber } = lib;
   const annotations = page.node.Annots();
   for (let index = 0; annotations && index < annotations.size(); index++) {
     const annotation = annotations.lookup(index),
-      rect = annotation instanceof PDFDict ? annotation.lookup(PDFName.of('Rect')) : null;
-    if (!(rect instanceof PDFArray) || rect.size() !== 4) continue;
-    const [x1, y1, x2, y2] = rect
+      corners = annotation instanceof PDFDict ? annotation.lookup(PDFName.of('Rect')) : null;
+    // A pop-up is the note of another annotation, and shows only when opened.
+    if (!(corners instanceof PDFArray) || corners.size() !== 4) continue;
+    if (annotation.get(PDFName.of('Subtype')) === PDFName.of('Popup')) continue;
+    const [x1, y1, x2, y2] = corners
       .asArray()
       .map((value) => (value instanceof PDFNumber ? value.asNumber() : NaN));
-    const outside =
-      Math.max(x1, x2) <= content.x ||
-      Math.min(x1, x2) >= content.x + content.width ||
-      Math.max(y1, y2) <= content.y ||
-      Math.min(y1, y2) >= content.y + content.height;
-    // A pop-up is the note of another annotation, and shows only when opened.
-    if (!outside || annotation.get(PDFName.of('Subtype')) === PDFName.of('Popup')) continue;
-    const flags = annotation.lookup(PDFName.of('F'));
-    annotation.set(
-      PDFName.of('F'),
-      PDFNumber.of((flags instanceof PDFNumber ? flags.asNumber() : 0) | HIDDEN),
-    );
+    const rect = {
+        x: Math.min(x1, x2),
+        y: Math.min(y1, y2),
+        width: Math.abs(x2 - x1),
+        height: Math.abs(y2 - y1),
+      },
+      right = content.x + content.width,
+      top = content.y + content.height;
+    const flags = annotation.lookup(PDFName.of('F')),
+      set = flags instanceof PDFNumber ? flags.asNumber() : 0;
+    if (
+      rect.x + rect.width <= content.x ||
+      rect.x >= right ||
+      rect.y + rect.height <= content.y ||
+      rect.y >= top
+    )
+      annotation.set(PDFName.of('F'), PDFNumber.of(set | HIDDEN));
+    else if (
+      (rect.x < content.x ||
+        rect.x + rect.width > right ||
+        rect.y < content.y ||
+        rect.y + rect.height > top) &&
+      !(set & (NO_ZOOM | NO_ROTATE))
+    )
+      clipAnnotation(context, annotation, rect, content);
   }
 }
 
-// The annotation flag "Hidden": not shown, not printed, not reacting.
-const HIDDEN = 2;
+// Annotation flags. Hidden: not shown, not printed, not reacting. NoZoom and
+// NoRotate: drawn at its own size and upright, whatever the page does.
+const HIDDEN = 2,
+  NO_ZOOM = 8,
+  NO_ROTATE = 16;
+
+/**
+ * Cut an annotation at the edge of what its page shows: of its rectangle `rect`,
+ * only the part inside `content` (both in user space) is drawn. Each of its
+ * appearances goes inside a new one that clips, in the space where a viewer
+ * fits an appearance to the rectangle: the appearance's box as its matrix
+ * leaves it (PDF 32000-1, 12.5.5). The appearances themselves stay as they
+ * are, as other annotations may share them. An annotation without an
+ * appearance, which each viewer draws in its own way, cannot be cut.
+ */
+function clipAnnotation(context, annotation, rect, content) {
+  const { PDFArray, PDFDict, PDFName, PDFNumber, PDFRef, PDFStream } = library();
+  const numbers = (value, count) => {
+    const list = value instanceof PDFArray ? value.asArray().map((entry) => context.lookup(entry)) : [];
+    return list.length === count && list.every((entry) => entry instanceof PDFNumber)
+      ? list.map((entry) => entry.asNumber())
+      : null;
+  };
+  const clipped = (entry) => {
+    const stream = context.lookup(entry),
+      box = stream instanceof PDFStream ? numbers(stream.dict.lookup(PDFName.of('BBox')), 4) : null;
+    if (!box) return entry;
+    const [a, b, c, d, e, f] = numbers(stream.dict.lookup(PDFName.of('Matrix')), 6) || [1, 0, 0, 1, 0, 0];
+    const xs = [],
+      ys = [];
+    for (const x of [box[0], box[2]])
+      for (const y of [box[1], box[3]]) {
+        xs.push(a * x + c * y + e);
+        ys.push(b * x + d * y + f);
+      }
+    const x = Math.min(...xs),
+      y = Math.min(...ys),
+      width = Math.max(...xs) - x,
+      height = Math.max(...ys) - y;
+    if (!(width > 0 && height > 0 && rect.width > 0 && rect.height > 0)) return entry;
+    // The part of the rectangle that is kept, in that space.
+    const across = (at) => x + ((at - rect.x) * width) / rect.width,
+      up = (at) => y + ((at - rect.y) * height) / rect.height;
+    const left = across(Math.max(rect.x, content.x)),
+      bottom = up(Math.max(rect.y, content.y)),
+      keptWidth = across(Math.min(rect.x + rect.width, content.x + content.width)) - left,
+      keptHeight = up(Math.min(rect.y + rect.height, content.y + content.height)) - bottom;
+    const digits = (value) => Math.round(value * 1e4) / 1e4;
+    return context.register(
+      context.stream(
+        `q ${digits(left)} ${digits(bottom)} ${digits(keptWidth)} ${digits(keptHeight)} re W n /Whole Do Q`,
+        {
+          Type: 'XObject',
+          Subtype: 'Form',
+          BBox: [x, y, x + width, y + height],
+          Resources: { XObject: { Whole: entry instanceof PDFRef ? entry : context.register(stream) } },
+        },
+      ),
+    );
+  };
+  const appearances = annotation.lookup(PDFName.of('AP'));
+  if (!(appearances instanceof PDFDict)) return;
+  const cut = context.obj({});
+  for (const [name, value] of appearances.entries()) {
+    // The normal, rollover and down appearances: each one stream, or one for each state.
+    const states = context.lookup(value);
+    if (states instanceof PDFDict) {
+      const each = context.obj({});
+      for (const [state, entry] of states.entries()) each.set(state, clipped(entry));
+      cut.set(name, each);
+    } else cut.set(name, clipped(value));
+  }
+  annotation.set(PDFName.of('AP'), cut);
+}
 
 /**
  * Put a page on its sheet (layout.js: fittedGeometry): everything on it is

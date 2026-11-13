@@ -901,6 +901,28 @@ async function countPixels(data, test) {
   return count;
 }
 const redPixels = (data) => countPixels(data, (red, green, blue) => red > 200 && green < 80 && blue < 80);
+/** The green pixels of a PDF's first page, drawn at one pixel a point: how many, and the box they lie in. */
+async function greenBox(data) {
+  const doc = await pdfjs.getDocument({ data: data.slice(), verbosity: 0 }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 1 });
+  const surface = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+  await page.render({ canvasContext: surface.getContext('2d'), viewport, canvas: surface }).promise;
+  const { data: pixels } = surface.getContext('2d').getImageData(0, 0, surface.width, surface.height);
+  const box = { count: 0, left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (!(pixels[index + 1] > 200 && pixels[index] < 80 && pixels[index + 2] < 80)) continue;
+    const x = (index / 4) % surface.width,
+      y = Math.floor(index / 4 / surface.width);
+    box.count++;
+    box.left = Math.min(box.left, x);
+    box.right = Math.max(box.right, x + 1);
+    box.top = Math.min(box.top, y);
+    box.bottom = Math.max(box.bottom, y + 1);
+  }
+  await doc.loadingTask.destroy();
+  return box;
+}
 const bluePixels = (data) => countPixels(data, (red, green, blue) => blue > 200 && red < 80 && green < 80);
 let hiddenRight;
 await test('added margins: the page grows, content stays put and the margins are blank', async () => {
@@ -1496,7 +1518,30 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
     // one across the crop's edge, one in what is kept; and a pop-up out of sight.
     annotate({ Subtype: 'Square', Rect: [40, 60, 100, 95], Contents: PDFString.of('below') });
     annotate({ Subtype: 'Square', Rect: [40, 440, 100, 470], Contents: PDFString.of('cropped'), F: 4 });
-    annotate({ Subtype: 'Square', Rect: [40, 420, 100, 450], Contents: PDFString.of('across') });
+    // Across the edge, with appearances that fill their boxes with green: one as it
+    // is, one turned by its matrix and kept by state, as a check box keeps its looks.
+    const green = (box, matrix) =>
+      pdf.context.register(
+        pdf.context.stream(`0 1 0 rg ${box[0]} ${box[1]} ${box[2] - box[0]} ${box[3] - box[1]} re f`, {
+          Type: 'XObject',
+          Subtype: 'Form',
+          BBox: box,
+          ...(matrix ? { Matrix: matrix } : {}),
+        }),
+      );
+    annotate({
+      Subtype: 'Square',
+      Rect: [40, 420, 100, 450],
+      Contents: PDFString.of('across'),
+      AP: { N: green([0, 0, 10, 10]) },
+    });
+    annotate({
+      Subtype: 'Stamp',
+      Rect: [120, 420, 180, 450],
+      Contents: PDFString.of('across, turned'),
+      AS: 'On',
+      AP: { N: { On: green([5, 5, 25, 45], [0, 1, -1, 0, 60, 0]), Off: green([0, 0, 1, 1]) } },
+    });
     annotate({ Subtype: 'Square', Rect: [40, 240, 100, 270], Contents: PDFString.of('kept') });
     annotate({ Subtype: 'Popup', Rect: [40, 20, 100, 50], Contents: PDFString.of('popup') });
     return pdf.save();
@@ -1533,9 +1578,21 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
   assert.equal(await bluePixels(sheet), 0, 'what the crop hid stays hidden on the sheet');
   assert.deepEqual(
     await flags(sheet),
-    { below: 2, cropped: 6, across: 0, kept: 0, popup: 0 },
-    'comments wholly out of sight are hidden (flag 2), with the flags they had; one across the edge shows; a pop-up is left alone',
+    { below: 2, cropped: 6, across: 0, 'across, turned': 0, kept: 0, popup: 0 },
+    'comments wholly out of sight are hidden (flag 2), with the flags they had; one across the edge is not; a pop-up is left alone',
   );
+  // The two across the edge are cut there: of their 30 points, 16 lie on the page.
+  // On the sheet the page starts 87.6 points down, and is 1.984 times its size.
+  {
+    const scale = A4.width / 300,
+      blank = (A4.height - 336 * scale) / 2,
+      shown = await greenBox(sheet);
+    approx(shown.top, blank, 'nothing of them is drawn on the blank of the sheet', 1.5);
+    approx(shown.bottom, blank + 16 * scale, 'they reach as far down the page as they did', 1.5);
+    approx(shown.left, 40 * scale, 'the first starts where it did', 1.5);
+    approx(shown.right, 180 * scale, 'the second ends where it did', 1.5);
+    approx(shown.count, 2 * 60 * 16 * scale * scale, 'and both are drawn, as far as they show', 400);
+  }
   // Margins of 60 points above and below the cropped page reach the same places.
   const margins = await buildPdf(
     everyPage(bytes, 1, {
@@ -1552,9 +1609,15 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
   assert.equal(await bluePixels(margins), 0, 'what the crop hid stays hidden in the margin');
   assert.deepEqual(
     await flags(margins),
-    { below: 2, cropped: 6, across: 0, kept: 0, popup: 0 },
+    { below: 2, cropped: 6, across: 0, 'across, turned': 0, kept: 0, popup: 0 },
     'and so do the comments out of sight',
   );
+  {
+    const shown = await greenBox(margins);
+    approx(shown.top, 60, 'the comments across the edge are cut at the margin', 1.5);
+    approx(shown.bottom, 76, 'and drawn below it', 1.5);
+    approx(shown.count, 2 * 60 * 16, 'both of them', 150);
+  }
   // Without a crop, too: this page shows 400 by 300 points, and a red bar starts
   // 2 points to the right of that. On A4 on its side the sheet is blank for 12 of
   // the page's points on either side.
@@ -1574,11 +1637,13 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
     'what a page’s own boxes hid stays hidden beside it, crop or no crop',
   );
   // A crop alone hides by the page's CropBox: nothing needs a flag.
+  const cropOnly = await buildPdf(everyPage(bytes, 1, { crop: cropped }));
   assert.deepEqual(
-    await flags(await buildPdf(everyPage(bytes, 1, { crop: cropped }))),
-    { below: 0, cropped: 4, across: 0, kept: 0, popup: 0 },
+    await flags(cropOnly),
+    { below: 0, cropped: 4, across: 0, 'across, turned': 0, kept: 0, popup: 0 },
     'a crop alone changes no comment',
   );
+  approx((await greenBox(cropOnly)).count, 2 * 60 * 16, 'the page’s own edge cuts the two across it', 150);
 });
 
 await test('pages on sheets: the geometry of a sheet, a crop drawn on it and margins measured on it', async () => {

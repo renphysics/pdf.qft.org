@@ -116,7 +116,15 @@ export function interleavePages() {
 export async function insertBlankPage() {
   const page = currentPage();
   if (ui.busy || !page) return;
-  const blank = { id: uid(), sourceId: uid(), index: 0, rotation: 0 };
+  // It has the size the current page shows at; after a resized page, that is the
+  // sheet, and it keeps the sheet like its neighbour when margins are added.
+  const blank = {
+    id: uid(),
+    sourceId: uid(),
+    index: 0,
+    rotation: 0,
+    ...(page.paper && { paper: page.paper }),
+  };
   // A form's pages can be combined with others only once its fields are flattened.
   if (formProblem([...state.pages, blank]))
     throw new Error(

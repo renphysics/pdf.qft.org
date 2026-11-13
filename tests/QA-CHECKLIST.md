@@ -983,19 +983,56 @@ source review does not replace the owner’s browser verification.
   what a page showed came into view in its new margins (a link that a crop had
   taken away became a place to click in the blank). They are hidden now (the
   annotation flag Hidden), in margins as on a sheet. One that lies across the
-  edge still shows whole.
+  edge is cut there (see the review below).
 - One rule for the usual paper (Letter in the United States, Canada, Mexico and
   the Philippines, by the region in the browser's language): Pages per sheet and
   JPG to PDF had two, which disagreed for French in Canada. The paper is called
   Letter in every tool.
 - The tool has its page, card, menu entry and tab; axe finds no violations in
   its panel; the tablet and phone layout tests include it.
-- Known limits: a comment across the edge of what a page shows is shown whole;
-  rich-text comments keep their own text size; batch presets have no paper size.
+- Known limits: a comment without an appearance of its own cannot be cut at the
+  edge of what a page shows; rich-text comments keep their own text size; an
+  item placed before a page was resized stays within the page as it was; margins
+  on a resized picture page do not keep their size when the picture is laid out
+  again; batch presets have no paper size.
 - 42 breakages, each applied alone to a copy, each caught. Four were not at
   first, and have tests now: a page in larger units whose numbers are A4's,
   hidden content beside a page that is not cropped, a named destination no link
   uses, and the page strip's picture after resizing.
+- A review of the preview and the editor, by a reviewer who compared the preview
+  with the download in 432 cases (turns, crops, margins, units, both papers)
+  and found them the same to the pixel, found eleven other things. Fixed:
+  - A comment or field across the edge of what a page shows was cut in the
+    preview and whole in the download, in the blank of the sheet or in an added
+    margin. The download cuts it now: each appearance is put inside one that
+    clips (engine test with two appearances, one turned by its matrix and kept
+    by state; green pixels counted and placed).
+  - A signature placed before its page was resized, then copied to every page,
+    came out stretched (190 points wide for 68, at the same height): the copy
+    took what the signature keeps, which is of the page as it was. It takes the
+    signature as it lies on the page now. The same held after a crop or a turn.
+  - The handles and the outline of an item placed before a resize were scaled
+    with the page (a 44 px tap area became 31 px on an A3 page put on A4). They
+    keep their size.
+  - Fill form offered a box to type in for a field the crop had taken out of
+    sight, hanging beside the page; it is not offered now, on a sheet or off.
+  - A blank page inserted after a resized page had the sheet's size and not the
+    sheet, so margins made it larger while its neighbours stayed. It has it now.
+  - Add margins on a sheet refused wide margins on an A3 page with a sentence
+    about 5 metres, for a result that is A4. And margins more than 20 times the
+    size of a small page, with or without a sheet, were stored before they were
+    checked, so the page could not be drawn until Undo. Every new crop is
+    checked before any page changes.
+  - The summary called a page with Letter's numbers in units of two points "on
+    Letter paper already", and said "1 of 3 pages go". A crop refused for one
+    page of many did not say which: it names the page and shows it.
+  - New tests: a turned page in units of two points, cropped at the top, on
+    Letter (two breakages of the preview's arithmetic had passed every test);
+    the copied signature and the handles; the field out of sight; the blank
+    page; the refusals.
+  Not changed, and listed under the limits: an item placed before a resize
+  cannot be dragged onto the blank of its sheet; margins on a resized picture
+  page.
 
 ## Odd PDFs through every operation, a page listed twice, the title of an unlocked file — 2026-11-13
 

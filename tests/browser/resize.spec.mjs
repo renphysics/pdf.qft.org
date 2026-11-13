@@ -210,7 +210,7 @@ test('a resized page stays on its sheet when it is cropped or given margins', as
   await page.click(submit);
   await expectToast(
     page,
-    'The outlined area is on the blank part of a resized page’s sheet. Outline part of the page itself.',
+    'On page 1, the outlined area is on the blank part of its sheet. Outline part of the page itself.',
   );
   // A tenth off each side: what is kept is fitted to the sheet again.
   await page.fill('#tool-form [name="bottom"]', '0');
@@ -290,4 +290,157 @@ test('a form on resized pages is filled in where its fields are shown', async ({
   const form = (await PDFLib.PDFDocument.load(bytes)).getForm();
   expect(form.getTextField('applicant.email').getText()).toBe('zoe@example.org');
   expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.003);
+});
+
+test('what was placed before a resize: a copied signature keeps its shape, and the handles their size', async ({
+  page,
+}) => {
+  await openFiles(page, await mixedSizes(), 'sign-pdf/');
+  await page.locator('label:has(input[name="signatureMode"][value="type"])').click();
+  await page.fill('#tool-form [name="signatureText"]', 'Alex Morgan');
+  await page.click('[data-action="signature-use"]');
+  await page.click('[data-action="signature-place"]');
+  const signature = page.locator('.page-view.current .page-overlay image');
+  await expect(signature).toHaveCount(1);
+  const shapeOf = async () => {
+    const box = await signature.boundingBox();
+    return box.width / box.height;
+  };
+  const own = await shapeOf();
+
+  // The first page, 400 by 500 points, goes on A4 with the others: the signature is 1.488 times its size.
+  await useTool(page, 'resize');
+  await page.selectOption('#tool-form [name="resizePaper"]', 'a4');
+  await page.click(submit);
+  await expectToast(page, '3 pages are on A4 paper now. 1 was that size already.');
+  await ready(page);
+  expect(await shapeOf()).toBeCloseTo(own, 1);
+
+  // Selected, it has handles of the usual size, though it is drawn at its page's scale.
+  await useTool(page, 'signature');
+  await page.locator('.page-view.current .edit-layer [data-item-id]').click();
+  await expect(page.locator('#tool-panel h2')).toHaveText('Edit signature');
+  const handle = () =>
+    page
+      .locator('.page-view.current .item-box.selected .handle')
+      .first()
+      .evaluate((node) => node.getBoundingClientRect().width);
+  const scaled = await handle();
+  // Copied to every page, it has its shape and its size on each, whatever sheet the page is on.
+  const width =
+    (await signature.boundingBox()).width / (await page.locator('.page-view.current').boundingBox()).width;
+  await page.click('[data-action="signature-copy"]');
+  await expectToast(page, 'Signature added to 3 more pages.');
+  for (const number of [2, 3, 4]) {
+    await page
+      .locator('[data-page-open]')
+      .nth(number - 1)
+      .click();
+    await ready(page);
+    await expect(signature, `page ${number}`).toHaveCount(1);
+    expect(await shapeOf(), `the signature's shape on page ${number}`).toBeCloseTo(own, 1);
+  }
+  // The same width in points on the last page, an A4 sheet like the first.
+  expect(
+    (await signature.boundingBox()).width / (await page.locator('.page-view.current').boundingBox()).width,
+  ).toBeCloseTo(width, 2);
+  // A copy was placed on its sheet, and is not scaled: its handles are the same size.
+  await page.locator('.page-view.current .edit-layer [data-item-id]').click();
+  expect(Math.abs((await handle()) - scaled), 'handles of a scaled item and of one that is not').toBeLessThan(
+    0.5,
+  );
+});
+
+test('a turned page in larger units, cropped at the top, looks on its sheet as in the download', async ({
+  page,
+  baseURL,
+}) => {
+  // 300 by 400 units of two points, turned a quarter: it shows 800 by 600 points.
+  // Beside it, a page with Letter's numbers in the same units: twice Letter.
+  const pdf = await PDFLib.PDFDocument.create();
+  for (const [width, height, turn] of [
+    [300, 400, 90],
+    [612, 792, 0],
+  ]) {
+    const sheet = pdf.addPage([width, height]);
+    sheet.node.set(PDFLib.PDFName.of('UserUnit'), PDFLib.PDFNumber.of(2));
+    sheet.setRotation(PDFLib.degrees(turn));
+    sheet.drawRectangle({ x: 4, y: 4, width: width - 8, height: height - 8, borderWidth: 3 });
+    sheet.drawText('Units of two points', { x: 40, y: height / 2, size: 14 });
+  }
+  await openFiles(page, await writeTemporary('larger-units.pdf', await pdf.save()), 'crop-pdf/');
+  await page.fill('#tool-form [name="top"]', '20');
+  await page.click(submit);
+  await expectToast(page, 'Page cropped.');
+  await useTool(page, 'resize');
+  await page.selectOption('#tool-form [name="resizePaper"]', 'letter');
+  // The second page has Letter's numbers, and is not Letter.
+  await expect(page.locator('#resize-summary')).toHaveText('Both pages go on Letter paper.');
+  await page.click(submit);
+  await expectToast(page, '2 pages are on Letter paper now.');
+  await ready(page);
+  const bytes = await save(page);
+  expect(await sizes(bytes)).toEqual([[LETTER[1], LETTER[0]], LETTER]);
+  expect(await previewDifference(page, bytes, 1, baseURL)).toBeLessThan(0.003);
+  expect(await previewDifference(page, bytes, 2, baseURL)).toBeLessThan(0.003);
+});
+
+test('a blank page after a resized page is on its paper; refusals name the page they are about', async ({
+  page,
+}) => {
+  await openFiles(page, await mixedSizes(), 'resize-pdf/');
+  // Two pages selected, one of them A4 already.
+  await page.selectOption('#tool-form [name="resizePaper"]', 'a4');
+  await page.selectOption('#tool-form [name="resizeScope"]', 'selected');
+  await page.locator('[data-page-select]').nth(1).check();
+  await page.locator('[data-page-select]').nth(0).check();
+  await expect(page.locator('#resize-summary')).toHaveText(
+    '1 of 2 pages goes on A4 paper; 1 is that size already.',
+  );
+  await page.selectOption('#tool-form [name="resizeScope"]', 'all');
+  await page.click(submit);
+  await expectToast(page, '3 pages are on A4 paper now. 1 was that size already.');
+
+  // A blank page after the first, then 20 mm on every side of every page: all stay on A4.
+  await useTool(page, 'pages');
+  await page.click('[data-action="insert-blank"]');
+  await expect(page.locator('#document-info')).toHaveText(/^5 pages/);
+  await useTool(page, 'margins');
+  for (const edge of ['marginTop', 'marginBottom', 'marginLeft', 'marginRight'])
+    await page.fill(`#tool-form [name="${edge}"]`, '20');
+  await page.click(submit);
+  await expectToast(page, 'Margins added to 5 pages.');
+  expect(await sizes(await save(page))).toEqual([A4, A4, [A4[1], A4[0]], A4, A4]);
+  await page.click('#undo-button');
+  await expectToast(page, 'Undone: Add margins.');
+
+  // A crop that leaves only blank sheet of the long receipt, the last page: the
+  // refusal names it and shows it, and no page is cropped.
+  await useTool(page, 'crop');
+  await page.selectOption('#tool-form [name="scope"]', 'all');
+  await page.fill('#tool-form [name="right"]', '70');
+  await page.click(submit);
+  await expectToast(
+    page,
+    'On page 5, the outlined area is on the blank part of its sheet. Outline part of the page itself.',
+  );
+  await expect(page.locator('#page-jump')).toHaveValue('5');
+  expect(await sizes(await save(page))).toEqual([A4, A4, [842, 595], A4, A4]);
+});
+
+test('margins many times the size of a small page are refused before anything changes', async ({ page }) => {
+  const pdf = await PDFLib.PDFDocument.create();
+  pdf.addPage([12, 12]);
+  await openFiles(page, await writeTemporary('tiny.pdf', await pdf.save()), 'add-margins-to-pdf/');
+  await page.fill('#tool-form [name="marginLeft"]', '100');
+  await page.click(submit);
+  await expectToast(
+    page,
+    'These margins are too large for page 1: more than 20 times its size. Make them smaller.',
+  );
+  await expect(page.locator('#undo-button')).toBeDisabled();
+  // A margin the page can take is added as before.
+  await page.fill('#tool-form [name="marginLeft"]', '10');
+  await page.click(submit);
+  await expectToast(page, 'Margins added to the page.');
 });

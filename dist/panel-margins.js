@@ -66,34 +66,47 @@ function addMargins() {
     // units. A resized page stays on its sheet, so it is made smaller, and its
     // margins with it, until they measure on the sheet what was typed (layout.js:
     // sheetMargins).
-    const plans = new Map();
+    // Every page's new crop is worked out, and checked, before any page changes.
+    const crops = new Map();
     for (const page of targets) {
       const geometry = ownGeometry(sourcePage(state, page), page),
         own = page.paper ? sheetMargins(added, geometry, page.paper) : added;
-      if (geometry.width + own.left + own.right > 14400 || geometry.height + own.top + own.bottom > 14400)
+      // (A page on a sheet downloads at the sheet's size, however large it is without it.)
+      if (
+        !page.paper &&
+        (geometry.width + own.left + own.right > 14400 || geometry.height + own.top + own.bottom > 14400)
+      )
         throw new Error('A page can’t be larger than 5 metres (200 inches).');
-      plans.set(page, { geometry, added: own });
+      const old = cropMarginsForRotation(page.crop, page.rotation),
+        shown = contentMargins(page.crop, page.rotation),
+        width = 1 - old.left - old.right,
+        height = 1 - old.top - old.bottom;
+      const crop = {
+        left: old.left - (own.left / geometry.width) * width,
+        right: old.right - (own.right / geometry.width) * width,
+        top: old.top - (own.top / geometry.height) * height,
+        bottom: old.bottom - (own.bottom / geometry.height) * height,
+        rotation: page.rotation,
+        // What the page shows now, within what it showed before margins were added.
+        content: Object.fromEntries(
+          ['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])]),
+        ),
+      };
+      // Margins many times the size of a small page are more than a page can take.
+      try {
+        cropMarginsForRotation(crop, page.rotation);
+      } catch {
+        throw new Error(
+          'These margins are too large for page ' +
+            (state.pages.indexOf(page) + 1) +
+            ': more than 20 times its size. Make them smaller.',
+        );
+      }
+      crops.set(page, crop);
     }
     change(
       () => {
-        for (const p of targets) {
-          const { geometry, added } = plans.get(p),
-            old = cropMarginsForRotation(p.crop, p.rotation),
-            shown = contentMargins(p.crop, p.rotation),
-            width = 1 - old.left - old.right,
-            height = 1 - old.top - old.bottom;
-          p.crop = {
-            left: old.left - (added.left / geometry.width) * width,
-            right: old.right - (added.right / geometry.width) * width,
-            top: old.top - (added.top / geometry.height) * height,
-            bottom: old.bottom - (added.bottom / geometry.height) * height,
-            rotation: p.rotation,
-            // What the page shows now, within what it showed before margins were added.
-            content: Object.fromEntries(
-              ['left', 'top', 'right', 'bottom'].map((edge) => [edge, Math.max(old[edge], shown[edge])]),
-            ),
-          };
-        }
+        for (const p of targets) p.crop = crops.get(p);
       },
       { layout: true, label: 'Add margins' },
     );

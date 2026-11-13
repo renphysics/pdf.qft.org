@@ -23,10 +23,15 @@ const every = (count) => (count === 2 ? 'Both' : 'All ' + count);
 function sorted(paper) {
   const scope = scopedPages(ui.resizeDraft.scope),
     targets = state.pages.filter((page) => scope === 'all' || scope.includes(page.id));
+  // Sizes in points. A sheet is in points; a page without one is in its own
+  // units, which a PDF can make larger (a page of Letter's numbers in units of
+  // two points is twice Letter, and changes).
   const changes = (page) => {
-    const now = geometryOf(state, page),
-      then = pageGeometry(sourcePage(state, page), { ...page, paper });
-    return Math.abs(now.width - then.width) > 0.01 || Math.abs(now.height - then.height) > 0.01;
+    const source = sourcePage(state, page),
+      now = geometryOf(state, page),
+      then = pageGeometry(source, { ...page, paper }),
+      unit = page.paper ? 1 : source.userUnit || 1;
+    return Math.abs(now.width * unit - then.width) > 0.01 || Math.abs(now.height * unit - then.height) > 0.01;
   };
   return { targets, changing: targets.filter(changes) };
 }
@@ -60,7 +65,7 @@ function updateResizeSummary() {
         changing.length +
         ' of ' +
         total +
-        ' pages go on ' +
+        (changing.length === 1 ? ' pages goes on ' : ' pages go on ') +
         name +
         ' paper; ' +
         same +
