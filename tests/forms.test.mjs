@@ -27,7 +27,7 @@ globalThis.fetch = async (url, options) => {
 };
 const { openPdf, buildPdf, buildPdfWithNotes } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
-const { PDFDocument, PDFName, PDFNumber } = globalThis.PDFLib;
+const { PDFDocument, PDFName, PDFNumber, PDFString } = globalThis.PDFLib;
 const outputDir = path.join(here, 'output');
 await mkdir(outputDir, { recursive: true });
 
@@ -281,6 +281,58 @@ await test('a form on pages put on sheets: its fields move with their pages, sta
   close(sheetY, up + y * scale, 'up');
   close(sheetSize, size * scale, 'and at the page’s scale');
   assert.equal((await PDFDocument.load(await buildPdf(sheets(flat)))).getForm().getFields().length, 0);
+  // The size to type at may be kept further up: by the field a field belongs
+  // to, or by the form for every field. Each widget on a sheet gets its own.
+  {
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage([400, 500]);
+    const { context } = pdf;
+    const family = context.nextRef(),
+      member = context.nextRef(),
+      inFamily = context.nextRef(),
+      alone = context.nextRef();
+    context.assign(
+      family,
+      context.obj({ T: PDFString.of('family'), DA: PDFString.of('/Helv 14 Tf 0 g'), Kids: [member] }),
+    );
+    context.assign(
+      member,
+      context.obj({ T: PDFString.of('member'), FT: 'Tx', Parent: family, Kids: [inFamily] }),
+    );
+    const widget = { Type: 'Annot', Subtype: 'Widget', P: page.ref, F: 4 };
+    context.assign(inFamily, context.obj({ ...widget, Parent: member, Rect: [50, 400, 250, 420] }));
+    context.assign(
+      alone,
+      context.obj({ ...widget, FT: 'Tx', T: PDFString.of('alone'), Rect: [50, 300, 250, 320] }),
+    );
+    page.node.set(PDFName.of('Annots'), context.obj([inFamily, alone]));
+    pdf.catalog.set(
+      PDFName.of('AcroForm'),
+      context.obj({ Fields: [family, alone], DA: PDFString.of('/Helv 9 Tf 0 g') }),
+    );
+    const doc = await PDFDocument.load(
+      await buildPdf({
+        sources: [{ id: 'form', bytes: await pdf.save() }],
+        pages: [{ id: 'p1', sourceId: 'form', index: 0, paper: 'a4' }],
+      }),
+    );
+    const sizes = doc
+      .getPage(0)
+      .node.Annots()
+      .asArray()
+      .map((ref) => doc.context.lookup(ref).lookup(PDFName.of('DA')).decodeText());
+    const at = (size) => `/Helv ${Math.round(size * (A4[0] / 400) * 1000) / 1000} Tf 0 g`;
+    assert.deepEqual(
+      sizes,
+      [at(14), at(9)],
+      'a size kept two fields up, and one kept by the form: each widget types at the page’s scale',
+    );
+    assert.equal(
+      doc.catalog.lookup(PDFName.of('AcroForm')).lookup(PDFName.of('DA')).decodeText(),
+      '/Helv 9 Tf 0 g',
+      'the form keeps its own size, for fields on other pages',
+    );
+  }
 });
 
 await test('a flattened form combines with other PDFs', async () => {

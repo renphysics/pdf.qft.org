@@ -1238,6 +1238,24 @@ await test('resized pages: every size on A4 or Letter, the way each page lies, s
       );
   }
   assert.deepEqual(bytes, untouched, 'the source is untouched');
+  // Half of A4 each way has A4's shape: the page is only scaled, with no blank to
+  // add. The boxes a printer trims by were for its old size, and go.
+  {
+    const { PDFName } = globalThis.PDFLib;
+    const pdf = await PDFDocument.create();
+    const half = pdf.addPage([A4.width / 2, A4.height / 2]);
+    for (const name of ['TrimBox', 'BleedBox', 'ArtBox'])
+      half.node.set(PDFName.of(name), pdf.context.obj([10, 10, 280, 400]));
+    const page = (
+      await PDFDocument.load(await buildPdf(everyPage(await pdf.save(), 1, { paper: 'a4' })))
+    ).getPage(0);
+    assert.deepEqual(Object.values(page.getMediaBox()), [0, 0, A4.width, A4.height], 'half of A4, on A4');
+    assert.deepEqual(
+      ['TrimBox', 'BleedBox', 'ArtBox'].filter((name) => page.node.has(PDFName.of(name))),
+      [],
+      'a page that is only scaled loses the trim, bleed and art boxes of its old size',
+    );
+  }
   await assert.rejects(
     buildPdf(everyPage(bytes, 6, { paper: 'a3' })),
     /Choose a paper size: A4 or Letter\./,
@@ -1290,8 +1308,24 @@ await test('a resized page: numbers, headers and new items at their own size on 
   approx(after.transform[4], (0.25 * A4.width - fit.x) / fit.scale, 'on the same spot of the page', 0.5);
 });
 
+/** What a PDF value holds, to compare: a number, a list of them (lists inside it as lists), anything else as it is written. */
+function numbers(value) {
+  const { PDFArray, PDFNumber } = globalThis.PDFLib;
+  if (value instanceof PDFArray) return value.asArray().map(numbers);
+  return value instanceof PDFNumber ? value.asNumber() : String(value);
+}
+/** Two lists hold the same: numbers to a thousandth of a point, anything else exactly. */
+function near(actual, expected, message) {
+  assert.equal(actual.length, expected.length, message);
+  expected.forEach((value, index) =>
+    typeof value === 'number'
+      ? approx(actual[index], value, `${message} [${index}]`, 0.001)
+      : assert.equal(actual[index], value, `${message} [${index}]`),
+  );
+}
+
 await test('a resized page takes its comments, links and bookmarks along', async () => {
-  const { PDFArray, PDFDict, PDFName, PDFNumber, PDFString } = globalThis.PDFLib;
+  const { PDFName, PDFString } = globalThis.PDFLib;
   const pdf = await PDFDocument.create();
   const first = pdf.addPage([400, 500]),
     second = pdf.addPage([595.28, 841.89]);
@@ -1314,11 +1348,20 @@ await test('a resized page takes its comments, links and bookmarks along', async
     InkList: [[50, 200, 100, 250, 150, 200]],
     BS: { W: 2, D: [3, 2] },
   });
-  annotate({ Subtype: 'Line', Rect: [50, 150, 250, 180], L: [50, 150, 250, 180], Border: [0, 0, 3], LL: 10 });
+  annotate({
+    Subtype: 'Line',
+    Rect: [50, 150, 250, 180],
+    L: [50, 150, 250, 180],
+    Border: [0, 0, 3, [4, 2]],
+    LL: 10,
+    LLE: 4,
+    LLO: 3,
+  });
   annotate({
     Subtype: 'FreeText',
     Rect: [200, 300, 350, 340],
     RD: [2, 2, 2, 2],
+    CL: [180, 360, 190, 330, 200, 320],
     DA: PDFString.of('/Helv 12 Tf 0 g'),
     Contents: PDFString.of('Free'),
   });
@@ -1333,14 +1376,34 @@ await test('a resized page takes its comments, links and bookmarks along', async
     Rect: [200, 100, 300, 120],
     A: { S: 'URI', URI: PDFString.of('https://example.org/') },
   });
+  // The same page by the other kinds of place a link can name: the last three links.
+  annotate({ Subtype: 'Link', Rect: [50, 20, 90, 40], Dest: [first.ref, 'FitH', 300] });
+  annotate({ Subtype: 'Link', Rect: [100, 20, 140, 40], A: { S: 'GoTo', D: [first.ref, 'FitBH', 400] } });
+  annotate({ Subtype: 'Link', Rect: [150, 20, 190, 40], Dest: [first.ref, 'FitBV', 30] });
+  // Shapes by their corners, and (PDF 2.0) by the steps of a path.
+  annotate({ Subtype: 'Polygon', Rect: [300, 150, 380, 220], Vertices: [300, 150, 380, 150, 340, 220] });
+  annotate({
+    Subtype: 'PolyLine',
+    Rect: [300, 230, 380, 290],
+    Path: [
+      [300, 230],
+      [380, 230],
+      [380, 290, 340, 290, 300, 260],
+    ],
+  });
   // A note, with its pop-up beside the page.
   const note = annotate({ Subtype: 'Text', Rect: [300, 450, 320, 470], Contents: PDFString.of('A note') });
   const popup = annotate({ Subtype: 'Popup', Rect: [420, 380, 600, 480], Parent: note });
   context.lookup(note).set(PDFName.of('Popup'), popup);
-  // Two places with names: a link leads to one; the other is for links from other documents.
+  // Places with names: a link leads to one; the others are for links from other
+  // documents, one of them kept in a dictionary, as a place with a name may be.
   pdf.catalog.set(
     PDFName.of('Dests'),
-    context.obj({ chapter: [first.ref, 'FitR', 10, 20, 110, 220], appendix: [first.ref, 'XYZ', 5, 6, null] }),
+    context.obj({
+      chapter: [first.ref, 'FitR', 10, 20, 110, 220],
+      appendix: [first.ref, 'XYZ', 5, 6, null],
+      boxed: { D: [first.ref, 'FitBH', 250] },
+    }),
   );
   const outlines = context.nextRef(),
     item = context.register(
@@ -1355,20 +1418,6 @@ await test('a resized page takes its comments, links and bookmarks along', async
     x = (value) => fit.x + fit.scale * value,
     y = (value) => fit.y + fit.scale * value,
     point = (px, py) => [x(px), y(py)];
-  const numbers = (value) =>
-    value instanceof PDFArray
-      ? value.asArray().map((entry) => (entry instanceof PDFNumber ? entry.asNumber() : numbers(entry)))
-      : value instanceof PDFNumber
-        ? value.asNumber()
-        : String(value);
-  const near = (actual, expected, message) => {
-    assert.equal(actual.length, expected.length, message);
-    expected.forEach((value, index) =>
-      typeof value === 'number'
-        ? approx(actual[index], value, `${message} [${index}]`, 0.001)
-        : assert.equal(actual[index], value, `${message} [${index}]`),
-    );
-  };
   const check = async (state, title) => {
     const doc = await PDFDocument.load(await buildPdf(state));
     const page = doc.getPage(0);
@@ -1394,12 +1443,33 @@ await test('a resized page takes its comments, links and bookmarks along', async
       [...point(50, 200), ...point(100, 250), ...point(150, 200)],
       `${title}: the ink's path`,
     );
-    const border = of('Ink').lookup(PDFName.of('BS'));
-    approx(get(border, 'W'), 2 * fit.scale, `${title}: the ink's line width`, 0.001);
-    near(get(border, 'D'), [3 * fit.scale, 2 * fit.scale], `${title}: the ink's dashes`);
+    const style = of('Ink').lookup(PDFName.of('BS'));
+    approx(get(style, 'W'), 2 * fit.scale, `${title}: the ink's line width`, 0.001);
+    near(get(style, 'D'), [3 * fit.scale, 2 * fit.scale], `${title}: the ink's dashes`);
     near(get(of('Line'), 'L'), [...point(50, 150), ...point(250, 180)], `${title}: the line's ends`);
-    near(get(of('Line'), 'Border'), [0, 0, 3 * fit.scale], `${title}: the line's border`);
+    const border = get(of('Line'), 'Border');
+    near(border.slice(0, 3), [0, 0, 3 * fit.scale], `${title}: the line's border`);
+    near(border[3], [4 * fit.scale, 2 * fit.scale], `${title}: the dashes of its border`);
     approx(get(of('Line'), 'LL'), 10 * fit.scale, `${title}: the line's leaders`, 0.001);
+    approx(get(of('Line'), 'LLE'), 4 * fit.scale, `${title}: how far they reach past the line`, 0.001);
+    approx(get(of('Line'), 'LLO'), 3 * fit.scale, `${title}: and how far from it they start`, 0.001);
+    near(
+      get(of('FreeText'), 'CL'),
+      [...point(180, 360), ...point(190, 330), ...point(200, 320)],
+      `${title}: the free text's callout line`,
+    );
+    near(
+      get(of('Polygon'), 'Vertices'),
+      [...point(300, 150), ...point(380, 150), ...point(340, 220)],
+      `${title}: a polygon's corners`,
+    );
+    const steps = get(of('PolyLine'), 'Path');
+    near(steps[0], point(300, 230), `${title}: where a path starts`);
+    near(
+      steps[2],
+      [...point(380, 290), ...point(340, 290), ...point(300, 260)],
+      `${title}: a curve on the path`,
+    );
     near(
       get(of('FreeText'), 'RD'),
       [2, 2, 2, 2].map((value) => value * fit.scale),
@@ -1429,6 +1499,21 @@ await test('a resized page takes its comments, links and bookmarks along', async
       ['/XYZ', x(60), y(480), 'null'],
       `${title}: a link to a place on the resized page`,
     );
+    // The place a link leads to, whether it keeps it itself or in an action.
+    const placeOf = (link) =>
+      numbers(link.lookup(PDFName.of('Dest')) ?? link.lookup(PDFName.of('A')).lookup(PDFName.of('D'))).slice(
+        1,
+      );
+    const [byHeight, byBoxHeight, byBoxEdge] = annotations
+      .filter((entry) => entry.get(PDFName.of('Subtype')) === PDFName.of('Link'))
+      .slice(-3);
+    near(placeOf(byHeight), ['/FitH', y(300)], `${title}: a link to a height on the page`);
+    near(
+      placeOf(byBoxHeight),
+      ['/FitBH', y(400)],
+      `${title}: a link, by an action, to a height of what the page holds`,
+    );
+    near(placeOf(byBoxEdge), ['/FitBV', x(30)], `${title}: a link to a place across what the page holds`);
     const web = annotations
       .map((entry) => entry.lookup(PDFName.of('A')))
       .find((action) => action?.has(PDFName.of('URI')));
@@ -1457,6 +1542,13 @@ await test('a resized page takes its comments, links and bookmarks along', async
     ['/XYZ', x(5), y(6), 'null'],
     'a named destination no link in the document leads to',
   );
+  near(
+    numbers(
+      kept.doc.catalog.lookup(PDFName.of('Dests')).lookup(PDFName.of('boxed')).lookup(PDFName.of('D')),
+    ).slice(1),
+    ['/FitBH', y(250)],
+    'a named destination kept in a dictionary',
+  );
   const bookmark = kept.doc.catalog.lookup(PDFName.of('Outlines')).lookup(PDFName.of('First'));
   near(kept.get(bookmark, 'Dest').slice(1), ['/FitV', x(30)], 'a bookmark');
   near(
@@ -1478,6 +1570,52 @@ await test('a resized page takes its comments, links and bookmarks along', async
     near([left, top], point(10, 20), 'PDF.js: the named destination');
     await doc.loadingTask.destroy();
   }
+  // The same places as other PDFs write them: where the document opens as an
+  // action, the names in a name tree, and a bookmark inside another.
+  {
+    const other = await PDFDocument.create();
+    const only = other.addPage([400, 500]);
+    const made = other.context;
+    other.catalog.set(PDFName.of('OpenAction'), made.obj({ S: 'GoTo', D: [only.ref, 'FitBH', 400] }));
+    const leaf = made.register(
+      made.obj({
+        Limits: [PDFString.of('a'), PDFString.of('a')],
+        Names: [PDFString.of('a'), [only.ref, 'FitH', 300]],
+      }),
+    );
+    other.catalog.set(PDFName.of('Names'), made.obj({ Dests: { Kids: [leaf] } }));
+    const root = made.nextRef(),
+      part = made.nextRef(),
+      chapter = made.nextRef();
+    made.assign(root, made.obj({ Type: 'Outlines', First: part, Last: part, Count: 2 }));
+    made.assign(
+      part,
+      made.obj({ Title: PDFString.of('Part'), Parent: root, First: chapter, Last: chapter, Count: 1 }),
+    );
+    made.assign(
+      chapter,
+      made.obj({ Title: PDFString.of('Chapter'), Parent: part, Dest: [only.ref, 'XYZ', 50, 60, null] }),
+    );
+    other.catalog.set(PDFName.of('Outlines'), root);
+    const doc = await PDFDocument.load(await buildPdf(everyPage(await other.save(), 1, { paper: 'a4' })));
+    const entry = (holder, ...names) =>
+      names.reduce((found, name) => found.lookup(typeof name === 'number' ? name : PDFName.of(name)), holder);
+    near(
+      numbers(entry(doc.catalog, 'OpenAction', 'D')).slice(1),
+      ['/FitBH', y(400)],
+      'where the document opens, written as an action',
+    );
+    near(
+      numbers(entry(doc.catalog, 'Names', 'Dests', 'Kids', 0, 'Names', 1)).slice(1),
+      ['/FitH', y(300)],
+      'a named destination in a name tree',
+    );
+    near(
+      numbers(entry(doc.catalog, 'Outlines', 'First', 'First', 'Dest')).slice(1),
+      ['/XYZ', x(50), y(60), 'null'],
+      'a bookmark inside another',
+    );
+  }
   // Only the first page kept: it is copied into a new PDF. Its link to itself still
   // leads there; the link by name got the place itself, and that moved too; the
   // link to the page left out is gone.
@@ -1490,7 +1628,8 @@ await test('a resized page takes its comments, links and bookmarks along', async
     ['/FitR', x(10), y(20), x(110), y(220)],
     'copied: the link that led to a named place',
   );
-  assert.equal(copied.of('Link', 3), undefined, 'copied: three links are left');
+  assert.ok(copied.of('Link', 5), 'copied: six links are left');
+  assert.equal(copied.of('Link', 6), undefined, 'copied: and no seventh');
   near(
     copied
       .get(copied.doc.catalog.lookup(PDFName.of('Outlines')).lookup(PDFName.of('First')), 'Dest')
@@ -1498,7 +1637,145 @@ await test('a resized page takes its comments, links and bookmarks along', async
     ['/FitV', x(30)],
     'copied: the bookmark',
   );
-  assert.ok(PDFDict, 'pdf-lib');
+});
+
+await test('a page in the download twice, or sharing a border with another: its comments move with it, once', async () => {
+  const { PDFName, PDFString } = globalThis.PDFLib;
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([400, 500]),
+    wide = pdf.addPage([500, 500]);
+  const { context } = pdf;
+  // One border style and one border, each a single object that two annotations use.
+  const style = context.register(context.obj({ W: 2, D: [3, 2] })),
+    border = context.register(context.obj([0, 0, 3, [4, 2]])),
+    web = { S: 'URI', URI: PDFString.of('https://example.org/') };
+  const annotate = (target, entries) =>
+    target.node.addAnnot(context.register(context.obj({ Type: 'Annot', ...entries })));
+  annotate(page, { Subtype: 'Square', Rect: [100, 100, 140, 140], RD: [1, 1, 1, 1], BS: style });
+  annotate(page, {
+    Subtype: 'Ink',
+    Rect: [50, 200, 150, 250],
+    InkList: [[50, 200, 100, 250, 150, 200]],
+    BS: style,
+  });
+  annotate(page, {
+    Subtype: 'Highlight',
+    Rect: [50, 300, 150, 320],
+    QuadPoints: [50, 320, 150, 320, 50, 300, 150, 300],
+  });
+  annotate(page, { Subtype: 'Link', Rect: [50, 60, 150, 80], Border: border, A: web });
+  annotate(wide, { Subtype: 'Link', Rect: [10, 10, 60, 30], Border: border, A: web });
+  const bytes = await pdf.save();
+  /** Each page's annotations by kind: the numbers of what a sheet moves. */
+  const read = async (pages) => {
+    const doc = await PDFDocument.load(
+      await buildPdf({
+        sources: [{ id: 's', bytes }],
+        pages: pages.map((entry, index) => ({ id: 'p' + index, sourceId: 's', ...entry })),
+      }),
+    );
+    return doc.getPages().map((output) =>
+      Object.fromEntries(
+        output.node
+          .Annots()
+          .asArray()
+          .map((ref) => doc.context.lookup(ref))
+          .map((annotation) => {
+            const kept = {};
+            for (const key of ['Rect', 'RD', 'QuadPoints', 'InkList', 'Border'])
+              if (annotation.has(PDFName.of(key)))
+                kept[key] = numbers(annotation.lookup(PDFName.of(key))).flat();
+            const lines = annotation.lookup(PDFName.of('BS'));
+            if (lines)
+              kept.BS = [numbers(lines.lookup(PDFName.of('W'))), ...numbers(lines.lookup(PDFName.of('D')))];
+            return [annotation.get(PDFName.of('Subtype')).asString().slice(1), kept];
+          }),
+      ),
+    );
+  };
+  /** The first page's annotations where a sheet puts them (`fit`); without one, as they are. */
+  const first = (fit = { scale: 1, x: 0, y: 0 }) => {
+    const points = (...list) => list.map((value, index) => (index % 2 ? fit.y : fit.x) + fit.scale * value),
+      lengths = (...list) => list.map((value) => fit.scale * value);
+    return {
+      Square: { Rect: points(100, 100, 140, 140), RD: lengths(1, 1, 1, 1), BS: lengths(2, 3, 2) },
+      Ink: {
+        Rect: points(50, 200, 150, 250),
+        InkList: points(50, 200, 100, 250, 150, 200),
+        BS: lengths(2, 3, 2),
+      },
+      Highlight: {
+        Rect: points(50, 300, 150, 320),
+        QuadPoints: points(50, 320, 150, 320, 50, 300, 150, 300),
+      },
+      Link: { Rect: points(50, 60, 150, 80), Border: lengths(0, 0, 3, 4, 2) },
+    };
+  };
+  const same = (actual, expected, message) => {
+    assert.deepEqual(Object.keys(actual), Object.keys(expected), message);
+    for (const [kind, keys] of Object.entries(expected))
+      for (const [key, list] of Object.entries(keys))
+        near(actual[kind][key], list, `${message}: ${kind} ${key}`);
+  };
+  const a4 = onSheet({ width: 400, height: 500 }, A4),
+    letter = onSheet({ width: 400, height: 500 }, LETTER);
+  // A page and its copy, both on A4: each has its comments where the sheet puts them.
+  let pages = await read([
+    { index: 0, paper: 'a4' },
+    { index: 0, paper: 'a4' },
+  ]);
+  same(pages[0], first(a4), 'a page and its copy on A4: the page');
+  same(pages[1], first(a4), 'a page and its copy on A4: the copy');
+  // Only the copy on a sheet: the page keeps its comments where they were.
+  pages = await read([{ index: 0 }, { index: 0, paper: 'a4' }]);
+  same(pages[0], first(), 'only the copy on A4: the page, left as it is');
+  same(pages[1], first(a4), 'only the copy on A4: the copy');
+  // Each on its own paper.
+  pages = await read([
+    { index: 0, paper: 'letter' },
+    { index: 0, paper: 'a4' },
+  ]);
+  same(pages[0], first(letter), 'the page on Letter');
+  same(pages[1], first(a4), 'and its copy on A4');
+  // No copy: two comments of one page share their border style, and links on two
+  // pages share a border. Each is scaled once, for its own page.
+  pages = await read([
+    { index: 0, paper: 'a4' },
+    { index: 1, paper: 'a4' },
+  ]);
+  same(pages[0], first(a4), 'what two comments share');
+  near(
+    pages[1].Link.Border,
+    [0, 0, 3, 4, 2].map((value) => value * onSheet({ width: 500, height: 500 }, A4).scale),
+    'a border shared with a link on another page: scaled for its own page',
+  );
+  pages = await read([{ index: 0 }, { index: 1, paper: 'a4' }]);
+  same(pages[0], first(), 'a border shared with a link on a sheet: left as it is on the page without one');
+  // A field that two pages list (a damaged file) is one object on both, as a
+  // field has to stay: it moves once.
+  {
+    const damaged = await PDFDocument.create();
+    const one = damaged.addPage([400, 500]),
+      two = damaged.addPage([400, 500]);
+    const listed = damaged.context.register(
+      damaged.context.obj({
+        Type: 'Annot',
+        Subtype: 'Widget',
+        FT: 'Tx',
+        T: PDFString.of('listed twice'),
+        Rect: [100, 100, 140, 140],
+      }),
+    );
+    one.node.addAnnot(listed);
+    two.node.addAnnot(listed);
+    const doc = await PDFDocument.load(await buildPdf(everyPage(await damaged.save(), 2, { paper: 'a4' })));
+    for (const index of [0, 1])
+      near(
+        numbers(doc.getPage(index).node.Annots().lookup(0).lookup(PDFName.of('Rect'))),
+        first(a4).Square.Rect,
+        `a field that two pages list moves once (page ${index + 1})`,
+      );
+  }
 });
 
 await test('on a sheet, and in added margins, what was out of sight stays out of sight', async () => {
@@ -1512,6 +1789,9 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
     sheet.drawRectangle({ x: 40, y: 60, width: 220, height: 35, color: rgb(1, 0, 0) });
     sheet.drawRectangle({ x: 40, y: 440, width: 220, height: 30, color: rgb(0, 0, 1) });
     if (cropBox) sheet.setCropBox(0, 100, 300, 480);
+    // Boxes for a printer, which a page that changes its size does not keep.
+    for (const name of ['TrimBox', 'BleedBox', 'ArtBox'])
+      sheet.node.set(PDFName.of(name), pdf.context.obj([10, 110, 290, 570]));
     const annotate = (entries) =>
       sheet.node.addAnnot(pdf.context.register(pdf.context.obj({ Type: 'Annot', ...entries })));
     // Comments: one under what the page shows, one in what the crop takes away,
@@ -1520,20 +1800,23 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
     annotate({ Subtype: 'Square', Rect: [40, 440, 100, 470], Contents: PDFString.of('cropped'), F: 4 });
     // Across the edge, with appearances that fill their boxes with green: one as it
     // is, one turned by its matrix and kept by state, as a check box keeps its looks.
-    const green = (box, matrix) =>
+    const form = (content, box, matrix) =>
       pdf.context.register(
-        pdf.context.stream(`0 1 0 rg ${box[0]} ${box[1]} ${box[2] - box[0]} ${box[3] - box[1]} re f`, {
+        pdf.context.stream(content, {
           Type: 'XObject',
           Subtype: 'Form',
           BBox: box,
           ...(matrix ? { Matrix: matrix } : {}),
         }),
       );
+    const green = (box, matrix) =>
+      form(`0 1 0 rg ${box[0]} ${box[1]} ${box[2] - box[0]} ${box[3] - box[1]} re f`, box, matrix);
+    // The first has three looks: as it is, under the pointer, and pressed.
     annotate({
       Subtype: 'Square',
       Rect: [40, 420, 100, 450],
       Contents: PDFString.of('across'),
-      AP: { N: green([0, 0, 10, 10]) },
+      AP: { N: green([0, 0, 10, 10]), R: green([0, 0, 10, 10]), D: green([0, 0, 10, 10]) },
     });
     annotate({
       Subtype: 'Stamp',
@@ -1544,6 +1827,25 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
     });
     annotate({ Subtype: 'Square', Rect: [40, 240, 100, 270], Contents: PDFString.of('kept') });
     annotate({ Subtype: 'Popup', Rect: [40, 20, 100, 50], Contents: PDFString.of('popup') });
+    // Lying against the lower edge of what the page shows, with nothing of it inside.
+    annotate({ Subtype: 'Square', Rect: [200, 60, 260, 100], Contents: PDFString.of('touching') });
+    // A link across the crop's edge: a place to click, drawn green in its lower third.
+    annotate({
+      Subtype: 'Link',
+      Rect: [200, 420, 260, 450],
+      QuadPoints: [200, 450, 260, 450, 200, 420, 260, 420],
+      Contents: PDFString.of('link'),
+      A: { S: 'URI', URI: PDFString.of('https://example.org/') },
+      AP: { N: form('0 1 0 rg 0 0 60 10 re f', [0, 0, 60, 30]) },
+    });
+    // A note that keeps its size on screen (NoZoom, and Print), across the edge too.
+    annotate({
+      Subtype: 'Text',
+      Rect: [270, 420, 290, 450],
+      F: 12,
+      Contents: PDFString.of('no zoom'),
+      AP: { N: form('', [0, 0, 20, 30]) },
+    });
     return pdf.save();
   };
   const bytes = await page();
@@ -1569,6 +1871,36 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
         }),
     );
   };
+  /**
+   * What an export did to the comment that says `contents`: its rectangle,
+   * whether it keeps its corners, and which of its appearances were cut (put
+   * inside a new one that clips).
+   */
+  const comment = async (output, contents) => {
+    const doc = await PDFDocument.load(output);
+    const annotation = doc
+      .getPage(0)
+      .node.Annots()
+      .asArray()
+      .map((ref) => doc.context.lookup(ref))
+      .find((entry) => entry.lookup(PDFName.of('Contents')).decodeText() === contents);
+    const inside = (stream) =>
+      stream.dict?.lookup(PDFName.of('Resources'))?.lookup(PDFName.of('XObject'))?.has(PDFName.of('Whole'));
+    return {
+      rect: numbers(annotation.lookup(PDFName.of('Rect'))),
+      corners: annotation.has(PDFName.of('QuadPoints')),
+      cut: Object.fromEntries(
+        annotation
+          .lookup(PDFName.of('AP'))
+          .entries()
+          .map(([name, value]) => [name.asString().slice(1), Boolean(inside(doc.context.lookup(value)))]),
+      ),
+    };
+  };
+  const boxes = async (output) => {
+    const { node } = (await PDFDocument.load(output)).getPage(0);
+    return ['TrimBox', 'BleedBox', 'ArtBox'].filter((name) => node.has(PDFName.of(name)));
+  };
   const cropped = { top: 0.3, rotation: 0 };
   // Cropped, the page is 300 by 336 points: on A4 it fills the width, and the
   // sheet is blank for 44 of its points above and below, where both bars are.
@@ -1576,13 +1908,25 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
   approx((await extract(sheet))[0].height, A4.height, 'the page is on A4');
   assert.equal(await redPixels(sheet), 0, 'what the page’s own boxes hid stays hidden on the sheet');
   assert.equal(await bluePixels(sheet), 0, 'what the crop hid stays hidden on the sheet');
+  const hidden = {
+    below: 2,
+    cropped: 6,
+    across: 0,
+    'across, turned': 0,
+    kept: 0,
+    popup: 0,
+    touching: 2,
+    link: 0,
+    'no zoom': 12,
+  };
   assert.deepEqual(
     await flags(sheet),
-    { below: 2, cropped: 6, across: 0, 'across, turned': 0, kept: 0, popup: 0 },
-    'comments wholly out of sight are hidden (flag 2), with the flags they had; one across the edge is not; a pop-up is left alone',
+    hidden,
+    'comments wholly out of sight are hidden (flag 2), with the flags they had, and so is one that only touches the edge; one across the edge is not; a pop-up is left alone',
   );
-  // The two across the edge are cut there: of their 30 points, 16 lie on the page.
-  // On the sheet the page starts 87.6 points down, and is 1.984 times its size.
+  // The three across the edge are cut there: of their 30 points, 16 lie on the
+  // page (and of the link's green third, all 10). On the sheet the page starts
+  // 87.6 points down, and is 1.984 times its size.
   {
     const scale = A4.width / 300,
       blank = (A4.height - 336 * scale) / 2,
@@ -1590,9 +1934,37 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
     approx(shown.top, blank, 'nothing of them is drawn on the blank of the sheet', 1.5);
     approx(shown.bottom, blank + 16 * scale, 'they reach as far down the page as they did', 1.5);
     approx(shown.left, 40 * scale, 'the first starts where it did', 1.5);
-    approx(shown.right, 180 * scale, 'the second ends where it did', 1.5);
-    approx(shown.count, 2 * 60 * 16 * scale * scale, 'and both are drawn, as far as they show', 400);
+    approx(shown.right, 260 * scale, 'the link ends where it did', 1.5);
+    approx(
+      shown.count,
+      (2 * 60 * 16 + 60 * 10) * scale * scale,
+      'and all three are drawn at their size, as far as they show',
+      500,
+    );
+    const link = await comment(sheet, 'link');
+    near(
+      link.rect,
+      [200 * scale, blank + 320 * scale, 260 * scale, blank + 336 * scale],
+      'a link across the edge ends there: the blank of the sheet is no place to click',
+    );
+    assert.equal(link.corners, false, 'and it loses the corners that reached past the edge');
+    assert.deepEqual(link.cut, { N: true }, 'what is drawn of it is cut with it');
+    assert.deepEqual(
+      (await comment(sheet, 'across')).cut,
+      { N: true, R: true, D: true },
+      'each look of a comment across the edge is cut: as it is, under the pointer and pressed',
+    );
+    assert.deepEqual(
+      (await comment(sheet, 'no zoom')).cut,
+      { N: false },
+      'a note that keeps its size on screen is left as it is: a viewer does not fit it to its rectangle',
+    );
   }
+  assert.deepEqual(
+    await boxes(sheet),
+    [],
+    'on a sheet, the trim, bleed and art boxes of the old size are gone',
+  );
   // Margins of 60 points above and below the cropped page reach the same places.
   const margins = await buildPdf(
     everyPage(bytes, 1, {
@@ -1607,17 +1979,22 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
   approx((await extract(margins))[0].height, 336 + 120, 'the page has its margins');
   assert.equal(await redPixels(margins), 0, 'what the page’s own boxes hid stays hidden in the margin');
   assert.equal(await bluePixels(margins), 0, 'what the crop hid stays hidden in the margin');
-  assert.deepEqual(
-    await flags(margins),
-    { below: 2, cropped: 6, across: 0, 'across, turned': 0, kept: 0, popup: 0 },
-    'and so do the comments out of sight',
-  );
+  assert.deepEqual(await flags(margins), hidden, 'and so do the comments out of sight');
   {
     const shown = await greenBox(margins);
     approx(shown.top, 60, 'the comments across the edge are cut at the margin', 1.5);
     approx(shown.bottom, 76, 'and drawn below it', 1.5);
-    approx(shown.count, 2 * 60 * 16, 'both of them', 150);
+    approx(shown.count, 2 * 60 * 16 + 60 * 10, 'all three of them, at their size', 150);
+    const link = await comment(margins, 'link');
+    near(link.rect, [200, 420, 260, 436], 'the link ends at the margin');
+    assert.equal(link.corners, false, 'without the corners that reached into it');
+    near(
+      (await comment(margins, 'across')).rect,
+      [40, 420, 100, 450],
+      'a comment across the edge keeps its rectangle: only what is drawn of it is cut',
+    );
   }
+  assert.deepEqual(await boxes(margins), [], 'with margins, the trim, bleed and art boxes are gone too');
   // Without a crop, too: this page shows 400 by 300 points, and a red bar starts
   // 2 points to the right of that. On A4 on its side the sheet is blank for 12 of
   // the page's points on either side.
@@ -1640,10 +2017,21 @@ await test('on a sheet, and in added margins, what was out of sight stays out of
   const cropOnly = await buildPdf(everyPage(bytes, 1, { crop: cropped }));
   assert.deepEqual(
     await flags(cropOnly),
-    { below: 0, cropped: 4, across: 0, 'across, turned': 0, kept: 0, popup: 0 },
+    { ...hidden, below: 0, cropped: 4, touching: 0 },
     'a crop alone changes no comment',
   );
-  approx((await greenBox(cropOnly)).count, 2 * 60 * 16, 'the page’s own edge cuts the two across it', 150);
+  approx(
+    (await greenBox(cropOnly)).count,
+    2 * 60 * 16 + 60 * 10,
+    'the page’s own edge cuts the three across it',
+    150,
+  );
+  {
+    const link = await comment(cropOnly, 'link');
+    near(link.rect, [200, 420, 260, 450], 'nor the link: its rectangle');
+    assert.equal(link.corners, true, 'its corners');
+    assert.deepEqual(link.cut, { N: false }, 'and what is drawn of it');
+  }
 });
 
 await test('pages on sheets: the geometry of a sheet, a crop drawn on it and margins measured on it', async () => {
@@ -1667,6 +2055,7 @@ await test('pages on sheets: the geometry of a sheet, a crop drawn on it and mar
   const rounded = page(595, 842);
   assert.equal(fittedGeometry(rounded, 'a4'), rounded, '595 × 842 is A4');
   assert.equal(fittedGeometry(page(842, 595), 'a4').scale, undefined, 'and so is 842 × 595');
+  assert.equal(fittedGeometry(page(594.08, 842), 'a4').scale, undefined, '1.2 points narrower is A4 still');
   assert.ok(fittedGeometry(page(593, 842), 'a4').scale, 'two points narrower is not');
   assert.ok(fittedGeometry(rounded, 'letter').scale, 'A4 is not Letter');
   // In units of two points, the same numbers are a page twice the size.
@@ -1809,6 +2198,53 @@ await test('PDF/A: exported unchanged; the declaration is kept, or dropped with 
     assert.match(metadata, /Archiv für Berichte/, `${label}: the rest of the metadata is kept`);
     assert.equal((await inspectPdf(edited.bytes)).pdfa, null);
     assert.ok((await extract(edited.bytes))[0].items.some((item) => item.text === 'DRAFT'));
+  }
+  // On a sheet. With nothing out of sight, the page is only scaled and moved: PDF/A
+  // still. A comment the page did not show is hidden on the sheet, and PDF/A
+  // forbids a hidden comment: the copy stops claiming PDF/A, and says why.
+  {
+    const { PDFName, PDFNumber } = globalThis.PDFLib;
+    const bytes = await pdfaFixture(2, 'B', true);
+    const onA4 = (source, extra = { paper: 'a4' }) =>
+      buildPdfWithNotes({
+        sources: [{ id: 'a', bytes: source }],
+        pages: [{ id: 'p', sourceId: 'a', index: 0, ...extra }],
+      });
+    const sized = await onA4(bytes);
+    assert.deepEqual(sized.notes, [], 'PDF/A on a sheet: nothing to report');
+    assert.match(await metadataOf(sized.bytes), /pdfaid:part/, 'PDF/A on a sheet still declares PDF/A');
+    approx((await extract(sized.bytes))[0].width, A4.height, 'and is on A4, on its side');
+    const doc = await PDFDocument.load(bytes);
+    doc.getPage(0).setCropBox(0, 50, 400, 250);
+    doc
+      .getPage(0)
+      .node.addAnnot(
+        doc.context.register(
+          doc.context.obj({ Type: 'Annot', Subtype: 'Square', Rect: [40, 10, 100, 40], F: 4 }),
+        ),
+      );
+    const withComment = await doc.save({ useObjectStreams: false });
+    const hid = await onA4(withComment);
+    assert.deepEqual(hid.notes, ['pdfa-removed-hidden'], 'a comment hidden on the sheet is reported');
+    assert.doesNotMatch(
+      await metadataOf(hid.bytes),
+      /pdfaid:(part|conformance)/,
+      'and the PDF/A declaration is removed',
+    );
+    const flag = (await PDFDocument.load(hid.bytes))
+      .getPage(0)
+      .node.Annots()
+      .lookup(0)
+      .lookup(PDFName.of('F'));
+    assert.equal(
+      flag instanceof PDFNumber && flag.asNumber(),
+      6,
+      'the comment is hidden, and still prints as it did',
+    );
+    // A crop alone hides by the page's own box: no flag, and PDF/A still.
+    const cropped = await onA4(withComment, { crop: { top: 0.2, rotation: 0 } });
+    assert.deepEqual(cropped.notes, [], 'a crop alone hides nothing by a flag');
+    assert.match(await metadataOf(cropped.bytes), /pdfaid:part/, 'and keeps the declaration');
   }
 });
 

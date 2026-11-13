@@ -1538,6 +1538,7 @@ function addBlankMargins(page, content, box) {
   // hidden, one that lay across the edge is cut there.
   const { PDFArray, PDFDict, PDFName, PDFNumber } = lib;
   const annotations = page.node.Annots();
+  let hid = false;
   for (let index = 0; annotations && index < annotations.size(); index++) {
     const annotation = annotations.lookup(index),
       corners = annotation instanceof PDFDict ? annotation.lookup(PDFName.of('Rect')) : null;
@@ -1562,17 +1563,37 @@ function addBlankMargins(page, content, box) {
       rect.x >= right ||
       rect.y + rect.height <= content.y ||
       rect.y >= top
-    )
+    ) {
+      if (set & HIDDEN) continue;
       annotation.set(PDFName.of('F'), PDFNumber.of(set | HIDDEN));
-    else if (
+      hid = true;
+    } else if (
       (rect.x < content.x ||
         rect.x + rect.width > right ||
         rect.y < content.y ||
         rect.y + rect.height > top) &&
       !(set & (NO_ZOOM | NO_ROTATE))
-    )
-      clipAnnotation(context, annotation, rect, content);
+    ) {
+      // A link is a place to click, so its rectangle ends at the edge as well.
+      // Its quadrilaterals go: a viewer drops them once one lies outside the
+      // rectangle (PDF 32000-1, 12.5.6.5), and a viewer that did not would
+      // keep the link alive in the blank.
+      const link = annotation.get(PDFName.of('Subtype')) === PDFName.of('Link');
+      clipAnnotation(context, annotation, rect, content, link);
+      if (!link) continue;
+      annotation.set(
+        PDFName.of('Rect'),
+        context.obj([
+          Math.max(rect.x, content.x),
+          Math.max(rect.y, content.y),
+          Math.min(rect.x + rect.width, right),
+          Math.min(rect.y + rect.height, top),
+        ]),
+      );
+      annotation.delete(PDFName.of('QuadPoints'));
+    }
   }
+  return hid;
 }
 
 // Annotation flags. Hidden: not shown, not printed, not reacting. NoZoom and
@@ -1588,9 +1609,11 @@ const HIDDEN = 2,
  * fits an appearance to the rectangle: the appearance's box as its matrix
  * leaves it (PDF 32000-1, 12.5.5). The appearances themselves stay as they
  * are, as other annotations may share them. An annotation without an
- * appearance, which each viewer draws in its own way, cannot be cut.
+ * appearance, which each viewer draws in its own way, cannot be cut. With
+ * `kept`, the caller cuts the rectangle too (a link): the new appearance's box
+ * is then the part kept, which a viewer fits to that smaller rectangle.
  */
-function clipAnnotation(context, annotation, rect, content) {
+function clipAnnotation(context, annotation, rect, content, kept = false) {
   const { PDFArray, PDFDict, PDFName, PDFNumber, PDFRef, PDFStream } = library();
   const numbers = (value, count) => {
     const list = value instanceof PDFArray ? value.asArray().map((entry) => context.lookup(entry)) : [];
@@ -1629,7 +1652,7 @@ function clipAnnotation(context, annotation, rect, content) {
         {
           Type: 'XObject',
           Subtype: 'Form',
-          BBox: [x, y, x + width, y + height],
+          BBox: kept ? [left, bottom, left + keptWidth, bottom + keptHeight] : [x, y, x + width, y + height],
           Resources: { XObject: { Whole: entry instanceof PDFRef ? entry : context.register(stream) } },
         },
       ),
@@ -1658,7 +1681,7 @@ function clipAnnotation(context, annotation, rect, content) {
  * PDFPage.scale is no use here: it scales about the origin of user space, moves
  * nothing, and leaves border widths, text sizes and destinations as they were.
  */
-function fitToSheet(page, geometry) {
+function fitToSheet(page, geometry, placed) {
   const lib = library();
   const { PDFDict, PDFName } = lib;
   const { context } = page.doc;
@@ -1681,7 +1704,9 @@ function fitToSheet(page, geometry) {
   const annotations = page.node.Annots();
   for (let index = 0; annotations && index < annotations.size(); index++) {
     const annotation = annotations.lookup(index);
-    if (annotation instanceof PDFDict) moveAnnotation(page.doc, annotation, matrix);
+    if (!(annotation instanceof PDFDict) || placed.has(annotation)) continue;
+    placed.add(annotation);
+    moveAnnotation(page.doc, annotation, matrix);
   }
   return matrix;
 }
@@ -1691,51 +1716,73 @@ function fitToSheet(page, geometry) {
  * `matrix` is a scale and a shift in user space. Every position it keeps goes
  * through the matrix; widths and text sizes are scaled. Its appearance needs
  * nothing: viewers fit it to the annotation's rectangle.
+ *
+ * What it changes it writes anew, on this annotation only. The lists and the
+ * border style it reads may belong to others as well: a page duplicated in the
+ * editor shares them with its copy (separatePages copies an annotation, not
+ * what is inside it), and a file may share one between annotations. Changed
+ * where they are, they would move once for each page that holds them.
  */
 function moveAnnotation(doc, annotation, matrix) {
   const { PDFArray, PDFDict, PDFHexString, PDFName, PDFNumber, PDFString } = library();
+  const { context } = doc;
   const [scale, , , , shiftX, shiftY] = matrix;
   const numberAt = (array, index) => {
     const value = array.lookup(index);
     return value instanceof PDFNumber ? value.asNumber() : null;
   };
+  /** A copy of a list of points (x y x y ...), each moved. */
   const points = (array) => {
-    for (let index = 0; array instanceof PDFArray && index + 1 < array.size(); index += 2) {
+    const moved = array.asArray().slice();
+    for (let index = 0; index + 1 < moved.length; index += 2) {
       const x = numberAt(array, index),
         y = numberAt(array, index + 1);
       if (x === null || y === null) continue;
-      array.set(index, PDFNumber.of(scale * x + shiftX));
-      array.set(index + 1, PDFNumber.of(scale * y + shiftY));
+      moved[index] = PDFNumber.of(scale * x + shiftX);
+      moved[index + 1] = PDFNumber.of(scale * y + shiftY);
     }
+    return context.obj(moved);
   };
-  const lengths = (array, end = Infinity) => {
-    for (let index = 0; array instanceof PDFArray && index < Math.min(end, array.size()); index++) {
-      const value = array.lookup(index);
-      if (value instanceof PDFNumber) array.set(index, PDFNumber.of(value.asNumber() * scale));
-      else if (value instanceof PDFArray) lengths(value);
-    }
-  };
+  /** A copy of a list of distances, each scaled (a border's dashes are a list inside the list). */
+  const lengths = (array) =>
+    context.obj(
+      array.asArray().map((entry) => {
+        const value = context.lookup(entry);
+        if (value instanceof PDFNumber) return PDFNumber.of(value.asNumber() * scale);
+        return value instanceof PDFArray ? lengths(value) : entry;
+      }),
+    );
   const get = (name) => annotation.lookup(PDFName.of(name));
+  /** Give the annotation `change(list)` in place of the list it keeps under `name`. */
+  const replace = (name, change, holder = annotation) => {
+    const list = holder.lookup(PDFName.of(name));
+    if (list instanceof PDFArray) holder.set(PDFName.of(name), change(list));
+  };
   // Its rectangle, and the points of highlights, lines, shapes and ink.
-  for (const name of ['Rect', 'QuadPoints', 'Vertices', 'L', 'CL']) points(get(name));
-  for (const name of ['InkList', 'Path']) {
-    const lists = get(name);
-    for (let index = 0; lists instanceof PDFArray && index < lists.size(); index++)
-      points(lists.lookup(index));
-  }
+  for (const name of ['Rect', 'QuadPoints', 'Vertices', 'L', 'CL']) replace(name, points);
+  for (const name of ['InkList', 'Path'])
+    replace(name, (lists) =>
+      context.obj(
+        lists.asArray().map((entry) => {
+          const list = context.lookup(entry);
+          return list instanceof PDFArray ? points(list) : entry;
+        }),
+      ),
+    );
   // Distances: the space inside its rectangle, leader lines, border widths and dashes.
-  lengths(get('RD'));
+  replace('RD', lengths);
   for (const name of ['LL', 'LLE', 'LLO']) {
     const value = get(name);
     if (value instanceof PDFNumber) annotation.set(PDFName.of(name), PDFNumber.of(value.asNumber() * scale));
   }
-  const style = get('BS');
-  if (style instanceof PDFDict) {
-    const width = style.lookup(PDFName.of('W'));
+  if (get('BS') instanceof PDFDict) {
+    const style = get('BS').clone(context),
+      width = style.lookup(PDFName.of('W'));
     if (width instanceof PDFNumber) style.set(PDFName.of('W'), PDFNumber.of(width.asNumber() * scale));
-    lengths(style.lookup(PDFName.of('D')));
+    replace('D', lengths, style);
+    annotation.set(PDFName.of('BS'), style);
   }
-  lengths(get('Border'));
+  replace('Border', lengths);
   // The size of text a viewer lays out itself: free text, and a field's when it
   // is typed in. A field's is often kept by the field, or by the form, for all
   // its widgets; a widget's own copy is what applies to it, and widgets of one
@@ -2033,7 +2080,11 @@ function protectionPassword(protection) {
  * The source declared PDF/A, and the copy no longer does: 'pdfa-removed'
  * because of the added content (PDF/A forbids standard fonts that are not
  * embedded, and PDF/A-1 also forbids transparency), 'pdfa-removed-password'
- * because PDF/A forbids encryption. When pages are copied into a new PDF
+ * because PDF/A forbids encryption, 'pdfa-removed-hidden' because PDF/A
+ * forbids the Hidden flag, which a comment, link or field gets when it lies
+ * out of sight on a page that now reaches it (addBlankMargins),
+ * 'pdfa-removed-properties' because changed details remove the metadata that
+ * makes the claim. When pages are copied into a new PDF
  * (deleting, extracting, combining, duplicating), what the new PDF leaves out
  * of the sources: 'labels-dropped', 'attachments-dropped', 'tags-dropped' (see
  * copyLosses). 'signature-invalid': a source was digitally signed, and the
@@ -2173,7 +2224,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
         throw new Error(
           // Nothing was combined or removed: the file itself has one page twice.
           completeSource && listedTwice
-            ? 'One page of this PDF is in it twice, so its pages have to be copied to be edited, and a form’s pages can only be copied once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.'
+            ? 'This PDF lists one of its pages twice. To change its pages, QFT PDF copies them, and a form’s pages can be copied only once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.'
             : 'Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
         );
     }
@@ -2219,8 +2270,12 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const artifact = artifactMarker(doc);
   let added = false,
     annotated = false;
-  // Pages put on a sheet, with the matrix that moved what is on them.
-  const moved = new Map();
+  // Pages put on a sheet, with the matrix that moved what is on them; and the
+  // annotations moved with them (one that two pages list moves once).
+  const moved = new Map(),
+    placed = new Set();
+  // A comment, link or field out of sight was hidden (addBlankMargins).
+  let hidden = false;
   for (let index = 0; index < total; index++) {
     const page = outputPages[index];
     const descriptor = descriptors[index];
@@ -2242,7 +2297,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
         box.y < content.y - 0.01 ||
         box.x + box.width > content.x + content.width + 0.01 ||
         box.y + box.height > content.y + content.height + 0.01;
-      if (beyond) addBlankMargins(page, content, box);
+      if (beyond) hidden = addBlankMargins(page, content, box) || hidden;
       page.setCropBox(box.x, box.y, box.width, box.height);
     }
     for (const annotation of annotations.filter((item) => item.pageId === descriptor.id)) {
@@ -2287,7 +2342,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
         )) || added;
     }
     page.pushOperators(lib.popGraphicsState());
-    if (geometry.scale) moved.set(page.ref, fitToSheet(page, geometry));
+    if (geometry.scale) moved.set(page.ref, fitToSheet(page, geometry, placed));
     onProgress(0.1 + (0.8 * (index + 1)) / total);
     // Give the browser time to paint progress during larger exports.
     if (index % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
@@ -2300,11 +2355,12 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   // New field appearances use fonts that PDF/A requires to be embedded.
   added ||= formFilled;
   const properties = state.properties;
-  if (pdfa && (added || password || properties)) {
+  if (pdfa && (added || hidden || password || properties)) {
     // Changed properties remove the XMP metadata, and with it the PDF/A claim.
     if (!properties) removePdfaIdentification(doc);
     pdfa = null;
     if (added) notes.push('pdfa-removed');
+    if (hidden) notes.push('pdfa-removed-hidden');
     if (password) notes.push('pdfa-removed-password');
     if (properties) notes.push('pdfa-removed-properties');
   }

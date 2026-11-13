@@ -15,15 +15,28 @@ import {
   PDFLib,
 } from './helpers.mjs';
 
-/** A one-page PDF that declares PDF/A-1b in its XMP metadata, saved without object streams. */
-async function pdfaFile() {
+/**
+ * A one-page PDF that declares PDF/A-1b in its XMP metadata, saved without
+ * object streams. With `comment`, the page shows less than its sheet, and a
+ * comment lies in the part it does not show.
+ */
+async function pdfaFile({ comment = false, name = 'archive-pdfa1.pdf' } = {}) {
   const pdf = await PDFLib.PDFDocument.create();
-  pdf.addPage([400, 300]).drawText('Archived page', {
+  const first = pdf.addPage([400, 300]);
+  first.drawText('Archived page', {
     x: 40,
     y: 200,
     size: 18,
     font: await pdf.embedFont(PDFLib.StandardFonts.Helvetica),
   });
+  if (comment) {
+    first.setCropBox(0, 50, 400, 250);
+    first.node.addAnnot(
+      pdf.context.register(
+        pdf.context.obj({ Type: 'Annot', Subtype: 'Square', Rect: [40, 10, 100, 40], F: 4 }),
+      ),
+    );
+  }
   const xmp =
     '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
   pdf.catalog.set(
@@ -32,7 +45,8 @@ async function pdfaFile() {
       pdf.context.stream(new TextEncoder().encode(xmp), { Type: 'Metadata', Subtype: 'XML' }),
     ),
   );
-  return writeTemporary('archive-pdfa1.pdf', await pdf.save({ useObjectStreams: false }));
+  // A name of its own for each test: they run side by side.
+  return writeTemporary(name, await pdf.save({ useObjectStreams: false }));
 }
 const dialog = (page) => page.locator('#password-dialog');
 
@@ -46,6 +60,35 @@ test('a PDF/A-1 file downloads, and stops claiming PDF/A once content is added',
   const marked = await download(page, () => page.click('#download-button'));
   expect((await pdfText(marked.bytes))[0]).toContain('DRAFT');
   await expectToast(page, /no longer marked as PDF\/A/);
+});
+
+test('a PDF/A file on A4 paper stays PDF/A, unless a comment out of sight has to be hidden', async ({
+  page,
+}) => {
+  const metadata = async (bytes) => {
+    const pdf = await PDFLib.PDFDocument.load(bytes);
+    return new TextDecoder().decode(
+      PDFLib.decodePDFRawStream(pdf.catalog.lookup(PDFLib.PDFName.of('Metadata'))).decode(),
+    );
+  };
+  await openFiles(page, await pdfaFile({ name: 'archive-on-paper.pdf' }), 'resize-pdf/');
+  await page.click('#tool-form [type="submit"]');
+  await expectToast(page, /on (A4|Letter) paper now/);
+  const sized = await download(page, () => page.click('#download-button'));
+  expect(sized.name).toBe('archive-on-paper-resized.pdf');
+  await expectToast(page, 'Your edited PDF has been downloaded.');
+  expect(await metadata(sized.bytes)).toContain('pdfaid:part');
+  // The same, with a comment below what the page shows: on the sheet it is hidden,
+  // which PDF/A does not allow, and the notice says so.
+  await openFiles(page, await pdfaFile({ comment: true, name: 'archive-comment.pdf' }), 'resize-pdf/');
+  await page.click('#tool-form [type="submit"]');
+  await expectToast(page, /on (A4|Letter) paper now/);
+  const hidden = await download(page, () => page.click('#download-button'));
+  await expectToast(
+    page,
+    'Your edited PDF has been downloaded. It’s no longer marked as PDF/A (archival), because comments, links or fields outside the visible page were hidden, which PDF/A doesn’t allow.',
+  );
+  expect(await metadata(hidden.bytes)).not.toContain('pdfaid:part');
 });
 
 test('asks for the password, keeps asking while it is wrong, and keeps it for the download', async ({

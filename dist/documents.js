@@ -230,6 +230,8 @@ export function exportNotes(notes, { several = false } = {}) {
   const reasons = [
     notes.includes('pdfa-removed-password') && 'PDF/A files can’t have a password',
     notes.includes('pdfa-removed') && 'added text and marks don’t meet PDF/A rules',
+    notes.includes('pdfa-removed-hidden') &&
+      'comments, links or fields outside the visible page were hidden, which PDF/A doesn’t allow',
     notes.includes('pdfa-removed-properties') &&
       'changing its details removes the metadata that declares PDF/A',
   ].filter(Boolean);

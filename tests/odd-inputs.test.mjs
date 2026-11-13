@@ -372,16 +372,16 @@ await test('reordering pages that inherit from a node of the page tree: size, tu
 /**
  * Three pages of which the first and the third are one object (Kids [p1 p2
  * p1]), with page labels i, ii, iii and, when asked, a form of one text field
- * on the second page.
+ * on the second page, or a comment on the page that is there twice.
  */
-function listedTwice(withForm) {
+function listedTwice(withForm, comment = false) {
   const field =
     '<< /Type /Annot /Subtype /Widget /FT /Tx /T (note) /Rect [40 300 240 324] /P 6 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>';
   return pdfFile([
     `<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /S /r >>] >>${withForm ? ' /AcroForm << /Fields [8 0 R] /DA (/Helv 12 Tf 0 g) /DR << /Font << /Helv 3 0 R >> >> /NeedAppearances true >>' : ''} >>`,
     '<< /Type /Pages /Kids [4 0 R 6 0 R 4 0 R] /Count 3 >>',
     font('Helvetica'),
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>',
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R${comment ? ' /Annots [<< /Type /Annot /Subtype /Square /Rect [100 100 140 140] /BS << /W 2 >> >>]' : ''} >>`,
     stream('BT /F1 16 Tf 40 440 Td (TWICE) Tj ET'),
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R${withForm ? ' /Annots [8 0 R]' : ''} >>`,
     stream('BT /F1 16 Tf 40 440 Td (ONCE) Tj ET'),
@@ -435,7 +435,7 @@ await test('a page listed twice in the page tree: left alone the file is kept as
     if (withForm) {
       await assert.rejects(
         exported(bytes, turned),
-        /One page of this PDF is in it twice, so its pages have to be copied to be edited, and a form’s pages can only be copied once its fields are flattened\./,
+        /This PDF lists one of its pages twice\. To change its pages, QFT PDF copies them, and a form’s pages can be copied only once its fields are flattened\./,
         'with a form: the refusal says what is the matter with this file',
       );
       // Pages removed: the usual refusal.
@@ -462,5 +462,45 @@ await test('a page listed twice in the page tree: left alone the file is kept as
       [['Page 1 of 3'], ['Page 2 of 3'], ['Page 3 of 3']],
       `${kind}: page numbers`,
     );
+  }
+  // On paper, the first on A4 and the third on Letter: two pages now, each on its
+  // own sheet, each with its own copy of the comment, moved once with its page.
+  {
+    const [first, second, third] = pagesOf();
+    const { bytes: output } = await exported(listedTwice(false, true), {
+      pages: [{ ...first, paper: 'a4' }, second, { ...third, paper: 'letter' }],
+    });
+    assert.deepEqual(
+      (await read(output)).map((page) => page.view),
+      [
+        [0, 0, 595.28, 841.89],
+        [0, 0, 400, 500],
+        [0, 0, 612, 792],
+      ],
+      'on two papers: each page has its own size',
+    );
+    const doc = await PDFDocument.load(output);
+    for (const [index, sheet] of [
+      [0, [595.28, 841.89]],
+      [2, [612, 792]],
+    ]) {
+      const scale = Math.min(sheet[0] / 400, sheet[1] / 500),
+        blank = [(sheet[0] - scale * 400) / 2, (sheet[1] - scale * 500) / 2];
+      const comment = doc.getPage(index).node.Annots().lookup(0),
+        rect = comment
+          .lookup(PDFName.of('Rect'))
+          .asArray()
+          .map((value) => value.asNumber());
+      [100, 100, 140, 140].forEach((value, corner) =>
+        assert.ok(
+          Math.abs(rect[corner] - (blank[corner % 2] + scale * value)) < 0.001,
+          `page ${index + 1}: the comment where its sheet puts it (${rect})`,
+        ),
+      );
+      assert.ok(
+        Math.abs(comment.lookup(PDFName.of('BS')).lookup(PDFName.of('W')).asNumber() - 2 * scale) < 0.001,
+        `page ${index + 1}: its border at its page’s scale`,
+      );
+    }
   }
 });
