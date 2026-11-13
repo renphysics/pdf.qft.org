@@ -13,9 +13,10 @@
  * GitHub Pages lets caches keep every file for ten minutes under the same URL,
  * so every request carries a query of its own that no cache has stored
  * (?deploy-check=...). It asks again every ten seconds until all hold, and
- * exits 0; when the time is up (default 660 seconds) it prints an ::error::
- * line and what was served instead, and exits 1. It changes nothing on the
- * site.
+ * exits 0; when the time is up (default 660 seconds) it exits 1 with one
+ * ::error:: annotation, which the run's summary page shows whole: what was
+ * served instead, and where the README says what to do. It changes nothing on
+ * the site.
  */
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
@@ -25,7 +26,8 @@ import { fileURLToPath } from 'node:url';
 // tool page is generated apart from the home page: scripts/build-pages.mjs).
 export const PAGES = ['', 'merge-pdf/'];
 const HEADERS = ['age', 'x-cache', 'x-served-by', 'last-modified'];
-const USAGE = 'Usage: node scripts/check-live-release.mjs <site URL> <12-digit release id> [seconds]';
+const USAGE =
+  'Usage: node scripts/check-live-release.mjs <site URL> <release id: 12 characters, 0-9 and a-f> [seconds]';
 
 /** The site's address (ending in "/"), the release and the seconds to wait, or an error saying why not. */
 export function parseArgs([base, release, seconds = '660']) {
@@ -86,22 +88,27 @@ async function main() {
       const url = freshUrl(site, page, tag);
       // A request that hangs ends with the wait (and at most 30 seconds in).
       const wait = Math.max(1000, Math.min(30_000, deadline - Date.now()));
-      const response = await fetch(url, {
-        headers: { 'Cache-Control': 'no-cache' },
-        signal: AbortSignal.timeout(wait),
-      });
-      const headers = HEADERS.map((name) => `${name}: ${response.headers.get(name) ?? '-'}`);
-      if (response.redirected) headers.unshift(`redirected to ${response.url}`);
-      return {
-        url: url.href,
-        status: response.status,
-        text: await response.text(),
-        headers: headers.join(', '),
-      };
+      try {
+        const response = await fetch(url, {
+          headers: { 'Cache-Control': 'no-cache' },
+          signal: AbortSignal.timeout(wait),
+        });
+        const headers = HEADERS.map((name) => `${name}: ${response.headers.get(name) ?? '-'}`);
+        if (response.redirected) headers.unshift(`redirected to ${response.url}`);
+        return {
+          url: url.href,
+          status: response.status,
+          text: await response.text(),
+          headers: headers.join(', '),
+        };
+      } catch (error) {
+        // Which of the three addresses did not answer, and why.
+        throw new Error(`${url.href}: ${error.cause?.message || error.message}`);
+      }
     };
     const found = await Promise.all([Promise.all(PAGES.map(get)), get(`app.js?v=${release}`)]).then(
       ([pages, app]) => problems(release, pages, app),
-      (error) => [`${site.href}: ${error.cause?.message || error.message}`],
+      (error) => [error.message],
     );
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
     if (!found.length) {
@@ -110,10 +117,15 @@ async function main() {
     }
     const left = deadline - Date.now();
     if (left <= 0) {
+      // One annotation, with its lines joined as GitHub reads them (%0A): the
+      // run's summary page shows an annotation, not the log under it.
       console.log(
-        `::error::${site.href} does not serve release ${release} after ${elapsed} s (${attempt} attempts). What it served:`,
+        [
+          `::error::${site.href} does not serve release ${release} after ${elapsed} s (${attempt} attempts). What it served:`,
+          ...found,
+          'What to do: README, "When a deploy goes wrong".',
+        ].join('%0A'),
       );
-      for (const problem of found) console.log(problem);
       process.exitCode = 1;
       return;
     }

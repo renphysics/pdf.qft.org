@@ -32,6 +32,8 @@ process.on('exit', () => rmSync(workspace, { recursive: true, force: true }));
 
 const indent = (line) => line.match(/^ */)[0].length;
 const meaningful = (line) => line.trim() && !line.trim().startsWith('#');
+/** A line without the comment after its value. */
+const bare = (line) => line.replace(/\s+#.*$/, '');
 /**
  * The lines under lines[at] that are indented further: the value of a key. A
  * comment indented no further belongs to what follows.
@@ -84,27 +86,33 @@ function scriptOf(job, stepId) {
   const margin = Math.min(...body.filter(meaningful).map(indent));
   return body.map((line) => line.slice(margin)).join('\n');
 }
-/** The permissions a block grants: { scope: level }, or { '*': level } for read-all and the like. */
+/**
+ * The permissions a block grants: { scope: level }, or { '*': level } for
+ * read-all and the like. However they are written: as lines under the key, on
+ * the key's own line ({ contents: read }), with or without a comment after.
+ */
 function permissionsIn(lines) {
   const found = [];
+  const pairs = (entries) =>
+    Object.fromEntries(entries.filter((entry) => entry.trim()).map((entry) => entry.trim().split(/:\s*/)));
   lines.forEach((line, at) => {
-    const match = line.match(/^(\s*)permissions:\s*(\S*)\s*$/);
+    const match = bare(line).match(/^(\s*)permissions:\s*(.*?)\s*$/);
     if (!match) return;
-    if (match[2]) found.push({ indent: match[1].length, grants: { '*': match[2] } });
-    else
-      found.push({
-        indent: match[1].length,
-        grants: Object.fromEntries(
-          under(lines, at)
-            .filter(meaningful)
-            .map((entry) => entry.trim().split(/:\s*/)),
-        ),
-      });
+    const [, margin, value] = match;
+    const inline = value.match(/^\{(.*)\}$/);
+    found.push({
+      indent: margin.length,
+      grants: inline
+        ? pairs(inline[1].split(','))
+        : value
+          ? { '*': value }
+          : pairs(under(lines, at).filter(meaningful).map(bare)),
+    });
   });
   return found;
 }
 const readOnly = (grants) =>
-  Object.values(grants).every((level) => ['read', 'none', 'read-all', '{}'].includes(level));
+  Object.values(grants).every((level) => ['read', 'none', 'read-all'].includes(level));
 
 const test_yml = jobsOf(workflows['test.yml']);
 const pages_yml = jobsOf(workflows['pages.yml']);
@@ -201,9 +209,13 @@ await test('the jobs that run the container can only read: no write permission a
   );
   for (const { grants } of granted)
     assert(readOnly(grants), `test.yml grants more than read: ${JSON.stringify(grants)}`);
-  assert(
-    !tests.filter(meaningful).some((line) => /\bsecrets\.|secrets:/.test(line)),
-    'test.yml uses no secrets',
+  assert.deepEqual(
+    tests
+      .filter(meaningful)
+      .map(bare)
+      .filter((line) => /\bsecrets\b/.test(line)),
+    [],
+    'test.yml uses no secrets, however they are written (secrets.X, secrets[...], toJSON(secrets))',
   );
   const pages = workflows['pages.yml'].split('\n');
   const top = permissionsIn(pages).find((entry) => entry.indent === 0);
@@ -219,6 +231,29 @@ await test('the jobs that run the container can only read: no write permission a
     !caller.lines.some((line) => /^\s+secrets:/.test(line)),
     'the job that calls test.yml passes no secrets',
   );
+  // The reader itself: every way a workflow can write a grant.
+  const read = (text) => permissionsIn(text.split('\n')).map((entry) => entry.grants);
+  assert.deepEqual(read('permissions: write-all # for the report'), [{ '*': 'write-all' }]);
+  assert.deepEqual(read('    permissions: { contents: write, pages: write }'), [
+    { contents: 'write', pages: 'write' },
+  ]);
+  assert.deepEqual(read('permissions: {}'), [{}]);
+  assert.deepEqual(read('permissions:\n  contents: read # the checkout\n  id-token: write'), [
+    { contents: 'read', 'id-token': 'write' },
+  ]);
+  for (const [grants, only] of [
+    [{ '*': 'write-all' }, false],
+    [{ contents: 'write' }, false],
+    [{ contents: 'read', 'id-token': 'write' }, false],
+    [{ contents: 'read' }, true],
+    [{ '*': 'read-all' }, true],
+    [{}, true],
+  ])
+    assert.equal(
+      readOnly(grants),
+      only,
+      `${JSON.stringify(grants)} read as ${only ? 'more than' : 'only'} read`,
+    );
 });
 
 await test('every job output is wired at both ends, and no job waits on itself', () => {
@@ -268,14 +303,37 @@ await test('after the deploy, the live job checks the release the build stamped,
   // Through env, not written into the script: a value is never run as shell.
   assert.match(body, /PAGE_URL: \$\{\{ needs\.deploy\.outputs\.page_url \}\}/);
   assert.match(body, /RELEASE: \$\{\{ needs\.build\.outputs\.release \}\}/);
-  const seconds = Number(
-    body.match(/node scripts\/check-live-release\.mjs "\$PAGE_URL" "\$RELEASE" (\d+)/)?.[1],
+  // The whole line: nothing after the check that would let it fail unseen (|| true).
+  const command = body.match(
+    /^\s+run: node scripts\/check-live-release\.mjs "\$PAGE_URL" "\$RELEASE" (\d+)\s*$/m,
   );
+  assert(command, 'the live job runs the check, and nothing else on that line');
+  const seconds = Number(command[1]);
   assert(seconds > 600, `the check waits ${seconds} s: GitHub Pages lets caches keep a file for 600 s`);
-  const minutes = Number(body.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+  const timeouts = live.lines.filter((line) => /^\s+timeout-minutes:/.test(line));
+  assert.deepEqual(timeouts.map(indent), [4], 'one time limit, the job’s own: none on a step cuts the wait');
+  const minutes = Number(timeouts[0].match(/(\d+)/)[1]);
   assert(
     minutes * 60 > seconds + 60,
     `the job's ${minutes} minutes leave the ${seconds} s check too little room`,
+  );
+  // Nothing that lets the job pass without the check, runs it after a deploy that
+  // failed or was skipped, or runs it where the script is not.
+  assert.deepEqual(
+    live.lines
+      .filter(meaningful)
+      .filter((line) => /^\s+(?:- )?(?:if|continue-on-error|working-directory|shell):/.test(line)),
+    [],
+    'the live job has no condition, no continue-on-error and no other working directory',
+  );
+  // One deploy at a time, and one that runs is never cancelled (README, "What a deploy does").
+  const lines = workflows['pages.yml'].split('\n');
+  assert.deepEqual(
+    under(lines, lines.indexOf('concurrency:'))
+      .filter(meaningful)
+      .map((line) => line.trim()),
+    ['group: pages', 'cancel-in-progress: false'],
+    'pages.yml: one group for every deploy, never cancelled in progress',
   );
 });
 
@@ -365,9 +423,10 @@ const base = `http://127.0.0.1:${server.address().port}${prefix}`;
 async function check(url, release, seconds) {
   const start = Date.now();
   const script = path.join(root, 'scripts/check-live-release.mjs');
-  const { code = 0, stdout } = await run(process.execPath, [script, url, release, String(seconds)]).catch(
-    (error) => error,
-  );
+  // Stopped after 30 s (its code is then null): a check that hangs fails its test, not the whole run.
+  const { code = 0, stdout } = await run(process.execPath, [script, url, release, String(seconds)], {
+    timeout: 30_000,
+  }).catch((error) => error);
   return { code, stdout, elapsed: (Date.now() - start) / 1000 };
 }
 
@@ -403,9 +462,21 @@ await test('the live check fails, with what was served, when the time runs out o
   assert(result.elapsed >= 1.5, `it gave up after ${result.elapsed} s of the 1.5 s it was given`);
   assert.match(result.stdout, new RegExp(`::error::${base} does not serve release ${newer.release} after`));
   assert.match(result.stdout, /\(([2-9]|\d{2,}) attempts\)/, 'it asked more than once');
+  // The annotation itself carries the evidence (its lines joined by %0A, as GitHub
+  // reads them): the run's summary page shows the annotation, not the log.
+  const annotation = result.stdout.split('\n').filter((line) => line.startsWith('::error::'));
+  assert.equal(annotation.length, 1, 'one annotation');
+  const [, served] = annotation[0].split('What it served:');
   assert.match(
-    result.stdout,
-    new RegExp(`merge-pdf/\\?deploy-check=\\S+: loads the app.js of release ${older.release}`),
+    served,
+    new RegExp(`%0A\\S+merge-pdf/\\?deploy-check=\\S+: loads the app.js of release ${older.release}`),
+    'the annotation lists what was served',
+  );
+  assert.match(served, /%0AWhat to do: README, "When a deploy goes wrong"\.$/, 'and where to read on');
+  assert.match(
+    await readFile(path.join(root, 'README.md'), 'utf8'),
+    /^#+ When a deploy goes wrong$/m,
+    'the README has the section the annotation names',
   );
 });
 
@@ -435,4 +506,34 @@ await test('the live check fails on a missing site and on a host that does not a
   assert.equal(gone.code, 1, 'an unreachable host fails');
   assert.match(gone.stdout, /::error::/);
   assert.match(gone.stdout, /ECONNREFUSED/, 'and says why');
+  assert.match(
+    gone.stdout,
+    new RegExp(`http://127\\.0\\.0\\.1:${port}/\\S*\\?\\S*deploy-check=\\S+: [^%]*ECONNREFUSED`),
+    'and which address did not answer',
+  );
+});
+
+await test('the live check gives up on an answer that never ends, when its time is up', async () => {
+  // Headers and the start of a page, and then nothing: without a limit of its own the
+  // check would wait until the job's fifteen minutes ran out, and say nothing.
+  const sockets = new Set();
+  const hanging = createServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html' });
+    response.write('<html>');
+  });
+  hanging.on('connection', (socket) => sockets.add(socket));
+  await new Promise((resolve) => hanging.listen(0, '127.0.0.1', resolve));
+  try {
+    const result = await check(`http://127.0.0.1:${hanging.address().port}/`, newer.release, 2);
+    assert.equal(result.code, 1, `an answer that never ends fails:\n${result.stdout}`);
+    assert(result.elapsed < 8, `it gave up after ${result.elapsed} s of the 2 s it was given`);
+    assert.match(
+      result.stdout,
+      /::error::.*deploy-check=\S+: [^%]*timeout/i,
+      'and says which address timed out',
+    );
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => hanging.close(resolve));
+  }
 });

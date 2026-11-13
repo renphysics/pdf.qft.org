@@ -211,21 +211,33 @@ await test('stamping fails on a page that lost a link it is expected to version'
   }
 });
 
-await test('stamping is single-shot and deterministic, and the release changes with first-party content', async () => {
+await test('stamping is single-shot and deterministic, and the release changes with first-party content, an engine or a font', async () => {
   assert.throws(() => stamp(first), /already stamped/);
-  const second = await copySite('second');
-  stamp(second);
-  assert.equal(
-    (await readFile(path.join(second, 'index.html'), 'utf8')).match(/app\.js\?v=([0-9a-f]{12})/)[1],
-    release,
-  );
-  const changed = await copySite('changed');
-  await appendFile(path.join(changed, 'studio.css'), '\n/* edit */\n');
-  stamp(changed);
-  assert.notEqual(
-    (await readFile(path.join(changed, 'index.html'), 'utf8')).match(/app\.js\?v=([0-9a-f]{12})/)[1],
-    release,
-  );
+  /** The release of a fresh copy of the site, stamped after `change` (a file and what is added to it). */
+  const releaseOf = async (name, change) => {
+    const copy = await copySite(name);
+    if (change) await appendFile(path.join(copy, change[0]), change[1]);
+    stamp(copy);
+    return (await readFile(path.join(copy, 'index.html'), 'utf8')).match(/app\.js\?v=([0-9a-f]{12})/)[1];
+  };
+  assert.equal(await releaseOf('second'), release, 'the same site, the same release');
+  assert.notEqual(await releaseOf('changed', ['studio.css', '\n/* edit */\n']), release);
+  // An engine or a font alone: the modules that name it change with it, so it is a
+  // release of its own. (Under one id a browser could keep the module that names the
+  // engine before, and the check after a deploy could not tell old from new.)
+  for (const file of [
+    'assets/vendor/pdf.mjs',
+    'assets/vendor/pdf.worker.mjs',
+    'assets/vendor/pdf-lib.min.js',
+    'assets/vendor/fontkit.umd.min.js',
+    'assets/fonts/NotoSans-Regular.ttf',
+    'assets/fonts/NotoSansCJKsc-Regular.otf',
+  ])
+    assert.notEqual(
+      await releaseOf(`changed-${path.basename(file)}`, [file, '\n']),
+      release,
+      `another ${file} is another release`,
+    );
 });
 
 await test('with --github-output, and only then, the release id is written as a step output', async () => {

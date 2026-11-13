@@ -52,8 +52,10 @@ jobs:
   # brings its image along with nothing else to change. The image is named by
   # its version tag, not pinned by its digest as the actions are pinned by
   # their commits: it comes from Microsoft's own registry, the publisher of the
-  # browsers the jobs used to download, and the jobs that run it can only read
-  # the repository and are given no secrets. This job costs a few seconds.
+  # browsers the jobs used to download, and the jobs that run it get a read-only
+  # token and no secrets (they can still write the npm cache, whose packages
+  # npm ci checks against the lockfile, and a test report). This job costs a
+  # few seconds.
   # (tests/ci.test.mjs runs this step's script on the real lockfile.)
   image:
     name: Playwright image
