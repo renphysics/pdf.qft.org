@@ -494,9 +494,16 @@ await test('the live check reads the tool page and app.js too, not only the home
 });
 
 await test('the live check fails on a missing site and on a host that does not answer', async () => {
-  const missing = await check(`http://127.0.0.1:${server.address().port}/elsewhere/`, newer.release, 1);
+  const missing = await check(`http://127.0.0.1:${server.address().port}/else%20where/`, newer.release, 1);
   assert.equal(missing.code, 1, 'a 404 fails');
-  assert.match(missing.stdout, /elsewhere\/\?deploy-check=\S+: status 404/);
+  assert.match(missing.stdout, /else%20where\/\?deploy-check=\S+: status 404/);
+  // In the annotation a "%" of the evidence is written %25, or GitHub would read
+  // what follows it as a code of its own (as it reads %0A as the end of a line).
+  assert.match(
+    missing.stdout.split('\n').find((line) => line.startsWith('::error::')),
+    /%0A\S+else%2520where\/\?deploy-check=\S+: status 404/,
+    'the annotation keeps a "%" of an address as it is',
+  );
   // A port that was just closed: nothing answers there.
   const closed = createServer();
   await new Promise((resolve) => closed.listen(0, '127.0.0.1', resolve));

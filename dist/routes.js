@@ -82,32 +82,32 @@ export const TOOLS = Object.freeze([
     category: 'edit',
     color: 'sage',
     card: ['A little less around the edges.', 'Trim margins with a live preview.'],
-    keywords: 'trim',
+    keywords: 'trim cut pages',
   }),
   tool('margins', 'add-margins-to-pdf', 'Add margins', 'Margins', 'margins', {
     category: 'edit',
     color: 'lavender',
     card: ['A little more room around the edges.', 'Space for notes, binding or punching.'],
-    keywords: 'space notes binding punch',
+    keywords: 'space notes binding punch pages',
   }),
   tool('resize', 'resize-pdf', 'Resize pages', 'Resize', 'resize', {
     category: 'edit',
     color: 'peach',
     card: ['Every page on A4 or Letter paper.', 'Scaled to fit, with nothing cut off.'],
     keywords:
-      'change page size paper a4 a3 a5 legal us letter scale fit enlarge larger bigger shrink smaller standard print mixed sizes file',
+      'change page size paper a4 a3 a5 legal us letter scale fit enlarge larger bigger shrink smaller standard print mixed sizes',
   }),
   tool('merge', 'merge-pdf', 'Merge PDFs', 'Merge', 'merge', {
     category: 'organize',
     color: 'blue',
     card: ['Bring a few things together.', 'One document, all in order.'],
-    keywords: 'combine join append',
+    keywords: 'combine join append pages',
   }),
   tool('split', 'split-pdf', 'Split PDF', 'Split', 'split', {
     category: 'organize',
     color: 'blue',
     card: ['Separate pages, chapters, or ranges.', 'Download them together as a ZIP.'],
-    keywords: 'separate chapters',
+    keywords: 'separate chapters cut',
   }),
   tool('sheets', 'pdf-pages-per-sheet', 'Pages per sheet', 'Sheets', 'sheets', {
     category: 'organize',
@@ -158,8 +158,11 @@ export const searchWords = (text) =>
     .replace(/\p{M}/gu, '')
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
-// Words that name no tool: "merge pdf" and "pdf to jpg" find what "merge" and "jpg" find.
-const COMMON = new Set('pdf pdfs a an the my to from of in on for and with'.split(' '));
+// Words that name no tool, as every tool works on a PDF file: "merge pdf files",
+// "sign a document" and "pdf to jpg" find what "merge", "sign" and "jpg" find.
+const COMMON = new Set(
+  'pdf pdfs file files document documents free online a an the my to from of in on for and with'.split(' '),
+);
 /** What the search reads for a tool: the name and copy on its card, and its keywords. */
 export const searchText = (item) =>
   [item.title || item.name, ...(item.card || []), item.keywords || ''].join(' ');
@@ -170,17 +173,16 @@ const ending = (rest) => ENDINGS.some((whole) => whole.startsWith(rest));
 /**
  * Whether a typed word is a card's word with such an ending, whole or still
  * being typed (so the card stays while "splitting" is typed past "split").
- * Before the ending, the card's word may lose a final "e" ("merg-ing") or
- * double its last letter ("crop-p-ing"). Words of fewer than three letters
- * take no ending: "a" is not found by "aed".
+ * Before the ending, the card's word loses a final "e" ("merg-ing"), or else
+ * may double its last letter ("crop-p-ing"; not both, or "filling" would find
+ * "file"). Words of fewer than three letters take no ending: "a" is not found
+ * by "aed".
  */
 function inflects(word, found) {
-  for (const base of found.endsWith('e') ? [found, found.slice(0, -1)] : [found]) {
-    if (base.length < 3 || word.length <= base.length || !word.startsWith(base)) continue;
-    const rest = word.slice(base.length);
-    if (ending(rest) || (rest[0] === base.at(-1) && ending(rest.slice(1)))) return true;
-  }
-  return false;
+  const base = found.endsWith('e') ? found.slice(0, -1) : found;
+  if (base.length < 3 || word.length <= base.length || !word.startsWith(base)) return false;
+  const rest = word.slice(base.length);
+  return ending(rest) || (base === found && rest[0] === base.at(-1) && ending(rest.slice(1)));
 }
 /**
  * Whether the words typed (searchWords) find a text, such as a card's

@@ -1172,8 +1172,8 @@ source review does not replace the owner’s browser verification.
   also counts without it (“number pages”, “sheets”). New keywords where a
   plain search found nothing: add, mark, scan, insert, drawing. Measured on
   298 searches (every card name, tab label and keyword, and likely searches),
-  after the review below: 99 found nothing before, 8 now (translate, repair,
-  compare, extract text and the like), and 43 bring a sentence; 90 show other
+  after the review below: 100 found nothing before, 8 now (translate, repair,
+  compare, extract text and the like), and 43 bring a sentence; 89 show other
   cards than before, and in the 9 that lost a card, none was a match anyone
   wanted (“pen” in “open”, “lock” in “unlock”, “move” in “remove”, “word” in
   “password”, “us” in “just”).
@@ -1212,8 +1212,15 @@ source review does not replace the owner’s browser verification.
     rotation, signing. A card's word now counts with the ending of a verb or a
     noun (-ing, -ed, -er, -or, -ion), whole or still being typed, so the card
     stays while “splitting” is typed past “split”. New keywords: electronic,
-    bulk, organise, rearrange, sort; and for Resize pages a3, a5, legal,
-    larger, smaller, file.
+    bulk, organise, rearrange, sort, cut; and for Resize pages a3, a5, legal,
+    larger, smaller. A sweep of 239 ordinary words through the rule found two
+    wrong matches, and they are gone: “filling” found a card by “file” (a
+    letter doubles, or a final e goes, not both), and “cutting” found only
+    Resize pages, whose card says “nothing cut off”.
+  - “merge pdf files”, “sign a document” and “crop pages” found nothing: each
+    word has to be on the card, and “files” and “document” are on almost none.
+    They count for nothing now, like “pdf”, with “free” and “online”; and Crop,
+    Add margins and Merge are found by “pages”.
   - “doc” brought the sentence about Word while “document” was being typed,
     and “merge docs” brought it above Merge. “doc” and “docs” bring it only
     beside another word now (“pdf to doc”, “google docs”).
@@ -1230,7 +1237,7 @@ source review does not replace the owner’s browser verification.
     holds: one that names compressing, OCR, redacting, Word, Excel or
     PowerPoint has to say the site does not do it. The five sentences the
     owner named are kept word for word.
-  25 breakages of these fixes, each applied alone, were each caught.
+  29 breakages of these fixes, each applied alone, were each caught.
   Left as it is: “annotate” shows the eight cards under Edit & annotate, as
   the filter of that name does.
 
@@ -1368,8 +1375,10 @@ source review does not replace the owner’s browser verification.
   - README: a run takes about ten minutes, not seven; re-run only the latest
     run (an older one would put older code back); what “manifest unknown” on a
     Playwright update means.
-  17 breakages of these fixes, each applied alone to the workflows, the check
-  and the stamp, were each caught. The live job has still not run on GitHub.
+  18 breakages of these fixes, each applied alone to the workflows, the check
+  and the stamp, were each caught (one only after a test was added: a “%” in
+  the evidence is written %25 in the annotation). The live job has still not
+  run on GitHub.
 
 ## Four reviews of the five changes, and the last run — 2026-11-13
 
@@ -1381,8 +1390,10 @@ source review does not replace the owner’s browser verification.
   “preloaded but not used”; a page left open across a deploy), and 1 is a
   limit now listed (actions, article threads and measuring scales on a resized
   page).
-- 81 breakages of the fixes, each applied alone to a copy: 81 caught (33 in
-  the Resize download, 25 in the search, 17 in the deploy, 6 in the words).
+- 86 breakages of the fixes, each applied alone to a copy: 86 caught (33 in
+  the Resize download, 29 in the search, 18 in the deploy, 6 in the words).
 - The last run on this machine, on the code as committed: `npm test`, 470 of
   470. The browser suites: Chromium 151 passed; WebKit 141 passed, 3 skipped by
-  design; Firefox 131 passed, 1 skipped by design.
+  design; Firefox 131 passed, 1 skipped by design. (The search's last change,
+  which words name no tool, came after: its own tests ran again in the three
+  engines.)

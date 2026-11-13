@@ -117,15 +117,15 @@ async function main() {
     }
     const left = deadline - Date.now();
     if (left <= 0) {
-      // One annotation, with its lines joined as GitHub reads them (%0A): the
-      // run's summary page shows an annotation, not the log under it.
-      console.log(
-        [
-          `::error::${site.href} does not serve release ${release} after ${elapsed} s (${attempt} attempts). What it served:`,
-          ...found,
-          'What to do: README, "When a deploy goes wrong".',
-        ].join('%0A'),
-      );
+      // One annotation, with its lines joined as GitHub reads them (%0A, and a
+      // "%" of the evidence written %25): the run's summary page shows an
+      // annotation, not the log under it.
+      const lines = [
+        `${site.href} does not serve release ${release} after ${elapsed} s (${attempt} attempts). What it served:`,
+        ...found,
+        'What to do: README, "When a deploy goes wrong".',
+      ];
+      console.log(`::error::${lines.map((line) => line.replaceAll('%', '%25')).join('%0A')}`);
       process.exitCode = 1;
       return;
     }

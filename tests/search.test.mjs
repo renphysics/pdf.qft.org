@@ -96,6 +96,26 @@ await test('cards: found by the start of their words, not by a word inside anoth
     ['deleting pages', ['delete']],
     ['password remover', ['unlock']],
     ['resizing', ['resize']],
+    ['mergers', ['merge']],
+    ['rotations', ['pages']],
+    // The last letter doubles, or a final "e" goes; not both: "filling" is "fill", and "notting" is not "note".
+    ['filling', ['signature', 'form']],
+    ['notting', []],
+    // "Scaled to fit, with nothing cut off" is on the Resize card; cutting is what Crop and Split do.
+    ['cut', ['crop', 'resize', 'split']],
+    ['cutting pages', ['crop', 'resize', 'split']],
+    // Every tool works on a PDF file, a document: those words name none of them.
+    ['merge pdf files', ['merge']],
+    ['split pdf file', ['split']],
+    ['sign a document', ['signature']],
+    ['protect document', ['protect']],
+    ['add text to document', ['text', 'watermark']],
+    ['convert jpg to pdf file', ['jpgtopdf', 'pdftojpg']],
+    ['merge pdf online free', ['merge']],
+    // Tools for pages whose cards did not say "pages".
+    ['crop pages', ['crop']],
+    ['add margins to pages', ['margins']],
+    ['merge pages', ['merge']],
     // Other words, which only start like a card's word.
     ['pending', []],
     ['wording', []],
@@ -112,7 +132,7 @@ await test('cards: found by the start of their words, not by a word inside anoth
     ['translate', []],
   ])
     assert.deepEqual(found(query), ids, `"${query}" shows the wrong cards`);
-  for (const query of ['', 'pdf', 'the pdf'])
+  for (const query of ['', 'pdf', 'the pdf', 'pdf files', 'my document', 'free'])
     assert.equal(found(query).length, cards.length, `"${query}" shows every card`);
   // "s" alone is not a plural, nor is "ss".
   assert(!found('ss').length, '"ss" finds a card');
