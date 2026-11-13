@@ -366,3 +366,101 @@ await test('reordering pages that inherit from a node of the page tree: size, tu
     assert.deepEqual(await read(fewer), [beta(4), alpha(1)], `${label}, two pages kept`);
   }
 });
+
+// ---- A page listed twice in the page tree -----------------------------------------------
+
+/**
+ * Three pages of which the first and the third are one object (Kids [p1 p2
+ * p1]), with page labels i, ii, iii and, when asked, a form of one text field
+ * on the second page.
+ */
+function listedTwice(withForm) {
+  const field =
+    '<< /Type /Annot /Subtype /Widget /FT /Tx /T (note) /Rect [40 300 240 324] /P 6 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>';
+  return pdfFile([
+    `<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /S /r >>] >>${withForm ? ' /AcroForm << /Fields [8 0 R] /DA (/Helv 12 Tf 0 g) /DR << /Font << /Helv 3 0 R >> >> /NeedAppearances true >>' : ''} >>`,
+    '<< /Type /Pages /Kids [4 0 R 6 0 R 4 0 R] /Count 3 >>',
+    font('Helvetica'),
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>',
+    stream('BT /F1 16 Tf 40 440 Td (TWICE) Tj ET'),
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R${withForm ? ' /Annots [8 0 R]' : ''} >>`,
+    stream('BT /F1 16 Tf 40 440 Td (ONCE) Tj ET'),
+    ...(withForm ? [field] : []),
+  ]);
+}
+
+await test('a page listed twice in the page tree: left alone the file is kept as it is; edited, its pages are copied, and a form says why it cannot be', async () => {
+  const labels = async (bytes) => {
+    const doc = await pdfjs.getDocument({ data: bytes.slice(), verbosity: 0 }).promise;
+    const found = await doc.getPageLabels();
+    await doc.loadingTask.destroy();
+    return found;
+  };
+  const turns = async (bytes) => (await read(bytes)).map((page) => page.rotate);
+  const pagesOf = (extra = {}) =>
+    [0, 1, 2].map((index) => ({ id: `page-${index}`, sourceId: 'file', index, ...extra }));
+  const exported = (bytes, state) =>
+    buildPdfWithNotes({
+      sources: [{ id: 'file', bytes: Uint8Array.from(bytes), name: 'file.pdf' }],
+      ...state,
+    });
+  for (const withForm of [false, true]) {
+    const bytes = listedTwice(withForm),
+      kind = withForm ? 'with a form' : 'without a form';
+    assert.deepEqual(
+      (await read(bytes)).map((page) => page.texts[0]),
+      ['TWICE', 'ONCE', 'TWICE'],
+      `${kind}: readers show three pages`,
+    );
+    // Nothing done to the pages: kept in place, with what a copy would lose.
+    for (const [what, state] of [
+      ['nothing changed', {}],
+      ['a new title', { properties: { title: 'Kept' } }],
+      ['a password', { protection: null }],
+      ...(withForm ? [['an answer typed', { formValues: { file: { note: 'Typed' } } }]] : []),
+    ]) {
+      const { bytes: output, notes } = await exported(bytes, { pages: pagesOf(), ...state });
+      assert.deepEqual(
+        await labels(output),
+        ['i', 'ii', 'iii'],
+        `${kind}, ${what}: the page labels are kept`,
+      );
+      assert.deepEqual(notes, [], `${kind}, ${what}: nothing is left out`);
+      const form = (await PDFDocument.load(output)).getForm();
+      assert.equal(form.getFields().length, withForm ? 1 : 0, `${kind}, ${what}: the form is kept`);
+      if (what === 'an answer typed') assert.equal(form.getTextField('note').getText(), 'Typed');
+    }
+    // The first page turned: it is one object with the third, and only the first turns.
+    const turned = { pages: [{ ...pagesOf()[0], rotation: 90 }, ...pagesOf().slice(1)] };
+    if (withForm) {
+      await assert.rejects(
+        exported(bytes, turned),
+        /One page of this PDF is in it twice, so its pages have to be copied to be edited, and a form’s pages can only be copied once its fields are flattened\./,
+        'with a form: the refusal says what is the matter with this file',
+      );
+      // Pages removed: the usual refusal.
+      await assert.rejects(
+        exported(bytes, { pages: pagesOf().slice(0, 2) }),
+        /Pages of a PDF with form fields can only be combined, duplicated or extracted/,
+      );
+    }
+    const { bytes: output, notes } = await exported(bytes, { ...turned, flattenForms: withForm });
+    assert.deepEqual(
+      await turns(output),
+      [90, 0, 0],
+      `${kind}: the first page is turned once, the third not at all`,
+    );
+    assert.deepEqual(notes, ['labels-dropped'], `${kind}: a copy, which says what it leaves out`);
+    // Numbered: each page has its own number, and only its own.
+    const { bytes: numbered } = await exported(bytes, {
+      pages: pagesOf(),
+      flattenForms: withForm,
+      pageNumbers: stamps.pageNumbers,
+    });
+    assert.deepEqual(
+      (await read(numbered)).map((page) => page.texts.filter((text) => text.startsWith('Page'))),
+      [['Page 1 of 3'], ['Page 2 of 3'], ['Page 3 of 3']],
+      `${kind}: page numbers`,
+    );
+  }
+});

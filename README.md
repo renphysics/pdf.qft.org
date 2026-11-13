@@ -506,9 +506,11 @@ own bookmarks under it; blank pages and pictures get none. Layer settings come a
 content on a hidden layer stays hidden, and combined PDFs list every PDF's layers.
 Each copy of a duplicated page is a page of its own (`separatePages`): what is
 added to one copy shows on that copy only, and each has its own annotations. A
-PDF whose page tree lists one page twice is copied in the same way whenever it
-is edited, as its two pages are one page in the file and an edit made in place
-would land on both (so, with form fields, it needs them flattened too). Not
+PDF whose page tree lists one page twice is copied in the same way once
+something is done to its pages or drawn on them, as its two pages are one page
+in the file and an edit made in place would land on both (so, with form fields,
+it then needs them flattened, and the refusal says why). Left alone (a new
+title, a password, answers typed into its form), it is kept as it is. Not
 carried over: page labels other than plain numbers from 1, file attachments and
 tags (the structure screen readers use); the download message says when a copy
 leaves any of these out. Edits that keep every page of one PDF exactly once
@@ -868,10 +870,11 @@ PDF that needs a password reports that it should be unlocked first.
 written outside object streams (the catalog's language, page dictionaries,
 stream dictionaries), which readers then decrypt into garbage.
 `encryptStringsWhenSaving` in `pdf-engine.js` encrypts those strings too; the
-engine tests check the result with PDF.js. It also decrypts a cross-reference
-stream, which is never encrypted, and so loses the trailer of an encrypted file
-that has one (every file Protect PDF writes): the document's title, author and
-the rest, and its identifier. `restoreTrailer` reads them from the file again
+engine tests check the result with PDF.js. `@cantoo/pdf-lib` also decrypts a
+cross-reference stream, which is never encrypted. A compressed one then cannot
+be read, and the trailer it carries is lost (every file Protect PDF writes has
+one, as most files with such a stream do): the document's title, author and the
+rest, and its identifier. `restoreTrailer` reads them from the file again
 without decrypting; the engine tests protect a titled PDF, unlock it and read
 the title back. The password test fixtures are
 encrypted by pypdf (`scripts/make-encrypted-fixtures.py`), not by the library

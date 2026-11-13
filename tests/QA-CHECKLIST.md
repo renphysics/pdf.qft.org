@@ -1045,12 +1045,11 @@ source review does not replace the owner’s browser verification.
   test per file: 344 tests in 20 suites, in about 7 seconds, and
   `--test-name-pattern` picks an operation or a file. (Subtests of a test would
   not do: a file's name does not reach a subtest whose test it does not name.)
-  Each download is read back
-  with PDF.js (pages, texts and not another page's, sizes, turns, links, notes,
-  fields, outline, labels, title, a hidden layer drawn without its red square)
-  and with pdf-lib (the names in each page's resources), and its size must
-  grow with its pages. The writer is the one `tests/odd-inputs.test.mjs` uses
-  now too.
+  Each download is read back with PDF.js (pages, texts and not another page's,
+  sizes, turns, units, links, notes, fields, outline, labels, title, a hidden
+  layer drawn without its red square) and with pdf-lib (the names in each
+  page's resources), and its size must grow with its pages. The writer is the
+  one `tests/odd-inputs.test.mjs` uses now too.
 - The files are fair: PDF.js, pypdf (strict), PyMuPDF and poppler read each of
   them alike, and agree on every download, checked once by hand with the
   scout's runner. Two candidates were left out because the readers disagree on
@@ -1066,12 +1065,14 @@ source review does not replace the owner’s browser verification.
   both its pages numbered “Page 1 of 3” and “Page 3 of 3”. The editor showed
   three pages. The engine edited in place when no page index came twice; it
   now asks that no page object comes twice, and copies such a file, as it
-  copies a duplicated page.
+  copies a duplicated page, once something is done to its pages or drawn on
+  them (see the review below).
 - Unlock PDF, and every edit of a protected PDF, dropped the title, author and
   the rest, and the file identifier. pdf-lib 2.11.1 decrypts a cross-reference
-  stream, which is never encrypted, and loses the trailer it carries; every
-  file Protect PDF writes has one, and the five password fixtures do not, as
-  pypdf wrote them with tables. `restoreTrailer` reads the trailer again
+  stream, which is never encrypted; a compressed one then cannot be read, and
+  the trailer it carries is lost. Every file Protect PDF writes has one, and
+  the five password fixtures do not, as pypdf wrote them with tables.
+  `restoreTrailer` reads the trailer again
   without decrypting, for encrypted files only. A new engine test protects a
   titled PDF with Protect, unlocks it and reads the title with PDF.js; it also
   checks AES-128 and RC4 files with a cross-reference stream, a wrong
@@ -1081,6 +1082,27 @@ source review does not replace the owner’s browser verification.
   the identifier, first got through: the check read it with pdf-lib, which
   found it in the old cross-reference stream that the unlocked copy still
   holds as a loose object. The check now takes PDF.js's fingerprint.
+- A review of this section's commit (one reviewer, who ran the outside readers
+  again and tried seven breakages of its own), fixed before merging:
+  - With the fix above, a file that lists a page twice and has a form could not
+    be downloaded at all, even unchanged, and the refusal spoke of combining
+    pages; without a form, a new title alone cost it its page labels. Such a
+    file is now copied only once something is done to its pages or drawn on
+    them. Left alone it is kept as it is, and with a form the refusal says that
+    one page is in the file twice (test: both kinds, left alone, turned,
+    numbered).
+  - What makes a file odd could be lost from the writer with every test still
+    passing: the page in units of two points, the object streams, the odd
+    syntax. Each such file now has signs its bytes must show, and the unit of
+    every page is read back after every operation.
+  - A size inherited from a node of the page tree, lost on reordering, got past
+    this suite (the older one caught it): every page that inherited a size also
+    had a crop inside it. The nested tree has a page now whose crop reaches
+    past its inherited size.
+  - A protected file with a cross-reference table is read once (checked), and
+    the cause of the lost title is stated as narrowly as it is: a compressed
+    cross-reference stream.
+  - 15 breakages of these fixes, each applied alone, each caught.
 
 ## The tool search: one plain sentence where no tool does it — 2026-11-13
 

@@ -73,6 +73,7 @@ async function read(bytes, password) {
         width: page.view[2] - page.view[0],
         height: page.view[3] - page.view[1],
         rotate: page.rotate,
+        unit: page.userUnit,
         links: await Promise.all(
           annotations.filter((item) => item.subtype === 'Link').map((item) => target(item.dest)),
         ),
@@ -182,6 +183,7 @@ async function invariants(where, bytes, expect, source) {
         `${at}: shows ${page.width.toFixed(2)} × ${page.height.toFixed(2)}, not ${want.w} × ${want.h}`,
       );
     if (want.rotate !== undefined) assert.equal(page.rotate, want.rotate, `${at}: the turn`);
+    if (want.unit !== undefined) assert.equal(page.unit, want.unit, `${at}: the size of its unit, in points`);
     if (expect.links) assert.deepEqual(page.links, expect.links[index], `${at}: the pages its links lead to`);
     if (expect.notes) assert.equal(page.notes, expect.notes[index], `${at}: its notes`);
   });
@@ -241,8 +243,8 @@ function expected(entry, plan, output) {
   const pages =
     output.pages ??
     order.map((index, position) => {
-      const { texts, box, rotate, family } = source.pages[index];
-      const shown = { texts, family, w: box[2] - box[0], h: box[3] - box[1], rotate };
+      const { texts, box, rotate, family, userUnit = 1 } = source.pages[index];
+      const shown = { texts, family, w: box[2] - box[0], h: box[3] - box[1], rotate, unit: userUnit };
       return { ...shown, ...plan.change?.(shown, { position, count: order.length, index }) };
     });
   const flattened = Boolean(plan.settings?.flattenForms);
@@ -359,7 +361,8 @@ const OPERATIONS = {
       const turned = shown.rotate % 180 !== 0,
         [across, down] = turned ? [shown.h, shown.w] : [shown.w, shown.h],
         [width, height] = across > down ? [841.89, 595.28] : [595.28, 841.89];
-      return turned ? { w: height, h: width } : { w: width, h: height };
+      // A sheet is measured in points, whatever the page's unit was.
+      return { ...(turned ? { w: height, h: width } : { w: width, h: height }), unit: 1 };
     },
   }),
   stamps: () => ({
@@ -522,7 +525,13 @@ describe('the files are what the catalogue says', () => {
   // for (a crop left reaching past the media, a lost page) fails here, not as a
   // fault of the engine.
   for (const entry of catalogue)
-    test(entry.name, () => invariants(`${entry.name}, as written`, entry.bytes, expected(entry, {}, {})));
+    test(entry.name, async () => {
+      await invariants(`${entry.name}, as written`, entry.bytes, expected(entry, {}, {}));
+      // And it is odd in the way the catalogue says: PDF.js shows the same pages without that.
+      const written = Buffer.from(entry.bytes).toString('latin1');
+      for (const sign of entry.signs ?? [])
+        assert.match(written, sign, `${entry.name}: the file is no longer odd in the way it is listed for`);
+    });
 });
 
 for (const [operation, plan] of Object.entries(OPERATIONS)) {

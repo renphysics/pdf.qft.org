@@ -2254,6 +2254,13 @@ await test('unlocking keeps the title: protected files whose cross-reference is 
     readings = 0;
     assert.equal((await openPdf(await made('Plain'))).details.title, 'Plain');
     assert.equal(readings, 1, 'a file that is not encrypted is read once');
+    // So is a protected file whose cross-reference is a table: its trailer is never lost.
+    readings = 0;
+    const table = await openPdf(new Uint8Array(await readFile(fixturePath('password-aes128.pdf'))), {
+      password: 'open sesame',
+    });
+    assert.equal(table.details.title, 'Locked report');
+    assert.equal(readings, 1, 'a protected file with a cross-reference table is read once');
   } finally {
     PDFDocument.load = load;
   }

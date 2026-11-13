@@ -273,15 +273,15 @@ function nestedTree() {
       ['cat', '<< /Type /Catalog /Pages @root >>'],
       [
         'root',
-        '<< /Type /Pages /Kids [@A @B] /Count 4 /MediaBox [0 0 600 800] /Resources << /Font << /F1 @f1 >> >> >>',
+        '<< /Type /Pages /Kids [@A @B] /Count 5 /MediaBox [0 0 600 800] /Resources << /Font << /F1 @f1 >> >> >>',
       ],
       [
         'A',
-        `<< /Type /Pages /Parent @root /Kids [@p1 @A2] /Count 3 /Rotate 90 /CropBox [${crop.join(' ')}] >>`,
+        `<< /Type /Pages /Parent @root /Kids [@p1 @A2] /Count 4 /Rotate 90 /CropBox [${crop.join(' ')}] >>`,
       ],
       [
         'A2',
-        '<< /Type /Pages /Parent @A /Kids [@p2 @p3] /Count 2 /MediaBox [0 0 300 400] /Resources << /Font << /F1 @f2 >> >> >>',
+        '<< /Type /Pages /Parent @A /Kids [@p2 @p3 @p5] /Count 3 /MediaBox [0 0 300 400] /Resources << /Font << /F1 @f2 >> >> >>',
       ],
       ['B', '<< /Type /Pages /Parent @root /Kids [@p4] /Count 1 >>'],
       ['f1', helvetica],
@@ -290,17 +290,23 @@ function nestedTree() {
       ['p2', '<< /Type /Page /Parent @A2 /Contents @c2 >>'],
       ['p3', '<< /Type /Page /Parent @A2 /Rotate 0 /CropBox [0 0 300 400] /Contents @c3 >>'],
       ['p4', '<< /Type /Page /Parent @B /MediaBox [0 0 200 200] /Rotate 180 /Contents @c4 >>'],
+      // Its size is A2's alone: its own crop reaches past it on every side, so
+      // with the size of the root it would show 510 by 710 points.
+      ['p5', '<< /Type /Page /Parent @A2 /Rotate 0 /CropBox [-10 -10 500 700] /Contents @c5 >>'],
       ['c1', { data: text('NT-1', crop) }],
       ['c2', { data: text('NT-2', crop) }],
       ['c3', { data: text('NT-3', [0, 0, 300, 400]) }],
       ['c4', { data: text('NT-4', [0, 0, 200, 200], 'F1', 10) }],
+      ['c5', { data: text('NT-5', [0, 0, 300, 400]) }],
     ],
     pages: [
       page(['NT-1'], crop, 90, { family: 'sans-serif' }),
       page(['NT-2'], crop, 90, { family: 'serif' }),
       page(['NT-3'], [0, 0, 300, 400], 0, { family: 'serif' }),
+      page(['NT-5'], [0, 0, 300, 400], 0, { family: 'serif' }),
       page(['NT-4'], [0, 0, 200, 200], 180, { family: 'sans-serif' }),
     ],
+    signs: [/\/Type \/Pages \/Parent \d+ 0 R/],
   };
 }
 
@@ -364,6 +370,7 @@ function kidsTwice() {
   return {
     name: 'kids-twice',
     odd: 'one page object listed twice in the page tree: three pages, of which the first and the third are one',
+    signs: [/\/Kids \[(\d+) 0 R \d+ 0 R \1 0 R\]/],
     objects,
     pages: [page(['KT-1'], A), page(['KT-2'], A), page(['KT-1'], A)],
   };
@@ -405,6 +412,7 @@ function oddBoxes() {
   return {
     name: 'odd-boxes',
     odd: 'a MediaBox away from 0 0, one with its corners reversed, one in real numbers, one that is an object of its own, and a page with UserUnit 2',
+    signs: [/\/UserUnit 2/, /\/MediaBox \d+ 0 R/],
     objects,
     pages: [
       ...boxes.map((box, index) => page([`OB-${index + 1}`], upright(box))),
@@ -710,9 +718,10 @@ function nestedPictures() {
 
 /**
  * The files, each with what PDF.js shows of it: per page, the texts (and the
- * kind of font of the first), the visible box and the turn; and, where the file
- * has them, links, notes, fields, an outline, page labels, a title and a hidden
- * layer. `bytes` are the file.
+ * kind of font of the first), the visible box, the turn and the unit; and,
+ * where the file has them, links, notes, fields, an outline, page labels, a
+ * title and a hidden layer. `signs` are what makes a file odd, as its bytes
+ * show it: the writer cannot lose it unnoticed. `bytes` are the file.
  */
 export const catalogue = [
   sharing('shared-parts', 'SP', 'parts'),
@@ -733,13 +742,22 @@ export const catalogue = [
     ...plainPages('ST', 3),
     name: 'object-streams',
     odd: 'every object that is not a stream inside an object stream, and a cross-reference stream',
+    signs: [/\/Type \/ObjStm/, /\/Type \/XRef/],
     options: { objectStreams: true, header: '%PDF-1.5' },
   },
   twoRevisions(),
   {
     ...plainPages('SX', 3),
     name: 'odd-syntax',
-    odd: 'CR line endings only, comments after objects, tabs and form feeds between tokens, every stream Length an object written after the stream, and 500 bytes after the end',
+    odd: 'CR line endings only, comments after objects, tabs and form feeds between tokens, every stream Length an object written after the stream, and about 500 bytes after the end',
+    // A lone CR after "endobj"; a comment after an object's first line, with odd
+    // whitespace in it; a Length that is a reference; the bytes after the end.
+    signs: [
+      /endobj\r(?!\n)/,
+      /\d \t\f 0 \t\f obj % \w+\r/,
+      /\/Length \d+ 0 R/,
+      /%%EOF\r?\n(trailing bytes ){33}\n$/,
+    ],
     options: { eol: '\r', comments: true, lengthRef: true, suffix: `\n${'trailing bytes '.repeat(33)}\n` },
   },
   oddContent(),

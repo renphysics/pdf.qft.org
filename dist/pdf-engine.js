@@ -248,10 +248,11 @@ export async function loadPdf(bytes, password = '') {
  * Give a decrypted document back the Info (its title, author and the rest) and
  * the ID that its file's trailer names. @cantoo/pdf-lib 2.11.1 decrypts every
  * stream it parses, a cross-reference stream too, which is never encrypted
- * (PDFObjectParser.js, parseDictOrStream). The garbled stream is not read as
- * a cross-reference, so the trailer it carries is lost: Unlock PDF, and every
- * edit of a protected PDF, dropped the document's details. Every file that
- * Protect PDF writes has such a stream. Read without decrypting, the trailer
+ * (PDFObjectParser.js, parseDictOrStream). A compressed one no longer inflates
+ * and is not read as a cross-reference, so the trailer it carries is lost:
+ * Unlock PDF, and every edit of a protected PDF, dropped the document's
+ * details. Every file that Protect PDF writes has such a stream, as most
+ * files with a cross-reference stream do. Read without decrypting, the trailer
  * is whole; its Info is a reference, which the decrypted document resolves.
  * Remove this once pdf-lib keeps the trailer of an encrypted file with a
  * cross-reference stream (tests/engine.test.mjs, "unlocking keeps the title").
@@ -2114,11 +2115,26 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   }
   onProgress(0.1);
   const oneSource = needed.length === 1;
-  // By page object, not by index: a page tree can list one page twice, and its two
-  // indexes are then one page, which an edit in place would turn, crop and number twice.
-  const noDuplicates =
-    new Set(descriptors.map((page) => loaded.get(page.sourceId).getPages()[page.index])).size ===
-    descriptors.length;
+  const repeats = (key) => new Set(descriptors.map(key)).size !== descriptors.length;
+  // A page tree can list one page twice. Its two indexes are then one page, and
+  // what an edit in place does to it, it does twice: a turn of 90 degrees came
+  // out as 180, and each of the two pages got both page numbers. Such a file is
+  // copied, like one with a page duplicated here, once something is done to its
+  // pages or drawn on them. Left alone (a new title, a password, answers typed
+  // into its form), it is kept as it is, with its form and its page labels.
+  const listedTwice =
+    repeats((page) => loaded.get(page.sourceId).getPages()[page.index]) &&
+    (descriptors.some(
+      (page) =>
+        page.rotation ||
+        page.crop ||
+        page.paper ||
+        (state.annotations || []).some((annotation) => annotation.pageId === page.id),
+    ) ||
+      [state.watermark, state.headerFooter, state.pageNumbers].some((setting) =>
+        descriptors.some((page) => applies(setting, page.id)),
+      ));
+  const noDuplicates = !repeats((page) => `${page.sourceId}:${page.index}`) && !listedTwice;
   let doc;
   let outputPages;
   // The PDF/A part the kept document declares. Copied pages start a fresh,
@@ -2155,7 +2171,10 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
     for (const source of loaded.values()) {
       if (hasAcroForm(source) && source.getForm().getFields().length)
         throw new Error(
-          'Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
+          // Nothing was combined or removed: the file itself has one page twice.
+          completeSource && listedTwice
+            ? 'One page of this PDF is in it twice, so its pages have to be copied to be edited, and a form’s pages can only be copied once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.'
+            : 'Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
         );
     }
     doc = await lib.PDFDocument.create();
