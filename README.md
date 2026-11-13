@@ -31,8 +31,11 @@ built copy (the committed sources stay unversioned). GitHub Pages lets browsers
 cache every file for ten minutes under an unchanging URL, so without this a
 normal reload just after a deploy could pair the new page with the previous
 release's scripts. First-party files share one release id derived from their
-contents; each engine bundle is versioned by its own bytes, so it is downloaded
-again only when it changes. `tests/release-stamp.test.mjs` keeps the script in
+contents and from the ids of the engines and fonts they name; each engine
+bundle is versioned by its own bytes, so it is downloaded again only when it
+changes. (An update of an engine alone is therefore a release of its own: the
+modules that name the engine change with it, and the check after a deploy can
+tell the new site from the old.) `tests/release-stamp.test.mjs` keeps the script in
 step with the sources, and runs the site-integrity suite on a stamped copy, as
 the Pages workflow does before it deploys. No server, API keys, or external
 document-processing service is needed.
@@ -66,7 +69,10 @@ Every merge to `main` starts **Deploy QFT PDF to GitHub Pages** (in the
    holds the browsers and what they need, so nothing is installed from an
    Ubuntu mirror. A first small job reads the Playwright version from
    `package-lock.json` and picks the image of that version, so a Dependabot
-   update of Playwright needs nothing else.
+   update of Playwright needs nothing else. (If the browser jobs of such an
+   update fail at "Initialize containers" with "manifest unknown", Playwright's
+   image of that version is not published yet: re-run the jobs a few hours
+   later.)
 2. **build**: versions a copy of `dist/` for this release (above), checks it,
    and uploads it.
 3. **deploy**: GitHub puts the upload on the site.
@@ -74,22 +80,27 @@ Every merge to `main` starts **Deploy QFT PDF to GitHub Pages** (in the
    (`scripts/check-live-release.mjs`). It asks every ten seconds for up to
    eleven minutes, as GitHub Pages lets caches keep a file for ten.
 
-A run takes about seven minutes. One runs at a time. A run still waiting gives
-way to a newer one, so after several quick merges the last is deployed and the
-ones between show as cancelled.
+A run takes about ten minutes, most of it the browser tests, and up to twenty
+when live has to wait for caches. One runs at a time, and a run that has
+started is never cancelled. A run still waiting gives way to a newer one, so
+after several quick merges the last is deployed and the ones between show as
+cancelled.
 
 ### When a deploy goes wrong
 
 Open the run in the **Actions** tab. A red cross or a grey "cancelled" on
 tests, build or deploy means the site was not updated: it still serves the
 previous release. A red cross on live means the files were deployed but the
-site was not seen to serve them; its log says what the site served instead.
-Nothing is rolled back on its own.
+site was not seen to serve them; the error at the top of the run's page says
+what the site served instead. Nothing is rolled back on its own.
 
 - A failure that looks like chance (a network error, a time-out, a test that
   passes on your machine): open the run and choose **Re-run jobs → Re-run
   failed jobs**. It runs the same commit again. When only live failed, this
-  asks the site again and changes nothing on it.
+  asks the site again and changes nothing on it. Do this for the latest run
+  only: if a newer run has finished since, leave this one alone. The newer
+  run is what the site serves, and re-running an older deploy would put older
+  code back.
 - Cancelled, with a newer run after it: nothing to do. The newer run deploys
   the newer code.
 - A change that broke the site: revert it. On the merged pull request's page,
@@ -309,7 +320,9 @@ asks for `editor.js` first and, at the same moment, for all the editor's other
 modules: the page holds their links in a `<template id="warm-editor">`, which
 `app.js` puts in the page (`warmUp`), so they download together and not one
 level of imports after another. A visitor who only reads the page downloads
-none of the editor's 490 KB (155 KB compressed). `editor.js` starts the editor (the actions
+none of the editor's 490 KB (155 KB compressed). (The batch page is the
+exception: its workspace is part of the editor, which it loads at once.)
+`editor.js` starts the editor (the actions
 behind buttons, what is redrawn after a change, listeners), and the rest lives
 in `editor-core.js` (state, helpers and messages; it imports no other editor
 module, so every module can use it as they load), `history.js` (edit history:
@@ -358,7 +371,13 @@ editor's. A visitor who has asked the browser to save data (Save-Data, which
 only Chromium-based browsers report) gets the editor on such a sign, and the
 engines only once a file or the sample is opened. The PDF.js worker is not asked for early:
 WebKit would download it twice. Neither the editor nor an engine is downloaded
-while a visitor only reads the page, however long they stay. The package
+while a visitor only reads the page, however long they stay (but for the batch
+page, above). Two costs of asking early are accepted. On a slow connection the
+browser's console may say that a file was "preloaded but not used" within a
+few seconds: the editor, which uses it, was still on its way, and nothing is
+downloaded twice. And a page left open across a deploy asks for the editor's
+modules of its own release, finds the new release's editor, and reloads on the
+visitor's next step: about 150 KB fetched for nothing, once. The package
 manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
@@ -716,23 +735,35 @@ headers, footers and page numbers; an item records the sheet it was placed on
 The download scales everything on the page by one matrix (`fitToSheet` in
 `pdf-engine.js`): the content, and the page's comments, links and form fields,
 with every position they keep, their border widths and the text size a reader
-types with. Links, bookmarks and named destinations that lead to a place on the
+types with. What is moved is written anew for each comment (`moveAnnotation`),
+never changed where it is: a page duplicated in the editor shares its
+comments' rectangles and borders with its copy, and files share them between
+comments, so each would otherwise move once for every page that holds it.
+Links, bookmarks and named destinations that lead to a place on the
 page lead to the same place on the sheet. Text stays text. The page's `/Rotate`
 stays, its boxes become the sheet, and a `/UserUnit` goes. The sheet is blank
 beside the page even where the PDF has content there. Comments, links and
 fields that lay wholly outside what the page showed are hidden there (the
 annotation flag Hidden), and one that lay across the edge is cut at it: each of
-its appearances is put inside one that clips (`clipAnnotation`). Added margins
-do the same. pdf-lib's own
+its appearances is put inside one that clips (`clipAnnotation`), and a link,
+which is a place to click, has its rectangle cut as well. Added margins
+do the same. PDF/A forbids the Hidden flag, so a PDF/A file in which something
+had to be hidden stops declaring PDF/A, and the download says why; resized
+with nothing out of sight, it is PDF/A still. pdf-lib's own
 `PDFPage.scale` is not used: it scales about the origin of the page's
 coordinates and moves nothing, so pages with boxes away from the origin end up
 off their sheet, and it leaves destinations, border widths and text sizes as
 they were.
 
-Known limits: a comment without an appearance of its own, which each viewer
+Known limits: A4 and Letter are the only papers; pages added after a resize
+keep their own size until they are resized too (the panel says so); a comment
+without an appearance of its own, which each viewer
 draws in its own way, cannot be cut at the edge of what a page shows, nor can a
 note that keeps its size whatever the page does; rich-text comments keep the
-text size in their own markup; an item placed before a page was resized or
+text size in their own markup; a few things that point at a place on a page
+keep its old coordinates (an action that runs after another, or when a page or
+a field is entered; article threads; the scales of measuring tools); an item
+placed before a page was resized or
 given margins stays within the page as it was, and cannot be dragged onto the
 blank beside it; margins added to a resized picture page do not keep their size
 when the picture is laid out again (JPG to PDF's paper size); batch presets
@@ -872,9 +903,10 @@ stream dictionaries), which readers then decrypt into garbage.
 `encryptStringsWhenSaving` in `pdf-engine.js` encrypts those strings too; the
 engine tests check the result with PDF.js. `@cantoo/pdf-lib` also decrypts a
 cross-reference stream, which is never encrypted. A compressed one then cannot
-be read, and the trailer it carries is lost (every file Protect PDF writes has
-one, as most files with such a stream do): the document's title, author and the
-rest, and its identifier. `restoreTrailer` reads them from the file again
+be read, and the trailer it carries is lost: the document's title, author and
+the rest, and its identifier. (Every file Protect PDF writes has such a stream,
+compressed, as most files with a cross-reference stream do.) `restoreTrailer`
+reads them from the file again
 without decrypting; the engine tests protect a titled PDF, unlock it and read
 the title back. The password test fixtures are
 encrypted by pypdf (`scripts/make-encrypted-fixtures.py`), not by the library

@@ -1033,6 +1033,52 @@ source review does not replace the owner’s browser verification.
   Not changed, and listed under the limits: an item placed before a resize
   cannot be dragged onto the blank of its sheet; margins on a resized picture
   page.
+- A review of the download, by a reviewer who placed a mark on 1,296 pages
+  (three sets of boxes, four turns of the file, three in the editor, crops,
+  margins, units of one and two points, both papers) and a comment on 384, and
+  found each where the geometry says, within 2 pixels. It found five other
+  things. Fixed:
+  - Comments on a page that was duplicated, or listed twice by its file, moved
+    twice when the page went on a sheet (a square 70 points from where its page
+    had it), and a duplicate left without a sheet had its comments moved to its
+    twin's. A copy of a page shares its comments' rectangles, corner lists and
+    border styles with the page, and they were changed where they were. What is
+    moved is now written anew for each comment. The same held for a border
+    style or a border that two comments of one file share: it was scaled once
+    for each. A field that two pages list moves once.
+  - On a PDF/A file, a comment out of sight was given the Hidden flag, which
+    PDF/A forbids, and the file went on declaring PDF/A. It stops declaring it,
+    and the download says why (“comments, links or fields outside the visible
+    page were hidden, which PDF/A doesn’t allow”). Add margins did the same
+    since the first review above. A PDF/A file resized with nothing out of
+    sight is PDF/A still.
+  - A link across the edge of what a page shows stayed a place to click in the
+    blank of the sheet or the margin: a link has nothing drawn to cut. Its
+    rectangle ends at the edge now, and its corner list goes with it.
+  - 21 of the reviewer's 39 breakages passed every test: places a link can
+    name (a height, a height or an edge of what the page holds), where the
+    document opens written as an action, a named place kept in a dictionary or
+    in a name tree, a bookmark inside another, a polygon's corners, a callout
+    line, the steps of a path, a line's leader lengths, the dashes of a border,
+    a field's text size kept two fields up or by the form, the trim, bleed and
+    art boxes, the half millimetre within which a page counts as the paper, the
+    looks of a comment under the pointer and pressed, a note that keeps its
+    size, a comment that only touches the edge, and a page listed twice on two
+    papers. Each has a test now. 33 breakages, those and the fixes', each
+    applied alone: 33 caught.
+  Not changed, and listed under the limits: an action that runs after another,
+  or when a page or a field is entered, an article thread and the scale of a
+  measuring tool keep a page's old coordinates.
+- A review of the words found the pages saying two things at once. Add margins
+  said “nothing on it moves or shrinks” and, of a resized page, “the page is
+  made smaller”; the hint now says which pages it means, and the page's own
+  answer names the exception. The Resize page said “US Letter” once and
+  “Letter” everywhere else, used “the size you chose” for a text size and then
+  for a paper, and said the file's size does not change (it grows a little).
+  It now says which papers there are and that pages added later keep their own
+  size, which the panel says too. “These pages have their own size” was said
+  of one page. The refusal for a page a file lists twice is in plainer words.
+  Six breakages of these sentences, each applied alone, were each caught.
 
 ## Odd PDFs through every operation, a page listed twice, the title of an unlocked file — 2026-11-13
 
@@ -1121,24 +1167,25 @@ source review does not replace the owner’s browser verification.
   the tool in place.
 - A search finds a card when each word typed is the start of a word of its
   name, copy, keywords or category: “word” no longer finds “password”, and
-  “edit” finds the seven cards under Edit & annotate. “pdf”, “to”, “the” and
+  “edit” finds the eight cards under Edit & annotate. “pdf”, “to”, “the” and
   such are left out (“rotate pdf” found nothing), and a word ending in one “s”
   also counts without it (“number pages”, “sheets”). New keywords where a
   plain search found nothing: add, mark, scan, insert, drawing. Measured on
-  274 searches (every card name, tab label and keyword, and likely searches):
-  80 found nothing before, 10 now (resize, scale, translate and the like),
-  and 44 bring a sentence; 54 show other cards than before, and in the 8 that
-  lost a card, none was a match anyone wanted (“pen” in “open”, “lock” in
-  “unlock”, “move” in “remove”, “word” in “password”).
+  298 searches (every card name, tab label and keyword, and likely searches),
+  after the review below: 99 found nothing before, 8 now (translate, repair,
+  compare, extract text and the like), and 43 bring a sentence; 90 show other
+  cards than before, and in the 9 that lost a card, none was a match anyone
+  wanted (“pen” in “open”, “lock” in “unlock”, “move” in “remove”, “word” in
+  “password”, “us” in “just”).
 - On a tool page, its own card is not in the grid, so a search for it found
   nothing (and “No tools match” on Crop PDF suggested “crop”). It now says
-  “This page is Crop PDF: choose a PDF above.”, in the words of the page’s
+  “You are on Crop PDF: choose a PDF above.”, in the words of the page’s
   own button (“choose pictures” on JPG to PDF, “choose PDFs to merge” on
   Merge), and with a document open, a link takes the document to the tool.
 - A dead end, a sentence or “No tools match”, is said to a screen reader once,
   700 ms after typing stops; cards that match are not said.
-- The help and two FAQs say it too: Delete pages makes a copy smaller by what
-  only the deleted pages used, and nothing else is compressed; scans in JPG
+- The help and two FAQs say it too: Delete pages often makes a copy smaller,
+  by what only the deleted pages used, and compresses nothing; scans in JPG
   to PDF are not searchable.
 - Tests. `tests/search.test.mjs` checks which cards searches find, that every
   card is found by its name, tab label, keywords and category, and that each
@@ -1153,6 +1200,39 @@ source review does not replace the owner’s browser verification.
 - Firefox crashes when axe runs on a tool page’s landing with a document open
   (Crop PDF, or Add text after a tool was used), on the code before this
   change too; axe is not run there.
+- A review tried over 150 searches and found every sentence true. Fixed:
+  - A second search that found nothing, typed straight over the first, was not
+    said to a screen reader: “No tools match” reads the same each time, and
+    was said only when it was new. Silence then sounded like cards found. Each
+    dead end is now its own.
+  - A sentence still waiting to be said was said inside the editor, after
+    “Your PDF is ready”, when the visitor had opened a file at once. A click
+    anywhere else, or a dropped file, drops it.
+  - The forms of a word found nothing: merging, merger, splitting, cropping,
+    rotation, signing. A card's word now counts with the ending of a verb or a
+    noun (-ing, -ed, -er, -or, -ion), whole or still being typed, so the card
+    stays while “splitting” is typed past “split”. New keywords: electronic,
+    bulk, organise, rearrange, sort; and for Resize pages a3, a5, legal,
+    larger, smaller, file.
+  - “doc” brought the sentence about Word while “document” was being typed,
+    and “merge docs” brought it above Merge. “doc” and “docs” bring it only
+    beside another word now (“pdf to doc”, “google docs”).
+  - On a tool page a sentence's link to that page's own tool loaded the page
+    again and emptied the search; the tool is named there without a link.
+  - “pdf size” and “resize pdf file” ended at cards or at nothing; they bring
+    the sentence about compressing, with Resize pages under it.
+  - The Delete pages answer said “Yes” to a smaller file. A copy is written
+    anew, and for 30 pages of plain text it came out larger with one page
+    deleted (84,108 bytes for 82,977). It says “Often” now, and why not always.
+  - No test read the sentences that say what the site does not do, outside the
+    search: an answer changed to “Yes. Resizing compresses the file.” passed
+    every suite. A test now reads every page and every sentence the editor
+    holds: one that names compressing, OCR, redacting, Word, Excel or
+    PowerPoint has to say the site does not do it. The five sentences the
+    owner named are kept word for word.
+  25 breakages of these fixes, each applied alone, were each caught.
+  Left as it is: “annotate” shows the eight cards under Edit & annotate, as
+  the filter of that name does.
 
 ## First open on a slow connection: the editor and the engines in one wave — 2026-11-13
 
@@ -1199,6 +1279,18 @@ source review does not replace the owner’s browser verification.
   caught; one of them, pdf-lib's link with `crossorigin`, only in Chromium and
   Firefox (WebKit still asked for the file once) and by the site-integrity
   suite.
+- A review counted the requests itself: a click at once, a hover and a click 8
+  seconds later, the keyboard, a tap on a phone, and the stamped copy, in
+  Chromium, WebKit and Firefox: 35 scripts, each once, and none before intent.
+  It measured again, in turn, 7 runs: 6553 → 6339 ms at 1.6 Mbit/s, close to
+  the figure above. Said plainly: a visitor who opens the sample at once waits
+  0.2 to 0.3 seconds less out of 6.5 on a fast connection and about 0.6 out of
+  24 on a slow one. The engines start much sooner, but the 1.1 MB still has to
+  arrive. Two costs it found are accepted and written in the README: on a slow
+  connection the console may say a file was “preloaded but not used” within a
+  few seconds, and a page left open across a deploy fetches about 150 KB of
+  its old release's modules for nothing before it reloads. The README did not
+  say that the batch page loads the editor at once; it does now.
 
 ## Deploys that do not wait on a package mirror — 2026-11-13
 
@@ -1217,7 +1309,7 @@ source review does not replace the owner’s browser verification.
   job reads the version from `package-lock.json`, so a Dependabot update of
   Playwright brings its image along. The tag is not pinned by its digest: the
   image is Microsoft's, who published the browsers the jobs downloaded before,
-  and the jobs that run it only read the repository and get no secrets. The
+  and the jobs that run it get a read-only token and no secrets. The
   WebKit in the image is the one the jobs installed, file for file (36 of 36).
   A usual run is not expected to be faster (pulling the image is reported to
   take about as long as the install usually did); the long waits go.
@@ -1254,3 +1346,43 @@ source review does not replace the owner’s browser verification.
 - The manual check after each deploy stays (“Deploy check: reload after a
   release”): the live job asks with new addresses, not as a tab opened before
   the deploy does.
+- A review read the deploy workflow as the first deploy will run it, and found
+  nothing wrong in it. It found, and these are fixed:
+  - The release id was a hash of the site's own files, so an update of PDF.js
+    or pdf-lib alone kept the id, and the live check passed against the old
+    site: on the very deploy (a security update of an engine) where its answer
+    matters most. The id now covers the engines and the fonts. That is right
+    for visitors too: the modules that name an engine change with it, and
+    under one id a browser could keep the module that names the engine before.
+  - The failure showed on the run's page as a line ending in “What it
+    served:”, with the evidence in the log below. The evidence and “What to
+    do: README, "When a deploy goes wrong"” are in the annotation now, and a
+    request that failed names its address.
+  - The workflow test let the live job be switched off unseen: `|| true` after
+    the check, `continue-on-error`, `if: always()`, a time limit on the step,
+    another working directory, or a deploy group that cancels a run in
+    progress. And a job-level `permissions: write-all # ...`, or
+    `{ contents: write }` on one line, was not read at all. Each fails now.
+  - Nothing tested an answer that never ends. One does, and the check gives up
+    when its time is up.
+  - README: a run takes about ten minutes, not seven; re-run only the latest
+    run (an older one would put older code back); what “manifest unknown” on a
+    Playwright update means.
+  17 breakages of these fixes, each applied alone to the workflows, the check
+  and the stamp, were each caught. The live job has still not run on GitHub.
+
+## Four reviews of the five changes, and the last run — 2026-11-13
+
+- Four reviewers each took one part that no one had reviewed: the Resize
+  download, the search with the first open, the workflows with the check after
+  a deploy, and every sentence a visitor or the owner reads. What each found
+  is in its section above. Together: 40 findings, of which 3 were left as they
+  are and say so there (“annotate” and its eight cards; the console's
+  “preloaded but not used”; a page left open across a deploy), and 1 is a
+  limit now listed (actions, article threads and measuring scales on a resized
+  page).
+- 81 breakages of the fixes, each applied alone to a copy: 81 caught (33 in
+  the Resize download, 25 in the search, 17 in the deploy, 6 in the words).
+- The last run on this machine, on the code as committed: `npm test`, 470 of
+  470. The browser suites: Chromium 151 passed; WebKit 141 passed, 3 skipped by
+  design; Firefox 131 passed, 1 skipped by design.
