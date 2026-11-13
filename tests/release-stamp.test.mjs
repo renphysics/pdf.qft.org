@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
-import { appendFile, cp, mkdtemp, readdir, readFile, stat, symlink } from 'node:fs/promises';
+import { appendFile, cp, mkdtemp, readdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -140,6 +140,21 @@ await test('engine bundles and fonts are versioned by their own bytes', async ()
       `new URL('./assets/vendor/fontkit.umd.min.js?v=${await hash(vendor('fontkit.umd.min.js'))}'`,
     ),
   );
+  // A page asks for PDF.js and pdf-lib at the first sign of intent (warm-engines) under the same
+  // addresses: a second spelling would be a second download, and a second copy of PDF.js.
+  const pdfjsLink = `assets/vendor/pdf.mjs?v=${await hash(vendor('pdf.mjs'))}`;
+  const pdfLibLink = `assets/vendor/pdf-lib.min.js?v=${await hash(vendor('pdf-lib.min.js'))}`;
+  for (const [name, up] of [['index.html', './'], ...toolPages.map((page) => [page, '../'])]) {
+    const page = await read(name);
+    assert(
+      page.includes(`<link rel="modulepreload" href="${up}${pdfjsLink}">`),
+      `${name}: PDF.js link versioned`,
+    );
+    assert(
+      page.includes(`<link rel="preload" as="script" href="${up}${pdfLibLink}">`),
+      `${name}: pdf-lib link versioned`,
+    );
+  }
   // Fonts too: the app keeps them in Cache Storage under this URL.
   for (const font of ['NotoSans-Regular.ttf', 'NotoSansCJKsc-Regular.otf']) {
     assert(
@@ -160,10 +175,11 @@ await test('every versioned reference points at a real file, and every reference
       checked++;
     }
   }
-  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads, 3 on the licenses page
-  // (its own stylesheet too), every import between modules, the export worker, PDF.js worker, pdf-lib and
-  // fontkit URLs, and two fonts.
-  let expected = (4 + preloads.length) * (1 + toolPages.length) + 3 + 4 + 2;
+  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads (the editor's in the
+  // warm-editor template too) and the two engines in warm-engines, 3 on the licenses page (its own
+  // stylesheet too), every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit
+  // URLs, and two fonts.
+  let expected = (4 + preloads.length + 2) * (1 + toolPages.length) + 3 + 4 + 2;
   for (const name of modules)
     expected += [
       ...(await readFile(path.join(site, name), 'utf8')).matchAll(
@@ -177,20 +193,87 @@ await test('every versioned reference points at a real file, and every reference
   );
 });
 
-await test('stamping is single-shot and deterministic, and the release changes with first-party content', async () => {
+await test('stamping fails on a page that lost a link it is expected to version', async () => {
+  // Each warm-up link has a rule that expects it, so a page written another way fails here
+  // and not on a visitor's connection: a link left unversioned is a download of its own.
+  const cases = [
+    ['<link rel="preload" as="script" href="../assets/vendor/pdf-lib.min.js">', /expected 1 match.*pdf-lib/],
+    ['<link rel="modulepreload" href="../assets/vendor/pdf.mjs">', /expected 1 match.*pdf\\\.mjs/],
+    ['<link rel="modulepreload" href="../documents.js">', /expected \d+ match.*modulepreload/],
+  ];
+  for (const [index, [lost, message]] of cases.entries()) {
+    const copy = await copySite(`lost-${index}`);
+    const name = path.join(copy, toolPages[0]);
+    const page = await readFile(name, 'utf8');
+    assert(page.includes(lost), `${toolPages[0]} has ${lost}`);
+    await writeFile(name, page.replace(lost, ''));
+    assert.throws(() => stamp(copy), message, `stamping a page without ${lost} must fail`);
+  }
+});
+
+await test('stamping is single-shot and deterministic, and the release changes with first-party content, an engine or a font', async () => {
   assert.throws(() => stamp(first), /already stamped/);
-  const second = await copySite('second');
-  stamp(second);
+  /** The release of a fresh copy of the site, stamped after `change` (a file and what is added to it). */
+  const releaseOf = async (name, change) => {
+    const copy = await copySite(name);
+    if (change) await appendFile(path.join(copy, change[0]), change[1]);
+    stamp(copy);
+    return (await readFile(path.join(copy, 'index.html'), 'utf8')).match(/app\.js\?v=([0-9a-f]{12})/)[1];
+  };
+  assert.equal(await releaseOf('second'), release, 'the same site, the same release');
+  assert.notEqual(await releaseOf('changed', ['studio.css', '\n/* edit */\n']), release);
+  // An engine or a font alone: the modules that name it change with it, so it is a
+  // release of its own. (Under one id a browser could keep the module that names the
+  // engine before, and the check after a deploy could not tell old from new.)
+  for (const file of [
+    'assets/vendor/pdf.mjs',
+    'assets/vendor/pdf.worker.mjs',
+    'assets/vendor/pdf-lib.min.js',
+    'assets/vendor/fontkit.umd.min.js',
+    'assets/fonts/NotoSans-Regular.ttf',
+    'assets/fonts/NotoSansCJKsc-Regular.otf',
+  ])
+    assert.notEqual(
+      await releaseOf(`changed-${path.basename(file)}`, [file, '\n']),
+      release,
+      `another ${file} is another release`,
+    );
+});
+
+await test('with --github-output, and only then, the release id is written as a step output', async () => {
+  // The Pages workflow passes it to the check after the deploy
+  // (scripts/check-live-release.mjs). GITHUB_OUTPUT is set in every step, and
+  // test jobs stamp copies too, so the script writes it only when asked.
+  const output = path.join(workspace, 'github-output');
+  await writeFile(output, 'earlier=1\n');
+  const stampWith = (args, env) =>
+    execFileSync(process.execPath, [script, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env,
+    });
+  const withOutput = { ...process.env, GITHUB_OUTPUT: output };
+  const asked = await copySite('output');
+  stampWith(['--github-output', asked], withOutput);
+  const stamped = (await readFile(path.join(asked, 'index.html'), 'utf8')).match(
+    /src="\.\/app\.js\?v=([0-9a-f]{12})"/,
+  )[1];
+  assert.equal(stamped, release, 'the same files make the same release');
   assert.equal(
-    (await readFile(path.join(second, 'index.html'), 'utf8')).match(/app\.js\?v=([0-9a-f]{12})/)[1],
-    release,
+    await readFile(output, 'utf8'),
+    `earlier=1\nrelease=${stamped}\n`,
+    'the release stamped into index.html is added to the step outputs, after what was there',
   );
-  const changed = await copySite('changed');
-  await appendFile(path.join(changed, 'studio.css'), '\n/* edit */\n');
-  stamp(changed);
-  assert.notEqual(
-    (await readFile(path.join(changed, 'index.html'), 'utf8')).match(/app\.js\?v=([0-9a-f]{12})/)[1],
-    release,
+  stampWith([await copySite('unasked')], withOutput);
+  assert.equal(await readFile(output, 'utf8'), `earlier=1\nrelease=${stamped}\n`, 'not written unless asked');
+  // Asked for outside GitHub Actions: refused before anything is stamped.
+  const outside = { ...process.env };
+  delete outside.GITHUB_OUTPUT;
+  const refused = await copySite('refused');
+  assert.throws(() => stampWith([refused, '--github-output'], outside), /GITHUB_OUTPUT is not set/);
+  assert(
+    (await readFile(path.join(refused, 'index.html'), 'utf8')).includes('src="./app.js"'),
+    'nothing stamped when refused',
   );
 });
 

@@ -23,6 +23,9 @@ const PAGES = {
 // The Pages workflow runs this suite on the copy it deploys, where every address
 // between the site's own files carries the release ("./editor.js?v=0123456789ab").
 const RELEASE = String.raw`(?:\?v=[0-9a-f]{12})?`;
+// The links in a page's <template id="..."> (scripts/build-pages.mjs), which app.js
+// puts in the page at the first sign of intent (warmUp).
+const template = (page, id) => page.match(new RegExp(`<template id="${id}">([\\s\\S]*?)</template>`))?.[1];
 const references = [];
 const add = (source, reference) => {
   if (!reference || reference.startsWith('#') || /^(?:https?:|data:|blob:|mailto:)/.test(reference)) return;
@@ -96,16 +99,27 @@ await test('module graph: a page loads app.js and its static imports only; the e
         `${leaf} imports only editor-core.js and routes.js, so any module can import it`,
       );
     }
-    const preloaded = [
-      ...(await source('index.html')).matchAll(
-        new RegExp(String.raw`rel="modulepreload" href="\./([\w-]+\.js)${RELEASE}"`, 'g'),
-      ),
-    ].map((match) => match[1]);
+    const page = await source('index.html');
+    const modulesIn = (markup) =>
+      [
+        ...markup.matchAll(new RegExp(String.raw`rel="modulepreload" href="\./([\w-]+\.js)${RELEASE}"`, 'g')),
+      ].map((match) => match[1]);
+    const preloaded = modulesIn(page.replace(/<template[\s\S]*?<\/template>/g, ''));
     assert(preloaded.length >= 2, 'index.html preloads modules');
     assert.deepEqual(
       preloaded.sort(),
       [...shell].sort(),
       'index.html preloads exactly the modules app.js imports',
+    );
+    // What app.js puts in the page at the first sign of intent (warmUp): every other
+    // module the editor imports. editor.js is imported, not preloaded as well.
+    const warm = modulesIn(template(page, 'warm-editor') ?? '');
+    const editor = [...(await staticImports('editor.js'))].filter((name) => !shell.has(name));
+    assert(!warm.includes('editor.js'), 'the warm-editor template must not list editor.js');
+    assert.deepEqual(
+      warm.sort(),
+      editor.sort(),
+      'the warm-editor template lists exactly the modules editor.js imports that app.js does not (npm run pages)',
     );
   }
 });
@@ -229,6 +243,16 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
       (match, name) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[name],
     );
   const cardIds = new Set([...html.matchAll(/data-card="(\w+)"/g)].map((match) => match[1]));
+  // The engines' addresses as the modules load them, beside index.html.
+  const engineUrls = {
+    pdfjs: (await readFile(path.join(site, 'preview.js'), 'utf8')).match(
+      /import\('\.\/(assets\/vendor\/pdf\.mjs[^']*)'\)/,
+    )?.[1],
+    pdfLib: (await readFile(path.join(site, 'pdf-engine.js'), 'utf8')).match(
+      /new URL\('\.\/(assets\/vendor\/pdf-lib\.min\.js[^']*)'/,
+    )?.[1],
+  };
+  assert(engineUrls.pdfjs && engineUrls.pdfLib, 'preview.js and pdf-engine.js name the engines');
   const titles = new Set(),
     descriptions = new Set();
   for (const [name, url] of Object.entries(PAGES)) {
@@ -274,10 +298,30 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
       `${name}: og:image must be 1200x630`,
     );
     assert.match(page, /<h1 id="landing-title"/, `${name}: page heading`);
-    // Keep pages light: pdf-lib, fontkit and PDF.js load on demand.
+    // Keep pages light: pdf-lib, fontkit and PDF.js load on demand. Only the
+    // warm-engines template names them, for the first sign of intent, at the very
+    // addresses preview.js and pdf-engine.js load them from: another spelling would
+    // be a second download, and for PDF.js a second copy of the module.
+    const engines = template(page, 'warm-engines');
     assert(
-      !/pdf-lib\.min\.js|fontkit\.umd\.min\.js|vendor\/pdf\.mjs/.test(page),
+      !/pdf-lib\.min\.js|fontkit\.umd\.min\.js|vendor\/pdf\.mjs/.test(
+        page.replace(/<template id="warm-engines">[\s\S]*?<\/template>/, ''),
+      ),
       `${name}: must not load the PDF engines eagerly`,
+    );
+    const up = name === 'index.html' ? './' : '../';
+    assert.deepEqual(
+      engines?.match(/<link [^>]*>/g),
+      [
+        `<link rel="modulepreload" href="${up}${engineUrls.pdfjs}">`,
+        `<link rel="preload" as="script" href="${up}${engineUrls.pdfLib}">`,
+      ],
+      `${name}: the warm-engines template asks for PDF.js and pdf-lib as preview.js and pdf-engine.js do`,
+    );
+    assert.equal(
+      template(page, 'warm-editor')?.replaceAll(up, './'),
+      template(html, 'warm-editor'),
+      `${name}: the same warm-editor template as the home page`,
     );
     const data = JSON.parse(page.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
     if (name === 'index.html') {

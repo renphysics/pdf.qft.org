@@ -27,7 +27,7 @@ globalThis.fetch = async (url, options) => {
 };
 const { openPdf, buildPdf, buildPdfWithNotes } = await import('../dist/pdf-engine.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
-const { PDFDocument, PDFName, PDFNumber } = globalThis.PDFLib;
+const { PDFDocument, PDFName, PDFNumber, PDFString } = globalThis.PDFLib;
 const outputDir = path.join(here, 'output');
 await mkdir(outputDir, { recursive: true });
 
@@ -197,6 +197,141 @@ await test('flattening: no fields or widgets left; values drawn on their pages (
       assert.ok(first.includes(text), `page 1 shows ${text}: ${first}`);
     for (const text of ['Thank you 谢谢', '01/11/2026', 'Zoë Łukasz'])
       assert.ok(second.includes(text), `page 2 shows ${text}: ${second}`);
+  }
+});
+
+await test('a form on pages put on sheets: its fields move with their pages, stay fillable and show what was typed; flattened, the answers are on the sheet', async () => {
+  // The first page (Letter) on A4; the second, turned on its side, stays as it is.
+  const A4 = [595.28, 841.89],
+    scale = A4[0] / 612,
+    up = (A4[1] - 792 * scale) / 2;
+  const sheets = (extra) => ({
+    ...state(extra),
+    pages: [
+      { id: 'p1', sourceId: 'form', index: 0, paper: 'a4' },
+      { id: 'p2', sourceId: 'form', index: 1 },
+    ],
+  });
+  const close = (actual, expected, message) =>
+    assert.ok(Math.abs(actual - expected) < 0.01, `${message}: expected ${expected}, got ${actual}`);
+  const resized = await buildPdf(sheets({ formValues: { form: values } }));
+  const source = (await PDFDocument.load(formBytes)).getForm();
+  {
+    const doc = await PDFDocument.load(resized);
+    const form = doc.getForm();
+    assert.equal(form.getFields().length, 12, 'the form is kept');
+    assert.equal(form.getTextField('applicant.email').getText(), 'zoe@example.org', 'with what was typed');
+    assert.deepEqual(Object.values(doc.getPage(0).getMediaBox()), [0, 0, ...A4], 'the first page is on A4');
+    const email = form.getTextField('applicant.email').acroField,
+      [widget] = email.getWidgets(),
+      box = widget.getRectangle(),
+      was = source.getTextField('applicant.email').acroField.getWidgets()[0].getRectangle();
+    close(box.x, was.x * scale, 'the field’s left edge');
+    close(box.y, up + was.y * scale, 'its lower edge');
+    close(box.width, was.width * scale, 'its width');
+    close(box.height, was.height * scale, 'its height');
+    // The text size a reader types with is the widget's own now: its field's is for every widget.
+    assert.equal(
+      widget.dict.lookup(PDFName.of('DA')).decodeText(),
+      `/Helv ${Math.round(11 * scale * 1000) / 1000} Tf 0 g`,
+      'a reader types in it at the page’s scale',
+    );
+    assert.equal(email.getDefaultAppearance(), '/Helv 11 Tf 0 g', 'the field keeps its own size');
+    // One field with a widget on each page: only the one on the sheet moved.
+    const [onSheet, other] = form.getTextField('applicant.name').acroField.getWidgets(),
+      [first, second] = source.getTextField('applicant.name').acroField.getWidgets();
+    close(
+      onSheet.getRectangle().y,
+      up + first.getRectangle().y * scale,
+      'the shared field’s widget on the sheet',
+    );
+    close(other.getRectangle().y, second.getRectangle().y, 'and its widget on the page that stayed');
+    assert.equal(
+      onSheet.dict.lookup(PDFName.of('DA')),
+      undefined,
+      'a size left to the reader (0) needs no copy',
+    );
+  }
+  {
+    // PDF.js shows the answer in the field, where the field is on the sheet.
+    const doc = await pdfjs.getDocument({ data: resized.slice(), verbosity: 0 }).promise;
+    const annotations = await (await doc.getPage(1)).getAnnotations();
+    const email = annotations.find((annotation) => annotation.fieldName === 'applicant.email');
+    assert.equal(email.fieldValue, 'zoe@example.org');
+    const was = source.getTextField('applicant.email').acroField.getWidgets()[0].getRectangle();
+    close(email.rect[1], up + was.y * scale, 'PDF.js: the field on the sheet');
+    await doc.loadingTask.destroy();
+  }
+  // Flattened: the answers are page content, and go on the sheet with the page.
+  const words = async (bytes) => {
+    const doc = await pdfjs.getDocument({ data: bytes.slice(), verbosity: 0 }).promise;
+    const page = await doc.getPage(1);
+    const items = (await page.getTextContent()).items.filter((item) => item.str.includes('zoe@example.org'));
+    await doc.loadingTask.destroy();
+    return items.map((item) => [
+      item.transform[4],
+      item.transform[5],
+      Math.hypot(item.transform[0], item.transform[1]),
+    ]);
+  };
+  const flat = { formValues: { form: values }, flattenForms: true };
+  const [[x, y, size]] = await words(await buildPdf(state(flat)));
+  const [[sheetX, sheetY, sheetSize]] = await words(await buildPdf(sheets(flat)));
+  close(sheetX, x * scale, 'the flattened answer, across');
+  close(sheetY, up + y * scale, 'up');
+  close(sheetSize, size * scale, 'and at the page’s scale');
+  assert.equal((await PDFDocument.load(await buildPdf(sheets(flat)))).getForm().getFields().length, 0);
+  // The size to type at may be kept further up: by the field a field belongs
+  // to, or by the form for every field. Each widget on a sheet gets its own.
+  {
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage([400, 500]);
+    const { context } = pdf;
+    const family = context.nextRef(),
+      member = context.nextRef(),
+      inFamily = context.nextRef(),
+      alone = context.nextRef();
+    context.assign(
+      family,
+      context.obj({ T: PDFString.of('family'), DA: PDFString.of('/Helv 14 Tf 0 g'), Kids: [member] }),
+    );
+    context.assign(
+      member,
+      context.obj({ T: PDFString.of('member'), FT: 'Tx', Parent: family, Kids: [inFamily] }),
+    );
+    const widget = { Type: 'Annot', Subtype: 'Widget', P: page.ref, F: 4 };
+    context.assign(inFamily, context.obj({ ...widget, Parent: member, Rect: [50, 400, 250, 420] }));
+    context.assign(
+      alone,
+      context.obj({ ...widget, FT: 'Tx', T: PDFString.of('alone'), Rect: [50, 300, 250, 320] }),
+    );
+    page.node.set(PDFName.of('Annots'), context.obj([inFamily, alone]));
+    pdf.catalog.set(
+      PDFName.of('AcroForm'),
+      context.obj({ Fields: [family, alone], DA: PDFString.of('/Helv 9 Tf 0 g') }),
+    );
+    const doc = await PDFDocument.load(
+      await buildPdf({
+        sources: [{ id: 'form', bytes: await pdf.save() }],
+        pages: [{ id: 'p1', sourceId: 'form', index: 0, paper: 'a4' }],
+      }),
+    );
+    const sizes = doc
+      .getPage(0)
+      .node.Annots()
+      .asArray()
+      .map((ref) => doc.context.lookup(ref).lookup(PDFName.of('DA')).decodeText());
+    const at = (size) => `/Helv ${Math.round(size * (A4[0] / 400) * 1000) / 1000} Tf 0 g`;
+    assert.deepEqual(
+      sizes,
+      [at(14), at(9)],
+      'a size kept two fields up, and one kept by the form: each widget types at the page’s scale',
+    );
+    assert.equal(
+      doc.catalog.lookup(PDFName.of('AcroForm')).lookup(PDFName.of('DA')).decodeText(),
+      '/Helv 9 Tf 0 g',
+      'the form keeps its own size, for fields on other pages',
+    );
   }
 });
 

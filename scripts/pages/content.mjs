@@ -398,6 +398,10 @@ export const PAGES = [
       ],
       ['Can I delete every page?', 'No. At least one page has to remain in the document.'],
       ['Is my PDF uploaded?', 'No. Pages are removed in your browser and the file never leaves your device.'],
+      [
+        'Will deleting pages make my PDF smaller?',
+        'Often: the copy leaves out what only those pages used, such as their pictures. A PDF that is mostly text can come out about the same size, because the copy is written anew. QFT PDF can’t compress a PDF.',
+      ],
     ],
   },
   {
@@ -465,7 +469,7 @@ export const PAGES = [
     faqs: [
       [
         'Does anything on the page get smaller?',
-        'No. The page grows: its content stays the same size and in the same place, with blank space around it.',
+        'No. The page grows: its content stays the same size and in the same place, with blank space around it. Only a page you resized to A4 or Letter is made smaller, so that it stays on that paper.',
       ],
       [
         'What happens to page numbers, headers and footers?',
@@ -478,6 +482,64 @@ export const PAGES = [
       [
         'Is my PDF uploaded?',
         'No. The margins are added in your browser and the file never leaves your device.',
+      ],
+    ],
+  },
+  {
+    tool: 'resize',
+    name: 'Resize PDF pages',
+    title: 'Resize PDF pages to A4 or Letter — QFT PDF',
+    description:
+      'Put every page of a PDF on A4 or Letter paper, scaled in proportion and centred. Links, comments and form fields keep working. Free, in your browser.',
+    eyebrow: 'RESIZE PAGES',
+    heading: ['Resize PDF pages.', 'Every page on the same paper.'],
+    intro:
+      'Pages of mixed or odd sizes, all on A4 or all on Letter: each is scaled to fit its sheet and centred, and nothing is cut off.',
+    upload: { text: 'Drop a PDF here to resize its pages.' },
+    how: ['How to resize', 'PDF pages.'],
+    steps: [
+      OPEN_STEP,
+      [
+        'Choose the paper.',
+        'Pick A4 or Letter, for every page, the current page or selected pages. Each page keeps its own orientation.',
+      ],
+      [
+        'Resize and download.',
+        'Check the pages in the preview, then save your copy. Your original file is not changed.',
+      ],
+    ],
+    faqs: [
+      [
+        'Is anything cut off or stretched?',
+        'No. Each page is scaled in proportion until it fits the sheet, and centred. Where its shape differs from the paper, the space beside it stays blank.',
+      ],
+      [
+        'Does the text stay sharp and selectable?',
+        'Yes. The page is scaled, not turned into a picture: text stays text and drawings stay sharp. Small pages are enlarged and large ones made smaller, so their text changes size with them.',
+      ],
+      [
+        'What happens to links, comments and form fields?',
+        'They move and scale with the page and keep working, and bookmarks still lead to the same place.',
+      ],
+      [
+        'What about page numbers, headers and footers?',
+        'Page numbers, headers and footers you add in QFT PDF go to the edges of the new paper. Their text keeps the size you set, and is not scaled with the page.',
+      ],
+      [
+        'A page is already A4. What happens to it?',
+        'Nothing. A page that is already the size you chose is left exactly as it is.',
+      ],
+      [
+        'Does this make the file smaller?',
+        'No. Resizing changes the size of the pages. The file stays about the same size, or grows a little. QFT PDF does not compress PDFs.',
+      ],
+      [
+        'Which paper sizes can I choose?',
+        'A4 and Letter, for pages of any size. Pages you add after resizing keep their own size, so resize again to put them on the paper too.',
+      ],
+      [
+        'Is my PDF uploaded?',
+        'No. The pages are resized in your browser and the file never leaves your device.',
       ],
     ],
   },
@@ -638,6 +700,10 @@ export const PAGES = [
       [
         'Can I mix pictures and PDFs?',
         'Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document.',
+      ],
+      [
+        'Will the text in my scans be searchable?',
+        'No. QFT PDF can’t read the text in a picture (OCR): a scanned page stays a picture, so its words can’t be searched or copied.',
       ],
       [
         'Can I convert Word or PowerPoint files?',

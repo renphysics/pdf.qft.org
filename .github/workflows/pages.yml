@@ -8,13 +8,17 @@ on:
 permissions:
   contents: read
 
+# One deploy at a time, never cancelled once it runs. A run that is still
+# waiting gives way to a newer one, so after several merges the last is the one
+# deployed.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 # Jobs run on Ubuntu 24.04, not ubuntu-latest: that label moved to 26.04 on
-# 2026-11-06, where Playwright's dependency install took 40 minutes. (See
-# test.yml for the other thing 26.04 changed, which the tests now allow for.)
+# 2026-11-06. (See test.yml for what 26.04 changed, which the tests allow for,
+# and for the image the browser tests run in.) A deploy, step by step, and what
+# to do when one goes wrong: README, "What a deploy does".
 jobs:
   # The checks a pull request gets: the static site, the PDF engine suites and
   # the browser tests in Chromium, WebKit and Firefox, one job per engine. A
@@ -26,6 +30,8 @@ jobs:
     needs: tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      release: ${{ steps.stamp.outputs.release }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,9 +49,11 @@ jobs:
       # GitHub Pages lets browsers cache every file for ten minutes under the
       # same URL, so a reload right after a deploy could mix the new page with
       # the previous release's scripts. Versioned URLs keep each release whole.
+      # The release id is this step's output, for the check after the deploy.
       - name: Version asset URLs for this release
+        id: stamp
         run: |
-          node scripts/stamp-release.mjs dist
+          node scripts/stamp-release.mjs dist --github-output
           node tests/site-integrity.test.mjs
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -64,7 +72,34 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # deploy-pages reports success once GitHub has the files. This asks the live
+  # site, past its caches, whether it serves the release just built: the home
+  # page, a tool page and that release's app.js. GitHub Pages lets caches keep
+  # a file for ten minutes, so it asks for up to eleven. A failure here means
+  # the files were deployed but the site was not seen to serve them; nothing is
+  # rolled back (README, "When a deploy goes wrong").
+  live:
+    needs: [build, deploy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Check that the live site serves this release
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          RELEASE: ${{ needs.build.outputs.release }}
+        run: node scripts/check-live-release.mjs "$PAGE_URL" "$RELEASE" 660

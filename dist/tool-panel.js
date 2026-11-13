@@ -53,6 +53,7 @@ import * as settings from './panel-settings.js';
 import * as pages from './panel-pages.js';
 import * as crop from './panel-crop.js';
 import * as margins from './panel-margins.js';
+import * as resize from './panel-resize.js';
 import * as sheets from './panel-sheets.js';
 import * as split from './panel-split.js';
 import * as protect from './panel-protect.js';
@@ -77,6 +78,7 @@ const PANELS = {
   delete: pages,
   crop,
   margins,
+  resize,
   merge: pages,
   split,
   sheets,

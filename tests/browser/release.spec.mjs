@@ -1,6 +1,6 @@
 // The site as deployed: stamped with versioned URLs (scripts/stamp-release.mjs)
 // and served under the GitHub project path, /pdf.qft.org/.
-import { test, expect, openSample, download, pdfText } from './helpers.mjs';
+import { test, expect, expectEachScriptOnce, openSample, download, pdfText } from './helpers.mjs';
 
 test('loads one versioned release and builds downloads in the export worker', async ({ page }) => {
   const requests = [];
@@ -23,6 +23,12 @@ test('loads one versioned release and builds downloads in the export worker', as
   expect(code.length).toBeGreaterThan(5);
   expect(code.filter((url) => !/^\?v=[0-9a-f]{12}$/.test(url.search)).map((url) => url.pathname)).toEqual([]);
   expect(requests.every((url) => url.pathname.startsWith('/pdf.qft.org/'))).toBe(true);
+});
+
+test('the first open asks for each script once, at its versioned address', async ({ page }) => {
+  // The warm-up links in the stamped page, and the modules' own imports and loads,
+  // must name each file the same way, release and engine versions included.
+  await expectEachScriptOnce(page, 'add-page-numbers-to-pdf/');
 });
 
 test('a font is downloaded once and then comes from Cache Storage, even when the network no longer serves it', async ({
@@ -101,4 +107,24 @@ test('a tool address opens that tool after a reload', async ({ page }) => {
   await page.reload();
   await page.locator('[data-action="sample"]').first().click();
   await expect(page.locator('#tool-select')).toHaveValue('crop');
+});
+
+test('a search note’s links lead to the tools’ pages, from the home page and from a tool page', async ({
+  page,
+}) => {
+  // The note's links are built in the page, from the address of the scripts: under
+  // the project path and with versioned scripts they must still name the tools' pages.
+  for (const address of ['./', 'crop-pdf/']) {
+    await page.goto(address);
+    await page.fill('#tool-search', 'compress');
+    const links = page.locator('#search-note a');
+    await expect(links).toHaveCount(2);
+    expect(await links.evaluateAll((nodes) => nodes.map((node) => new URL(node.href).pathname))).toEqual([
+      '/pdf.qft.org/delete-pages-from-pdf/',
+      '/pdf.qft.org/split-pdf/',
+    ]);
+  }
+  await page.locator('#search-note a').first().click();
+  await expect(page).toHaveURL(/\/pdf\.qft\.org\/delete-pages-from-pdf\/$/);
+  await expect(page.locator('#landing h1')).toContainText('Delete pages');
 });

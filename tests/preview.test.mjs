@@ -142,7 +142,13 @@ function previewLines(markup) {
         const [a, b, c, d, e, f] = matrix,
           x = number(span[1]),
           y = number(span[2]);
-        lines.push({ text: decode(span[3]), x: a * x + c * y + e, y: b * x + d * y + f, size });
+        // An item placed before its page went on a sheet is scaled with the page.
+        lines.push({
+          text: decode(span[3]),
+          x: a * x + c * y + e,
+          y: b * x + d * y + f,
+          size: size * Math.hypot(a, b),
+        });
       }
     }
   }
@@ -157,14 +163,19 @@ await test('the preview’s fonts load on first use', async () => {
   }
 });
 
-await test('the preview draws every line where the export does: rotations, CropBox offsets, turned and cropped pages, wrapped text, watermark, headers, footers, page numbers, Noto Sans', async () => {
+/**
+ * Every line the preview draws on every page of `state` is where the export
+ * puts it, at its size. Returns how many lines each page has.
+ */
+async function sameAsExport(state) {
+  const { pages } = state;
   const output = await buildPdf(state);
   const doc = await pdfjs.getDocument({
     data: output.slice(),
     verbosity: 0,
     standardFontDataUrl: path.join(runtime, 'pdfjs-dist/standard_fonts/'),
   }).promise;
-  let checked = 0;
+  const counts = [];
   for (let index = 0; index < pages.length; index++) {
     const overlay = pageOverlay(state, index);
     assert.equal(overlay.problems.length, 0, `page ${index + 1}: no problems`);
@@ -182,7 +193,7 @@ await test('the preview draws every line where the export does: rotations, CropB
         return { text: item.str, x: e, y: f, size: Math.hypot(a, b) };
       });
     const lines = previewLines(overlay.markup);
-    assert.equal(lines.length, 8 + (index % 2), `page ${index + 1}: the preview draws every line`);
+    counts.push(lines.length);
     for (const line of lines) {
       const match = exported.find(
         (item) =>
@@ -193,8 +204,29 @@ await test('the preview draws every line where the export does: rotations, CropB
         `page ${index + 1}: "${line.text}" is drawn at (${line.x.toFixed(2)}, ${line.y.toFixed(2)}) in the preview; the export has ${JSON.stringify(exported.filter((item) => item.text === line.text))}`,
       );
       assert(Math.abs(match.size - line.size) < 0.01, `page ${index + 1}: "${line.text}" size`);
-      checked++;
     }
   }
   await doc.loadingTask.destroy();
+  return counts;
+}
+await test('the preview draws every line where the export does: rotations, CropBox offsets, turned and cropped pages, wrapped text, watermark, headers, footers, page numbers, Noto Sans', async () => {
+  // Two lines placed upright, three wrapped, one in Noto Sans, the watermark, a
+  // header and a footer; a page number on the second and fourth pages.
+  assert.deepEqual(await sameAsExport(state), [8, 9, 8, 9], 'the preview draws every line');
+});
+
+await test('and on pages put on sheets of A4 and Letter: what was placed before is scaled with its page, the rest is at its own size on the sheet', async () => {
+  const paper = (index) => (index % 2 ? 'letter' : 'a4');
+  const sheets = {
+    ...state,
+    pages: pages.map((page, index) => ({ ...page, paper: paper(index) })),
+    // The notes placed in the page's current view were placed on its sheet.
+    annotations: annotations.map((annotation) =>
+      annotation.id.startsWith('before')
+        ? annotation
+        : { ...annotation, pagePaper: paper(pages.findIndex((page) => page.id === annotation.pageId)) },
+    ),
+  };
+  // On the wider sheets the wrapped note takes two lines, not three.
+  assert.deepEqual(await sameAsExport(sheets), [7, 8, 7, 8], 'the preview draws every line');
 });

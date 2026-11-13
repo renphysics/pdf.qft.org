@@ -13,22 +13,38 @@
  * given the next release's editor: app.js checks for that (sameRelease) and
  * reloads when the visitor opens something (refresh).
  *
- * - First-party files share one release id: a hash of their contents, so
- *   redeploying identical code keeps visitors' caches.
+ * - First-party files share one release id: a hash of their contents and of
+ *   the ids of the engines and fonts they name, so redeploying identical code
+ *   keeps visitors' caches. An update of an engine alone is a release of its
+ *   own: the modules that name the engine change with it, and under the old id
+ *   a browser could keep the module that names the engine before. (The check
+ *   after a deploy could not tell the two apart either.)
  * - Each engine bundle (pdf-lib, fontkit, PDF.js and its worker) is versioned
  *   by a hash of its own bytes, so it is downloaded again only when it changes.
  * - The two text fonts are versioned the same way; the app keeps them in Cache
  *   Storage under that URL (pdf-engine.js fetchFont), so they outlive Pages'
  *   ten-minute cache and are downloaded again only when they change.
  *
- * Usage: node scripts/stamp-release.mjs [siteDirectory]   (default: dist)
+ * Usage: node scripts/stamp-release.mjs [siteDirectory] [--github-output]
+ *
+ * The site directory defaults to dist. With --github-output, the release id is
+ * also written as the step output `release` (to the file GitHub Actions names
+ * in GITHUB_OUTPUT): the Pages workflow checks after the deploy that the live
+ * site serves it (scripts/check-live-release.mjs). Only on request, because
+ * test jobs stamp copies of the site too.
  */
 import { createHash } from 'node:crypto';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const site = path.resolve(process.argv[2] || fileURLToPath(new URL('../dist', import.meta.url)));
+const args = process.argv.slice(2);
+const toStepOutput = args.includes('--github-output');
+if (toStepOutput && !process.env.GITHUB_OUTPUT)
+  throw new Error('--github-output: GITHUB_OUTPUT is not set (GitHub Actions sets it in every step).');
+const site = path.resolve(
+  args.find((arg) => !arg.startsWith('--')) || fileURLToPath(new URL('../dist', import.meta.url)),
+);
 // One generated page per tool address (routes.js; scripts/build-pages.mjs).
 const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).href);
 const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
@@ -51,7 +67,6 @@ const sources = Object.fromEntries(
 if (Object.values(sources).some((text) => /\?v=[0-9a-f]{10,}/.test(text))) {
   throw new Error(`${site} is already stamped. Run this once, on a fresh copy of the site.`);
 }
-const release = sha256(FIRST_PARTY.map((name) => `${name}\0${sources[name]}`).join('\0')).slice(0, 12);
 const hashOf = async (file) =>
   sha256(
     await readFile(path.join(site, file)).catch(() => {
@@ -66,6 +81,17 @@ const pdfLib = await engine('pdf-lib.min.js');
 const fontkit = await engine('fontkit.umd.min.js');
 const latinFont = await hashOf('assets/fonts/NotoSans-Regular.ttf');
 const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
+const release = sha256(
+  [
+    ...FIRST_PARTY.map((name) => `${name}\0${sources[name]}`),
+    pdfjs,
+    worker,
+    pdfLib,
+    fontkit,
+    latinFont,
+    cjkFont,
+  ].join('\0'),
+).slice(0, 12);
 
 // [pattern, replacement, expected number of matches, or null for any number].
 // A mismatch means the sources changed shape and this script must be updated,
@@ -73,14 +99,18 @@ const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
 // static (from) and dynamic (import()); the check below fails on any relative
 // import left unversioned.
 const imports = [/((?:from |import\()'\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
-// The modules a page preloads alongside app.js (scripts/build-pages.mjs).
-const preloads = (sources['index.html'].match(/rel="modulepreload"/g) || []).length;
+// The modules a page preloads (scripts/build-pages.mjs): those app.js imports, and
+// the editor's in the warm-editor template. Counted with the rule's own pattern;
+// the engine links in warm-engines have rules of their own, with the engines' ids.
+const preloads = (sources['index.html'].match(/rel="modulepreload" href="\.\/[\w-]+\.js"/g) || []).length;
 const RULES = {
   ...Object.fromEntries(MODULES.map((name) => [name, [imports]])),
   'index.html': [
     [/(href="\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
     [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
     [/(rel="modulepreload" href="\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
+    [/(href="\.\/assets\/vendor\/pdf\.mjs)"/g, `$1?v=${pdfjs}"`, 1],
+    [/(href="\.\/assets\/vendor\/pdf-lib\.min\.js)"/g, `$1?v=${pdfLib}"`, 1],
   ],
   'licenses/index.html': [[/(href="(?:\.\.\/(?:style|studio)|\.\/licenses)\.css)"/g, `$1?v=${release}"`, 3]],
   ...Object.fromEntries(
@@ -90,6 +120,8 @@ const RULES = {
         [/(href="\.\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
         [/(src="\.\.\/app\.js)"/g, `$1?v=${release}"`, 1],
         [/(rel="modulepreload" href="\.\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
+        [/(href="\.\.\/assets\/vendor\/pdf\.mjs)"/g, `$1?v=${pdfjs}"`, 1],
+        [/(href="\.\.\/assets\/vendor\/pdf-lib\.min\.js)"/g, `$1?v=${pdfLib}"`, 1],
       ],
     ]),
   ),
@@ -128,6 +160,7 @@ for (const [name, rules] of Object.entries(RULES)) {
   if (unversioned.length) throw new Error(`${name}: unversioned import(s): ${unversioned.join(', ')}`);
   await writeFile(path.join(site, name), text);
 }
+if (toStepOutput) await appendFile(process.env.GITHUB_OUTPUT, `release=${release}\n`);
 console.log(
   `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${cjkFont}) in ${site}.`,
 );

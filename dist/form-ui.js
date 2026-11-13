@@ -3,8 +3,8 @@
  * state, the panel's summary and moving between fields.
  */
 
-import { applyMatrix, invert } from './layout.js';
-import { fieldValue, geometryOf, renderPage } from './preview.js';
+import { applyMatrix, contentBox, invert } from './layout.js';
+import { fieldValue, geometryOf, renderPage, sourcePage } from './preview.js';
 import {
   $,
   $$,
@@ -49,10 +49,19 @@ export function sourceOf(page) {
  * Read-only fields are left out: PDF.js draws them on the page as they are.
  */
 function pageFormFields(page) {
-  const entries = [];
-  for (const field of sourceOf(page)?.form?.fields || []) {
+  const entries = [],
+    fields = sourceOf(page)?.form?.fields || [];
+  if (!fields.length) return entries;
+  // A field that lies wholly outside what its page shows (a crop took it away) is
+  // not offered: its box to type in would hang beside the page, and the download
+  // hides the field where the page reaches past what it showed.
+  const shown = contentBox(sourcePage(state, page), page),
+    inSight = ([x, y, width, height]) =>
+      x + width > shown.x && x < shown.x + shown.width && y + height > shown.y && y < shown.y + shown.height;
+  for (const field of fields) {
     if (!FORM_KINDS.includes(field.kind) || field.readOnly) continue;
-    for (const widget of field.widgets) if (widget.pageIndex === page.index) entries.push({ field, widget });
+    for (const widget of field.widgets)
+      if (widget.pageIndex === page.index && inSight(widget.rect)) entries.push({ field, widget });
   }
   return entries;
 }

@@ -2,7 +2,7 @@
 
 QFT PDF is a static, browser-local PDF toolkit. The application adds text, images,
 highlights, watermarks, headers and footers, and page numbers, and can merge,
-reorder, rotate, delete, crop, extract, and split PDF pages. Reusable batch
+reorder, rotate, delete, crop, resize, extract, and split PDF pages. Reusable batch
 presets apply several edits to separate files in one workflow.
 
 ## License
@@ -18,11 +18,12 @@ package hashes and source comparisons in `scripts/*license-provenance.json`.
 ## GitHub Pages
 
 The included `.github/workflows/pages.yml` publishes `dist/` on pushes to `main`
-and can also be run manually. It uses pinned action revisions, installs the test
-dependencies, and runs `npm test` (restoring the verified font asset, checking
-local resource paths, notices and metadata, then the PDF engine and workflow
-suites) before uploading only the static website; a failing test blocks the
-deployment. `.github/workflows/test.yml` runs the same checks on pull requests.
+and can also be run manually. It uses pinned action revisions, and first runs
+the Test workflow (`.github/workflows/test.yml`, which pull requests run too):
+`npm test` (restoring the verified font asset, checking local resource paths,
+notices and metadata, then the PDF engine and workflow suites) and the browser
+tests in three engines. A failing test blocks the deployment. Only the static
+website is uploaded. A deploy, step by step, is below ("What a deploy does").
 
 Before upload, the workflow also runs `scripts/stamp-release.mjs`, which adds a
 version query to every first-party module, stylesheet and PDF engine URL in the
@@ -30,8 +31,11 @@ built copy (the committed sources stay unversioned). GitHub Pages lets browsers
 cache every file for ten minutes under an unchanging URL, so without this a
 normal reload just after a deploy could pair the new page with the previous
 release's scripts. First-party files share one release id derived from their
-contents; each engine bundle is versioned by its own bytes, so it is downloaded
-again only when it changes. `tests/release-stamp.test.mjs` keeps the script in
+contents and from the ids of the engines and fonts they name; each engine
+bundle is versioned by its own bytes, so it is downloaded again only when it
+changes. (An update of an engine alone is therefore a release of its own: the
+modules that name the engine change with it, and the check after a deploy can
+tell the new site from the old.) `tests/release-stamp.test.mjs` keeps the script in
 step with the sources, and runs the site-integrity suite on a stamped copy, as
 the Pages workflow does before it deploys. No server, API keys, or external
 document-processing service is needed.
@@ -53,6 +57,61 @@ The site supports both `https://renphysics.github.io/pdf.qft.org/` and the
 intended custom domain, `https://pdf.qft.org/`. The canonical URL is already set
 to the custom domain. Asset links remain relative so the project URL works
 before the domain is connected.
+
+### What a deploy does
+
+Every merge to `main` starts **Deploy QFT PDF to GitHub Pages** (in the
+**Actions** tab). Its jobs run one after another:
+
+1. **tests**: the Test workflow, the checks a pull request gets: `npm test`, and
+   the browser tests in Chromium, WebKit and Firefox. The browser tests run in
+   Playwright's own image from Microsoft's registry (`mcr.microsoft.com`), which
+   holds the browsers and what they need, so nothing is installed from an
+   Ubuntu mirror. A first small job reads the Playwright version from
+   `package-lock.json` and picks the image of that version, so a Dependabot
+   update of Playwright needs nothing else. (If the browser jobs of such an
+   update fail at "Initialize containers" with "manifest unknown", Playwright's
+   image of that version is not published yet: re-run the jobs a few hours
+   later.)
+2. **build**: versions a copy of `dist/` for this release (above), checks it,
+   and uploads it.
+3. **deploy**: GitHub puts the upload on the site.
+4. **live**: asks the site, past its caches, whether it now serves this release
+   (`scripts/check-live-release.mjs`). It asks every ten seconds for up to
+   eleven minutes, as GitHub Pages lets caches keep a file for ten.
+
+A run takes about ten minutes, most of it the browser tests, and up to twenty
+when live has to wait for caches. One runs at a time, and a run that has
+started is never cancelled. A run still waiting gives way to a newer one, so
+after several quick merges the last is deployed and the ones between show as
+cancelled.
+
+### When a deploy goes wrong
+
+Open the run in the **Actions** tab. A red cross or a grey "cancelled" on
+tests, build or deploy means the site was not updated: it still serves the
+previous release. A red cross on live means the files were deployed but the
+site was not seen to serve them; the error at the top of the run's page says
+what the site served instead. Nothing is rolled back on its own.
+
+- A failure that looks like chance (a network error, a time-out, a test that
+  passes on your machine): open the run and choose **Re-run jobs → Re-run
+  failed jobs**. It runs the same commit again. When only live failed, this
+  asks the site again and changes nothing on it. Do this for the latest run
+  only: if a newer run has finished since, leave this one alone. The newer
+  run is what the site serves, and re-running an older deploy would put older
+  code back.
+- Cancelled, with a newer run after it: nothing to do. The newer run deploys
+  the newer code.
+- A change that broke the site: revert it. On the merged pull request's page,
+  click **Revert**. GitHub opens a pull request that undoes the change; merge it
+  once its tests pass, and the deploy puts the earlier code back. (Or, in a
+  terminal: `git revert -m 1 <merge commit>` on a new branch, then a pull
+  request.) Do not re-run an old deploy instead: the site would then differ
+  from `main`, and the next merge would bring the fault back.
+- To take the site down at once: **Settings → Pages → Unpublish site**. Once
+  the fault is fixed, run the workflow again (**Actions → Deploy QFT PDF to
+  GitHub Pages → Run workflow**) to publish it.
 
 ### Connect pdf.qft.org
 
@@ -221,8 +280,8 @@ shows it without building a PDF:
   take ("Undo: Rotate pages", in the button's tooltip and its accessible name),
   and a notice says what was undone, in place of one that no longer holds.
 - A download is named after its first file and what was done to it:
-  `-numbered`, `-watermarked`, `-cropped`, `-signed`, `-filled` or `-organized`
-  when the edits are of one kind, `-merged` for several files, `-converted`
+  `-numbered`, `-watermarked`, `-cropped`, `-resized`, `-signed`, `-filled` or
+  `-organized` when the edits are of one kind, `-merged` for several files, `-converted`
   for pictures made into pages, `-protected` or `-unlocked` for passwords, and
   `-edited` otherwise (`outputName` in `documents.js`). Download selected
   pages is named after the first file among those pages. The editor gives the
@@ -252,12 +311,18 @@ zooms in to the field you tap (below).
 
 The editor's code is split by what it does. `app.js` runs on every page and is
 all a page needs before a file is opened: the tool search, opening files and the
-sample, dialogs and notices. It loads the editor, `editor.js`, when a file is
-opened, and starts loading it as soon as a visitor hovers, focuses or touches
-the upload area, a tool card or the sample, so it is usually there before the
-click, while a visitor who only reads the page never downloads its 400 KB; the
-few modules the page needs at once are preloaded on every page
-(`scripts/build-pages.mjs` writes the `<link rel="modulepreload">` tags). `editor.js` starts the editor (the actions
+sample, dialogs and notices. The few modules it imports are preloaded on every
+page (`scripts/build-pages.mjs` writes the `<link rel="modulepreload">` tags).
+It loads the editor, `editor.js`, when a file is opened, and starts loading it
+as soon as a visitor hovers, focuses or touches the upload area, a tool card,
+“Choose a PDF” or “Try a sample”, so it is usually there before the click. It
+asks for `editor.js` first and, at the same moment, for all the editor's other
+modules: the page holds their links in a `<template id="warm-editor">`, which
+`app.js` puts in the page (`warmUp`), so they download together and not one
+level of imports after another. A visitor who only reads the page downloads
+none of the editor's 490 KB (155 KB compressed). (The batch page is the
+exception: its workspace is part of the editor, which it loads at once.)
+`editor.js` starts the editor (the actions
 behind buttons, what is redrawn after a change, listeners), and the rest lives
 in `editor-core.js` (state, helpers and messages; it imports no other editor
 module, so every module can use it as they load), `history.js` (edit history:
@@ -298,13 +363,29 @@ in `dist/assets/vendor/versions.json`. The landing page loads neither the editor
 file is opened, or when a visitor shows intent) nor a PDF engine:
 `pdf-engine.js` adds the bundled pdf-lib on first use (and fontkit only for
 non-ASCII text), and `preview.js` imports PDF.js when a document opens. Both
-start downloading as soon as a visitor opens the file picker, drags a file in,
-or opens the sample. The package manifest and lockfile provide
+start downloading, together with the editor, as soon as a visitor hovers,
+focuses or touches “Choose a PDF” or “Try a sample”, opens the file picker or
+drags a file onto the page: their links are in a second template,
+`warm-engines`, which `app.js` puts in the page in the same moment as the
+editor's. A visitor who has asked the browser to save data (Save-Data, which
+only Chromium-based browsers report) gets the editor on such a sign, and the
+engines only once a file or the sample is opened. The PDF.js worker is not asked for early:
+WebKit would download it twice. Neither the editor nor an engine is downloaded
+while a visitor only reads the page, however long they stay (but for the batch
+page, above). Two costs of asking early are accepted. On a slow connection the
+browser's console may say that a file was "preloaded but not used" within a
+few seconds: the editor, which uses it, was still on its way, and nothing is
+downloaded twice. And a page left open across a deploy asks for the editor's
+modules of its own release, finds the new release's editor, and reloads on the
+visitor's next step: about 150 KB fetched for nothing, once. The package
+manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license. Dependabot (`.github/dependabot.yml`)
 proposes updates to those packages and to the pinned GitHub Actions each week
-(the Actions in one pull request, since every merge to `main` is a deploy).
+(the Actions in one pull request, since every merge to `main` is a deploy). An
+update of Playwright needs nothing more: the browser jobs take Playwright's
+image of the version in `package-lock.json`.
 
 ### Updating the libraries
 
@@ -365,6 +446,10 @@ npm pack @cantoo/pdf-lib@<version>    # in an empty directory
 python3 scripts/collect-pdf-lib-notices.py --tarball <that .tgz> --cache <empty directory>
 ```
 
+`npm test` then runs every engine operation over the odd-PDF catalogue
+(`tests/odd-pdfs.test.mjs`, see [Validation](#validation)), which is where a
+change in how pdf-lib reads or writes unusual files shows first.
+
 fontkit is [`@cantoo/fontkit`](https://github.com/cantoo-scribe/fontkit), whose font
 subsets work for the CFF outlines of the CJK font (older fontkit's did not, so that
 font used to be embedded whole). Update it the same way: copy
@@ -410,6 +495,9 @@ requests are still handled by the hosting platform.
   [Forms](#forms). Forms made only in XFA are not supported.
 
 Existing paragraphs are not rewritten. Highlighting is not secure redaction.
+There is no compression, OCR, redaction, or conversion to and from Word: a
+search of the tool list for them shows one sentence that says so, naming the
+nearest tool where one helps (`SEARCH_NOTES` in `routes.js`).
 A digitally signed PDF's signature is not valid in a download, as the file it
 covers has changed; the download message says so. Merging, duplicating,
 or subsetting pages from a PDF with form fields needs its fields flattened
@@ -436,7 +524,12 @@ in Merge; on by default), named after it, leading to its first page, with its
 own bookmarks under it; blank pages and pictures get none. Layer settings come along too, so
 content on a hidden layer stays hidden, and combined PDFs list every PDF's layers.
 Each copy of a duplicated page is a page of its own (`separatePages`): what is
-added to one copy shows on that copy only, and each has its own annotations. Not
+added to one copy shows on that copy only, and each has its own annotations. A
+PDF whose page tree lists one page twice is copied in the same way once
+something is done to its pages or drawn on them, as its two pages are one page
+in the file and an edit made in place would land on both (so, with form fields,
+it then needs them flattened, and the refusal says why). Left alone (a new
+title, a password, answers typed into its form), it is kept as it is. Not
 carried over: page labels other than plain numbers from 1, file attachments and
 tags (the structure screen readers use); the download message says when a copy
 leaves any of these out. Edits that keep every page of one PDF exactly once
@@ -451,7 +544,8 @@ handout (Pages per sheet) says what was left out on the way to it as well.
 
 A page whose PDF sets a larger unit (`/UserUnit`) is shown and edited in the
 PDF's own units, as its download is drawn: sizes such as 10 pt text are in those
-units.
+units. Put on A4 or Letter paper (Resize pages), it is measured in points like
+any other page.
 
 ## Validation
 
@@ -474,6 +568,33 @@ turn, crop and fonts from a node inside the page tree. It checks that page
 numbers, a header, a watermark, a picture and a flattened form field add to each
 page only what that page needs, so the file grows with its pages and not with
 their square, and that reordering keeps what the pages inherited.
+tests/odd-pdfs.test.mjs takes every engine operation (reorder, delete, duplicate,
+rotate, crop, margins, resize, numbers with a header and a watermark, added text,
+pictures and drawings, flatten and fill, properties, merge, pages per sheet,
+split, protect and unlock) through each of the 19 files of the catalogue in
+`tests/odd-pdfs.mjs`, written by the same writer: pages that share their
+resources in the three ways above (12 pages each, so a file that grows with
+the square of its pages shows it), a page tree of three levels, pages without
+resources or contents, contents split or shared, one page listed twice in the
+page tree, odd boxes and turns, UserUnit, a form without appearances, links and
+a shared note, an outline and page labels, a hidden layer, object streams, an
+incremental update, odd syntax (CR line endings, comments, indirect lengths,
+bytes after the end) and odd content (a Type 3 font, a font neither embedded
+nor standard, an inline image, turned text). Each download is read back with
+PDF.js, and with pdf-lib for the names in each page's resources: its pages,
+texts (and not another page's), sizes, turns, links, notes, fields, outline,
+labels, title, a hidden layer still hidden, and a size that grows with the
+pages. Run one operation with `--test-name-pattern=reorder`, or one file with
+`--test-name-pattern=kids-twice`. It is the suite to run before taking a
+pdf-lib update. That the files are fair, that is, read the same way by other
+readers, was judged once, by hand, with pypdf (strict), PyMuPDF and poppler
+(`pdfinfo`, `pdftotext`) as well as PDF.js: all four read every file as the
+catalogue describes it, and agree with PDF.js on the downloads of every
+operation. Those readers are not part of the tests.
+tests/search.test.mjs checks which cards a search of the tool list finds, and
+that each search note links to tools that exist, is one sentence, and says
+"can't" about nothing a tool offers (`tests/browser/search.spec.mjs` shows the
+notes in the page, and what a screen reader is told).
 They use the development dependencies installed by `npm ci`.
 
 The Node suites (`tests/*.test.mjs`) are [`node:test`](https://nodejs.org/api/test.html)
@@ -503,11 +624,16 @@ mistake. A `release` project stamps a copy of the site and serves
 it under `/pdf.qft.org/`, as GitHub Pages does, to check versioned URLs and the
 export worker. They run in CI for pull requests (one job per browser) and
 before every deployment (the Pages workflow runs the Test workflow, so the
-engines run in parallel there too), on Ubuntu 24.04 (pinned: `ubuntu-latest`
-became 26.04 in November 2026, and its libsoup 3.6 rewrites spaces in download
-file names as underscores in WebKit, which the file-name checks catch); every
-job has a timeout; when a browser job fails, the run keeps its screenshots,
-traces and HTML report for 14 days (an artifact on the run's summary page).
+engines run in parallel there too), inside Playwright's image for Ubuntu 24.04
+(`mcr.microsoft.com/playwright:v<version>-noble`, the version of
+`package-lock.json`), which carries the browsers and the system libraries they
+need; the other jobs run on Ubuntu 24.04 itself (pinned: `ubuntu-latest` became
+26.04 in November 2026). Every job has a timeout; when a browser job fails, the
+run keeps its screenshots, traces and HTML report for 14 days (an artifact on
+the run's summary page). `tests/ci.test.mjs` checks the workflows, which cannot
+run locally: the image the browser jobs get, pinned actions, read-only
+permissions where the image runs, job outputs wired at both ends, and the
+check after a deploy, against a local server.
 Locally:
 
 ```sh
@@ -584,11 +710,70 @@ and drawings stay vector; layer settings and the document's details come along.
 Links and comments do not carry over; form fields are flattened first, so their
 answers do. A password set in Protect PDF protects the sheets too.
 
+## Resize pages
+
+Resize pages (`/resize-pdf/`) puts pages on A4 or Letter paper (Letter where it
+is the usual paper): every page, the current page or selected pages. Each page
+is scaled in proportion until it fits its sheet, in the middle of it, and the
+sheet lies the way the page does (a page wider than it is tall goes on a sheet
+on its side). Small pages are enlarged. Nothing is cut off or stretched, and the
+sheet is blank beside a page of another shape. A page that is that size already,
+within half a millimetre, is left exactly as it is. Restore original size takes
+the sheet away again.
+
+In the page list a page keeps its sheet as `paper` (`'a4'` or `'letter'`), and
+the sheet comes last, after the page's turn, crop and added margins
+(`fittedGeometry` in `layout.js`), so a resized page stays on its sheet. Crop
+it, and what is kept is fitted to the sheet again: the outline is drawn on the
+sheet and becomes a crop of the page (`sheetCrop`). Add margins, and the page is
+made smaller until the margins measure on the sheet what was typed
+(`sheetMargins`). Items placed before stay on the page and are scaled with it.
+Items placed on the sheet have their own size there, and so have watermarks,
+headers, footers and page numbers; an item records the sheet it was placed on
+(`pagePaper`, beside `pageRotation` and `pageCrop`).
+
+The download scales everything on the page by one matrix (`fitToSheet` in
+`pdf-engine.js`): the content, and the page's comments, links and form fields,
+with every position they keep, their border widths and the text size a reader
+types with. What is moved is written anew for each comment (`moveAnnotation`),
+never changed where it is: a page duplicated in the editor shares its
+comments' rectangles and borders with its copy, and files share them between
+comments, so each would otherwise move once for every page that holds it.
+Links, bookmarks and named destinations that lead to a place on the
+page lead to the same place on the sheet. Text stays text. The page's `/Rotate`
+stays, its boxes become the sheet, and a `/UserUnit` goes. The sheet is blank
+beside the page even where the PDF has content there. Comments, links and
+fields that lay wholly outside what the page showed are hidden there (the
+annotation flag Hidden), and one that lay across the edge is cut at it: each of
+its appearances is put inside one that clips (`clipAnnotation`), and a link,
+which is a place to click, has its rectangle cut as well. Added margins
+do the same. PDF/A forbids the Hidden flag, so a PDF/A file in which something
+had to be hidden stops declaring PDF/A, and the download says why; resized
+with nothing out of sight, it is PDF/A still. pdf-lib's own
+`PDFPage.scale` is not used: it scales about the origin of the page's
+coordinates and moves nothing, so pages with boxes away from the origin end up
+off their sheet, and it leaves destinations, border widths and text sizes as
+they were.
+
+Known limits: A4 and Letter are the only papers; pages added after a resize
+keep their own size until they are resized too (the panel says so); a comment
+without an appearance of its own, which each viewer
+draws in its own way, cannot be cut at the edge of what a page shows, nor can a
+note that keeps its size whatever the page does; rich-text comments keep the
+text size in their own markup; a few things that point at a place on a page
+keep its old coordinates (an action that runs after another, or when a page or
+a field is entered; article threads; the scales of measuring tools); an item
+placed before a page was resized or
+given margins stays within the page as it was, and cannot be dragged onto the
+blank beside it; margins added to a resized picture page do not keep their size
+when the picture is laid out again (JPG to PDF's paper size); batch presets
+have no paper size.
+
 ## JPG to PDF and PDF to JPG
 
 JPG and PNG files open as pages, alone or with PDFs (`dist/convert.js`,
 `imagesToPdf` in `pdf-engine.js`). Each picture becomes a one-page source on A4 or
-US Letter (chosen from the browser's language), turned to suit the picture, or at
+Letter (Letter where it is the usual paper), turned to suit the picture, or at
 its own size (96 pixels per inch), with an optional margin; pictures are never
 enlarged. JPEG data goes into the PDF unchanged, except that a photo whose EXIF
 orientation turns it is saved again upright, since PDF ignores that tag. Changing
@@ -716,7 +901,14 @@ PDF that needs a password reports that it should be unlocked first.
 written outside object streams (the catalog's language, page dictionaries,
 stream dictionaries), which readers then decrypt into garbage.
 `encryptStringsWhenSaving` in `pdf-engine.js` encrypts those strings too; the
-engine tests check the result with PDF.js. The password test fixtures are
+engine tests check the result with PDF.js. `@cantoo/pdf-lib` also decrypts a
+cross-reference stream, which is never encrypted. A compressed one then cannot
+be read, and the trailer it carries is lost: the document's title, author and
+the rest, and its identifier. (Every file Protect PDF writes has such a stream,
+compressed, as most files with a cross-reference stream do.) `restoreTrailer`
+reads them from the file again
+without decrypting; the engine tests protect a titled PDF, unlock it and read
+the title back. The password test fixtures are
 encrypted by pypdf (`scripts/make-encrypted-fixtures.py`), not by the library
 under test.
 
@@ -739,7 +931,13 @@ and generated results remain in memory. Storage failures leave the current
 preset usable in the tab. No external ZIP library or network service is used.
 ZIP32 size/count limits produce a message directing users to individual files.
 
-The home toolkit supports category filters and search. The editor uses a compact
+The home toolkit supports category filters and search. Each word typed must be
+the start of a word of a card's name, copy, keywords or category (`searchFinds`
+in `routes.js`): "word" does not find "password", words such as "pdf" and "to"
+are ignored, and "pages" also finds "page". On a tool page, a search that finds
+only the page's own tool, whose card is not there, says that this page is that
+tool. A search that ends in a note or in "No tools match" is announced to screen
+readers once typing rests. The editor uses a compact
 tool selector (a bottom tool bar on phones) and direct page navigation.
 Responsive checks cover 320px to 1280px layouts without horizontal overflow.
 

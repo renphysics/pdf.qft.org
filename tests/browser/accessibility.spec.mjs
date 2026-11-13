@@ -74,6 +74,7 @@ test('every editor tool, with items selected and settings shown', async ({ page 
     'delete',
     'crop',
     'margins',
+    'resize',
     'merge',
     'split',
     'sheets',

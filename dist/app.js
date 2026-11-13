@@ -2,7 +2,7 @@
  * QFT PDF. This module runs on every page and is all a page needs before a file
  * is opened: the tool search, opening files and the sample, the help and
  * privacy dialogs, notices, and the browser's Back and Forward. The editor
- * (editor.js and the modules it imports, about 400 KB) loads when a file is
+ * (editor.js and the modules it imports, about 490 KB) loads when a file is
  * opened, and starts loading as soon as a visitor hovers, focuses or touches
  * the upload area, a tool card or the sample, so it is usually there before
  * the click; a visitor who only reads the page never downloads it. The
@@ -22,16 +22,19 @@
 import {
   $,
   $$,
+  announceMessage,
   busy,
   friendly,
   hideToast,
   pageTool,
   scheduleToastHide,
   showInfo,
+  state,
   toast,
   ui,
 } from './editor-core.js';
 import { finishLanding } from './views.js';
+import { TOOLS, TOOL_PAGES, searchFinds, searchNote, searchText, searchWords } from './routes.js';
 
 // ---- The editor, loaded once ----------------------------------------------------------
 
@@ -72,6 +75,17 @@ function refresh() {
   history.replaceState({ ...history.state, reloaded: { at: Date.now() } }, '');
   location.reload();
 }
+/**
+ * Put a template's links in the page, once (scripts/build-pages.mjs writes them):
+ * all their files download at once, not each level of imports after the last.
+ */
+const warmed = new Set();
+function warmUp(id) {
+  if (warmed.has(id)) return;
+  warmed.add(id);
+  const template = document.getElementById(id);
+  if (template) document.head.append(template.content.cloneNode(true));
+}
 /** The editor's module, loading it the first time (and again after a failed load). */
 export function loadEditor() {
   loading ||= import('./editor.js')
@@ -84,6 +98,8 @@ export function loadEditor() {
       });
     })
     .then((module) => (editor = module));
+  // After the import: editor.js is needed first, and connections are few.
+  warmUp('warm-editor');
   return loading;
 }
 /** Say why something could not be done; with another release's editor, reload into that release. */
@@ -98,13 +114,15 @@ function withEditor(run) {
 }
 // Intent: hovering, focusing or touching the upload area, a tool card or the sample
 // loads the editor; on Open and the sample the PDF engines start downloading too,
-// unless the visitor asked to save data. A warm-up that fails says nothing: the
-// click that follows does.
+// at the same time, unless the visitor asked to save data. A warm-up that fails
+// says nothing: the click that follows does.
 const warmEditor = () => loadEditor().catch(() => {});
-const warmEngines = () =>
-  loadEditor()
-    .then((module) => navigator.connection?.saveData || module.warm())
-    .catch(() => {});
+const saveData = () => Boolean(navigator.connection?.saveData);
+const warmEngines = () => {
+  const loaded = loadEditor();
+  if (!saveData()) warmUp('warm-engines');
+  return loaded.then((module) => saveData() || module.warm()).catch(() => {});
+};
 for (const [selector, warm] of [
   ['#drop-zone, .tool-card, [data-action="batch"], [data-action="batch-choose"]', warmEditor],
   ['[data-action="open"], [data-action="sample"]', warmEngines],
@@ -118,19 +136,89 @@ if (pageTool === 'batch') warmEditor();
 // ---- The tool cards -------------------------------------------------------------------
 
 let toolFilter = 'all';
+const siteRoot = new URL('./', import.meta.url);
+const toolOf = (id) => TOOLS.find((item) => item.id === id);
+/** What the search reads for a tool: its card (routes.js) and its category, named as on the filter buttons. */
+const cardText = (item) =>
+  searchText(item) + ' ' + ($(`[data-tool-filter="${item.category}"]`)?.textContent || '');
+/** A link to a tool that works as its card does: with a document open, the editor switches tools in place. */
+function toolLink(id, label) {
+  const link = document.createElement('a');
+  link.href = new URL(TOOL_PAGES[id] + '/', siteRoot).pathname;
+  if (toolOf(id).tab) link.dataset.startTool = id;
+  else link.dataset.action = id;
+  link.textContent = label;
+  return link;
+}
+const LINK = /\[([^\]]+)\]\(tool:([a-z]+)\)/g;
+/**
+ * A search note's text (routes.js), its [label](tool:id) links made into links.
+ * The tool of the page itself is only named, while no document is open: a
+ * link to it would load this page again, and empty the search.
+ */
+function noteContent(text) {
+  const parts = [];
+  let at = 0;
+  for (const match of text.matchAll(LINK)) {
+    const [whole, label, id] = match;
+    parts.push(
+      text.slice(at, match.index),
+      id === pageTool && !state.pages.length ? label : toolLink(id, label),
+    );
+    at = match.index + whole.length;
+  }
+  parts.push(text.slice(at));
+  return parts;
+}
+/**
+ * On a tool page, the search found only the page's own tool, which has no card
+ * there: this page is it. Its upload button says what to choose; with a
+ * document open, a link takes the document to the tool.
+ */
+function ownToolContent(item) {
+  const name = `You are on ${item.title || item.name}: `;
+  if (state.pages.length && item.tab) return [name, toolLink(item.id, 'use it on your open document'), '.'];
+  const choose = $('#drop-zone .upload-button').textContent.trim();
+  return [name + choose[0].toLowerCase() + choose.slice(1) + ' above.'];
+}
+let sayTimer = 0,
+  said = '';
+/**
+ * A dead end is said once typing rests, and once for each: a screen reader
+ * would otherwise speak at every key. `key` tells one dead end from the next,
+ * as "No tools match" reads the same for every search that finds nothing, and
+ * silence would mean that cards were found. Cards that match are not said.
+ */
+function sayResult(message, key = message) {
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => {
+    if (message && key !== said) announceMessage(message);
+    said = key;
+  }, 700);
+}
 function filterTools() {
-  // Every word typed must be in the card's text or its keywords (routes.js).
-  const words = $('#tool-search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // Every word typed (but "pdf", "to", "the"...) must start a word of the card's text,
+  // its keywords or its category (routes.js), so "word" does not find "password".
+  const typed = searchWords($('#tool-search').value),
+    shown = (item) => toolFilter === 'all' || item.category === toolFilter;
   let count = 0;
   $$('.tool-card').forEach((card) => {
-    const text = (card.textContent + ' ' + (card.dataset.keywords || '')).toLowerCase();
-    const visible =
-      (toolFilter === 'all' || card.dataset.category === toolFilter) &&
-      words.every((word) => text.includes(word));
-    card.hidden = !visible;
-    if (visible) count++;
+    const item = toolOf(card.dataset.card);
+    card.hidden = !(shown(item) && searchFinds(typed, cardText(item)));
+    if (!card.hidden) count++;
   });
-  $('#no-tools').hidden = count !== 0;
+  // What the site does not do, said plainly: above the cards, or in place of "No tools
+  // match". On a tool page, a search that finds only the page's own tool says so.
+  const found = searchNote(typed),
+    own = !found && !count && pageTool ? toolOf(pageTool) : null,
+    here = own && shown(own) && searchFinds(typed, cardText(own)),
+    note = $('#search-note');
+  note.replaceChildren(...(found ? noteContent(found.text) : here ? ownToolContent(own) : []));
+  note.hidden = !found && !here;
+  const nothing = count === 0 && note.hidden;
+  $('#no-tools').hidden = !nothing;
+  if (nothing) sayResult($('#no-tools').textContent, `nothing for ${typed.join(' ')} under ${toolFilter}`);
+  else sayResult(note.hidden ? '' : note.textContent);
 }
 $('#tool-search').addEventListener('input', filterTools);
 $$('[data-tool-filter]').forEach((button) =>
@@ -185,6 +273,9 @@ function chooseForBatch() {
 document.addEventListener('click', (event) => {
   const target = event.target.closest('button,a');
   if (!target) return;
+  // The visitor has moved on from the search: what it was about to say is stale,
+  // and would be said over what comes next (the editor announces an opened PDF).
+  if (!target.closest('.tool-discovery')) clearTimeout(sayTimer);
   // Links opened in a new tab or window go to their real address.
   if (target.matches('a[href]') && !plainClick(event)) return;
   if (editor) {
@@ -241,6 +332,7 @@ document.addEventListener('drop', (event) => {
   event.preventDefault();
   dragDepth = 0;
   $('#drop-zone').classList.remove('drag-over');
+  clearTimeout(sayTimer);
   const files = [...event.dataTransfer.files];
   withEditor((module) => module.openDropped(files));
 });

@@ -1,13 +1,15 @@
 // PDFs whose structure is valid but not what the libraries expect: pages that
 // share their resources, and pages that inherit from a node inside the page tree.
-// Each file is written here object by object, without a PDF library, and the
-// exports are checked with pdf-lib and, independently, with PDF.js.
+// Each file is written here object by object, without a PDF library (with the
+// writer in odd-pdfs.mjs), and the exports are checked with pdf-lib and,
+// independently, with PDF.js.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { test } from 'node:test';
+import { font, pdfFile as writeObjects, stream } from './odd-pdfs.mjs';
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -33,23 +35,12 @@ const { PDFDocument, PDFDict, PDFName } = globalThis.PDFLib;
 
 // ---- Writing and reading -------------------------------------------------------------
 
-/** A PDF file from its objects, numbered from 1 in the order given. The first is the catalog. */
-function pdfFile(objects) {
-  let file = '%PDF-1.7\n';
-  const offsets = objects.map((object, index) => {
-    const offset = file.length;
-    file += `${index + 1} 0 obj\n${object}\nendobj\n`;
-    return offset;
-  });
-  const table = file.length;
-  file += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const offset of offsets) file += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  file += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${table}\n%%EOF\n`;
-  // The objects here are ASCII, so characters are bytes and the offsets hold.
-  return new TextEncoder().encode(file);
-}
-const stream = (content) => `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
-const font = (name) => `<< /Type /Font /Subtype /Type1 /BaseFont /${name} /Encoding /WinAnsiEncoding >>`;
+/**
+ * A PDF file from its objects, numbered from 1 in the order given, by the writer
+ * of the odd-PDF catalogue. The first is the catalog.
+ */
+const pdfFile = (objects) =>
+  writeObjects(objects.map((body, index) => [index ? `object-${index + 1}` : 'cat', body]));
 
 /** Each page as PDF.js reads it: its texts, the kind of font of each, the part shown and the turn. */
 async function read(bytes) {
@@ -373,5 +364,143 @@ await test('reordering pages that inherit from a node of the page tree: size, tu
     // Deleting a page copies the others into a new file, which always kept these.
     const { bytes: fewer } = await build(bytes, [3, 0]);
     assert.deepEqual(await read(fewer), [beta(4), alpha(1)], `${label}, two pages kept`);
+  }
+});
+
+// ---- A page listed twice in the page tree -----------------------------------------------
+
+/**
+ * Three pages of which the first and the third are one object (Kids [p1 p2
+ * p1]), with page labels i, ii, iii and, when asked, a form of one text field
+ * on the second page, or a comment on the page that is there twice.
+ */
+function listedTwice(withForm, comment = false) {
+  const field =
+    '<< /Type /Annot /Subtype /Widget /FT /Tx /T (note) /Rect [40 300 240 324] /P 6 0 R /DA (/Helv 12 Tf 0 g) /F 4 >>';
+  return pdfFile([
+    `<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /S /r >>] >>${withForm ? ' /AcroForm << /Fields [8 0 R] /DA (/Helv 12 Tf 0 g) /DR << /Font << /Helv 3 0 R >> >> /NeedAppearances true >>' : ''} >>`,
+    '<< /Type /Pages /Kids [4 0 R 6 0 R 4 0 R] /Count 3 >>',
+    font('Helvetica'),
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R${comment ? ' /Annots [<< /Type /Annot /Subtype /Square /Rect [100 100 140 140] /BS << /W 2 >> >>]' : ''} >>`,
+    stream('BT /F1 16 Tf 40 440 Td (TWICE) Tj ET'),
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R${withForm ? ' /Annots [8 0 R]' : ''} >>`,
+    stream('BT /F1 16 Tf 40 440 Td (ONCE) Tj ET'),
+    ...(withForm ? [field] : []),
+  ]);
+}
+
+await test('a page listed twice in the page tree: left alone the file is kept as it is; edited, its pages are copied, and a form says why it cannot be', async () => {
+  const labels = async (bytes) => {
+    const doc = await pdfjs.getDocument({ data: bytes.slice(), verbosity: 0 }).promise;
+    const found = await doc.getPageLabels();
+    await doc.loadingTask.destroy();
+    return found;
+  };
+  const turns = async (bytes) => (await read(bytes)).map((page) => page.rotate);
+  const pagesOf = (extra = {}) =>
+    [0, 1, 2].map((index) => ({ id: `page-${index}`, sourceId: 'file', index, ...extra }));
+  const exported = (bytes, state) =>
+    buildPdfWithNotes({
+      sources: [{ id: 'file', bytes: Uint8Array.from(bytes), name: 'file.pdf' }],
+      ...state,
+    });
+  for (const withForm of [false, true]) {
+    const bytes = listedTwice(withForm),
+      kind = withForm ? 'with a form' : 'without a form';
+    assert.deepEqual(
+      (await read(bytes)).map((page) => page.texts[0]),
+      ['TWICE', 'ONCE', 'TWICE'],
+      `${kind}: readers show three pages`,
+    );
+    // Nothing done to the pages: kept in place, with what a copy would lose.
+    for (const [what, state] of [
+      ['nothing changed', {}],
+      ['a new title', { properties: { title: 'Kept' } }],
+      ['a password', { protection: null }],
+      ...(withForm ? [['an answer typed', { formValues: { file: { note: 'Typed' } } }]] : []),
+    ]) {
+      const { bytes: output, notes } = await exported(bytes, { pages: pagesOf(), ...state });
+      assert.deepEqual(
+        await labels(output),
+        ['i', 'ii', 'iii'],
+        `${kind}, ${what}: the page labels are kept`,
+      );
+      assert.deepEqual(notes, [], `${kind}, ${what}: nothing is left out`);
+      const form = (await PDFDocument.load(output)).getForm();
+      assert.equal(form.getFields().length, withForm ? 1 : 0, `${kind}, ${what}: the form is kept`);
+      if (what === 'an answer typed') assert.equal(form.getTextField('note').getText(), 'Typed');
+    }
+    // The first page turned: it is one object with the third, and only the first turns.
+    const turned = { pages: [{ ...pagesOf()[0], rotation: 90 }, ...pagesOf().slice(1)] };
+    if (withForm) {
+      await assert.rejects(
+        exported(bytes, turned),
+        /This PDF lists one of its pages twice\. To change its pages, QFT PDF copies them, and a form’s pages can be copied only once its fields are flattened\./,
+        'with a form: the refusal says what is the matter with this file',
+      );
+      // Pages removed: the usual refusal.
+      await assert.rejects(
+        exported(bytes, { pages: pagesOf().slice(0, 2) }),
+        /Pages of a PDF with form fields can only be combined, duplicated or extracted/,
+      );
+    }
+    const { bytes: output, notes } = await exported(bytes, { ...turned, flattenForms: withForm });
+    assert.deepEqual(
+      await turns(output),
+      [90, 0, 0],
+      `${kind}: the first page is turned once, the third not at all`,
+    );
+    assert.deepEqual(notes, ['labels-dropped'], `${kind}: a copy, which says what it leaves out`);
+    // Numbered: each page has its own number, and only its own.
+    const { bytes: numbered } = await exported(bytes, {
+      pages: pagesOf(),
+      flattenForms: withForm,
+      pageNumbers: stamps.pageNumbers,
+    });
+    assert.deepEqual(
+      (await read(numbered)).map((page) => page.texts.filter((text) => text.startsWith('Page'))),
+      [['Page 1 of 3'], ['Page 2 of 3'], ['Page 3 of 3']],
+      `${kind}: page numbers`,
+    );
+  }
+  // On paper, the first on A4 and the third on Letter: two pages now, each on its
+  // own sheet, each with its own copy of the comment, moved once with its page.
+  {
+    const [first, second, third] = pagesOf();
+    const { bytes: output } = await exported(listedTwice(false, true), {
+      pages: [{ ...first, paper: 'a4' }, second, { ...third, paper: 'letter' }],
+    });
+    assert.deepEqual(
+      (await read(output)).map((page) => page.view),
+      [
+        [0, 0, 595.28, 841.89],
+        [0, 0, 400, 500],
+        [0, 0, 612, 792],
+      ],
+      'on two papers: each page has its own size',
+    );
+    const doc = await PDFDocument.load(output);
+    for (const [index, sheet] of [
+      [0, [595.28, 841.89]],
+      [2, [612, 792]],
+    ]) {
+      const scale = Math.min(sheet[0] / 400, sheet[1] / 500),
+        blank = [(sheet[0] - scale * 400) / 2, (sheet[1] - scale * 500) / 2];
+      const comment = doc.getPage(index).node.Annots().lookup(0),
+        rect = comment
+          .lookup(PDFName.of('Rect'))
+          .asArray()
+          .map((value) => value.asNumber());
+      [100, 100, 140, 140].forEach((value, corner) =>
+        assert.ok(
+          Math.abs(rect[corner] - (blank[corner % 2] + scale * value)) < 0.001,
+          `page ${index + 1}: the comment where its sheet puts it (${rect})`,
+        ),
+      );
+      assert.ok(
+        Math.abs(comment.lookup(PDFName.of('BS')).lookup(PDFName.of('W')).asNumber() - 2 * scale) < 0.001,
+        `page ${index + 1}: its border at its page’s scale`,
+      );
+    }
   }
 });

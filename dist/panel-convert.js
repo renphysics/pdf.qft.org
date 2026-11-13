@@ -30,7 +30,7 @@ function jpgToPdfFields() {
       'pictureSize',
       [
         ['a4', 'A4'],
-        ['letter', 'US Letter'],
+        ['letter', 'Letter'],
         ['fit', 'Same as the picture'],
       ],
       true,

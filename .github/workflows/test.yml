@@ -19,11 +19,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Jobs run on Ubuntu 24.04, not ubuntu-latest: that label moved to 26.04 on
-# 2026-11-06, where Playwright's dependency install took 40 minutes. (Its
-# libsoup 3.6 also writes spaces in download file names as underscores in
-# WebKit. Playwright 1.65 ships that libsoup inside its WebKit build on any
-# Ubuntu, so the tests now take the name from the app and allow the browser
-# either spelling: download() in tests/browser/helpers.mjs.)
+# 2026-11-06. (Its libsoup 3.6 writes spaces in download file names as
+# underscores in WebKit. Playwright 1.65 ships that libsoup inside its WebKit
+# build on any Ubuntu, so the tests take the name from the app and allow the
+# browser either spelling: download() in tests/browser/helpers.mjs.) The
+# browser jobs run inside Playwright's own Ubuntu 24.04 image, which holds the
+# browsers and the system libraries they need: installing those on the runner
+# took from 16 seconds to over 18 minutes, waiting on an Ubuntu package mirror,
+# and once ran a deploy out of time.
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -43,12 +46,53 @@ jobs:
       - name: Restore font assets and run all tests
         run: npm test
 
+  # The name of Playwright's image for the Playwright in package-lock.json. The
+  # browsers in an image work only with the Playwright of the same version, so
+  # the name is read from the lockfile, and a Dependabot update of Playwright
+  # brings its image along with nothing else to change. The image is named by
+  # its version tag, not pinned by its digest as the actions are pinned by
+  # their commits: it comes from Microsoft's own registry, the publisher of the
+  # browsers the jobs used to download, and the jobs that run it get a read-only
+  # token and no secrets (they can still write the npm cache, whose packages
+  # npm ci checks against the lockfile, and a test report). This job costs a
+  # few seconds.
+  # (tests/ci.test.mjs runs this step's script on the real lockfile.)
+  image:
+    name: Playwright image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      name: ${{ steps.image.outputs.name }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Node as the runner has it: this only reads a JSON file.
+      - name: Read the Playwright version
+        id: image
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test']?.version")
+          if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::package-lock.json gives no version of @playwright/test (read: $version)."
+            exit 1
+          fi
+          echo "Playwright $version: mcr.microsoft.com/playwright:v$version-noble"
+          echo "name=mcr.microsoft.com/playwright:v$version-noble" >> "$GITHUB_OUTPUT"
+
   # The editing journeys in tests/QA-CHECKLIST.md (tests/browser), one job per
   # browser engine: Chromium, WebKit (Safari's engine) and Firefox.
   browser:
     name: ${{ matrix.name }}
+    needs: image
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # The user is the runner's (1001), who owns the workspace and HOME, as in
+    # Playwright's own example for GitHub Actions; --ipc=host as its Docker
+    # guide asks, for Chromium.
+    container:
+      image: ${{ needs.image.outputs.name }}
+      options: --user 1001 --ipc=host
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +108,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The same Node as the other jobs (the image has its own, a newer one).
       - name: Use Node.js 22
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -71,8 +116,14 @@ jobs:
           cache: npm
       - name: Install test dependencies
         run: npm ci --ignore-scripts
-      - name: Install ${{ matrix.browser }} for Playwright
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+      # For the log: the Playwright installed above, and the browser builds in
+      # the image. Playwright fails at once, naming the build it looked for,
+      # when they do not belong together.
+      - name: Show the browsers in the image
+        run: |
+          npx playwright --version
+          echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
+          ls "$PLAYWRIGHT_BROWSERS_PATH"
       - name: Run the browser tests
         run: npm run test:browser
         env:

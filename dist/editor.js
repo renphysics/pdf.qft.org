@@ -71,6 +71,7 @@ import {
 import { fillForm, renderTool } from './tool-panel.js';
 import { cropDraftActive, cropValues, scopedPages, updateCropOverlays } from './panel-crop.js';
 import { notesMargin, removeMargins } from './panel-margins.js';
+import { restoreSize } from './panel-resize.js';
 import { clearProperties } from './panel-properties.js';
 import { pad, setSignature, useSignature } from './panel-signature.js';
 import { defaultSetting, toggleSetting } from './panel-settings.js';
@@ -447,6 +448,7 @@ export async function action(name, element) {
   if (name === 'reverse-pages') reversePages();
   if (name === 'margins-notes') notesMargin();
   if (name === 'margins-remove') removeMargins();
+  if (name === 'resize-restore') restoreSize();
   if (name === 'interleave-pages') interleavePages();
   if (name === 'choose-image') $('#image-input').click();
   if (name === 'signature-use') await useSignature();
