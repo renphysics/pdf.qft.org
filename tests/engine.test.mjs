@@ -2085,6 +2085,96 @@ await test('protecting a download: AES-256, read by pdf.js with the password; st
   await assert.rejects(openPdf(protectedBuild.bytes), (error) => error.code === 'password-required');
 });
 
+await test('unlocking keeps the title: protected files whose cross-reference is a stream', async () => {
+  // pdf-lib 2.11.1 decrypted the cross-reference stream of an encrypted file and
+  // lost the trailer with it, so Unlock PDF dropped the title, the author and the
+  // rest (see restoreTrailer). Every file Protect PDF writes has such a stream.
+  const titleOf = async (bytes, password) => {
+    const doc = await pdfjs.getDocument({ data: bytes.slice(), password, verbosity: 0 }).promise;
+    const { info } = await doc.getMetadata();
+    await doc.loadingTask.destroy();
+    return info.Title;
+  };
+  const made = async (title, encrypt) => {
+    const doc = await PDFDocument.create();
+    doc.addPage([300, 200]);
+    if (title) {
+      doc.setTitle(title);
+      doc.setAuthor('Accounts');
+    }
+    if (encrypt) doc.encrypt({ userPassword: 'figures 1', ownerPassword: 'figures 1', ...encrypt });
+    return doc.save();
+  };
+  // Counts the readings of a file, to show that only an encrypted one is read twice.
+  const load = PDFDocument.load;
+  let readings = 0;
+  PDFDocument.load = function (...args) {
+    readings++;
+    return load.apply(this, args);
+  };
+  try {
+    const { bytes: locked } = await buildPdfWithNotes({
+      ...one(await made('Annual figures')),
+      protection: { enabled: true, password: 'figures 1' },
+    });
+    assert.match(
+      new TextDecoder('latin1').decode(locked),
+      /\/Type \/XRef/,
+      'Protect writes a cross-reference stream',
+    );
+    readings = 0;
+    const opened = await openPdf(locked, { password: 'figures 1' });
+    assert.equal(opened.details.title, 'Annual figures', 'Document properties shows the title');
+    assert.equal(opened.details.author, 'Accounts', 'and the author');
+    assert.equal(readings, 2, 'an encrypted file is read once more, without decrypting, for its trailer');
+    assert.equal(
+      await titleOf(opened.bytes),
+      'Annual figures',
+      'PDF.js reads the title from the unlocked copy',
+    );
+    // PDF.js takes a file's fingerprint from its identifier (/ID).
+    const identifier = async (bytes, password) => {
+      const doc = await pdfjs.getDocument({ data: bytes.slice(), password, verbosity: 0 }).promise;
+      const [fingerprint] = doc.fingerprints;
+      await doc.loadingTask.destroy();
+      return fingerprint;
+    };
+    assert.equal(
+      await identifier(opened.bytes),
+      await identifier(locked, 'figures 1'),
+      'the unlocked copy keeps the file identifier',
+    );
+    // A wrong password, or none, is refused as before.
+    await assert.rejects(
+      openPdf(locked, { password: 'not it' }),
+      (error) => error.code === 'password-incorrect',
+    );
+    await assert.rejects(openPdf(locked), (error) => error.code === 'password-required');
+    // A file without a title opens without one, and is not given one.
+    const { bytes: untitled } = await buildPdfWithNotes({
+      ...one(await made(null)),
+      protection: { enabled: true, password: 'figures 1' },
+    });
+    const plain = await openPdf(untitled, { password: 'figures 1' });
+    assert.equal(plain.details.title, '', 'an untitled file has no title');
+    assert.equal(plain.pageCount, 1);
+    assert.equal(await titleOf(plain.bytes), undefined, 'and PDF.js finds none');
+    // Other ways of encrypting that pdf-lib writes, also with a cross-reference stream.
+    for (const algorithm of ['AES-128', 'RC4-128']) {
+      const other = await openPdf(await made('Annual figures', { algorithm, allowWeakCryptography: true }), {
+        password: 'figures 1',
+      });
+      assert.equal(other.details.title, 'Annual figures', `${algorithm}: the title`);
+    }
+    // A file that is not encrypted is read once.
+    readings = 0;
+    assert.equal((await openPdf(await made('Plain'))).details.title, 'Plain');
+    assert.equal(readings, 1, 'a file that is not encrypted is read once');
+  } finally {
+    PDFDocument.load = load;
+  }
+});
+
 await test('passwords are prepared as PDF 2.0 asks (SASLprep)', async () => {
   // Passwords are prepared as PDF 2.0 asks (SASLprep, NFKC): full-width characters match their plain form.
   const fullWidth = await buildPdf({

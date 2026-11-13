@@ -365,6 +365,10 @@ npm pack @cantoo/pdf-lib@<version>    # in an empty directory
 python3 scripts/collect-pdf-lib-notices.py --tarball <that .tgz> --cache <empty directory>
 ```
 
+`npm test` then runs every engine operation over the odd-PDF catalogue
+(`tests/odd-pdfs.test.mjs`, see [Validation](#validation)), which is where a
+change in how pdf-lib reads or writes unusual files shows first.
+
 fontkit is [`@cantoo/fontkit`](https://github.com/cantoo-scribe/fontkit), whose font
 subsets work for the CFF outlines of the CJK font (older fontkit's did not, so that
 font used to be embedded whole). Update it the same way: copy
@@ -436,7 +440,10 @@ in Merge; on by default), named after it, leading to its first page, with its
 own bookmarks under it; blank pages and pictures get none. Layer settings come along too, so
 content on a hidden layer stays hidden, and combined PDFs list every PDF's layers.
 Each copy of a duplicated page is a page of its own (`separatePages`): what is
-added to one copy shows on that copy only, and each has its own annotations. Not
+added to one copy shows on that copy only, and each has its own annotations. A
+PDF whose page tree lists one page twice is copied in the same way whenever it
+is edited, as its two pages are one page in the file and an edit made in place
+would land on both (so, with form fields, it needs them flattened too). Not
 carried over: page labels other than plain numbers from 1, file attachments and
 tags (the structure screen readers use); the download message says when a copy
 leaves any of these out. Edits that keep every page of one PDF exactly once
@@ -475,6 +482,29 @@ turn, crop and fonts from a node inside the page tree. It checks that page
 numbers, a header, a watermark, a picture and a flattened form field add to each
 page only what that page needs, so the file grows with its pages and not with
 their square, and that reordering keeps what the pages inherited.
+tests/odd-pdfs.test.mjs takes every engine operation (reorder, delete, duplicate,
+rotate, crop, margins, resize, numbers with a header and a watermark, added text,
+pictures and drawings, flatten and fill, properties, merge, pages per sheet,
+split, protect and unlock) through each of the 19 files of the catalogue in
+`tests/odd-pdfs.mjs`, written by the same writer: pages that share their
+resources in the three ways above (12 pages each, so a file that grows with
+the square of its pages shows it), a page tree of three levels, pages without
+resources or contents, contents split or shared, one page listed twice in the
+page tree, odd boxes and turns, UserUnit, a form without appearances, links and
+a shared note, an outline and page labels, a hidden layer, object streams, an
+incremental update, odd syntax (CR line endings, comments, indirect lengths,
+bytes after the end) and odd content (a Type 3 font, a font neither embedded
+nor standard, an inline image, turned text). Each download is read back with
+PDF.js, and with pdf-lib for the names in each page's resources: its pages,
+texts (and not another page's), sizes, turns, links, notes, fields, outline,
+labels, title, a hidden layer still hidden, and a size that grows with the
+pages. Run one operation with `--test-name-pattern=reorder`, or one file with
+`--test-name-pattern=kids-twice`. It is the suite to run before taking a
+pdf-lib update. That the files are fair, that is, read the same way by other
+readers, was judged once, by hand, with pypdf (strict), PyMuPDF and poppler
+(`pdfinfo`, `pdftotext`) as well as PDF.js: all four read every file as the
+catalogue describes it, and agree with PDF.js on the downloads of every
+operation. Those readers are not part of the tests.
 They use the development dependencies installed by `npm ci`.
 
 The Node suites (`tests/*.test.mjs`) are [`node:test`](https://nodejs.org/api/test.html)
@@ -757,7 +787,12 @@ PDF that needs a password reports that it should be unlocked first.
 written outside object streams (the catalog's language, page dictionaries,
 stream dictionaries), which readers then decrypt into garbage.
 `encryptStringsWhenSaving` in `pdf-engine.js` encrypts those strings too; the
-engine tests check the result with PDF.js. The password test fixtures are
+engine tests check the result with PDF.js. It also decrypts a cross-reference
+stream, which is never encrypted, and so loses the trailer of an encrypted file
+that has one (every file Protect PDF writes): the document's title, author and
+the rest, and its identifier. `restoreTrailer` reads them from the file again
+without decrypting; the engine tests protect a titled PDF, unlock it and read
+the title back. The password test fixtures are
 encrypted by pypdf (`scripts/make-encrypted-fixtures.py`), not by the library
 under test.
 

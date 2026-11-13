@@ -1,13 +1,15 @@
 // PDFs whose structure is valid but not what the libraries expect: pages that
 // share their resources, and pages that inherit from a node inside the page tree.
-// Each file is written here object by object, without a PDF library, and the
-// exports are checked with pdf-lib and, independently, with PDF.js.
+// Each file is written here object by object, without a PDF library (with the
+// writer in odd-pdfs.mjs), and the exports are checked with pdf-lib and,
+// independently, with PDF.js.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { test } from 'node:test';
+import { font, pdfFile as writeObjects, stream } from './odd-pdfs.mjs';
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -33,23 +35,12 @@ const { PDFDocument, PDFDict, PDFName } = globalThis.PDFLib;
 
 // ---- Writing and reading -------------------------------------------------------------
 
-/** A PDF file from its objects, numbered from 1 in the order given. The first is the catalog. */
-function pdfFile(objects) {
-  let file = '%PDF-1.7\n';
-  const offsets = objects.map((object, index) => {
-    const offset = file.length;
-    file += `${index + 1} 0 obj\n${object}\nendobj\n`;
-    return offset;
-  });
-  const table = file.length;
-  file += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const offset of offsets) file += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  file += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${table}\n%%EOF\n`;
-  // The objects here are ASCII, so characters are bytes and the offsets hold.
-  return new TextEncoder().encode(file);
-}
-const stream = (content) => `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
-const font = (name) => `<< /Type /Font /Subtype /Type1 /BaseFont /${name} /Encoding /WinAnsiEncoding >>`;
+/**
+ * A PDF file from its objects, numbered from 1 in the order given, by the writer
+ * of the odd-PDF catalogue. The first is the catalog.
+ */
+const pdfFile = (objects) =>
+  writeObjects(objects.map((body, index) => [index ? `object-${index + 1}` : 'cat', body]));
 
 /** Each page as PDF.js reads it: its texts, the kind of font of each, the part shown and the turn. */
 async function read(bytes) {

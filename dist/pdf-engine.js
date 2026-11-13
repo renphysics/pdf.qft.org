@@ -226,6 +226,7 @@ export async function loadPdf(bytes, password = '') {
     );
   }
   if (!pageCount) throw new Error('This PDF has no pages.');
+  if (doc.context.isDecrypted && !doc.context.trailerInfo.Info) await restoreTrailer(lib, doc, data);
   // Decrypting leaves the encryption dictionary behind with nothing referring to
   // it. Drop it: its password hashes should not travel with an unlocked copy.
   if (doc.context.isDecrypted) {
@@ -241,6 +242,32 @@ export async function loadPdf(bytes, password = '') {
     }
   }
   return doc;
+}
+
+/**
+ * Give a decrypted document back the Info (its title, author and the rest) and
+ * the ID that its file's trailer names. @cantoo/pdf-lib 2.11.1 decrypts every
+ * stream it parses, a cross-reference stream too, which is never encrypted
+ * (PDFObjectParser.js, parseDictOrStream). The garbled stream is not read as
+ * a cross-reference, so the trailer it carries is lost: Unlock PDF, and every
+ * edit of a protected PDF, dropped the document's details. Every file that
+ * Protect PDF writes has such a stream. Read without decrypting, the trailer
+ * is whole; its Info is a reference, which the decrypted document resolves.
+ * Remove this once pdf-lib keeps the trailer of an encrypted file with a
+ * cross-reference stream (tests/engine.test.mjs, "unlocking keeps the title").
+ */
+async function restoreTrailer(lib, doc, data) {
+  let trailer;
+  try {
+    trailer = (await lib.PDFDocument.load(data, { ignoreEncryption: true, updateMetadata: false })).context
+      .trailerInfo;
+  } catch {
+    // The file opened, without its details; it still opens.
+    return;
+  }
+  if (trailer.Info && doc.context.lookup(trailer.Info) instanceof lib.PDFDict)
+    doc.context.trailerInfo.Info = trailer.Info;
+  if (trailer.ID && !doc.context.trailerInfo.ID) doc.context.trailerInfo.ID = trailer.ID;
 }
 
 const writersEncryptingStrings = new WeakSet();
@@ -2000,8 +2027,11 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   }
   onProgress(0.1);
   const oneSource = needed.length === 1;
+  // By page object, not by index: a page tree can list one page twice, and its two
+  // indexes are then one page, which an edit in place would turn, crop and number twice.
   const noDuplicates =
-    new Set(descriptors.map((page) => `${page.sourceId}:${page.index}`)).size === descriptors.length;
+    new Set(descriptors.map((page) => loaded.get(page.sourceId).getPages()[page.index])).size ===
+    descriptors.length;
   let doc;
   let outputPages;
   // The PDF/A part the kept document declares. Copied pages start a fresh,

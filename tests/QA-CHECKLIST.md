@@ -996,3 +996,51 @@ source review does not replace the owner’s browser verification.
   first, and have tests now: a page in larger units whose numbers are A4's,
   hidden content beside a page that is not cropped, a named destination no link
   uses, and the page strip's picture after resizing.
+
+## Odd PDFs through every operation, a page listed twice, the title of an unlocked file — 2026-11-13
+
+- `tests/odd-pdfs.mjs` writes 19 odd but valid PDFs object by object, without
+  a PDF library, and `tests/odd-pdfs.test.mjs` takes each through every engine
+  operation: unchanged, reorder, delete, duplicate, rotate, crop, margins, resize,
+  numbers with a header and a watermark at 30 degrees, added text, pictures,
+  highlights and drawings, flatten, fill, fill and flatten, properties, merge,
+  two pages per sheet, split, protect and unlock. One suite per operation, a
+  test per file: 344 tests in 20 suites, in about 7 seconds, and
+  `--test-name-pattern` picks an operation or a file. (Subtests of a test would
+  not do: a file's name does not reach a subtest whose test it does not name.)
+  Each download is read back
+  with PDF.js (pages, texts and not another page's, sizes, turns, links, notes,
+  fields, outline, labels, title, a hidden layer drawn without its red square)
+  and with pdf-lib (the names in each page's resources), and its size must
+  grow with its pages. The writer is the one `tests/odd-inputs.test.mjs` uses
+  now too.
+- The files are fair: PDF.js, pypdf (strict), PyMuPDF and poppler read each of
+  them alike, and agree on every download, checked once by hand with the
+  scout's runner. Two candidates were left out because the readers disagree on
+  them (a page tree whose /Count is wrong, bytes before the header), and two
+  were changed so they agree (a crop that reached past the media on some sides
+  only, and text at 45 degrees as a marker, which pdftotext drops).
+- The suite catches both faults fixed in the last release: undoing the
+  per-page resources fails stamps and annotate on six files (38 /Font names a
+  page where 8 is the most), and undoing the inherited attributes fails
+  reorder on the three-level page tree.
+- A page listed twice in the page tree (Kids [p1 p2 p1]) got every edit twice
+  in the download: turned 180 degrees for 90, cropped to 64 % for 80 %, and
+  both its pages numbered “Page 1 of 3” and “Page 3 of 3”. The editor showed
+  three pages. The engine edited in place when no page index came twice; it
+  now asks that no page object comes twice, and copies such a file, as it
+  copies a duplicated page.
+- Unlock PDF, and every edit of a protected PDF, dropped the title, author and
+  the rest, and the file identifier. pdf-lib 2.11.1 decrypts a cross-reference
+  stream, which is never encrypted, and loses the trailer it carries; every
+  file Protect PDF writes has one, and the five password fixtures do not, as
+  pypdf wrote them with tables. `restoreTrailer` reads the trailer again
+  without decrypting, for encrypted files only. A new engine test protects a
+  titled PDF with Protect, unlocks it and reads the title with PDF.js; it also
+  checks AES-128 and RC4 files with a cross-reference stream, a wrong
+  password, a file without a title and a file that is not encrypted (read
+  once).
+- 19 breakages, each applied alone, were each caught. One of them, dropping
+  the identifier, first got through: the check read it with pdf-lib, which
+  found it in the old cross-reference stream that the unlocked copy still
+  holds as a loose object. The check now takes PDF.js's fingerprint.
