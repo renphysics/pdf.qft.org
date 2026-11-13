@@ -116,11 +116,15 @@ function withPreloads(html) {
   return replaceBetween(html, 'preload', links.join('') + warm.join('') + '\n  ', 'modules');
 }
 const svg = (icon) => `<svg class="icon" aria-hidden="true"><use href="#i-${icon}"/></svg>`;
-/** index.html with its cards, tool menu and tabs written from the registry (dist/routes.js). */
+/**
+ * index.html with its cards, tool menu and tabs written from the registry
+ * (dist/routes.js). A card names its tool (data-card); the tool search and the
+ * category filter read the tool's keywords and category from the registry.
+ */
 function withTools(html) {
   const cards = TOOLS.filter((item) => item.card).map((item) => {
     const start = item.tab ? `data-start-tool="${item.id}"` : `data-action="${item.id}"`;
-    return `          <a class="tool-card" ${start} data-category="${item.category}" data-keywords="${escapeHtml(item.keywords || '')}" href="./${item.slug}/" data-card="${item.id}"><span class="tool-icon ${item.color}">${svg(item.icon)}</span><span class="tool-card-copy"><strong>${escapeHtml(item.title || item.name)}</strong><span>${escapeHtml(item.card[0])}<br> ${escapeHtml(item.card[1])}</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>`;
+    return `          <a class="tool-card" ${start} href="./${item.slug}/" data-card="${item.id}"><span class="tool-icon ${item.color}">${svg(item.icon)}</span><span class="tool-card-copy"><strong>${escapeHtml(item.title || item.name)}</strong><span>${escapeHtml(item.card[0])}<br> ${escapeHtml(item.card[1])}</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>`;
   });
   const menu = TOOLS.filter((item) => item.tab);
   const options = menu.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');

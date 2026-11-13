@@ -1141,7 +1141,8 @@ const everyPage = (bytes, count, extra = {}) => ({
 });
 
 await test('resized pages: every size on A4 or Letter, the way each page lies, scaled to fit in the middle', async () => {
-  const bytes = await oddSizes();
+  const bytes = await oddSizes(),
+    untouched = bytes.slice();
   const before = await extract(bytes);
   assert.deepEqual(
     before.map((page) => [page.width, page.height]),
@@ -1214,7 +1215,7 @@ await test('resized pages: every size on A4 or Letter, the way each page lies, s
         'a page that is A4 already keeps its own boxes',
       );
   }
-  assert.deepEqual(new Uint8Array(await oddSizes()), new Uint8Array(bytes), 'the source is untouched');
+  assert.deepEqual(bytes, untouched, 'the source is untouched');
   await assert.rejects(
     buildPdf(everyPage(bytes, 6, { paper: 'a3' })),
     /Choose a paper size: A4 or Letter\./,
