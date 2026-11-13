@@ -172,7 +172,12 @@ shows it without building a PDF:
   the wheel) keeps the reading position, and undo shows the page it changes.
 - Text, images and highlights can be typed into, dragged and resized right on
   their page, or selected and changed in the panel; with an item selected,
-  arrow keys nudge it, Delete removes it and Enter edits text. Watermarks, headers and
+  arrow keys move it, Delete removes it and Enter edits text. Nothing needs a
+  drag: Alt and an arrow key resizes the item, moving its right or lower edge
+  (Shift for bigger steps; a picture keeps its proportions, and text changes
+  where its lines wrap), and a highlight or a drawing has Width and Height
+  fields in its panel, as shares of the page. The new size is announced once
+  the keys rest, not at every repeat of a held key. Watermarks, headers and
   footers, and page numbers update on every page as their settings change.
   Watermark and Page numbers show their defaults the first time they open for a
   document (one undo step; once undone or switched off, they stay off), and
@@ -185,7 +190,14 @@ shows it without building a PDF:
   For printing on both sides, Swap left and right on even pages (headers and
   footers, page numbers, and their batch presets) puts what is on the right of
   odd pages on the left of even pages, by position in the document.
-  Turning, moving and removing pages only changes the page list. Organize pages
+  Turning, moving and removing pages only changes the page list. A document
+  opens with its first page selected, which is not a choice: the first page a
+  visitor ticks takes its place (and this is announced), and Rotate, Remove and
+  Download in Organize pages say in their labels what they will act on ("Remove
+  page 1", "Remove 2 pages"), so none acts on a page it did not name. A button
+  that acts on that first page does not make it a choice: the next page ticked
+  still takes its place, so Rotate does not turn page 1 a second time and
+  Delete pages still opens with nothing selected. Organize pages
   can also reverse the order of all pages, and interleave a double-sided scan:
   the first half of the pages are the fronts and the rest the backs, scanned
   from the last sheet or the first (`interleaveOrder` in `workflows.js`).
@@ -291,21 +303,62 @@ or opens the sample. The package manifest and lockfile provide
 the dependencies needed to run the PDF regression tests; they are not served
 to visitors. `private: true` prevents accidental npm publication and does not
 change the project's MIT license. Dependabot (`.github/dependabot.yml`)
-proposes updates to those packages and to the pinned GitHub Actions each week.
-The library bundles below are updated by hand: `npm test` fails when
-`package.json` and `dist/assets/vendor/versions.json` name different versions,
-and the Vendored libraries workflow (`.github/workflows/vendored-libraries.yml`,
-once a month) opens an issue when npm has a newer release;
-`node scripts/check-vendored-versions.mjs` runs the same comparison locally.
+proposes updates to those packages and to the pinned GitHub Actions each week
+(the Actions in one pull request, since every merge to `main` is a deploy).
+
+### Updating the libraries
+
+The three libraries served to visitors (PDF.js, pdf-lib and fontkit, under
+`dist/assets/vendor/`) are copies of npm releases, and are updated by hand.
+Three things say when: Dependabot proposes the new npm version, and its pull
+request fails `npm test` until the copy is updated with it (`package.json` and
+`dist/assets/vendor/versions.json` must name the same versions); the Vendored
+libraries workflow (`.github/workflows/vendored-libraries.yml`, once a month)
+opens an issue when npm has a newer release; and
+`node scripts/check-vendored-versions.mjs` runs that comparison locally.
+`npm run check` verifies every file under `dist/assets/vendor/` and
+`dist/assets/fonts/` against its size and SHA-256 in
+`scripts/asset-checksums.json`.
+
+PDF.js is [`pdfjs-dist`](https://github.com/mozilla/pdf.js): its two legacy
+builds (`pdf.min.mjs` and `pdf.worker.min.mjs`, served as `pdf.mjs` and
+`pdf.worker.mjs`) and its `cmaps`, `iccs`, `standard_fonts` and `wasm` folders,
+without the scripting sandbox and its notices (`wasm/quickjs-eval.*`,
+`wasm/LICENSE_*QUICKJS`), which the two builds never load.
+It reads files that visitors did not write, so its updates matter most. To
+update it, on a branch (Dependabot's will do):
+
+```sh
+npm install --save-dev --save-exact pdfjs-dist@<version>
+node scripts/vendor-pdfjs.mjs
+npm test
+npm run test:browser
+```
+
+`scripts/vendor-pdfjs.mjs` copies the files from the installed package and
+brings the records along: the version in `versions.json` and in
+`dist/licenses/THIRD-PARTY.txt`, each file's size and SHA-256 in
+`scripts/asset-checksums.json`, the npm tarball and each file's SHA-256 in
+`scripts/vendor-license-provenance.json` (the tarball is fetched again and must
+be the one the lockfile names), and PDF.js's licence text. It lists the files
+that changed, and those that are new upstream or gone. Read that list and the
+[release notes](https://github.com/mozilla/pdf.js/releases) before committing:
+a new file under `wasm/` is a new decoder that visitors' browsers will run, a
+new notice belongs on the licenses page, and a new way of loading code (a
+second worker, say) has to fit the content security policy. `npm test` checks
+that the bundle is the installed package's files, byte for byte, and that
+those records name that package (`node scripts/vendor-pdfjs.mjs --check` does
+the same; neither needs the network), so a bundle or a record that was edited
+or left behind fails. One value is taken as written: the tarball's SHA-256 in
+the provenance record, which only the tarball could confirm. The tarball is
+pinned by its sha512 integrity, which must be the lockfile's.
 
 pdf-lib is [`@cantoo/pdf-lib`](https://github.com/cantoo-scribe/pdf-lib), a
 maintained fork with the same API (the original project's last release was
 1.17.1, in 2021). To update it, copy the new release's `dist/pdf-lib.min.js`
 to `dist/assets/vendor/`, update the version in `package.json`,
-`dist/assets/vendor/versions.json` and `scripts/asset-checksums.json` (`npm run
-check` verifies every file under `dist/assets/vendor/` and `dist/assets/fonts/`
-against its size and SHA-256 there), then regenerate and check its notices and
-provenance:
+`dist/assets/vendor/versions.json` and `scripts/asset-checksums.json`, then
+regenerate and check its notices and provenance:
 
 ```sh
 npm pack @cantoo/pdf-lib@<version>    # in an empty directory
@@ -413,6 +466,14 @@ PDF.js where each link and bookmark leads, and that no page is hidden in the fil
 that each copy of a duplicated page shows only its own additions; that hidden
 layers stay hidden (by rendering with PDF.js); and the download notes about page
 labels, attachments, tags and digital signatures.
+tests/odd-inputs.test.mjs writes PDFs whose structure is valid but unusual, object
+by object and without a PDF library: pages that share their resources (through
+the page tree, as one object, or as one dictionary of fonts, graphics states or
+pictures, the way ReportLab writes its fonts) and pages that inherit their size,
+turn, crop and fonts from a node inside the page tree. It checks that page
+numbers, a header, a watermark, a picture and a flattened form field add to each
+page only what that page needs, so the file grows with its pages and not with
+their square, and that reordering keeps what the pages inherited.
 They use the development dependencies installed by `npm ci`.
 
 The Node suites (`tests/*.test.mjs`) are [`node:test`](https://nodejs.org/api/test.html)

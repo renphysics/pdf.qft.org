@@ -7,7 +7,15 @@ import { hexColor, number } from './layout.js';
 import { icon, ui } from './editor-core.js';
 import { deselect } from './page-items.js';
 import { change } from './history.js';
-import { colorField, rangeField, renderTool, selectField } from './tool-panel.js';
+import {
+  colorField,
+  onSizeInput,
+  rangeField,
+  renderTool,
+  selectField,
+  sizeFields,
+  sizeValues,
+} from './tool-panel.js';
 
 const SHAPES = [
   ['pen', 'Pen', 'drawing', 'a drawing'],
@@ -33,7 +41,8 @@ function drawFields(item, index) {
     rangeField('Line width', 'width', 1, 16, ' pt') +
     '</div>' +
     (drawing
-      ? '<p class="field-hint wide">Drag it to move it, or a handle to resize it. Arrow keys nudge it.</p>' +
+      ? sizeFields() +
+        '<p class="field-hint wide">Drag it to move it, or a handle to resize it. Arrow keys move it, and with Alt they resize it. Width and height are shares of the page.</p>' +
         '<button type="button" class="button danger" data-action="delete-item">' +
         icon('trash') +
         'Delete ' +
@@ -59,6 +68,7 @@ export function values(item) {
     shape: ui.styles.draw.shape,
     color: hexColor(source.color, '#d0342c'),
     width: Math.round(number(source.width, 2, 1, 16)),
+    ...sizeValues(item?.type === 'drawing' ? item : null),
   };
 }
 export function onInput(name, value, field, item) {
@@ -68,6 +78,7 @@ export function onInput(name, value, field, item) {
     renderTool();
     return;
   }
+  if (onSizeInput(name, value, item?.type === 'drawing' ? item : null)) return;
   const parsed = name === 'width' ? Number(value) : value;
   if (name !== 'width' && name !== 'color') return;
   ui.styles.draw[name] = parsed;

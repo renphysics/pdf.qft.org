@@ -30,7 +30,7 @@ import {
 } from './editor-core.js';
 import { documentFields, fillingForm, renderFormLayer, updateFormSummary } from './form-ui.js';
 import { positionInlineEditor, stack } from './page-items.js';
-import { annotationList } from './tool-panel.js';
+import { annotationList, fillForm } from './tool-panel.js';
 import { updateCropOverlays } from './panel-crop.js';
 import { refreshThumbOverlays, revealThumbnail, syncPageNavigation, thumbKey } from './pages.js';
 
@@ -237,13 +237,36 @@ function pageInView() {
 function lockCurrentPage() {
   ui.stage.lock = { id: ui.activeId, top: $('#canvas-scroll').scrollTop };
 }
+/** Remember where the view is: the spot at its reading point, and the scroll offsets it was read at. */
+function keepPosition() {
+  const scroll = $('#canvas-scroll');
+  ui.stage.position = positionAt(readingPoint().x, readingPoint().y);
+  ui.stage.readAt = { top: scroll.scrollTop, left: scroll.scrollLeft };
+}
+/**
+ * Whether the view has been scrolled since its position was remembered. A
+ * scroll is followed a frame later (onStageScroll): until then the position
+ * kept is the one from before it.
+ */
+function movedSinceRead() {
+  const scroll = $('#canvas-scroll'),
+    read = ui.stage.readAt;
+  return Boolean(read) && (scroll.scrollTop !== read.top || scroll.scrollLeft !== read.left);
+}
 /** Lay the pages out again (after a change of zoom, view size or pages) and draw them. */
 export function renderStage({ position = null } = {}) {
   if (!state.pages.length || $('#workspace').hidden) return;
   const stage = ui.stage,
     scroll = $('#canvas-scroll');
+  // After a scroll that has not been followed yet, the view is laid out from where
+  // it is now. From the position kept before the scroll, the layout would put the
+  // view back there: a layout comes from a timer too (the stage changed size).
+  const moved = movedSinceRead(),
+    // As a frame later (trackScroll): the current page follows the view once that
+    // has moved more than a hair from where the page was made current.
+    follow = moved && !(stage.lock && Math.abs(scroll.scrollTop - stage.lock.top) <= 2),
+    keep = position || (moved ? positionAt(readingPoint().x, readingPoint().y) : stage.position);
   scroll.classList.toggle('snap-pages', phone() && ui.zoom === 1);
-  const keep = position || stage.position;
   layoutStage();
   restorePosition(keep);
   if (stage.reveal) {
@@ -251,9 +274,11 @@ export function renderStage({ position = null } = {}) {
     const entry = stage.byId.get(stage.reveal);
     stage.reveal = null;
     if (entry && pageShare(entry) < 0.25) scroll.scrollTop = pageTop(entry);
+  } else if (follow) {
+    ui.activeId = pageInView() || ui.activeId;
   }
   lockCurrentPage();
-  stage.position = positionAt(readingPoint().x, readingPoint().y);
+  keepPosition();
   $('#page-stack').dataset.tool = ui.tool;
   $('#zoom-label').textContent = ui.zoom === 1 ? 'Fit' : Math.round(ui.zoom * 100) + '%';
   syncViews();
@@ -269,6 +294,7 @@ export function resetStage() {
     layout: [],
     byId: new Map(),
     position: null,
+    readAt: null,
     lock: null,
     reveal: null,
     failed: new Set(),
@@ -289,7 +315,7 @@ function trackScroll() {
   const stage = ui.stage,
     scroll = $('#canvas-scroll');
   if (!stage.layout.length || $('#workspace').hidden || !state.pages.length) return;
-  stage.position = positionAt(readingPoint().x, readingPoint().y);
+  keepPosition();
   if (stage.lock && Math.abs(scroll.scrollTop - stage.lock.top) > 2) stage.lock = null;
   if (!stage.lock) {
     const id = pageInView();
@@ -307,7 +333,7 @@ export function scrollToPage(id) {
   if (!entry) return;
   scroll.scrollTop = pageTop(entry);
   lockCurrentPage();
-  ui.stage.position = positionAt(readingPoint().x, readingPoint().y);
+  keepPosition();
   syncViews();
 }
 /** Make a page current without moving the view: it is on screen, and was clicked or tapped. */
@@ -623,6 +649,12 @@ export function renderOverlays() {
   if (!state.pages.length) return;
   for (const view of ui.stage.views.values()) renderViewOverlay(view);
   if (ui.tool === 'form') updateFormSummary();
+  // The panel shows the selected item's settings, its size among them: they follow
+  // what was done to the item on the page (a drag, a key, Undo). A field that is
+  // being typed in keeps what is typed.
+  if (ui.item) fillForm();
+  // So does its list of the items on this page, which names a text by its words.
+  refreshAnnotationList();
   positionInlineEditor();
   updateProblems(currentOverlay()?.problems || []);
   updateStageHint();
@@ -805,6 +837,8 @@ function refreshAnnotationList() {
     holder = document.createElement('div');
   holder.innerHTML = markup;
   const next = holder.firstElementChild;
+  // Left alone while it says the same: this runs with every redraw of the page.
+  if (old && next && old.isEqualNode(next)) return;
   if (old && next) old.replaceWith(next);
   else if (old) old.remove();
   else panel.append(next);

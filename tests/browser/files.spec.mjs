@@ -1,4 +1,5 @@
-// PDF/A files and password-protected PDFs, opened, edited and downloaded.
+// PDF/A files and password-protected PDFs, opened, edited and downloaded; files dropped on the page.
+import { readFile } from 'node:fs/promises';
 import {
   test,
   expect,
@@ -239,4 +240,68 @@ test('the download says what a copy leaves out, and that a signature no longer h
     page,
     'Your edited PDF has been downloaded. The original was digitally signed: its signature isn’t valid in this copy.',
   );
+});
+
+/** Drop files on the page, as dragging them in from a folder does: each is { name, type, bytes }. */
+async function drop(page, files) {
+  const transfer = await page.evaluateHandle(
+    (files) => {
+      const transfer = new DataTransfer();
+      for (const { name, type, data } of files)
+        transfer.items.add(new File([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], name, { type }));
+      return transfer;
+    },
+    files.map(({ name, type, bytes }) => ({ name, type, data: Buffer.from(bytes).toString('base64') })),
+  );
+  for (const event of ['dragenter', 'dragover'])
+    await page.dispatchEvent('#drop-zone', event, { dataTransfer: transfer });
+  await expect(page.locator('#drop-zone')).toHaveClass(/drag-over/);
+  await page.dispatchEvent('#drop-zone', 'drop', { dataTransfer: transfer });
+  await expect(page.locator('#drop-zone')).not.toHaveClass(/drag-over/);
+}
+
+test('a PDF dropped on the page opens in the editor; PDFs dropped on the batch page join the batch', async ({
+  page,
+}) => {
+  const pdf = (name) => readFile(fixture(name)).then((bytes) => ({ name, type: 'application/pdf', bytes }));
+  await page.goto('./');
+  await drop(page, [await pdf('rotated-cropped.pdf')]);
+  await ready(page);
+  await expect(page.locator('#document-name')).toHaveText('rotated-cropped.pdf');
+  await expect(page.locator('#document-info')).toHaveText(/^4 pages/);
+  // Something that is not a PDF or a picture is refused, by name.
+  await page.goto('./');
+  await drop(page, [{ name: 'notes.txt', type: 'text/plain', bytes: Buffer.from('plain text') }]);
+  await expectToast(page, 'Please choose PDF files, or JPG and PNG pictures to make pages from.');
+  await expect(page.locator('#workspace')).toBeHidden();
+  // On the batch page the files go into the batch, each on its own.
+  await page.goto('batch-edit-pdf/');
+  await drop(page, [await pdf('rotated-cropped.pdf'), await pdf('owner-only-aes256.pdf')]);
+  await expect(page.locator('#batch-workspace')).toBeVisible();
+  await expect(page.locator('.batch-file-row')).toHaveCount(2);
+  await expect(page.locator('.batch-file-row').first()).toContainText('rotated-cropped.pdf');
+  // The same when the batch was opened from the editor, on another tool's page: the
+  // files join the batch, and the document in the editor stays as it is.
+  await page.goto('add-watermark-to-pdf/');
+  await page.locator('[data-action="sample"]').first().click();
+  await ready(page);
+  await page.click('[data-action="batch-from-editor"]');
+  await expect(page.locator('#batch-workspace')).toBeVisible();
+  await page.dispatchEvent('#batch-workspace', 'drop', {
+    dataTransfer: await page.evaluateHandle(
+      (data) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(
+          new File([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], 'dropped.pdf', {
+            type: 'application/pdf',
+          }),
+        );
+        return transfer;
+      },
+      (await readFile(fixture('rotated-cropped.pdf'))).toString('base64'),
+    ),
+  });
+  await expect(page.locator('.batch-file-row')).toHaveCount(1);
+  await expect(page.locator('.batch-file-row').first()).toContainText('dropped.pdf');
+  await expect(page.locator('#document-name')).toHaveText('A little room to create.pdf');
 });

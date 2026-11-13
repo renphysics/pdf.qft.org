@@ -43,7 +43,7 @@ import {
   updateSelectionCaption,
   updateStageHint,
 } from './page-view.js';
-import { setFrame } from './page-items.js';
+import { itemSize, resizeItemTo, setFrame } from './page-items.js';
 import { change } from './history.js';
 import { updateCropOverlays } from './panel-crop.js';
 import { updateDeletionMarks } from './panel-pages.js';
@@ -120,9 +120,15 @@ export function numberField(label, name, min, max, step = 1) {
 export function colorField(name = 'color') {
   return makeField('Color', '<input name="' + name + '" type="color">');
 }
+/**
+ * A slider. The label names it, so the value shown beside the label is kept out of
+ * the name (a read-out element there would even take the label for itself and
+ * leave the slider without one). The slider says its own value, with the unit:
+ * updateOutputs() below.
+ */
 export function rangeField(label, name, min, max, unit = '%') {
   return makeField(
-    label + ' <output data-for="' + name + '"></output>',
+    label + ' <span data-for="' + name + '" aria-hidden="true"></span>',
     '<input name="' +
       name +
       '" type="range" min="' +
@@ -133,6 +139,29 @@ export function rangeField(label, name, min, max, unit = '%') {
       unit +
       '">',
   );
+}
+/**
+ * Width and Height for the selected highlight or drawing, as percentages of its
+ * page: a way to size it without dragging. sizeValues() fills them and
+ * onSizeInput() uses them; a panel calls all three.
+ */
+export function sizeFields() {
+  return (
+    '<div class="field-row">' +
+    numberField('Width (%)', 'boxWidth', 0.1, 100, 0.1) +
+    numberField('Height (%)', 'boxHeight', 0.1, 100, 0.1) +
+    '</div>'
+  );
+}
+export function sizeValues(item) {
+  const size = item && itemSize(item.id);
+  return size ? { boxWidth: size.width, boxHeight: size.height } : {};
+}
+/** True when `name` was one of the two size fields, and the item now has that size. */
+export function onSizeInput(name, value, item) {
+  if (name !== 'boxWidth' && name !== 'boxHeight') return false;
+  if (item) resizeItemTo(item.id, { [name === 'boxWidth' ? 'width' : 'height']: Number(value) / 100 });
+  return true;
 }
 export function selectField(label, name, options, wide = false) {
   return makeField(
@@ -280,11 +309,16 @@ export function renderTool() {
   updateStageHint();
   if (restoreKey) restoreFocus(restoreKey);
 }
+/** Each slider's value with its unit: shown beside its label, and what the slider says. */
 function updateOutputs() {
-  $$('input[type=range]', $('#tool-form') || document.createElement('form')).forEach((input) => {
-    const output = $('output[data-for="' + input.name + '"]', $('#tool-form'));
-    if (output) output.textContent = input.value + (input.dataset.unit || '');
-  });
+  const form = $('#tool-form');
+  if (!form) return;
+  for (const input of $$('input[type=range]', form)) {
+    const value = input.value + (input.dataset.unit || '');
+    input.setAttribute('aria-valuetext', value.trim());
+    const shown = $('[data-for="' + input.name + '"]', form);
+    if (shown) shown.textContent = value;
+  }
 }
 function validNumber(field) {
   return field.type !== 'number' || (field.value !== '' && field.checkValidity());

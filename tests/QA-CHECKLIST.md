@@ -43,7 +43,9 @@ source review does not replace the owner’s browser verification.
     Preview and export agree on dimensions, opacity, and location. Highlighting
     is described as annotation, never as secure redaction.
 12. **Keyboard:** Add text with the panel button, finish with Escape, then move
-    it with the arrow keys, edit it with Enter and delete it with Delete.
+    it with the arrow keys, edit it with Enter and delete it with Delete. Add a
+    highlight and a shape the same way and resize them with Alt and the arrow
+    keys, and with Width and Height in the panel.
 
 ## Geometry and input cases
 
@@ -59,11 +61,12 @@ source review does not replace the owner’s browser verification.
 
 ## Accessibility and mobile
 
-- Each icon-only button has an accessible name; labels are tied to inputs.
+- Each icon-only button has an accessible name; labels are tied to inputs,
+  sliders included (a test finds each slider by role and name).
 - Buttons work by keyboard, focus is visible, and any dialog restores focus.
 - Processing progress and success/error messages are announced through a live
   region; disabled actions explain what is required when that is not evident.
-- Reorder works without dragging. Pointer placement does not block normal page
+- Reorder and resize work without dragging. Pointer placement does not block normal page
   scrolling on mobile outside the editing canvas.
 - On a phone the page is the first thing under the document bar; tools are in the
   bottom bar and their settings sheet folds away. Tap targets are at least 44 px.
@@ -788,3 +791,159 @@ source review does not replace the owner’s browser verification.
   and footers go on when the tool opens, one Undo takes them off and the switch
   then reads off; stored values of the wrong kind, and text that is no JSON,
   are left out; a browser that refuses to store says so and unticks the box.
+
+## The second evaluation’s “now” list: two engine faults, sliders, resizing without a drag, the page selection, tests, PDF.js and Playwright — 2026-11-12
+
+- Page numbers, headers, footers or a watermark on a PDF whose pages share
+  their resources made the download many times larger, with no notice. pdf-lib
+  names each font and graphics state it draws with in the page's resources and
+  takes the dictionaries there for the page's own, so every page ended up with
+  the names added for all the others. ReportLab writes such files (one font
+  dictionary for every page); so does any PDF with one resources object, or
+  with resources on the page tree; copies of one page share theirs too.
+  `separatePages` gives a page its own copy of each dictionary an earlier page
+  holds. ReportLab reports of 100, 300 and 600 pages with page numbers: 408 KB,
+  3.0 MB and 11.8 MB before, 111 KB, 331 KB and 664 KB now (476 KB to start
+  with at 600 pages).
+- Reverse, Interleave or dragging a page, in a PDF whose pages inherit their
+  size, turn, crop or fonts from a node inside the page tree, gave pages that
+  were unturned, uncropped and without their fonts, or failed with a library
+  message: the pages are put back under the root of the tree. The four
+  inheritable attributes are written onto each page first.
+  `tests/odd-inputs.test.mjs` writes both kinds of file object by object,
+  without a PDF library, and checks the exports with pdf-lib and PDF.js; its
+  three tests fail on the engine as it was.
+- Sliders had no name: the value shown beside the label was an output element
+  inside the label, which HTML lets a label name, so the label named the
+  read-out. axe passes a slider inside a label. The value is now a plain element
+  kept out of the name, and the slider says its value with the unit. A browser
+  test finds every slider by role and name in Watermark, Highlight, Draw, Add
+  image and Sign PDF.
+- Items can be resized without dragging: Alt and an arrow key moves the right
+  or lower edge (Shift for ten points), and a highlight or a drawing has Width
+  and Height in its panel, as shares of the page. The edges are those on the
+  screen, so a shape placed before its page was turned grows the way the arrow
+  points. The size is announced; the panel follows a drag and Undo. Moving with
+  the arrow keys starts from the stored size, where a move in the same
+  animation frame as a resize put the old size back.
+- Organize pages: the first page ticked takes the place of the page a document
+  opens with selected (it used to join it, so ticking pages 4 and 5 and pressing
+  Remove took page 1 as well), and Rotate, Remove and Download name what they
+  act on: “Remove page 1”, “Remove 2 pages”.
+- Tests. Every browser test fails on a request to another origin, workers
+  included, and `expectToast` requires that a notice was also put into the
+  live region for screen readers, the interrupting one for an error. The
+  watermark's opacity and colour are read from the exported page, and the
+  comparison of download and preview uses a watermark dark enough to be seen.
+  The hostile-PDF test covers what is drawn on the page as markup, the panel's
+  list of items and the parts of a split. New journeys: files dropped on the
+  page and on the batch page, handles on a highlight, text and a picture, a
+  page dragged in the strip, a saved batch preset after a reload, the arrow
+  keys down and up, Remove with every page selected. 26 breakages, each applied
+  alone to a copy, were each caught.
+  Two faults came out of writing them: the handle in the middle of a one-line
+  highlight's right edge lay under the corner handle below it (handles take the
+  pointer from further away than they show), so pulling it sideways halved the
+  highlight's height, and the nearest handle is now the one taken; and the
+  panel's list of items kept “Text: empty” after text was typed on the page.
+- Dependencies. `download()` returns the name the app chose and allows the
+  browser either spelling: Playwright 1.65 ships WebKit with libsoup 3.6.6,
+  which writes spaces in a download's name as underscores (Linux only; Safari
+  does not use libsoup). With that, @playwright/test 1.65.0 and @napi-rs/canvas
+  1.1.0. PDF.js 6.5.438, updated by the new `scripts/vendor-pdfjs.mjs`, which
+  copies the files from the npm package and brings the checksums, the provenance
+  record, the version and the licence along; the site-integrity suite now
+  compares the bundle with the installed package on every run. README has the
+  section “Updating the libraries” that four files pointed to, in five places.
+  Dependabot's Actions updates come in one pull request. (The five Actions
+  updates themselves were merged on their own before this; the deploy with all
+  five succeeded.)
+- Review of the pull request. Five reviewers took one area each and broke the
+  code to see which test noticed: 18 findings, none serious, all answered.
+  - In the app. Flatten form fields on pages that share their resources named
+    every field's appearance on every page (the growth this list set out to
+    stop, by another door): the pages get their own resources before the form
+    is flattened. A Width or Height typed below 3 points was shown as typed and
+    not given: the least is now what the fields take, a tenth of a percent. A
+    picture's announced width went by the screen where its Width slider goes
+    by the picture, which differ on a turned page: each kind of item is now
+    announced in the measure its panel shows, and once the keys rest, not at
+    every repeat of a held key. The page that takes the place of the opening
+    one is announced, as nothing else told a screen reader that another box
+    was cleared. The FAQ said “Download 3 pages” for the range 1-3, 5.
+  - One finding was answered by writing the rule down, not by changing it: a
+    button that acts on the opening page (“Rotate page 1”) does not make that
+    page a choice, and the next page ticked still takes its place. Counting it
+    as chosen was tried: Delete pages then opened with page 1 selected for
+    deletion (an existing test said so), and Rotate would have turned page 1 a
+    second time. A test now holds the rule from both sides.
+  - In the tests. The engine fixture shares graphics states and pictures as
+    well as fonts, and each page gets a picture: leaving any of the three
+    dictionaries shared now fails. The resize test sends keys as a held key
+    does, compares what is said with what the panel shows, counts the
+    announcements, and covers the page edge, the least size, Height's
+    move-over and a turned page. The fixture counts WebSockets with the
+    requests to another origin (Playwright reports the page's and its workers'
+    in all three browsers; a worker's EventSource it does not report in
+    Firefox, so the site-integrity suite keeps EventSource, WebTransport and
+    WebRTC out of every shipped script), and pairs a notice with an
+    announcement made after it was shown, not an older one of the same text. A
+    picture's upper left handle, and PDFs dropped while the batch is open from
+    the editor, are covered; boxes are read once the page has settled.
+  - In the update script. `npm test` checks the PDF.js records as well as the
+    files (the version on the licences page, the provenance record), without
+    the network; `npm pack` runs in the temporary folder, where a path with a
+    space no longer splits the command; a missing or out-of-step installation
+    is named (“run npm ci”).
+  - 28 breakages, 25 of them new, each applied alone to a copy, were each
+    caught.
+- A second pass over that commit, by three reviewers: 8 findings, one of them
+  a test that could not fail, the rest small. All fixed.
+  - The size that waits to be said gave way to nothing: after Undo, Escape or
+    a click on another item it was said all the same, over “Undone: Resize
+    drawing.” or for an item no longer selected. It now gives way to whatever
+    else is announced, and is said only while its item is still the selected
+    one.
+  - The held-key test sent its keys in one task, where one delay cannot be
+    told from another. It now sends a keydown every 33 ms, as a held key does,
+    and fails at a delay of 0, 20 or 5000 ms. Text on a turned page is tested,
+    and so are the cases where a waiting size must give way.
+  - The update script requires the tarball's SHA-256 to be there and well
+    formed (a check takes its value as written, which the README now says),
+    shows npm's own error when the tarball cannot be fetched, and runs when it
+    is reached through a linked folder, where it did nothing and exited 0. The
+    check on shipped scripts sees a prefixed name too
+    (`webkitRTCPeerConnection`).
+  - A fault the full run turned up, older than this list. In WebKit “any page
+    can be edited where it is” failed once: the view had been scrolled to page
+    2 and the page number stayed at 1. The view is followed a frame after it
+    scrolls, and that is when its position is remembered; the pages are laid
+    out again from that position, also from a timer, 120 ms after the stage
+    changes size. A layout that fell between a scroll and its frame started
+    from the position before the scroll and put the view back. Asked for right
+    after a scroll, the layout did so every time, in every browser; left to
+    chance, once in 80 runs in WebKit. A layout now starts from where the view
+    is, and the current page follows the view. 240 runs in WebKit since,
+    without a failure, and a test that asks for the layout right after the
+    scroll.
+  - 13 breakages, 11 of them new, each caught.
+- A third pass, by two reviewers, over the commit with the scroll fix.
+  - Nothing found in the scroll fix, after twelve checks in three browsers: the
+    reading position through resizing, zoom, the phone layout and its form
+    fields, leaving the editor and coming back, and scale factors that give
+    scroll offsets with fractions.
+  - A resize of an item that has focus without being the selected one was not
+    announced. Undo of a step about something else leaves an item so. A key
+    that moves or resizes an item now selects it.
+  - Two stated behaviours had no test that pinned them: an error announced at
+    once silences a size that waits, and a text's width is said to a tenth of
+    a percent. Both have one now.
+  - One note of the reviewer's is taken up: after a scroll that was not
+    followed yet, the current page follows the view by the rule that holds a
+    frame later, only once the view has moved more than a hair from where the
+    page was made current. A page made current by a click stays current
+    through a layout.
+  - 4 further breakages, each caught.
+- Runs, after the three reviews: Node suites 92 of 92. Browser suites on
+  Playwright 1.65 with PDF.js 6.5.438: Chromium 124, WebKit 116 with 3 skipped
+  by design, Firefox 106 with 1 skipped by design.

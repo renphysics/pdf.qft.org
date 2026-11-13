@@ -26,6 +26,7 @@ import {
   $$,
   activeIndex,
   annotationById,
+  announceMessage,
   assetUrl,
   busy,
   confirmDialog,
@@ -580,6 +581,23 @@ $('#signature-input').addEventListener('change', async (event) => {
 $('#page-list').addEventListener('change', (event) => {
   const id = event.target.dataset.pageSelect;
   if (!id) return;
+  // The page a document opens with selected was not chosen, so the first page
+  // that is ticked takes its place. (It used to join it: ticking pages 4 and 5
+  // and pressing Remove took page 1 as well.)
+  if (ui.selectedByDefault && event.target.checked) {
+    const number = (page) => state.pages.findIndex((entry) => entry.id === page) + 1,
+      [opened] = ui.selected;
+    ui.selected = new Set();
+    $$('[data-page-select]').forEach((input) => (input.checked = input === event.target));
+    // Said, as nothing else tells a screen reader that another page's box was cleared.
+    // (A button that acted on the opening page did not choose it either: after
+    // "Rotate page 1", page 3 ticked is page 3 alone, so Rotate does not turn
+    // page 1 again and Delete pages still starts with nothing selected.)
+    if (opened)
+      announceMessage(
+        `Page ${number(id)} selected, in place of page ${number(opened)}, which the document opened with.`,
+      );
+  }
   if (event.target.checked) ui.selected.add(id);
   else ui.selected.delete(id);
   ui.selectedByDefault = false;

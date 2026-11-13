@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
-import { appendFile, cp, mkdtemp, readdir, readFile, stat } from 'node:fs/promises';
+import { appendFile, cp, mkdtemp, readdir, readFile, stat, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -202,10 +202,15 @@ await test('the site-integrity suite passes on a stamped copy, as the Pages work
   for (const file of [
     'tests/site-integrity.test.mjs',
     'package.json',
+    'package-lock.json',
     'LICENSE',
     'scripts/asset-checksums.json',
+    'scripts/vendor-license-provenance.json',
+    'scripts/vendor-pdfjs.mjs',
   ])
     await cp(path.join(root, file), path.join(copy, file));
+  // The installed packages too: the suite compares the bundled PDF.js and its records with pdfjs-dist.
+  await symlink(path.join(root, 'node_modules'), path.join(copy, 'node_modules'), 'junction');
   stamp(path.join(copy, 'dist'));
   // Run on its own, as the workflow does: not as a part of this test run.
   const env = { ...process.env };

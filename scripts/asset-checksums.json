@@ -12,16 +12,16 @@
     "sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b"
   },
   "assets/vendor/pdf.worker.mjs": {
-    "bytes": 1321307,
-    "sha256": "145d2dd3ab0c86151011dba95acfa2d5336e2accd59388ea43dbee0efddaaec6"
+    "bytes": 1327591,
+    "sha256": "b4c8353ded0d88d2e2009574a29eb4e0c3ff7e942ecdf51ef5f71566a9667f31"
   },
   "assets/vendor/pdf.mjs": {
-    "bytes": 523774,
-    "sha256": "bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259"
+    "bytes": 537769,
+    "sha256": "522ad2c83bc8a0010e7f0cc60d0892b77c8d2bf2c9702dc12288311d94270f42"
   },
   "assets/vendor/versions.json": {
     "bytes": 283,
-    "sha256": "2e5011e30a8884dfeb0d57c49a01f06f5185dbe5589cc5387e764ad1e8bfb5cc"
+    "sha256": "9d42600c20110508715c9148957ff48f8daacd928b507c16b4df6adbfce11a71"
   },
   "assets/vendor/pdf-lib.min.js": {
     "bytes": 616746,
@@ -784,12 +784,12 @@
     "sha256": "466f45c2a61a698152fb5400c27e56ff2ceb73dcb71fde3fc366a502308eaab0"
   },
   "assets/vendor/wasm/openjpeg_nowasm_fallback.js": {
-    "bytes": 445781,
-    "sha256": "9047b34b6bc142d85e4b0aa1b08b0b9baad4c6f8b7ac87641b9e8f90eb6fd23e"
+    "bytes": 338458,
+    "sha256": "2855f1590e7fd7abbbf204cd13a5c09d30c92fe2c9313fb72b64aa763fe8b4f3"
   },
   "assets/vendor/wasm/openjpeg.wasm": {
-    "bytes": 251131,
-    "sha256": "95e5002597af0824004aa57b1900fe019715db389e37640b1e58395e42f00cc5"
+    "bytes": 220817,
+    "sha256": "7ea4b2b04613370ad4e9c1162da750cc88b4b176eac0d0c164b3caff23fc0a46"
   },
   "assets/vendor/wasm/LICENSE_PDFJS_JBIG2": {
     "bytes": 555,
@@ -820,8 +820,8 @@
     "sha256": "9e66b7f1b934a28b37f3bc4dac97915de1674271e79a0a88182a18ed9731b4d1"
   },
   "assets/vendor/wasm/jbig2_nowasm_fallback.js": {
-    "bytes": 152009,
-    "sha256": "68686ced624a48c42f84cdaa482ec44b72b0de4dc84a0df903af1fb7b45b5d9a"
+    "bytes": 132439,
+    "sha256": "70150223396487e1ccfef7eac61fc780074ad7fcc9e843b702a8a3bc23107494"
   },
   "assets/fonts/allura-latin-400-normal.woff2": {
     "bytes": 26488,

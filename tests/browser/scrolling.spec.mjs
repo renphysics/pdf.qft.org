@@ -63,6 +63,64 @@ test('the pages show one under another, and the page in view is the current page
   expect(Math.abs((await placeInView(page, 3)).top)).toBeLessThan(40);
 });
 
+test('a new layout does not undo a scroll that has not been followed yet', async ({ page }) => {
+  // The view is followed a frame after it scrolls, and the pages are laid out
+  // again when the stage changes size: from a timer, 120 ms later. A layout that
+  // fell between a scroll and its frame started from the position before the
+  // scroll: the view went back, and the page number stayed where it was. (The
+  // test below met this in WebKit about once in eighty runs.) Here the layout
+  // is asked for right after the scroll, in the same task.
+  await openSample(page, 'add-text-to-pdf/');
+  await expect(page.locator('#page-jump')).toHaveValue('1');
+  // Scroll the view (to a place, or by some pixels) and lay the pages out at once.
+  const layoutAfter = (scrolling) =>
+    page.evaluate(async (scrolling) => {
+      const { renderStage } = await import(
+        performance.getEntriesByType('resource').find((entry) => /\/page-view\.js/.test(entry.name)).name
+      );
+      const scroll = document.querySelector('#canvas-scroll');
+      if ('by' in scrolling) scroll.scrollTop += scrolling.by;
+      else scroll.scrollTop = document.querySelector('.page-view[data-number="2"]').offsetTop - 8;
+      renderStage();
+    }, scrolling);
+  await layoutAfter({ toPage: 2 });
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  expect(
+    Math.abs((await placeInView(page, 2)).top - 8),
+    'page 2 is where the view was scrolled to',
+  ).toBeLessThan(3);
+  // Leaving the editor and coming back keeps the place. (Hidden, the stage's scroll
+  // offset reads 0; a browser gives it back when the stage shows again.)
+  await page.click('[data-action="back"]');
+  await expect(page.locator('#workspace')).toBeHidden();
+  await page.click('[data-action="resume"]');
+  await ready(page);
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  expect(Math.abs((await placeInView(page, 2)).top - 8), 'page 2 is where it was left').toBeLessThan(3);
+
+  // A page made current by a click stays current while the view moves by a hair
+  // (as it does when the view is followed a frame later); scrolled further, the
+  // page that fills the view takes over.
+  await useTool(page, 'pages');
+  await page.evaluate(() => {
+    const scroll = document.querySelector('#canvas-scroll');
+    // Page 3 shows in the lower third of the view, under the end of page 2.
+    scroll.scrollTop =
+      document.querySelector('.page-view[data-number="3"]').offsetTop - Math.round(scroll.clientHeight * 0.7);
+  });
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+  const third = await page.locator('.page-view[data-number="3"]').boundingBox();
+  await page.mouse.click(third.x + 40, third.y + 40);
+  await expect(page.locator('#page-jump')).toHaveValue('3');
+  await layoutAfter({ by: 1 });
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(page.locator('#page-jump')).toHaveValue('3');
+  await layoutAfter({ by: -100 });
+  await expect(page.locator('#page-jump')).toHaveValue('2');
+});
+
 test('any page can be edited where it is; undo shows the page of the change', async ({ page }) => {
   await openSample(page, 'add-text-to-pdf/');
   await scrollToTop(page, 2);

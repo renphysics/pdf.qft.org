@@ -15,13 +15,29 @@ export { expect };
  * Every test fails on an uncaught error in the page, and on a content security
  * policy violation in the document: the page reports one through the console
  * (an inline style, a blob: worker, a data: font would each be one). The page
- * also keeps a list of the notices it has shown, for expectToast.
+ * also keeps a list of the notices it has shown and of what it has told screen
+ * readers, for expectToast.
+ *
+ * And every test fails on a request to another origin, from the page or from its
+ * workers. That files never leave the device is the site's promise, and the
+ * document's policy does not bind the workers that read them, so the requests
+ * are counted here and not left to the policy. A WebSocket is not a request to
+ * Playwright, so those are counted too: the site opens none. (What neither
+ * count sees in every browser, such as a worker's EventSource in Firefox, no
+ * shipped script may name: tests/site-integrity.test.mjs.)
  */
 export const test = base.extend({
-  page: async ({ page }, use) => {
+  page: async ({ page, baseURL }, use) => {
     const errors = [],
-      violations = [];
+      violations = [],
+      elsewhere = [],
+      { origin } = new URL(baseURL);
     page.on('pageerror', (error) => errors.push(String(error)));
+    page.context().on('request', (request) => {
+      const url = request.url();
+      if (!/^(blob|data|about):/.test(url) && new URL(url).origin !== origin) elsewhere.push(url);
+    });
+    page.on('websocket', (socket) => elsewhere.push(socket.url()));
     await page.addInitScript(() => {
       document.addEventListener('securitypolicyviolation', (event) => {
         // While it takes a screenshot, Playwright adds a style element of its own, which
@@ -35,18 +51,43 @@ export const test = base.extend({
     await page.addInitScript(() => {
       // The notices shown since the page loaded, each when it became visible or
       // changed while visible: a notice that was only written, or hidden at once,
-      // is not in the list.
+      // is not in the list. With each, how much had been said by then (spokenFrom):
+      // a notice is announced after it is shown.
       window.qaNotices = [];
       window.qaNoticesRead = 0;
+      // The name the app gives each file it hands to the browser: the download
+      // attribute of the link it clicks (see download below).
+      window.qaDownloadNames = [];
+      const click = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () {
+        if (this.hasAttribute('download')) window.qaDownloadNames.push(this.download);
+        return click.call(this);
+      };
+      // What screen readers were told: each text put into the two live regions,
+      // and into which ('status' waits its turn, 'alert' interrupts).
+      window.qaSpoken = [];
       document.addEventListener('DOMContentLoaded', () => {
+        for (const kind of ['status', 'alert']) {
+          const region = document.querySelector('#announce-' + kind),
+            said = () => region.textContent && window.qaSpoken.push({ kind, text: region.textContent });
+          if (!region) continue;
+          said();
+          new MutationObserver(said).observe(region, { childList: true, characterData: true, subtree: true });
+        }
         const notice = document.querySelector('#toast'),
           message = document.querySelector('#toast-message');
         if (!notice || !message) return;
-        // One shown as the page started (its modules run before this event).
-        if (!notice.hidden) window.qaNotices.push(message.textContent);
-        new MutationObserver(() => {
-          if (!notice.hidden) window.qaNotices.push(message.textContent);
-        }).observe(notice, {
+        const shown = (spokenFrom) =>
+          !notice.hidden &&
+          window.qaNotices.push({
+            text: message.textContent,
+            error: notice.classList.contains('error'),
+            spokenFrom,
+          });
+        // One shown as the page started (its modules run before this event), which
+        // may have been said by now.
+        shown(0);
+        new MutationObserver(() => shown(window.qaSpoken.length)).observe(notice, {
           attributes: true,
           attributeFilter: ['hidden'],
           childList: true,
@@ -61,6 +102,7 @@ export const test = base.extend({
     await use(page);
     expect(errors, 'uncaught errors in the page').toEqual([]);
     expect(violations, 'content security policy violations').toEqual([]);
+    expect(elsewhere, 'requests to another origin').toEqual([]);
   },
 });
 
@@ -153,35 +195,78 @@ export async function useTool(page, tool) {
  * found (the list kept by the fixture above), and waits for it. So a notice
  * that hid itself during a slow step still counts, one that was written but
  * never shown does not, and neither does one from before the last expectation.
+ *
+ * The notice must have been said as well as shown: its text put into the live
+ * region for screen readers, the one that interrupts when the notice is an error,
+ * after the notice appeared. An announcement answers for one notice, so one left
+ * from an earlier showing of the same text does not count.
  */
 export async function expectToast(page, expected) {
   const wanted =
     expected instanceof RegExp ? { source: expected.source, flags: expected.flags } : { text: expected };
+  // The page is loading (a test that reloads it): asked again in a moment.
+  const loading = (error) => ['(the page was loading: ' + String(error.message).split('\n')[0] + ')'];
+  let notice;
   await expect
     .poll(
-      () =>
-        page
+      async () => {
+        const found = await page
           .evaluate((wanted) => {
             const pattern = 'source' in wanted ? new RegExp(wanted.source, wanted.flags) : null,
               shown = window.qaNotices.slice(window.qaNoticesRead),
-              found = shown.findIndex((text) => (pattern ? pattern.test(text) : text === wanted.text));
-            if (found < 0) return shown;
+              found = shown.findIndex(({ text }) => (pattern ? pattern.test(text) : text === wanted.text));
+            if (found < 0) return shown.map(({ text }) => text);
             window.qaNoticesRead += found + 1;
-            return true;
+            return { notice: shown[found] };
           }, wanted)
-          // The page is loading (a test that reloads it): asked again in a moment.
-          .catch((error) => ['(the page was loading: ' + String(error.message).split('\n')[0] + ')']),
+          .catch(loading);
+        if (!found.notice) return found;
+        notice = found.notice;
+        return true;
+      },
       {
         message: `a notice ${expected instanceof RegExp ? 'with ' + expected : JSON.stringify(expected)} was shown`,
       },
     )
     .toBe(true);
+  await expect
+    .poll(
+      () =>
+        page
+          .evaluate(({ text, error, spokenFrom }) => {
+            const kind = error ? 'alert' : 'status',
+              since = window.qaSpoken.slice(spokenFrom),
+              said = since.find((said) => !said.paired && said.kind === kind && said.text === text);
+            if (!said) return since.map((said) => said.kind + ': ' + said.text);
+            // Each announcement answers for one notice: the same notice shown twice is said twice.
+            said.paired = true;
+            return true;
+          }, notice)
+          .catch(loading),
+      {
+        message: `the notice ${JSON.stringify(notice.text)} was announced to screen readers${notice.error ? ', as an alert' : ''}`,
+      },
+    )
+    .toBe(true);
 }
 
-/** Click something that downloads a file; returns its name and bytes. */
+/**
+ * Click something that downloads a file; returns its name and bytes. The name
+ * is the one the app chose: the download attribute of the link it clicked. A
+ * browser may offer the file under its own spelling of that name, and one does:
+ * WebKit on Linux writes spaces as underscores, since the libsoup 3.6.6 that
+ * Playwright 1.65 ships inside it. (Safari does not use libsoup.) So the name
+ * the browser offers is checked against the app's, in either spelling.
+ */
 export async function download(page, click) {
   const [file] = await Promise.all([page.waitForEvent('download'), click()]);
-  return { name: file.suggestedFilename(), bytes: new Uint8Array(await readFile(await file.path())) };
+  const name = await page.evaluate(() => window.qaDownloadNames.at(-1));
+  expect(name, 'the app named the file it downloaded').toEqual(expect.any(String));
+  expect(
+    [name, name.replace(/\s/g, '_')],
+    'the browser offers the file under the name the app chose',
+  ).toContain(file.suggestedFilename());
+  return { name, bytes: new Uint8Array(await readFile(await file.path())) };
 }
 
 /** Text lines the preview draws on the current page, after it has painted. */

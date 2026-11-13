@@ -12,6 +12,7 @@ import {
   ANNOTATION_TOOLS,
   annotationById,
   announceMessage,
+  announceRested,
   clamp,
   currentPage,
   friendly,
@@ -169,6 +170,32 @@ export function createText(page, point) {
 // ---- Moving and resizing items --------------------------------------------------
 
 /** A pointer position on a page, in points from its top-left corner. */
+/**
+ * The handle a pointer went down on. A handle takes the pointer from further
+ * away than it shows (see .handle::before), and on a small item those areas
+ * overlap: on a one-line highlight the handle in the middle of the right edge
+ * lay under the corner below it, and pulling it sideways resized from that
+ * corner, so the highlight jumped to half its height. The handle whose centre
+ * is nearest is the one meant.
+ */
+function handleAt(event) {
+  const hit = event.target.closest('[data-handle]');
+  if (!hit) return null;
+  let nearest = hit,
+    least = Infinity;
+  for (const handle of hit.parentElement.querySelectorAll('[data-handle]')) {
+    const rect = handle.getBoundingClientRect(),
+      distance = Math.hypot(
+        event.clientX - (rect.left + rect.width / 2),
+        event.clientY - (rect.top + rect.height / 2),
+      );
+    if (distance < least) {
+      least = distance;
+      nearest = handle;
+    }
+  }
+  return nearest;
+}
 function pagePoint(event, view) {
   const rect = view.el.getBoundingClientRect(),
     scale = ui.stage.byId.get(view.id)?.scale || ui.stage.scale;
@@ -435,20 +462,190 @@ function nudge(id, dx, dy) {
   const inverse = invert(item.matrix),
     origin = applyMatrix(inverse, 0, 0),
     delta = applyMatrix(inverse, dx, dy);
-  const { placement, frame } = item;
-  // Start from the item's stored position: the drawn frame refreshes once per
-  // animation frame, and several key presses (or key repeat) can arrive before it.
-  const x = number(annotation.x, 0.1, 0, 1) * placement.width,
-    y = number(annotation.y, 0.1, 0, 1) * placement.height;
+  const { placement } = item;
+  // Start from the item's stored box: the drawn frame refreshes once per animation
+  // frame, and several key presses (or key repeat) can arrive before it.
+  const frame = storedFrame(annotation, item);
   const moved = {
     ...frame,
-    x: clamp(x + delta.x - origin.x, 0, Math.max(0, placement.width - frame.width)),
-    y: clamp(y + delta.y - origin.y, 0, Math.max(0, placement.height - frame.height)),
+    x: clamp(frame.x + delta.x - origin.x, 0, Math.max(0, placement.width - frame.width)),
+    y: clamp(frame.y + delta.y - origin.y, 0, Math.max(0, placement.height - frame.height)),
   };
   change(() => setFrame(annotation, item, moved), {
     key: 'nudge:' + id,
     label: 'Move ' + itemName(annotation),
   });
+}
+
+// ---- Resizing without dragging ---------------------------------------------------
+// Alt and an arrow key, or the Width and Height fields of the Highlight and Draw
+// panels: for a keyboard, a switch or a voice, and for a hand that cannot hold a drag.
+
+/**
+ * An item's box from what the document holds, in points of the page it was placed
+ * on. A text box's height, and its width while it fits its longest line, are
+ * measured, not stored: those come from the frame last drawn.
+ */
+function storedFrame(annotation, item) {
+  const { placement, frame } = item,
+    x = number(annotation.x, 0.1, 0, 1) * placement.width,
+    y = number(annotation.y, 0.1, 0, 1) * placement.height;
+  if (annotation.type === 'text') {
+    const width = annotation.autoWidth
+      ? frame.width
+      : Math.max(1, Math.min(number(annotation.width, 0.8, 0.01, 1) * placement.width, placement.width - x));
+    return { x, y, width, height: frame.height };
+  }
+  return {
+    x,
+    y,
+    width: Math.min(number(annotation.width, 0.25, 0.001, 1) * placement.width, placement.width - x),
+    height: Math.min(number(annotation.height, 0.08, 0.001, 1) * placement.height, placement.height - y),
+  };
+}
+/**
+ * That box as it lies on the screen, with the page it lies on, in points of the
+ * page view. The page may have been turned since the item was placed: then the
+ * item's own width runs down the screen.
+ */
+function onScreen(item, frame) {
+  const sides = (x, y, width, height) => {
+    const a = applyMatrix(item.matrix, x, y),
+      b = applyMatrix(item.matrix, x + width, y + height);
+    return {
+      left: Math.min(a.x, b.x),
+      top: Math.min(a.y, b.y),
+      right: Math.max(a.x, b.x),
+      bottom: Math.max(a.y, b.y),
+    };
+  };
+  return {
+    box: sides(frame.x, frame.y, frame.width, frame.height),
+    page: sides(0, 0, item.placement.width, item.placement.height),
+  };
+}
+/** A box on the screen, as a frame in the item's own directions. */
+function fromScreen(item, box) {
+  const inverse = invert(item.matrix),
+    a = applyMatrix(inverse, box.left, box.top),
+    b = applyMatrix(inverse, box.right, box.bottom);
+  return {
+    x: Math.min(a.x, b.x),
+    y: Math.min(a.y, b.y),
+    width: Math.abs(b.x - a.x),
+    height: Math.abs(b.y - a.y),
+  };
+}
+/**
+ * Give an item the box that `place` returns for it: `place` gets the item's box
+ * and its page as they lie on the screen, and the smallest side it may have.
+ * A picture or a signature keeps its proportions, and text has a width only
+ * (where its lines wrap), as when they are resized by a handle.
+ */
+function resize(id, place) {
+  const annotation = annotationById(id),
+    item = overlayItem(id);
+  if (!annotation || !item?.frame) return;
+  const stored = storedFrame(annotation, item),
+    { box, page } = onScreen(item, stored),
+    // How long one of the item's points is on the screen.
+    inverse = invert(item.matrix),
+    origin = applyMatrix(inverse, 0, 0),
+    one = applyMatrix(inverse, 1, 0),
+    point = 1 / Math.hypot(one.x - origin.x, one.y - origin.y),
+    text = annotation.type === 'text',
+    picture = annotation.type === 'image' || annotation.type === 'signature';
+  let next = place(box, page, (text ? 12 : 3) * point);
+  if (picture) {
+    const width = box.right - box.left,
+      height = box.bottom - box.top,
+      wider = (next.right - next.left) / width,
+      taller = (next.bottom - next.top) / height,
+      factor = clamp(
+        Math.abs(wider - 1) >= Math.abs(taller - 1) ? wider : taller,
+        Math.min(1, (8 * point) / Math.min(width, height)),
+        Math.min((page.right - next.left) / width, (page.bottom - next.top) / height),
+      );
+    next = { ...next, right: next.left + width * factor, bottom: next.top + height * factor };
+  }
+  const frame = fromScreen(item, next),
+    key = 'resize:' + id;
+  if (text) {
+    // The side of the box that moved is its width only where the lines run across the screen.
+    if (Math.abs(frame.width - stored.width) > 0.001 || Math.abs(frame.x - stored.x) > 0.001)
+      change(
+        () => {
+          annotation.x = frame.x / item.placement.width;
+          annotation.width = frame.width / item.placement.width;
+          annotation.autoWidth = false;
+        },
+        { key, label: 'Resize text' },
+      );
+  } else change(() => setFrame(annotation, item, frame), { key, label: 'Resize ' + itemName(annotation) });
+  // The size is said in the measure the panel shows for the item: a highlight's
+  // or a shape's sides as they lie on the screen (its Width and Height fields), a
+  // picture's own width (its Width slider), and for text the width its lines wrap at.
+  // It is said once the keys rest, and only while the item is still the selected one.
+  const own = () => (storedFrame(annotation, item).width / item.placement.width) * 100,
+    size = itemSize(id),
+    message = text
+      ? `Width ${Math.round(own() * 10) / 10}% of the page.`
+      : picture
+        ? `Width ${Math.round(own())}% of the page.`
+        : size && `Width ${size.width}% of the page, height ${size.height}%.`;
+  if (message) announceRested(message, () => ui.item === id);
+}
+/**
+ * Move an item's right or lower edge by `dx` or `dy` points on the screen (Alt
+ * and an arrow key). A side already shorter than the least (a level line's
+ * height) can grow from what it is, and is not made longer by a key that shortens.
+ */
+function resizeBy(id, dx, dy) {
+  resize(id, (box, page, least) => ({
+    ...box,
+    right: dx
+      ? clamp(box.right + dx, box.left + Math.min(least, box.right - box.left), page.right)
+      : box.right,
+    bottom: dy
+      ? clamp(box.bottom + dy, box.top + Math.min(least, box.bottom - box.top), page.bottom)
+      : box.bottom,
+  }));
+}
+/**
+ * Make an item `width` or `height` of its page, as shares from 0 to 1 (the
+ * Width and Height fields). Where the page has no room for that to the right
+ * of the item, or below it, the item moves over. The least is a thousandth of
+ * the page, which is the least the fields take and a document holds: what is
+ * typed is what the item gets.
+ */
+export function resizeItemTo(id, { width, height }) {
+  resize(id, (box, page) => {
+    const next = { ...box },
+      share = (value, whole) => clamp(value, 0.001, 1) * whole;
+    if (width !== undefined) {
+      const wanted = share(width, page.right - page.left);
+      next.left = clamp(box.left, page.left, page.right - wanted);
+      next.right = next.left + wanted;
+    }
+    if (height !== undefined) {
+      const wanted = share(height, page.bottom - page.top);
+      next.top = clamp(box.top, page.top, page.bottom - wanted);
+      next.bottom = next.top + wanted;
+    }
+    return next;
+  });
+}
+/** An item's width and height on the screen as percentages of its page, to one decimal. */
+export function itemSize(id) {
+  const annotation = annotationById(id),
+    item = overlayItem(id);
+  if (!annotation || !item?.frame) return null;
+  const { box, page } = onScreen(item, storedFrame(annotation, item)),
+    percent = (length, whole) => Math.max(0.1, Math.round((length / whole) * 1000) / 10);
+  return {
+    width: percent(box.right - box.left, page.right - page.left),
+    height: percent(box.bottom - box.top, page.bottom - page.top),
+  };
 }
 export function deleteItem(id) {
   const annotation = annotationById(id);
@@ -564,7 +761,7 @@ export function initPageItems() {
       return;
     }
     if (!ANNOTATION_TOOLS.includes(ui.tool)) return;
-    const handle = event.target.closest('[data-handle]'),
+    const handle = handleAt(event),
       point = pagePoint(event, view);
     let box = event.target.closest('[data-item-id]');
     // Draw: a stroke may start over another drawing; a tap on one selects it (pointerup).
@@ -681,7 +878,12 @@ export function initPageItems() {
     const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
     if (moves[event.key]) {
       event.preventDefault();
-      nudge(id, ...moves[event.key]);
+      // The item the keys act on is the selected one. It can have focus without
+      // being selected: Undo of a step about something else leaves it so.
+      if (id !== ui.item) selectItem(id, { focus: false });
+      // With Alt the arrow keys resize: they move the item's right and lower edges.
+      if (event.altKey) resizeBy(id, ...moves[event.key]);
+      else nudge(id, ...moves[event.key]);
     } else if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
       deleteItem(id);

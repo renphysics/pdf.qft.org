@@ -25,3 +25,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # In one pull request: each merge to main is a deploy, and five updates
+    # merged one by one started five.
+    groups:
+      actions:
+        patterns:
+          - '*'
