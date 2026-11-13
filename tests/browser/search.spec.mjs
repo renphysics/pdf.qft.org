@@ -113,13 +113,13 @@ test('a note’s link works as its card does: its address, and with a document o
   await expect(page.locator('#document-name')).toHaveText('A little room to create.pdf');
 });
 
-test('on a tool page, a search for the page’s own tool says this page is it', async ({ page }) => {
+test('on a tool page, a search for the page’s own tool says the visitor is on it', async ({ page }) => {
   for (const [address, query, text] of [
-    ['crop-pdf/', 'crop', 'This page is Crop PDF: choose a PDF above.'],
-    ['merge-pdf/', 'combine pdfs', 'This page is Merge PDFs: choose PDFs to merge above.'],
-    ['jpg-to-pdf/', 'photos', 'This page is JPG to PDF: choose pictures above.'],
-    ['batch-edit-pdf/', 'presets', 'This page is Batch & presets: choose PDFs above.'],
-    ['add-text-to-pdf/', 'logo', 'This page is Add text & images: choose a PDF above.'],
+    ['crop-pdf/', 'crop', 'You are on Crop PDF: choose a PDF above.'],
+    ['merge-pdf/', 'combine pdfs', 'You are on Merge PDFs: choose PDFs to merge above.'],
+    ['jpg-to-pdf/', 'photos', 'You are on JPG to PDF: choose pictures above.'],
+    ['batch-edit-pdf/', 'presets', 'You are on Batch & presets: choose PDFs above.'],
+    ['add-text-to-pdf/', 'logo', 'You are on Add text & images: choose a PDF above.'],
   ]) {
     await page.goto(address);
     await page.fill('#tool-search', query);
@@ -141,7 +141,7 @@ test('on a tool page, a search for the page’s own tool says this page is it', 
   await expect(page).toHaveURL(/\/add-margins-to-pdf\/$/);
   await page.click('[data-action="back"]');
   await page.fill('#tool-search', 'trim');
-  await expect(note(page)).toHaveText('This page is Crop PDF: use it on your open document.');
+  await expect(note(page)).toHaveText('You are on Crop PDF: use it on your open document.');
   await note(page).getByRole('link', { name: 'use it on your open document' }).click();
   await ready(page);
   await expect(page.locator('#sheet-title')).toHaveText('Crop PDF');
@@ -170,6 +170,59 @@ test('a dead end is said once, after typing rests; cards that match are not said
   await page.waitForFunction(() => performance.now() - window.qaTyped > 1000);
   await page.fill('#tool-search', 'translate');
   await expect.poll(() => said(page)).toEqual([text, empty, empty]);
+  // Another search that finds nothing, typed straight over this one, is a dead end of
+  // its own: silence would mean that cards were found.
+  await page.waitForFunction(() => performance.now() - window.qaTyped > 1000);
+  await page.locator('#tool-search').selectText();
+  await page.locator('#tool-search').pressSequentially('zzzz', { delay: 60 });
+  await expect.poll(() => said(page)).toEqual([text, empty, empty, empty]);
+  // A filter that changes nothing about a note says nothing more; under one that
+  // leaves a search with no card, that is said.
+  await page.fill('#tool-search', 'compress');
+  await expect.poll(() => said(page)).toEqual([text, empty, empty, empty, text]);
+  await page.click('[data-tool-filter="automate"]');
+  await page.waitForFunction(() => performance.now() - window.qaTyped > 1000);
+  await page.fill('#tool-search', 'merge');
+  await expect.poll(() => said(page)).toEqual([text, empty, empty, empty, text, empty]);
+  // Another filter, and still no card: the visitor asked again, and hears the answer.
+  await page.waitForFunction(() => performance.now() - window.qaTyped > 1000);
+  await page.click('[data-tool-filter="edit"]');
+  await expect.poll(() => said(page)).toEqual([text, empty, empty, empty, text, empty, empty]);
+  await page.click('[data-tool-filter="all"]');
+  await expect(page.locator('.tool-card[data-card="merge"]')).toBeVisible();
+});
+
+test('what the search was about to say is dropped when the visitor moves on', async ({ page }) => {
+  await page.goto('./');
+  await listen(page);
+  await page.locator('#tool-search').pressSequentially('compress', { delay: 30 });
+  await expect(note(page)).toBeVisible();
+  // At once: the note has not been said yet, and the editor has its own to say.
+  await page.click('[data-action="sample"]');
+  await ready(page);
+  await expect.poll(() => said(page)).toContain('Your PDF is ready. Everything happens on your device.');
+  await page.waitForTimeout(1000);
+  expect(
+    (await said(page)).filter((entry) => entry.includes('compress')),
+    'the note was said after the visitor had gone on to a PDF',
+  ).toEqual([]);
+});
+
+test('on a tool page, a note names the page’s own tool without a link to it', async ({ page }) => {
+  await page.goto('delete-pages-from-pdf/');
+  await page.fill('#tool-search', 'compress');
+  await expect(note(page)).toHaveText(/with Delete pages or Split PDF, can make the copy smaller\.$/);
+  // A link to this page would load it again and empty the search.
+  await expect(note(page).getByRole('link')).toHaveText(['Split PDF']);
+  // With a document open the name is a link again: it takes the document to the tool.
+  await openSample(page, 'delete-pages-from-pdf/');
+  await useTool(page, 'crop');
+  await page.click('[data-action="back"]');
+  await page.fill('#tool-search', 'make it smaller');
+  await expect(note(page).getByRole('link')).toHaveText(['Delete pages', 'Split PDF']);
+  await note(page).getByRole('link', { name: 'Delete pages' }).click();
+  await ready(page);
+  await expect(page.locator('#sheet-title')).toHaveText('Delete pages');
 });
 
 test('at 320 px, every note fits without sideways scrolling', async ({ page }) => {

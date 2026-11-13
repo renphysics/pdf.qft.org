@@ -3,9 +3,17 @@
 // tools come and go: each links to tools that exist and is one sentence, and none
 // says "can’t" about what a tool offers.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { SEARCH_NOTES, TOOLS, searchFinds, searchNote, searchText, searchWords } from '../dist/routes.js';
+import {
+  SEARCH_NOTES,
+  TOOLS,
+  TOOL_PAGES,
+  searchFinds,
+  searchNote,
+  searchText,
+  searchWords,
+} from '../dist/routes.js';
 
 const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
 // A card is found by its category's name too, as its filter button shows it.
@@ -66,7 +74,41 @@ await test('cards: found by the start of their words, not by a word inside anoth
     ['add header', ['footer']],
     ['add signature', ['signature']],
     ['insert page', ['pages']],
-    ['add drawing', ['draw']],
+    // "Draw, type or upload your signature" is on the Sign card.
+    ['add drawing', ['signature', 'draw']],
+    // "to" counts for nothing, here too.
+    ['add text to pdf', ['text', 'watermark']],
+    ['add signature to pdf', ['signature']],
+    // The ending of a verb or a noun, whole or still being typed: the word without it is found.
+    ['merging', ['merge']],
+    ['merger', ['merge']],
+    ['merged pdfs', ['merge']],
+    ['splitt', ['split']],
+    ['splitti', ['split']],
+    ['splitting', ['split']],
+    ['splitter', ['split']],
+    ['cropping', ['crop']],
+    ['rotation', ['pages']],
+    ['rotating pages', ['pages']],
+    ['signing', ['signature']],
+    ['watermarking', ['watermark']],
+    ['encryption', ['protect']],
+    ['deleting pages', ['delete']],
+    ['password remover', ['unlock']],
+    ['resizing', ['resize']],
+    // Other words, which only start like a card's word.
+    ['pending', []],
+    ['wording', []],
+    ['penal', []],
+    // A word of two letters takes no ending: "up" (2-up) is not found by "upper".
+    ['upper', []],
+    ['watermark remover', []],
+    // Words people use that the cards did not have.
+    ['electronic signature', ['signature']],
+    ['bulk', ['batch']],
+    ['organise', ['pages']],
+    ['rearrange pages', ['pages']],
+    ['sort pages', ['pages']],
     ['translate', []],
   ])
     assert.deepEqual(found(query), ids, `"${query}" shows the wrong cards`);
@@ -214,6 +256,10 @@ await test('notes: whole words, so no false alarms; the note for what was asked'
     'remove pages',
     'delete pages',
     'size',
+    // On the way to "document", and any documents: not Word's.
+    'doc',
+    'docs',
+    'merge docs',
   ])
     assert.equal(noteFor(query), null, `"${query}" brings a note`);
   for (const [query, id] of [
@@ -232,11 +278,129 @@ await test('notes: whole words, so no false alarms; the note for what was asked'
     ['Microsoft Word', 'office'],
     ['DOCX', 'office'],
     ['google docs', 'office'],
+    ['pdf to doc', 'office'],
+    ['doc to pdf', 'office'],
+    ['convert doc', 'office'],
+    // Two notes could answer: the first in the list does.
+    ['compress word file', 'compress'],
+    ['edit text in word', 'edit-text'],
     ['xlsx', 'office'],
     ['extract images', 'images-out'],
     ['bookmarks', 'bookmarks'],
     ['digitally sign', 'digital-signature'],
     ['certificate', 'digital-signature'],
+    // What people type for the five things the owner named.
+    ['shrink pdf', 'compress'],
+    ['reduce file size', 'compress'],
+    ['pdf size', 'compress'],
+    ['resize pdf file', 'compress'],
+    ['searchable pdf', 'ocr'],
+    ['blackout', 'redact'],
+    ['fix a typo', 'edit-text'],
+    ['excel', 'office'],
+    ['powerpoint', 'office'],
   ])
     assert.equal(noteFor(query), id, `"${query}" brings the wrong note`);
+  // A size can be a page's: these bring the note and the Resize card under it.
+  for (const query of ['pdf size', 'smaller pages', 'resize pdf file'])
+    assert(found(query).includes('resize'), `"${query}" does not show Resize pages`);
+  assert.deepEqual(found('a3 to a4'), ['resize'], '"a3 to a4" shows Resize pages');
+});
+
+// ---- What the site does not do, wherever a visitor reads of it ----------------------------
+
+// The five the owner named. Changing one of these sentences is a decision, not a
+// slip: a note that began "can’t" could go on to promise the thing.
+const SAID = {
+  compress:
+    'QFT PDF can’t compress a PDF, but leaving out pages you don’t need, with [Delete pages](tool:delete) or [Split PDF](tool:split), can make the copy smaller.',
+  ocr: 'QFT PDF can’t turn a scan into text (OCR): scanned pages stay pictures, which [JPG to PDF](tool:jpgtopdf) can put in a PDF but not make searchable.',
+  redact:
+    'QFT PDF can’t redact: what you add on top of a page, or crop away, only hides what is there, and it stays in the file.',
+  'edit-text':
+    'QFT PDF can’t change the text already in a PDF; [Add text](tool:text) puts new text on top of the page.',
+  office:
+    'QFT PDF can’t convert between PDF and Word, Excel or PowerPoint; to make a PDF from an Office file, save it as PDF in the app that made it.',
+};
+// A sentence that names one of these...
+const NAMES = /\bcompress|\bOCR\b|\bsearchable\b|\bredact|\bWord\b|\bPowerPoint\b|\bExcel\b/;
+// ...says that the site does not do it.
+const DENIES = /can’t|cannot|doesn’t|does not|don’t|isn’t|\bnot\b|\bno\b/i;
+/** The statements in a text as a visitor reads it: no markup, and no questions (a question claims nothing). */
+const statements = (text) =>
+  text
+    .replace(/<(script|style)[\s\S]*?<\/\1>/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replaceAll('&amp;', '&')
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.replace(/\s+/g, ' ').trim())
+    .filter((sentence) => sentence && !sentence.endsWith('?'));
+const dist = new URL('../dist/', import.meta.url);
+const pageFiles = ['index.html', ...new Set(Object.values(TOOL_PAGES).map((slug) => `${slug}/index.html`))];
+const pageText = Object.fromEntries(
+  await Promise.all(pageFiles.map(async (name) => [name, await readFile(new URL(name, dist), 'utf8')])),
+);
+// What the editor says is in its modules, as text between quotes.
+const moduleText = Object.fromEntries(
+  await Promise.all(
+    (await readdir(dist))
+      .filter((name) => name.endsWith('.js'))
+      .map(async (name) => [
+        name,
+        [
+          ...(await readFile(new URL(name, dist), 'utf8')).matchAll(
+            /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g,
+          ),
+        ]
+          .map((match) => match[1] ?? match[2])
+          .filter((literal) => literal.includes(' '))
+          .join('\n'),
+      ]),
+  ),
+);
+
+await test('the five notes the owner named say what they said', () => {
+  for (const [id, text] of Object.entries(SAID))
+    assert.equal(SEARCH_NOTES.find((item) => item.id === id)?.text, text, `the ${id} note`);
+});
+
+await test('wherever a page or the editor names compressing, OCR, redacting or Word, it says the site does not do it', () => {
+  let read = 0;
+  for (const [name, text] of [...Object.entries(pageText), ...Object.entries(moduleText)])
+    for (const sentence of text.split('\n').flatMap(statements)) {
+      if (!NAMES.test(sentence)) continue;
+      read++;
+      assert.match(
+        sentence,
+        DENIES,
+        `${name} names something the site does not do, without saying so: “${sentence}”`,
+      );
+    }
+  assert(
+    read >= 12,
+    `only ${read} such sentences were read: is the reader still reading the pages and modules?`,
+  );
+  // The reader itself: a promise is caught, a denial and a question pass.
+  const caught = (sentence) => statements(sentence).some((entry) => NAMES.test(entry) && !DENIES.test(entry));
+  assert(caught('Yes. Resizing compresses the file.'));
+  assert(caught('<p>QFT PDF reads the text in a picture (OCR).</p>'));
+  assert(caught('Convert your PDF to Word here.'));
+  assert(!caught('No. QFT PDF does not compress PDFs.'));
+  assert(!caught('Can I convert PDF to Word?'));
+  // Where a visitor would otherwise expect the thing, the page says it is not there.
+  for (const [page, names] of [
+    ['delete-pages-from-pdf', /can’t compress a PDF/],
+    ['resize-pdf', /does not compress PDFs/],
+    ['jpg-to-pdf', /can’t read the text in a picture \(OCR\)/],
+    ['jpg-to-pdf', /Can I convert Word or PowerPoint files\?<\/summary><p>Not here\./],
+    ['pdf-to-jpg', /Can I convert PDF to Word\?<\/summary><p>Not here\./],
+    ['crop-pdf', /not a secure way to redact/],
+    ['add-text-to-pdf', /not secure redaction/],
+  ])
+    assert.match(pageText[`${page}/index.html`], names, `the ${page} page no longer says it`);
+  assert.match(
+    moduleText['editor-core.js'],
+    /QFT PDF doesn’t compress PDFs, read the text in scans \(OCR\), or convert to or from Word\./,
+    'the help says what QFT PDF does not do',
+  );
 });

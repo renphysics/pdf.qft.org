@@ -118,8 +118,14 @@ function resizePages() {
 export function restoreSize() {
   try {
     const scope = scopedPages(ui.resizeDraft.scope),
-      targets = state.pages.filter((page) => (scope === 'all' || scope.includes(page.id)) && page.paper);
-    if (!targets.length) throw new Error('These pages have their own size.');
+      asked = state.pages.filter((page) => scope === 'all' || scope.includes(page.id)),
+      targets = asked.filter((page) => page.paper);
+    if (!targets.length)
+      throw new Error(
+        asked.length === 1
+          ? 'This page has its own size already.'
+          : 'These pages have their own size already.',
+      );
     change(
       () => {
         for (const page of targets) delete page.paper;
@@ -153,7 +159,7 @@ export function fields() {
     '<button type="submit" class="button primary">' +
     icon('resize') +
     'Resize pages</button><button type="button" class="button subtle" data-action="resize-restore">Restore original size</button>' +
-    '<p class="field-hint wide">Each page is scaled to fit its sheet and centred, in its own orientation. Nothing is cut off, and text stays text. Links, comments and form fields move with the page; page numbers, headers and footers go to the edges of the sheet. A resized page stays on its sheet when you crop it or add margins.</p>'
+    '<p class="field-hint wide">Each page is scaled to fit its sheet and centred, in its own orientation. Nothing is cut off, and text stays text. Links, comments and form fields move with the page; page numbers, headers and footers go to the edges of the sheet. A resized page stays on its sheet when you crop it or add margins. Pages you add later keep their own size.</p>'
   );
 }
 export function values() {

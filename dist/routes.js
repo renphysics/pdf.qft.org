@@ -27,7 +27,7 @@ export const TOOLS = Object.freeze([
     category: 'edit',
     color: 'blue',
     card: ['Draw, type or upload your signature.', 'Place it on one page or every page.'],
-    keywords: 'add signature e-sign esign fill',
+    keywords: 'add signature e-sign esign electronic fill',
   }),
   tool('form', 'fill-pdf-form', 'Fill form', 'Form', 'form', {
     category: 'edit',
@@ -69,7 +69,8 @@ export const TOOLS = Object.freeze([
     category: 'organize',
     color: 'sand',
     card: ['Reorder, rotate, remove, or extract', 'just the pages you need.'],
-    keywords: 'add insert reorder rotate extract reverse interleave blank duplicate move',
+    keywords:
+      'add insert reorder rearrange arrange sort order organise rotate extract reverse interleave blank duplicate move',
   }),
   tool('delete', 'delete-pages-from-pdf', 'Delete pages', 'Delete', 'trash', {
     category: 'organize',
@@ -93,7 +94,8 @@ export const TOOLS = Object.freeze([
     category: 'edit',
     color: 'peach',
     card: ['Every page on A4 or Letter paper.', 'Scaled to fit, with nothing cut off.'],
-    keywords: 'change page size paper a4 us letter scale fit enlarge shrink standard print mixed sizes',
+    keywords:
+      'change page size paper a4 a3 a5 legal us letter scale fit enlarge larger bigger shrink smaller standard print mixed sizes file',
   }),
   tool('merge', 'merge-pdf', 'Merge PDFs', 'Merge', 'merge', {
     category: 'organize',
@@ -141,7 +143,7 @@ export const TOOLS = Object.freeze([
     category: 'automate',
     color: 'sage',
     card: ['One setup, many PDFs.', 'Save your settings and process them together.'],
-    keywords: 'batch preset many files',
+    keywords: 'batch bulk preset many files',
   }),
 ]);
 
@@ -161,12 +163,32 @@ const COMMON = new Set('pdf pdfs a an the my to from of in on for and with'.spli
 /** What the search reads for a tool: the name and copy on its card, and its keywords. */
 export const searchText = (item) =>
   [item.title || item.name, ...(item.card || []), item.keywords || ''].join(' ');
+// What a typed word may add to a card's word: "merging", "merged" and "merger"
+// find "merge", "rotation" finds "rotate", "cropping" finds "crop".
+const ENDINGS = ['ing', 'ings', 'ion', 'ions', 'ed', 'er', 'ers', 'or', 'ors'];
+const ending = (rest) => ENDINGS.some((whole) => whole.startsWith(rest));
+/**
+ * Whether a typed word is a card's word with such an ending, whole or still
+ * being typed (so the card stays while "splitting" is typed past "split").
+ * Before the ending, the card's word may lose a final "e" ("merg-ing") or
+ * double its last letter ("crop-p-ing"). Words of fewer than three letters
+ * take no ending: "a" is not found by "aed".
+ */
+function inflects(word, found) {
+  for (const base of found.endsWith('e') ? [found, found.slice(0, -1)] : [found]) {
+    if (base.length < 3 || word.length <= base.length || !word.startsWith(base)) continue;
+    const rest = word.slice(base.length);
+    if (ending(rest) || (rest[0] === base.at(-1) && ending(rest.slice(1)))) return true;
+  }
+  return false;
+}
 /**
  * Whether the words typed (searchWords) find a text, such as a card's
  * (searchText, with its category's name). Each typed word must be the start of
  * one of its words, so "word" does not find "password", and words that name no
- * tool are left out. A word ending in a single "s" also counts without it:
- * "pages" finds "Page numbers".
+ * tool are left out. A word ending in a single "s" also counts without it
+ * ("pages" finds "Page numbers"), and a word of the text counts with a verb's
+ * or a noun's ending (inflects).
  */
 export function searchFinds(typed, text) {
   const own = searchWords(text);
@@ -174,7 +196,7 @@ export function searchFinds(typed, text) {
     .filter((word) => !COMMON.has(word))
     .every((word) => {
       const single = word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word;
-      return own.some((found) => found.startsWith(word) || found.startsWith(single));
+      return own.some((found) => found.startsWith(word) || found.startsWith(single) || inflects(word, found));
     });
 }
 
@@ -184,7 +206,7 @@ export function searchFinds(typed, text) {
  * the links of scripts/pages/content.mjs). `words` are the searches that bring
  * it: each is one or more words that must all be typed, whole, or as the start
  * of a typed word where they end in "*" ("compress*" also finds "compression";
- * "word" is not found in "password", nor "doc" in "document"). `missing` names
+ * "word" is not found in "password"). `missing` names
  * what no tool does: tests/search.test.mjs fails when a tool's name, copy or
  * keywords come to offer it, so that the sentence goes when the tool comes.
  */
@@ -192,7 +214,18 @@ const note = (id, words, text, missing) => Object.freeze({ id, words, text, miss
 export const SEARCH_NOTES = Object.freeze([
   note(
     'compress',
-    ['compress*', 'shrink*', 'smaller', 'optimi*', 'reduce size', 'reduce file', 'file size', 'downsiz*'],
+    [
+      'compress*',
+      'shrink*',
+      'smaller',
+      'optimi*',
+      'reduce size',
+      'reduce file',
+      'file size',
+      'pdf size',
+      'resize file*',
+      'downsiz*',
+    ],
     'QFT PDF can’t compress a PDF, but leaving out pages you don’t need, with [Delete pages](tool:delete) or [Split PDF](tool:split), can make the copy smaller.',
     ['compress', 'compression', 'optimize', 'file size'],
   ),
@@ -240,7 +273,23 @@ export const SEARCH_NOTES = Object.freeze([
   ),
   note(
     'office',
-    ['word', 'docx', 'doc', 'docs', 'excel', 'xls*', 'powerpoint', 'ppt*', 'office', 'odt', 'rtf'],
+    // "doc" and "docs" only beside another word: alone they are typed on the way
+    // to "document", and "docs" may mean any documents.
+    [
+      'word',
+      'docx',
+      'to doc',
+      'convert* doc',
+      'doc file*',
+      'google docs',
+      'excel',
+      'xls*',
+      'powerpoint',
+      'ppt*',
+      'office',
+      'odt',
+      'rtf',
+    ],
     'QFT PDF can’t convert between PDF and Word, Excel or PowerPoint; to make a PDF from an Office file, save it as PDF in the app that made it.',
     ['word', 'docx', 'excel', 'powerpoint'],
   ),

@@ -37,11 +37,11 @@ function marginFields() {
     '<button type="submit" class="button primary">' +
     icon('plus') +
     'Add margins</button><button type="button" class="button subtle" data-action="margins-remove">Remove added margins</button>' +
-    '<p class="field-hint wide">The margins are blank space around each page: nothing on it moves or shrinks. Page numbers, headers and footers go to the new edges.' +
+    '<p class="field-hint wide">' +
     (state.pages.some((page) => page.paper)
-      ? ' A resized page stays on its sheet: the page is made smaller to leave the margins.'
-      : '') +
-    '</p>'
+      ? 'The margins are blank space around each page. A page you resized to A4 or Letter stays on that paper, so it is made smaller to leave room for them; on other pages nothing moves or shrinks.'
+      : 'The margins are blank space around each page: nothing on it moves or shrinks.') +
+    ' Page numbers, headers and footers go to the new edges.</p>'
   );
 }
 /** A wide right margin for notes: 60 mm, the others none. */

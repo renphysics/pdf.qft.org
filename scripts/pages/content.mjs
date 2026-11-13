@@ -400,7 +400,7 @@ export const PAGES = [
       ['Is my PDF uploaded?', 'No. Pages are removed in your browser and the file never leaves your device.'],
       [
         'Will deleting pages make my PDF smaller?',
-        'Yes, by what only those pages used, such as their pictures and fonts. Nothing else is compressed: QFT PDF can’t compress a PDF.',
+        'Often: the copy leaves out what only those pages used, such as their pictures. A PDF that is mostly text can come out about the same size, because the copy is written anew. QFT PDF can’t compress a PDF.',
       ],
     ],
   },
@@ -469,7 +469,7 @@ export const PAGES = [
     faqs: [
       [
         'Does anything on the page get smaller?',
-        'No. The page grows: its content stays the same size and in the same place, with blank space around it.',
+        'No. The page grows: its content stays the same size and in the same place, with blank space around it. Only a page you resized to A4 or Letter is made smaller, so that it stays on that paper.',
       ],
       [
         'What happens to page numbers, headers and footers?',
@@ -490,7 +490,7 @@ export const PAGES = [
     name: 'Resize PDF pages',
     title: 'Resize PDF pages to A4 or Letter — QFT PDF',
     description:
-      'Put every page of a PDF on A4 or US Letter paper, scaled in proportion and centred. Links, comments and form fields keep working. Free, in your browser.',
+      'Put every page of a PDF on A4 or Letter paper, scaled in proportion and centred. Links, comments and form fields keep working. Free, in your browser.',
     eyebrow: 'RESIZE PAGES',
     heading: ['Resize PDF pages.', 'Every page on the same paper.'],
     intro:
@@ -523,7 +523,7 @@ export const PAGES = [
       ],
       [
         'What about page numbers, headers and footers?',
-        'Those you add here go to the edges of the new sheet, at the size you chose.',
+        'Page numbers, headers and footers you add in QFT PDF go to the edges of the new paper. Their text keeps the size you set, and is not scaled with the page.',
       ],
       [
         'A page is already A4. What happens to it?',
@@ -531,7 +531,11 @@ export const PAGES = [
       ],
       [
         'Does this make the file smaller?',
-        'No. Resizing changes the size of the pages, not the size of the file. QFT PDF does not compress PDFs.',
+        'No. Resizing changes the size of the pages. The file stays about the same size, or grows a little. QFT PDF does not compress PDFs.',
+      ],
+      [
+        'Which paper sizes can I choose?',
+        'A4 and Letter, for pages of any size. Pages you add after resizing keep their own size, so resize again to put them on the paper too.',
       ],
       [
         'Is my PDF uploaded?',

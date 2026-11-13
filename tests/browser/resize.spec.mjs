@@ -63,6 +63,10 @@ test('pages of mixed sizes go on A4 or Letter paper, as one undo step, and get t
   await expect(page.locator('#resize-summary')).toHaveText(
     '3 of 4 pages go on A4 paper; 1 is that size already.',
   );
+  // What the panel promises, and what it warns of.
+  const hint = page.locator('#tool-form .field-hint').last();
+  await expect(hint).toContainText('Nothing is cut off, and text stays text.');
+  await expect(hint).toContainText('Pages you add later keep their own size.');
   await page.click(submit);
   await expectToast(page, '3 pages are on A4 paper now. 1 was that size already.');
   await expect.poll(() => shape(page)).toBeCloseTo(A4[0] / A4[1], 2);
@@ -109,7 +113,7 @@ test('pages of mixed sizes go on A4 or Letter paper, as one undo step, and get t
   await expectToast(page, 'The page has its own size again.');
   expect(await sizes(await save(page))).toEqual(original);
   await page.click('[data-action="resize-restore"]');
-  await expectToast(page, 'These pages have their own size.');
+  await expectToast(page, 'This page has its own size already.');
 
   // Selected pages: two of them; with none selected, the summary says what is missing.
   await page.selectOption('#tool-form [name="resizeScope"]', 'selected');
@@ -121,6 +125,53 @@ test('pages of mixed sizes go on A4 or Letter paper, as one undo step, and get t
   await expect(page.locator('#resize-summary')).toHaveText(
     'Select at least one page in the page strip, or choose Every page.',
   );
+
+  // One page of three changes: the first is put on A4 by itself, the second is A4 already.
+  await page.selectOption('#tool-form [name="resizePaper"]', 'a4');
+  await page.selectOption('#tool-form [name="resizeScope"]', 'current');
+  await page.click(submit);
+  await expectToast(page, 'The page is on A4 paper now.');
+  await page.selectOption('#tool-form [name="resizeScope"]', 'selected');
+  for (const index of [0, 1, 2]) await page.locator('[data-page-select]').nth(index).check();
+  await expect(page.locator('#resize-summary')).toHaveText(
+    '1 of 3 pages goes on A4 paper; 2 are that size already.',
+  );
+  await page.click(submit);
+  await expectToast(page, '1 page is on A4 paper now. 2 were that size already.');
+  expect(await sizes(await save(page))).toEqual([A4, [842, 595], A4, [226, 900]]);
+  // The second page and the receipt: the second, A4 already, kept its sheet and gives
+  // it back. With several pages asked for and none on a sheet, the refusal says "these".
+  await page.locator('[data-page-select]').nth(0).uncheck();
+  await page.locator('[data-page-select]').nth(2).uncheck();
+  await page.locator('[data-page-select]').nth(3).check();
+  await page.click('[data-action="resize-restore"]');
+  await expectToast(page, 'The page has its own size again.');
+  await page.click('[data-action="resize-restore"]');
+  await expectToast(page, 'These pages have their own size already.');
+});
+
+test('pages added after a resize keep their own size, and the panel says so', async ({ page }) => {
+  const small = async (name, text) => {
+    const pdf = await PDFLib.PDFDocument.create();
+    pdf.addPage([400, 500]).drawText(text, { x: 40, y: 400, size: 20 });
+    return writeTemporary(name, await pdf.save());
+  };
+  await openFiles(page, await small('first.pdf', 'First'), 'resize-pdf/');
+  await page.selectOption('#tool-form [name="resizePaper"]', 'a4');
+  await page.click(submit);
+  await expectToast(page, 'The page is on A4 paper now.');
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('.pages-heading [data-action="add-files"]').click();
+  await (await chooser).setFiles(await small('second.pdf', 'Second'));
+  await expect(page.locator('#total-pages')).toContainText('2');
+  await useTool(page, 'resize');
+  await expect(page.locator('#resize-summary')).toHaveText(
+    '1 of 2 pages goes on A4 paper; 1 is that size already.',
+  );
+  expect(await sizes(await save(page))).toEqual([A4, [400, 500]]);
+  await page.click(submit);
+  await expectToast(page, '1 page is on A4 paper now. 1 was that size already.');
+  expect(await sizes(await save(page))).toEqual([A4, A4]);
 });
 
 test('a resized page looks in the preview as in the download: the sheet is blank beside it', async ({
@@ -242,8 +293,8 @@ test('a resized page stays on its sheet when it is cropped or given margins', as
 
   // Margins: 30 mm on the left of the sheet. The page is made smaller to leave them.
   await useTool(page, 'margins');
-  await expect(page.locator('#tool-form .field-hint').last()).toContainText(
-    'the page is made smaller to leave the margins',
+  await expect(page.locator('#tool-form .field-hint').last()).toHaveText(
+    'The margins are blank space around each page. A page you resized to A4 or Letter stays on that paper, so it is made smaller to leave room for them; on other pages nothing moves or shrinks. Page numbers, headers and footers go to the new edges.',
   );
   await page.fill('#tool-form [name="marginLeft"]', '30');
   await page.click(submit);

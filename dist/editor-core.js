@@ -179,8 +179,7 @@ export const descriptions = {
   merge: 'Add PDF files, then arrange their pages in the strip.',
   delete: 'Select the pages to remove using their checkboxes or a page range. Undo brings them back.',
   crop: 'Drag across the page to choose the area to keep, or set the margins below.',
-  margins:
-    'Add blank space around your pages: room for notes, binding or punching. Nothing on the page moves.',
+  margins: 'Add blank space around your pages: room for notes, binding or punching.',
   resize:
     'Put your pages on A4 or Letter paper, each scaled to fit: one size for a document of mixed or odd sizes.',
   split: 'Create separate PDFs from this document, including your edits.',

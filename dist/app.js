@@ -151,13 +151,21 @@ function toolLink(id, label) {
   return link;
 }
 const LINK = /\[([^\]]+)\]\(tool:([a-z]+)\)/g;
-/** A search note's text (routes.js), its [label](tool:id) links made into links. */
+/**
+ * A search note's text (routes.js), its [label](tool:id) links made into links.
+ * The tool of the page itself is only named, while no document is open: a
+ * link to it would load this page again, and empty the search.
+ */
 function noteContent(text) {
   const parts = [];
   let at = 0;
   for (const match of text.matchAll(LINK)) {
-    parts.push(text.slice(at, match.index), toolLink(match[2], match[1]));
-    at = match.index + match[0].length;
+    const [whole, label, id] = match;
+    parts.push(
+      text.slice(at, match.index),
+      id === pageTool && !state.pages.length ? label : toolLink(id, label),
+    );
+    at = match.index + whole.length;
   }
   parts.push(text.slice(at));
   return parts;
@@ -168,7 +176,7 @@ function noteContent(text) {
  * document open, a link takes the document to the tool.
  */
 function ownToolContent(item) {
-  const name = `This page is ${item.title || item.name}: `;
+  const name = `You are on ${item.title || item.name}: `;
   if (state.pages.length && item.tab) return [name, toolLink(item.id, 'use it on your open document'), '.'];
   const choose = $('#drop-zone .upload-button').textContent.trim();
   return [name + choose[0].toLowerCase() + choose.slice(1) + ' above.'];
@@ -176,14 +184,16 @@ function ownToolContent(item) {
 let sayTimer = 0,
   said = '';
 /**
- * A dead end is said once typing rests, and only when it is new: a screen
- * reader would otherwise speak at every key. Cards that match are not said.
+ * A dead end is said once typing rests, and once for each: a screen reader
+ * would otherwise speak at every key. `key` tells one dead end from the next,
+ * as "No tools match" reads the same for every search that finds nothing, and
+ * silence would mean that cards were found. Cards that match are not said.
  */
-function sayResult(message) {
+function sayResult(message, key = message) {
   clearTimeout(sayTimer);
   sayTimer = setTimeout(() => {
-    if (message && message !== said) announceMessage(message);
-    said = message;
+    if (message && key !== said) announceMessage(message);
+    said = key;
   }, 700);
 }
 function filterTools() {
@@ -205,8 +215,10 @@ function filterTools() {
     note = $('#search-note');
   note.replaceChildren(...(found ? noteContent(found.text) : here ? ownToolContent(own) : []));
   note.hidden = !found && !here;
-  $('#no-tools').hidden = count !== 0 || !note.hidden;
-  sayResult(!note.hidden ? note.textContent : count ? '' : $('#no-tools').textContent);
+  const nothing = count === 0 && note.hidden;
+  $('#no-tools').hidden = !nothing;
+  if (nothing) sayResult($('#no-tools').textContent, `nothing for ${typed.join(' ')} under ${toolFilter}`);
+  else sayResult(note.hidden ? '' : note.textContent);
 }
 $('#tool-search').addEventListener('input', filterTools);
 $$('[data-tool-filter]').forEach((button) =>
@@ -261,6 +273,9 @@ function chooseForBatch() {
 document.addEventListener('click', (event) => {
   const target = event.target.closest('button,a');
   if (!target) return;
+  // The visitor has moved on from the search: what it was about to say is stale,
+  // and would be said over what comes next (the editor announces an opened PDF).
+  if (!target.closest('.tool-discovery')) clearTimeout(sayTimer);
   // Links opened in a new tab or window go to their real address.
   if (target.matches('a[href]') && !plainClick(event)) return;
   if (editor) {
@@ -317,6 +332,7 @@ document.addEventListener('drop', (event) => {
   event.preventDefault();
   dragDepth = 0;
   $('#drop-zone').classList.remove('drag-over');
+  clearTimeout(sayTimer);
   const files = [...event.dataTransfer.files];
   withEditor((module) => module.openDropped(files));
 });
