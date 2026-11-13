@@ -1298,6 +1298,14 @@ source review does not replace the owner’s browser verification.
   few seconds, and a page left open across a deploy fetches about 150 KB of
   its old release's modules for nothing before it reloads. The README did not
   say that the batch page loads the editor at once; it does now.
+- Considered, and decided against by the owner: a warm-up when a tool page is
+  idle, without any sign from the visitor. A prototype measured in Chromium,
+  the sample opened two seconds after the page had loaded: 6.7 → 4.2 s at
+  1.6 Mbit/s and 24.3 → 21.6 s at 400 kbit/s. It costs about 555 KB for every
+  visitor of a tool page who never opens a file, does nothing for a visitor
+  who opens one at once, and adds little for one who uses the file picker,
+  as the downloads already run while the picker is open (reasoned from the
+  code, not measured).
 
 ## Deploys that do not wait on a package mirror — 2026-11-13
 
