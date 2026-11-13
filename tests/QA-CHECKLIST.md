@@ -1392,8 +1392,11 @@ source review does not replace the owner’s browser verification.
   page).
 - 86 breakages of the fixes, each applied alone to a copy: 86 caught (33 in
   the Resize download, 29 in the search, 18 in the deploy, 6 in the words).
-- The last run on this machine, on the code as committed: `npm test`, 470 of
-  470. The browser suites: Chromium 151 passed; WebKit 141 passed, 3 skipped by
-  design; Firefox 131 passed, 1 skipped by design. (The search's last change,
-  which words name no tool, came after: its own tests ran again in the three
-  engines.)
+- The last run on this machine, on the last commit of code (a201e72):
+  `npm test`, 470 of 470. The browser suites: Chromium 151 passed; WebKit 141
+  passed, 3 skipped by design; Firefox 131 passed, 1 skipped by design.
+- On GitHub, the Test workflow run by hand on that commit (run 55): all five
+  jobs passed, in 7 minutes 58 seconds, the browser jobs in Playwright's
+  image. So did run 54, one commit earlier. The Pages workflow, and with it
+  the live job, runs only on a merge to `main`: it has not run with these
+  changes.
