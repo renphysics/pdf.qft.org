@@ -18,7 +18,7 @@ import { createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
 import { savedSignature, uploadedSignature } from './signature.js';
 import { number } from './layout.js';
-import { t, tn } from './i18n.js';
+import { LANGUAGE, t, tn } from './i18n.js';
 import { change, onDocumentChanged, travel } from './history.js';
 import { finishLanding, recordView, restoring, viewDepth, viewTitle } from './views.js';
 import { geometryOf, onFontsReady } from './preview.js';
@@ -312,7 +312,10 @@ export async function action(name, element) {
     try {
       warmPdfTools();
       busy(true, t('Opening the sample document…'));
-      const response = await fetch(assetUrl('./assets/sample.pdf'));
+      // The same three pages in Chinese on a Chinese page (scripts/create-sample-zh.py).
+      const response = await fetch(
+        assetUrl(LANGUAGE === 'zh' ? './assets/sample-zh.pdf' : './assets/sample.pdf'),
+      );
       if (!response.ok) throw new Error(t('The sample could not load. Please choose your own PDF.'));
       const blob = await response.blob();
       busy(false);

@@ -3,6 +3,10 @@
     "bytes": 48448,
     "sha256": "4cec60e0ff8b4057dcd57bcdb249cbd420173de86a1f48133f23e635cecca117"
   },
+  "assets/sample-zh.pdf": {
+    "bytes": 53098,
+    "sha256": "3d28c3f64a9d6b0440c93ede82e3dad04b1717f6b3848f637c342d619ac4aeb8"
+  },
   "assets/fonts/NotoSans-Regular.ttf": {
     "bytes": 825628,
     "sha256": "f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5"

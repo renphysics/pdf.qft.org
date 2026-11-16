@@ -69,7 +69,11 @@ QFT PDF sample PDF
 The original sample text/layout and application illustrations were created for
 QFT PDF and are covered by the application MIT license. The sample embeds Noto
 Sans and Noto Serif subsets, which retain OFL-1.1; font notices are included in
-NotoSans-OFL.txt. Using these fonts does not put generated documents under OFL.
+NotoSans-OFL.txt. The Chinese sample (../assets/sample-zh.pdf, the same pages in
+Chinese) embeds subsets of Noto Sans and Noto Sans CJK SC, the latter with its
+outlines converted to TrueType (scripts/create-sample-zh.py); notices are in
+NotoSans-OFL.txt and NotoSansCJK-OFL.txt. Using these fonts does not put
+generated documents under OFL.
 
 Verification records and reproducible notice-audit scripts are included in the
 source repository at https://github.com/renphysics/pdf.qft.org.
