@@ -18,6 +18,7 @@ import { createZip, normalizePreset, safeBaseName } from './workflows.js';
 import { initBatch } from './batch-ui.js';
 import { savedSignature, uploadedSignature } from './signature.js';
 import { number } from './layout.js';
+import { t, tn } from './i18n.js';
 import { change, onDocumentChanged, travel } from './history.js';
 import { finishLanding, recordView, restoring, viewDepth, viewTitle } from './views.js';
 import { geometryOf, onFontsReady } from './preview.js';
@@ -139,21 +140,21 @@ function updateDownloadButton() {
     locked = protectedDownload();
   $('use', button).setAttribute('href', locked ? '#i-lock' : '#i-download');
   $('.download-protected', button).hidden = !locked;
-  if (locked) button.title = 'Your download will need its password to open';
+  if (locked) button.title = t('Your download will need its password to open');
   else button.removeAttribute('title');
 }
 /** Undo and Redo are on when there is a step to take, and say which ("Undo: Rotate pages"). */
 function updateHistoryButtons() {
   for (const [id, steps, verb] of [
-    ['#undo-button', ui.past, 'Undo'],
-    ['#redo-button', ui.future, 'Redo'],
+    ['#undo-button', ui.past, t('Undo: {step}')],
+    ['#redo-button', ui.future, t('Redo: {step}')],
   ]) {
     const button = $(id),
       label = steps.at(-1)?.label;
     button.disabled = !steps.length;
     if (label) {
-      button.title = verb + ': ' + label;
-      button.setAttribute('aria-label', verb + ': ' + label);
+      button.title = verb.replace('{step}', label);
+      button.setAttribute('aria-label', verb.replace('{step}', label));
     } else {
       button.removeAttribute('title');
       button.removeAttribute('aria-label');
@@ -168,10 +169,14 @@ function undoOrRedo(from, to, done) {
   if (!step) return;
   renderTool();
   // Says what was undone, in place of a notice about what no longer holds.
-  toast(done + (step.label ? ': ' + step.label : '') + '.');
+  toast(
+    step.label
+      ? done.replace('{step}', step.label)
+      : done.replace(/:? ?\{step\}[.。]?$/, '') + (done.endsWith('。') ? '。' : '.'),
+  );
 }
-const undo = () => undoOrRedo(ui.past, ui.future, 'Undone');
-const redo = () => undoOrRedo(ui.future, ui.past, 'Redone');
+const undo = () => undoOrRedo(ui.past, ui.future, t('Undone: {step}.'));
+const redo = () => undoOrRedo(ui.future, ui.past, t('Redone: {step}.'));
 
 // ---- Views (views.js records them) -----------------------------------------------
 let ignoreNextPop = false;
@@ -206,13 +211,15 @@ function restoreView(target) {
 function updateDocumentInfo() {
   const activeSources = state.sources.filter((s) => state.pages.some((p) => p.sourceId === s.id));
   $('#document-name').textContent =
-    activeSources.length === 1 ? activeSources[0].name : 'Combined document.pdf';
-  $('#document-info').textContent =
-    state.pages.length +
-    ' page' +
-    (state.pages.length === 1 ? '' : 's') +
-    ' · ' +
-    formatSize(activeSources.reduce((sum, source) => sum + source.bytes.length, 0));
+    activeSources.length === 1 ? activeSources[0].name : t('Combined document.pdf');
+  $('#document-info').textContent = tn(
+    state.pages.length,
+    '{count} page · {size}',
+    '{count} pages · {size}',
+    {
+      size: formatSize(activeSources.reduce((sum, source) => sum + source.bytes.length, 0)),
+    },
+  );
   $('#total-pages').textContent = state.pages.length;
   updateHistoryButtons();
   syncPageNavigation();
@@ -230,25 +237,25 @@ async function resetDocument() {
       ui.item = null;
       ui.stage.reveal = ui.activeId;
     },
-    { layout: true, label: 'Reset' },
+    { layout: true, label: t('Reset') },
   );
   ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: 'current' };
   ui.lastCropPreset = null;
   renderTool();
-  toast('Back to your original document. Undo brings your edits back.');
+  toast(t('Back to your original document. Undo brings your edits back.'));
 }
 export async function action(name, element) {
   if (ui.busy && !['privacy', 'help', 'close-dialog', 'cancel-operation', 'dismiss-toast'].includes(name))
     return;
   if (batch.isBusy() && !['privacy', 'help', 'close-dialog', 'batch', 'dismiss-toast'].includes(name)) {
-    toast('Stop the batch or wait for it to finish before switching workspaces.');
+    toast(t('Stop the batch or wait for it to finish before switching workspaces.'));
     return;
   }
   if (name === 'cancel-operation') {
     ui.cancelOperation = true;
     $('#busy-cancel').disabled = true;
     if (ui.cancelExport) ui.cancelExport();
-    else $('#busy-message').textContent = 'Stopping after the current output…';
+    else $('#busy-message').textContent = t('Stopping after the current output…');
     return;
   }
   if (name === 'batch') {
@@ -298,12 +305,12 @@ export async function action(name, element) {
   if (name === 'sample') {
     try {
       warmPdfTools();
-      busy(true, 'Opening the sample document…');
+      busy(true, t('Opening the sample document…'));
       const response = await fetch(assetUrl('./assets/sample.pdf'));
-      if (!response.ok) throw new Error('The sample could not load. Please choose your own PDF.');
+      if (!response.ok) throw new Error(t('The sample could not load. Please choose your own PDF.'));
       const blob = await response.blob();
       busy(false);
-      await openFiles([new File([blob], 'A little room to create.pdf', { type: 'application/pdf' })]);
+      await openFiles([new File([blob], t('A little room to create.pdf'), { type: 'application/pdf' })]);
     } catch (error) {
       busy(false);
       toast(friendly(error), true);
@@ -337,19 +344,21 @@ export async function action(name, element) {
   if (name === 'redo') redo();
   if (name === 'reset') {
     const confirmed = await confirmDialog({
-      eyebrow: 'START FRESH',
-      title: 'Reset this document?',
-      body: 'This clears your edits and added PDFs and returns to the document you first opened. Undo brings your edits back. Your original files are unchanged.',
-      confirmLabel: 'Reset document',
+      eyebrow: t('START FRESH'),
+      title: t('Reset this document?'),
+      body: t(
+        'This clears your edits and added PDFs and returns to the document you first opened. Undo brings your edits back. Your original files are unchanged.',
+      ),
+      confirmLabel: t('Reset document'),
     });
     if (confirmed) await resetDocument();
   }
   if (name === 'download') await downloadDocument();
   if (name === 'download-protected') await downloadProtected();
   if (name === 'remove-protection') {
-    change(() => (state.protection = null), { label: 'Remove password' });
+    change(() => (state.protection = null), { label: t('Remove password') });
     renderTool();
-    toast('Password removed. Your download will open without one.');
+    toast(t('Password removed. Your download will open without one.'));
   }
   if (name === 'choose-protect') {
     chooseTool('protect');
@@ -412,17 +421,17 @@ export async function action(name, element) {
     try {
       const scope = scopedPages(ui.cropDraft.scope);
       const targets = state.pages.filter((p) => (scope === 'all' || scope.includes(p.id)) && p.crop);
-      if (!targets.length) throw new Error('These pages show their original boundaries already.');
+      if (!targets.length) throw new Error(t('These pages show their original boundaries already.'));
       change(
         () => {
           targets.forEach((p) => delete p.crop);
         },
-        { layout: true, label: 'Restore crop' },
+        { layout: true, label: t('Restore crop') },
       );
       ui.lastCropPreset = null;
       ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
       renderTool();
-      toast('Original page boundaries restored.');
+      toast(t('Original page boundaries restored.'));
     } catch (error) {
       toast(friendly(error), true);
     }
@@ -460,7 +469,7 @@ export async function action(name, element) {
   if (name === 'form-next') {
     const next = nextEmptyField();
     if (next) focusField(next);
-    else toast('Every field is filled in.');
+    else toast(t('Every field is filled in.'));
   }
   if (name === 'form-clear') clearForm();
   if (name === 'signature-new') {
@@ -474,7 +483,7 @@ function jumpToPage() {
   const field = $('#page-jump'),
     number = Number(field.value);
   if (!Number.isInteger(number) || number < 1 || number > state.pages.length) {
-    toast('Enter a page number from 1 to ' + state.pages.length + '.', true);
+    toast(t('Enter a page number from 1 to {count}.', { count: state.pages.length }), true);
     syncPageNavigation({ force: true });
     return;
   }
@@ -597,7 +606,10 @@ $('#page-list').addEventListener('change', (event) => {
     // page 1 again and Delete pages still starts with nothing selected.)
     if (opened)
       announceMessage(
-        `Page ${number(id)} selected, in place of page ${number(opened)}, which the document opened with.`,
+        t('Page {page} selected, in place of page {opened}, which the document opened with.', {
+          page: number(id),
+          opened: number(opened),
+        }),
       );
   }
   if (event.target.checked) ui.selected.add(id);
@@ -659,7 +671,7 @@ export function popstate(event) {
       ignoreNextPop = true;
       history.go(delta);
     }
-    toast('Wait for the current task to finish, or stop it, before leaving this view.');
+    toast(t('Wait for the current task to finish, or stop it, before leaving this view.'));
     return;
   }
   restoreView(target);
@@ -711,8 +723,28 @@ window.addEventListener('resize', () => {
   if (!$('#toast').hidden) positionToast();
   refit();
 });
+/** Whether leaving the page would lose work: a document not downloaded since its last edit, or batch results. */
+const unsavedWork = () => (state.pages.length && isDirty()) || batch.hasUnsavedWork();
+/**
+ * Leave for the page in another language (app.js): with unsaved work, only once
+ * the visitor confirms, as the other page opens without it. True to leave.
+ */
+export async function confirmLeaving() {
+  if (!unsavedWork()) return true;
+  const leave = await confirmDialog({
+    eyebrow: t('CHANGE LANGUAGE'),
+    title: t('Leave your document?'),
+    body: t(
+      'The page opens again in the other language, without your document. Download your edited PDF first if you want to keep it.',
+    ),
+    confirmLabel: t('Change language'),
+  });
+  // Asked here already: the browser need not ask again.
+  if (leave) ui.leaving = true;
+  return leave;
+}
 window.addEventListener('beforeunload', (event) => {
-  if ((state.pages.length && isDirty()) || batch.hasUnsavedWork()) {
+  if (!ui.leaving && unsavedWork()) {
     event.preventDefault();
     event.returnValue = '';
   }

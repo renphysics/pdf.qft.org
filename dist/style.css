@@ -278,6 +278,10 @@ p,
   font-size: var(--text-base);
   font-weight: 500;
 }
+/* Each link on one line: "中文" never breaks between its two characters. */
+.main-nav > * {
+  white-space: nowrap;
+}
 .main-nav a:hover,
 .text-button:hover,
 .site-footer button:hover {

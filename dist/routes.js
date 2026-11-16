@@ -8,8 +8,12 @@
  * scripts/build-pages.mjs writes the cards, the menu and the tabs into
  * index.html from this list and generates one page per address, and the editor
  * names tools from it, so a tool is described once. Keep slugs stable: people
- * bookmark them and search engines index them.
+ * bookmark them and search engines index them. The Chinese of each tool's
+ * words is in i18n-zh.js (TOOLS, by id), which only Chinese pages load;
+ * local() gives a tool in the page's language (README, "Chinese").
  */
+import { localTool } from './i18n.js';
+
 const tool = (id, slug, name, tab, icon, extra = {}) =>
   Object.freeze({ id, slug, name, tab, icon, ...extra });
 
@@ -146,6 +150,9 @@ export const TOOLS = Object.freeze([
     keywords: 'batch bulk preset many files',
   }),
 ]);
+
+/** A tool in the page's language: its name, title, tab, card and keywords (on an English page, as it is). */
+export const local = localTool;
 
 /** Each tool's address (the slug of its page). The app shows it while the tool is in use. */
 export const TOOL_PAGES = Object.freeze(Object.fromEntries(TOOLS.map((item) => [item.id, item.slug])));

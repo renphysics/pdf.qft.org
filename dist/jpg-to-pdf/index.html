@@ -6,10 +6,14 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="theme-color" content="#244e41">
+  <script src="../language.js"></script>
   <!-- page:meta -->
   <title>Convert JPG and PNG to PDF for free — QFT PDF</title>
   <meta name="description" content="Turn photos, scans and screenshots into PDF pages: A4, Letter or their own size, in the order you choose. Free, and your pictures stay on your device.">
   <link rel="canonical" href="https://pdf.qft.org/jpg-to-pdf/">
+  <link rel="alternate" hreflang="en" href="https://pdf.qft.org/jpg-to-pdf/">
+  <link rel="alternate" hreflang="zh-CN" href="https://pdf.qft.org/zh/jpg-to-pdf/">
+  <link rel="alternate" hreflang="x-default" href="https://pdf.qft.org/jpg-to-pdf/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="QFT PDF">
   <meta property="og:url" content="https://pdf.qft.org/jpg-to-pdf/">
@@ -20,16 +24,18 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="QFT PDF. Every PDF. A little simpler. Edit, merge, split and number PDFs for free, right in your browser.">
   <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="zh_CN">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"JPG to PDF — QFT PDF","url":"https://pdf.qft.org/jpg-to-pdf/","description":"Turn photos, scans and screenshots into PDF pages: A4, Letter or their own size, in the order you choose. Free, and your pictures stay on your device.","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"JPG to PDF","item":"https://pdf.qft.org/jpg-to-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Are my pictures uploaded?","acceptedAnswer":{"@type":"Answer","text":"No. The PDF is made in your browser and the pictures never leave your device."}},{"@type":"Question","name":"Does it lose quality?","acceptedAnswer":{"@type":"Answer","text":"No. JPG photos go into the PDF as they are; a photo is saved again only if it has to be turned upright."}},{"@type":"Question","name":"Can I mix pictures and PDFs?","acceptedAnswer":{"@type":"Answer","text":"Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document."}},{"@type":"Question","name":"Will the text in my scans be searchable?","acceptedAnswer":{"@type":"Answer","text":"No. QFT PDF can’t read the text in a picture (OCR): a scanned page stays a picture, so its words can’t be searched or copied."}},{"@type":"Question","name":"Can I convert Word or PowerPoint files?","acceptedAnswer":{"@type":"Answer","text":"Not here. Converting Office files needs a server or a very large download, and QFT PDF keeps everything on your device. Save them as PDF from the app that made them."}}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"JPG to PDF — QFT PDF","url":"https://pdf.qft.org/jpg-to-pdf/","description":"Turn photos, scans and screenshots into PDF pages: A4, Letter or their own size, in the order you choose. Free, and your pictures stay on your device.","inLanguage":"en","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"JPG to PDF","item":"https://pdf.qft.org/jpg-to-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Are my pictures uploaded?","acceptedAnswer":{"@type":"Answer","text":"No. The PDF is made in your browser and the pictures never leave your device."}},{"@type":"Question","name":"Does it lose quality?","acceptedAnswer":{"@type":"Answer","text":"No. JPG photos go into the PDF as they are; a photo is saved again only if it has to be turned upright."}},{"@type":"Question","name":"Can I mix pictures and PDFs?","acceptedAnswer":{"@type":"Answer","text":"Yes. Add PDFs and pictures together, or add more later, and arrange all the pages in one document."}},{"@type":"Question","name":"Will the text in my scans be searchable?","acceptedAnswer":{"@type":"Answer","text":"No. QFT PDF can’t read the text in a picture (OCR): a scanned page stays a picture, so its words can’t be searched or copied."}},{"@type":"Question","name":"Can I convert Word or PowerPoint files?","acceptedAnswer":{"@type":"Answer","text":"Not here. Converting Office files needs a server or a very large download, and QFT PDF keeps everything on your device. Save them as PDF from the app that made them."}}]}]}</script>
   <!-- /page:meta -->
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="../studio.css">
   <link rel="stylesheet" href="../batch.css">
   <!-- modules:preload -->
   <link rel="modulepreload" href="../editor-core.js">
+  <link rel="modulepreload" href="../i18n.js">
   <link rel="modulepreload" href="../routes.js">
   <link rel="modulepreload" href="../views.js">
   <template id="warm-editor">
@@ -115,6 +121,7 @@
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#tools" data-action="tools-home">All tools</a>
       <button class="text-button" data-action="privacy">Your privacy</button>
+      <a class="language-link" href="../zh/jpg-to-pdf/" hreflang="zh-CN" lang="zh-CN" data-language="zh">中文</a>
     </nav>
     <span class="header-note"><span class="status-dot"></span> Private. Practical. PDF.</span>
   </header>

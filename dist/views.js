@@ -13,7 +13,8 @@
  */
 
 import { $, names, ui } from './editor-core.js';
-import { TOOL_PAGES } from './routes.js';
+import { pageAddress, t } from './i18n.js';
+import { TOOLS, TOOL_PAGES, local } from './routes.js';
 
 const siteRoot = new URL('./', import.meta.url);
 /** The page as it was loaded: its address and title. */
@@ -22,11 +23,12 @@ let restoringView = false;
 export const viewDepth = () => Number(history.state?.depth) || 0;
 function viewAddress(view) {
   const slug = TOOL_PAGES[view === 'batch' ? 'batch' : ui.tool];
-  return view === 'landing' || !slug ? landingView.address : new URL(slug + '/', siteRoot).pathname;
+  return view === 'landing' || !slug ? landingView.address : pageAddress(siteRoot.pathname, slug);
 }
 export function viewTitle(view) {
   if (view === 'landing') return landingView.title;
-  return (view === 'batch' ? 'Batch & presets' : names[ui.tool]) + ' — QFT PDF';
+  const tool = view === 'batch' ? local(TOOLS.find((item) => item.id === 'batch')).name : names[ui.tool];
+  return t('{tool} — QFT PDF', { tool });
 }
 /** Record the visible view: a new entry for a new view, a replacement when only the tool changes. */
 export function recordView(view) {

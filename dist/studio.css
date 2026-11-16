@@ -928,6 +928,13 @@ textarea:focus-visible {
     min-width: 30px;
   }
 }
+@media (max-width: 340px) {
+  /* On an English page three links and the site's name do not fit side by
+     side: the mark alone stands for the name, which the link's label says. */
+  :lang(en) .brand > span {
+    display: none;
+  }
+}
 
 /* Phones: one row of document actions. Undo shows only its icon, but its label
    stays available to assistive technology. */

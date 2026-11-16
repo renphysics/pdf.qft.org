@@ -6,10 +6,14 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="theme-color" content="#244e41">
+  <script src="../language.js"></script>
   <!-- page:meta -->
   <title>Resize PDF pages to A4 or Letter — QFT PDF</title>
   <meta name="description" content="Put every page of a PDF on A4 or Letter paper, scaled in proportion and centred. Links, comments and form fields keep working. Free, in your browser.">
   <link rel="canonical" href="https://pdf.qft.org/resize-pdf/">
+  <link rel="alternate" hreflang="en" href="https://pdf.qft.org/resize-pdf/">
+  <link rel="alternate" hreflang="zh-CN" href="https://pdf.qft.org/zh/resize-pdf/">
+  <link rel="alternate" hreflang="x-default" href="https://pdf.qft.org/resize-pdf/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="QFT PDF">
   <meta property="og:url" content="https://pdf.qft.org/resize-pdf/">
@@ -20,16 +24,18 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="QFT PDF. Every PDF. A little simpler. Edit, merge, split and number PDFs for free, right in your browser.">
   <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="zh_CN">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Resize PDF pages — QFT PDF","url":"https://pdf.qft.org/resize-pdf/","description":"Put every page of a PDF on A4 or Letter paper, scaled in proportion and centred. Links, comments and form fields keep working. Free, in your browser.","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"Resize PDF pages","item":"https://pdf.qft.org/resize-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is anything cut off or stretched?","acceptedAnswer":{"@type":"Answer","text":"No. Each page is scaled in proportion until it fits the sheet, and centred. Where its shape differs from the paper, the space beside it stays blank."}},{"@type":"Question","name":"Does the text stay sharp and selectable?","acceptedAnswer":{"@type":"Answer","text":"Yes. The page is scaled, not turned into a picture: text stays text and drawings stay sharp. Small pages are enlarged and large ones made smaller, so their text changes size with them."}},{"@type":"Question","name":"What happens to links, comments and form fields?","acceptedAnswer":{"@type":"Answer","text":"They move and scale with the page and keep working, and bookmarks still lead to the same place."}},{"@type":"Question","name":"What about page numbers, headers and footers?","acceptedAnswer":{"@type":"Answer","text":"Page numbers, headers and footers you add in QFT PDF go to the edges of the new paper. Their text keeps the size you set, and is not scaled with the page."}},{"@type":"Question","name":"A page is already A4. What happens to it?","acceptedAnswer":{"@type":"Answer","text":"Nothing. A page that is already the size you chose is left exactly as it is."}},{"@type":"Question","name":"Does this make the file smaller?","acceptedAnswer":{"@type":"Answer","text":"No. Resizing changes the size of the pages. The file stays about the same size, or grows a little. QFT PDF does not compress PDFs."}},{"@type":"Question","name":"Which paper sizes can I choose?","acceptedAnswer":{"@type":"Answer","text":"A4 and Letter, for pages of any size. Pages you add after resizing keep their own size, so resize again to put them on the paper too."}},{"@type":"Question","name":"Is my PDF uploaded?","acceptedAnswer":{"@type":"Answer","text":"No. The pages are resized in your browser and the file never leaves your device."}}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Resize PDF pages — QFT PDF","url":"https://pdf.qft.org/resize-pdf/","description":"Put every page of a PDF on A4 or Letter paper, scaled in proportion and centred. Links, comments and form fields keep working. Free, in your browser.","inLanguage":"en","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"Resize PDF pages","item":"https://pdf.qft.org/resize-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is anything cut off or stretched?","acceptedAnswer":{"@type":"Answer","text":"No. Each page is scaled in proportion until it fits the sheet, and centred. Where its shape differs from the paper, the space beside it stays blank."}},{"@type":"Question","name":"Does the text stay sharp and selectable?","acceptedAnswer":{"@type":"Answer","text":"Yes. The page is scaled, not turned into a picture: text stays text and drawings stay sharp. Small pages are enlarged and large ones made smaller, so their text changes size with them."}},{"@type":"Question","name":"What happens to links, comments and form fields?","acceptedAnswer":{"@type":"Answer","text":"They move and scale with the page and keep working, and bookmarks still lead to the same place."}},{"@type":"Question","name":"What about page numbers, headers and footers?","acceptedAnswer":{"@type":"Answer","text":"Page numbers, headers and footers you add in QFT PDF go to the edges of the new paper. Their text keeps the size you set, and is not scaled with the page."}},{"@type":"Question","name":"A page is already A4. What happens to it?","acceptedAnswer":{"@type":"Answer","text":"Nothing. A page that is already the size you chose is left exactly as it is."}},{"@type":"Question","name":"Does this make the file smaller?","acceptedAnswer":{"@type":"Answer","text":"No. Resizing changes the size of the pages. The file stays about the same size, or grows a little. QFT PDF does not compress PDFs."}},{"@type":"Question","name":"Which paper sizes can I choose?","acceptedAnswer":{"@type":"Answer","text":"A4 and Letter, for pages of any size. Pages you add after resizing keep their own size, so resize again to put them on the paper too."}},{"@type":"Question","name":"Is my PDF uploaded?","acceptedAnswer":{"@type":"Answer","text":"No. The pages are resized in your browser and the file never leaves your device."}}]}]}</script>
   <!-- /page:meta -->
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="../studio.css">
   <link rel="stylesheet" href="../batch.css">
   <!-- modules:preload -->
   <link rel="modulepreload" href="../editor-core.js">
+  <link rel="modulepreload" href="../i18n.js">
   <link rel="modulepreload" href="../routes.js">
   <link rel="modulepreload" href="../views.js">
   <template id="warm-editor">
@@ -115,6 +121,7 @@
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#tools" data-action="tools-home">All tools</a>
       <button class="text-button" data-action="privacy">Your privacy</button>
+      <a class="language-link" href="../zh/resize-pdf/" hreflang="zh-CN" lang="zh-CN" data-language="zh">中文</a>
     </nav>
     <span class="header-note"><span class="status-dot"></span> Private. Practical. PDF.</span>
   </header>

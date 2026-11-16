@@ -6,10 +6,14 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="theme-color" content="#244e41">
+  <script src="../language.js"></script>
   <!-- page:meta -->
   <title>Add a watermark to a PDF for free — QFT PDF</title>
   <meta name="description" content="Stamp DRAFT, CONFIDENTIAL or any text across your PDF pages and choose its size, colour, angle and opacity. Free, and your file stays on your device.">
   <link rel="canonical" href="https://pdf.qft.org/add-watermark-to-pdf/">
+  <link rel="alternate" hreflang="en" href="https://pdf.qft.org/add-watermark-to-pdf/">
+  <link rel="alternate" hreflang="zh-CN" href="https://pdf.qft.org/zh/add-watermark-to-pdf/">
+  <link rel="alternate" hreflang="x-default" href="https://pdf.qft.org/add-watermark-to-pdf/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="QFT PDF">
   <meta property="og:url" content="https://pdf.qft.org/add-watermark-to-pdf/">
@@ -20,16 +24,18 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="QFT PDF. Every PDF. A little simpler. Edit, merge, split and number PDFs for free, right in your browser.">
   <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="zh_CN">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Add watermark to PDF — QFT PDF","url":"https://pdf.qft.org/add-watermark-to-pdf/","description":"Stamp DRAFT, CONFIDENTIAL or any text across your PDF pages and choose its size, colour, angle and opacity. Free, and your file stays on your device.","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"Add watermark to PDF","item":"https://pdf.qft.org/add-watermark-to-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Can I watermark only some pages?","acceptedAnswer":{"@type":"Answer","text":"Yes. Type the pages it belongs on, such as 1-3, 5, or use the pages you select in the page strip."}},{"@type":"Question","name":"Can I watermark many PDFs at once?","acceptedAnswer":{"@type":"Answer","text":"Yes. Batch & presets applies the same watermark to several PDFs and downloads them together."}},{"@type":"Question","name":"Is my PDF uploaded?","acceptedAnswer":{"@type":"Answer","text":"No. The watermark is added in your browser and the file never leaves your device."}},{"@type":"Question","name":"Can someone remove the watermark?","acceptedAnswer":{"@type":"Answer","text":"It becomes part of the page, but like any visible watermark it is a label, not copy protection."}}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Add watermark to PDF — QFT PDF","url":"https://pdf.qft.org/add-watermark-to-pdf/","description":"Stamp DRAFT, CONFIDENTIAL or any text across your PDF pages and choose its size, colour, angle and opacity. Free, and your file stays on your device.","inLanguage":"en","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"Add watermark to PDF","item":"https://pdf.qft.org/add-watermark-to-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Can I watermark only some pages?","acceptedAnswer":{"@type":"Answer","text":"Yes. Type the pages it belongs on, such as 1-3, 5, or use the pages you select in the page strip."}},{"@type":"Question","name":"Can I watermark many PDFs at once?","acceptedAnswer":{"@type":"Answer","text":"Yes. Batch & presets applies the same watermark to several PDFs and downloads them together."}},{"@type":"Question","name":"Is my PDF uploaded?","acceptedAnswer":{"@type":"Answer","text":"No. The watermark is added in your browser and the file never leaves your device."}},{"@type":"Question","name":"Can someone remove the watermark?","acceptedAnswer":{"@type":"Answer","text":"It becomes part of the page, but like any visible watermark it is a label, not copy protection."}}]}]}</script>
   <!-- /page:meta -->
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="../studio.css">
   <link rel="stylesheet" href="../batch.css">
   <!-- modules:preload -->
   <link rel="modulepreload" href="../editor-core.js">
+  <link rel="modulepreload" href="../i18n.js">
   <link rel="modulepreload" href="../routes.js">
   <link rel="modulepreload" href="../views.js">
   <template id="warm-editor">
@@ -115,6 +121,7 @@
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#tools" data-action="tools-home">All tools</a>
       <button class="text-button" data-action="privacy">Your privacy</button>
+      <a class="language-link" href="../zh/add-watermark-to-pdf/" hreflang="zh-CN" lang="zh-CN" data-language="zh">中文</a>
     </nav>
     <span class="header-note"><span class="status-dot"></span> Private. Practical. PDF.</span>
   </header>
