@@ -23,6 +23,8 @@ const declared = String(
 );
 /** 'zh' on a Chinese page; 'en' everywhere else. */
 export const LANGUAGE = /^zh(-|$)/i.test(declared) ? 'zh' : 'en';
+/** How dates are written: in Chinese on a Chinese page, else as the browser writes them. */
+export const LOCALE = LANGUAGE === 'zh' ? 'zh-CN' : undefined;
 // Every module that imports this one waits for the catalog, so a module's own
 // constants are in the page's language too.
 const catalog = LANGUAGE === 'zh' ? await import('./i18n-zh.js') : null;

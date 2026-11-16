@@ -7,7 +7,7 @@
 import { icon, safe, state, toast } from './editor-core.js';
 import { change } from './history.js';
 import { renderTool, textField } from './tool-panel.js';
-import { t } from './i18n.js';
+import { LOCALE, t } from './i18n.js';
 
 const PROPERTY_FIELDS = ['title', 'author', 'subject', 'keywords', 'language'];
 /** The details the first PDF keeps about itself (pictures and blank pages have none). */
@@ -27,7 +27,7 @@ function propertiesPanel() {
     : [
         own.creator && t('made with {app}', { app: own.creator }),
         own.producer && own.producer !== own.creator && t('saved by {app}', { app: own.producer }),
-        own.created && t('created on {date}', { date: new Date(own.created).toLocaleDateString() }),
+        own.created && t('created on {date}', { date: new Date(own.created).toLocaleDateString(LOCALE) }),
       ].filter(Boolean);
   return (
     textField(t('Title'), 'title', '', true) +

@@ -209,6 +209,80 @@ so Back and Forward move between views, the address names the tool in use, and
 a reload opens that tool's page (documents stay in memory only, so a reload
 starts again from the page's landing view).
 
+## Chinese
+
+The whole site is in Simplified Chinese too. English stays the default, and
+nothing guesses from the browser's language or region: the header's link to
+the other language (中文 on English pages, English on Chinese ones) is how a
+visitor chooses, and the choice is kept in this browser (localStorage,
+`qft-pdf-language`). `dist/language.js` runs before a page shows: with 中文
+chosen, an English address opens its Chinese counterpart. A Chinese address
+never redirects, so a link to one stays Chinese. With unsaved work, the link
+asks first, as leaving does.
+
+**Pages.** Every page has a counterpart under `zh/` (`/zh/`,
+`/zh/merge-pdf/`...), written by `npm run pages` from the same template: the
+template's words from `scripts/pages/shell-zh.mjs`, each page's copy from
+`scripts/pages/content-zh.mjs` (the same steps and questions as
+`content.mjs`), and the tools' names, cards and search words from `TOOLS` in
+`dist/i18n-zh.js`. Pages name each other with `hreflang`, `og:locale` and
+`inLanguage`, and the sitemap lists both. The build fails on a word of the
+template without Chinese, and on Chinese no longer used.
+
+**The interface.** Code keeps its English text and asks `t()` for it
+(`dist/i18n.js`): `t('Page {page} of {total}', { page, total })`, `tn()` for
+English plurals, `sentences()` and `listOf()` to join sentences and lists as
+each language does, `userError()` for errors a visitor reads. Messages are
+whole sentences with values, never English pieces put together. On a Chinese
+page, `i18n.js` loads the catalog, `dist/i18n-zh.js`, before any module that
+asks for words runs; English pages never download it. The export worker is
+told its page's language in its address (`export-worker.js?lang=zh`).
+
+To add or change a text: write it in English with `t()` in the code, then its
+Chinese in `dist/i18n-zh.js`, under the module's heading. `npm test`
+(`tests/i18n.test.mjs`) fails while a text has no Chinese, while Chinese is
+left that no code asks for, and when the Chinese names other `{values}` than
+the English.
+
+**Downloads** are named in Chinese on a Chinese page: 报告-已合并.pdf,
+-已加水印, -已加页码, -已裁剪, -已签名, -已加密, -已解锁, -已拆分 (a ZIP),
+-第1部分 (a part of a split), -第1页 (a picture), -每张2页, -已处理 and
+-批量处理 (a batch), 文档 for a document without a name.
+
+**Search** reads Chinese (`routes.js`): a run of Chinese is a word of its own
+beside letters, found whole in a card's words or in parts of two characters or
+more, without words that name no tool (文件, 怎么, 把...); English works there
+too. Each search note has its Chinese in `NOTES` (`i18n-zh.js`), and
+`tests/search-zh.test.mjs` checks both.
+
+**Fonts**: Chinese typed on a page needs the 1.4 MB common font first, and the
+16 MB font only for rarer characters ([Supported input](#supported-input)).
+
+**Style.** Plain, short sentences, addressed as 你; Chinese punctuation (，。：；“”（）……);
+a space between Chinese and Latin letters or digits, written in the catalog
+("打开 PDF", "第 3 页"), and added by `t()` where a value with Latin letters
+meets Chinese ("因为 PDF/A..."); none in file names. Chinese headings are not
+tracked tighter or slanted, and break evenly (`:lang(zh)` at the end of
+`studio.css`). The tools:
+
+| English | 中文 |
+| --- | --- |
+| Add text · Add an image · Highlight | 添加文字 · 添加图片 · 高亮 |
+| Sign PDF · Fill form · Document properties · Draw | 签署 PDF · 填写表单 · 文档属性 · 绘图 |
+| Watermark · Headers & footers · Page numbers | 水印 · 页眉和页脚 · 页码 |
+| Organize pages · Delete pages · Crop PDF · Add margins · Resize pages | 整理页面 · 删除页面 · 裁剪 PDF · 添加页边距 · 调整页面尺寸 |
+| Merge PDFs · Split PDF · Pages per sheet | 合并 PDF · 拆分 PDF · 多页合一 |
+| JPG to PDF · PDF to JPG · Protect PDF · Unlock PDF · Batch & presets | JPG 转 PDF · PDF 转 JPG · 加密 PDF · 解锁 PDF · 批量处理和预设 |
+
+And the terms: flatten 拼合; annotation 批注; redact 涂黑; opacity 不透明度;
+point (pt) 磅; page labels 页码标签; bookmark 书签; preset 预设; the page strip
+页面列表; Fit 适合; Undo/Redo 撤销/重做.
+
+`tests/browser/chinese.spec.mjs` goes through the Chinese site in every
+browser: the choice and its memory, the editor's notices, download names, the
+fonts fetched, the search, axe, 320 px, and every tool's panel, which may show
+no English but names, formats, units and keys.
+
 ## The editor
 
 Edits apply as you make them. The editor keeps a description of the document
@@ -662,7 +736,8 @@ NotoSans-Bold.ttf, and NotoSerif-Regular.ttf. The ready-to-use sample and fixtur
 are included. Disposable PDF/PNG test output is excluded from Git.
 
 `scripts/social-card/render.mjs` regenerates the link-preview image
-(`dist/assets/social-card.png`, referenced by the Open Graph tags) and
+(`dist/assets/social-card.png`, referenced by the Open Graph tags; with `zh`,
+the Chinese pages' `dist/assets/social-card-zh.png`) and
 `dist/apple-touch-icon.png` from the HTML templates beside it. It needs
 Playwright with Chromium and Python's Pillow. Keep the card's wording in step
 with the page title, description and hero headline.

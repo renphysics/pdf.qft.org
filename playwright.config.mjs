@@ -11,6 +11,10 @@ import { existsSync } from 'node:fs';
 import { chromium, defineConfig, devices, firefox, webkit } from '@playwright/test';
 
 const CI = Boolean(process.env.CI);
+// Chromium names a download "download" where the system's locale cannot spell
+// its name (POSIX, as in some containers): a Chinese page's downloads have
+// Chinese names, so the browsers get a UTF-8 locale, as desktops and CI have.
+process.env.LANG ||= 'C.UTF-8';
 const engines = { chromium, webkit, firefox };
 const chosen = process.env.BROWSERS
   ? process.env.BROWSERS.split(',').map((name) => name.trim())

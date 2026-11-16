@@ -180,10 +180,13 @@ const svg = (icon) => `<svg class="icon" aria-hidden="true"><use href="#i-${icon
  * category filter read the tool's keywords and category from the registry.
  */
 function withTools(html, language = 'en') {
+  // Where a card's line break is hidden, its two lines run on: with a space in
+  // English, and none in Chinese, which has no spaces between sentences.
+  const between = language === 'zh' ? '<br>' : '<br> ';
   const cards = TOOLS.filter((item) => item.card).map((tool) => {
     const item = local(tool, language);
     const start = item.tab ? `data-start-tool="${item.id}"` : `data-action="${item.id}"`;
-    return `          <a class="tool-card" ${start} href="./${item.slug}/" data-card="${item.id}"><span class="tool-icon ${item.color}">${svg(item.icon)}</span><span class="tool-card-copy"><strong>${escapeHtml(item.title || item.name)}</strong><span>${escapeHtml(item.card[0])}<br> ${escapeHtml(item.card[1])}</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>`;
+    return `          <a class="tool-card" ${start} href="./${item.slug}/" data-card="${item.id}"><span class="tool-icon ${item.color}">${svg(item.icon)}</span><span class="tool-card-copy"><strong>${escapeHtml(item.title || item.name)}</strong><span>${escapeHtml(item.card[0])}${between}${escapeHtml(item.card[1])}</span></span><svg class="icon card-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>`;
   });
   const menu = TOOLS.filter((item) => item.tab).map((item) => local(item, language));
   const options = menu.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
@@ -214,7 +217,10 @@ function metaBlock(meta, language, { slug, title, description, ogTitle, ogDescri
     `  <meta property="og:url" content="${url}">`,
     `  <meta property="og:title" content="${escapeHtml(ogTitle)}">`,
     `  <meta property="og:description" content="${escapeHtml(ogDescription)}">`,
-    shared(/property="og:image"/),
+    // A Chinese page shares the Chinese card (scripts/social-card/card-zh.html).
+    language === 'zh'
+      ? shared(/property="og:image"/).replace('/social-card.png', '/social-card-zh.png')
+      : shared(/property="og:image"/),
     shared(/property="og:image:width"/),
     shared(/property="og:image:height"/),
     imageAlt
