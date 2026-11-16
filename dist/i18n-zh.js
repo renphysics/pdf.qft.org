@@ -157,12 +157,12 @@ export const TOOLS = {
 export const NOTES = {
   compress: {
     words: ['压缩', '缩小文件', '减小文件', '减小体积', '文件太大', '文件大小', '体积'],
-    text: 'QFT PDF 不能压缩 PDF，但用[删除页面](tool:delete)或[拆分 PDF](tool:split)去掉不需要的页面，可以让副本变小。',
+    text: 'QFT PDF 不能压缩 PDF，但用[删除页面](tool:delete)或[拆分 PDF](tool:split) 去掉不需要的页面，可以让副本变小。',
     missing: ['压缩', '文件大小'],
   },
   ocr: {
     words: ['识别', '扫描件转文字', '图片转文字', '可搜索', '可复制'],
-    text: 'QFT PDF 不能把扫描件识别成文字（OCR）：扫描的页面仍然是图片，[JPG 转 PDF](tool:jpgtopdf)能把它们放进 PDF，但不能让文字可以搜索。',
+    text: 'QFT PDF 不能把扫描件识别成文字（OCR）：扫描的页面仍然是图片，[JPG 转 PDF](tool:jpgtopdf) 能把它们放进 PDF，但不能让文字可以搜索。',
     missing: ['识别', '可搜索'],
   },
   redact: {
@@ -182,17 +182,17 @@ export const NOTES = {
   },
   'images-out': {
     words: ['提取图片', '提取照片', '取出图片'],
-    text: 'QFT PDF 不能把 PDF 里的图片单独取出来；[PDF 转 JPG](tool:pdftojpg)会把整页存成图片。',
+    text: 'QFT PDF 不能把 PDF 里的图片单独取出来；[PDF 转 JPG](tool:pdftojpg) 会把整页存成图片。',
     missing: ['提取图片', '提取照片'],
   },
   bookmarks: {
     words: ['书签', '目录', '大纲'],
-    text: 'QFT PDF 不能添加或编辑书签，只有[合并 PDF](tool:merge)可以给合并的每个 PDF 加上它自己的书签。',
+    text: 'QFT PDF 不能添加或编辑书签，只有[合并 PDF](tool:merge) 可以给合并的每个 PDF 加上它自己的书签。',
     missing: ['书签', '目录'],
   },
   'digital-signature': {
     words: ['数字签名', '数字证书', '证书'],
-    text: '[签署 PDF](tool:signature)放上的是你签名的图片；QFT PDF 不能添加基于证书的数字签名。',
+    text: '[签署 PDF](tool:signature) 放上的是你签名的图片；QFT PDF 不能添加基于证书的数字签名。',
     missing: ['数字签名', '证书'],
   },
 };
