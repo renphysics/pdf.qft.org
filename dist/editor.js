@@ -145,23 +145,24 @@ function updateDownloadButton() {
 }
 /** Undo and Redo are on when there is a step to take, and say which ("Undo: Rotate pages"). */
 function updateHistoryButtons() {
-  for (const [id, steps, verb] of [
-    ['#undo-button', ui.past, t('Undo: {step}')],
-    ['#redo-button', ui.future, t('Redo: {step}')],
+  for (const [id, steps, redo] of [
+    ['#undo-button', ui.past, false],
+    ['#redo-button', ui.future, true],
   ]) {
     const button = $(id),
-      label = steps.at(-1)?.label;
+      step = steps.at(-1)?.label;
     button.disabled = !steps.length;
-    if (label) {
-      button.title = verb.replace('{step}', label);
-      button.setAttribute('aria-label', verb.replace('{step}', label));
+    if (step) {
+      const label = redo ? t('Redo: {step}', { step }) : t('Undo: {step}', { step });
+      button.title = label;
+      button.setAttribute('aria-label', label);
     } else {
       button.removeAttribute('title');
       button.removeAttribute('aria-label');
     }
   }
 }
-function undoOrRedo(from, to, done) {
+function undoOrRedo(from, to, redo) {
   if (ui.busy || !from.length) return;
   stopEditing();
   endGesture();
@@ -169,14 +170,19 @@ function undoOrRedo(from, to, done) {
   if (!step) return;
   renderTool();
   // Says what was undone, in place of a notice about what no longer holds.
+  const { label } = step;
   toast(
-    step.label
-      ? done.replace('{step}', step.label)
-      : done.replace(/:? ?\{step\}[.。]?$/, '') + (done.endsWith('。') ? '。' : '.'),
+    redo
+      ? label
+        ? t('Redone: {step}.', { step: label })
+        : t('Redone.')
+      : label
+        ? t('Undone: {step}.', { step: label })
+        : t('Undone.'),
   );
 }
-const undo = () => undoOrRedo(ui.past, ui.future, t('Undone: {step}.'));
-const redo = () => undoOrRedo(ui.future, ui.past, t('Redone: {step}.'));
+const undo = () => undoOrRedo(ui.past, ui.future, false);
+const redo = () => undoOrRedo(ui.future, ui.past, true);
 
 // ---- Views (views.js records them) -----------------------------------------------
 let ignoreNextPop = false;
@@ -282,7 +288,7 @@ export async function action(name, element) {
   if (name === 'download-split-zip') {
     try {
       if (ui.splitResults?.length) {
-        downloadBytes(createZip(ui.splitResults), safeBaseName(outputName('split')) + '.zip');
+        downloadBytes(createZip(ui.splitResults), safeBaseName(outputName(t('-split'))) + '.zip');
         ui.splitResults.forEach((file) => (file.downloaded = true));
       }
     } catch (error) {
@@ -492,7 +498,7 @@ function jumpToPage() {
 function sendSettingsToBatch() {
   try {
     const key = SETTINGS[ui.tool],
-      preset = { version: 1, name: names[ui.tool] + ' preset' };
+      preset = { version: 1, name: t('{tool} preset', { tool: names[ui.tool] }) };
     if (key) {
       const { enabled, pages, ...setting } = state[key] || defaultSetting(key);
       void enabled;

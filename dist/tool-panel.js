@@ -45,6 +45,7 @@ import {
 } from './page-view.js';
 import { itemSize, resizeItemTo, setFrame } from './page-items.js';
 import { change } from './history.js';
+import { t } from './i18n.js';
 import { updateCropOverlays } from './panel-crop.js';
 import { updateDeletionMarks } from './panel-pages.js';
 import * as text from './panel-text.js';
@@ -120,7 +121,7 @@ export function numberField(label, name, min, max, step = 1) {
   );
 }
 export function colorField(name = 'color') {
-  return makeField('Color', '<input name="' + name + '" type="color">');
+  return makeField(t('Color'), '<input name="' + name + '" type="color">');
 }
 /**
  * A slider. The label names it, so the value shown beside the label is kept out of
@@ -150,8 +151,8 @@ export function rangeField(label, name, min, max, unit = '%') {
 export function sizeFields() {
   return (
     '<div class="field-row">' +
-    numberField('Width (%)', 'boxWidth', 0.1, 100, 0.1) +
-    numberField('Height (%)', 'boxHeight', 0.1, 100, 0.1) +
+    numberField(t('Width (%)'), 'boxWidth', 0.1, 100, 0.1) +
+    numberField(t('Height (%)'), 'boxHeight', 0.1, 100, 0.1) +
     '</div>'
   );
 }
@@ -178,11 +179,13 @@ export function selectField(label, name, options, wide = false) {
 }
 export function alignField() {
   return (
-    '<fieldset class="segmented wide"><legend>Alignment</legend><div>' +
+    '<fieldset class="segmented wide"><legend>' +
+    t('Alignment') +
+    '</legend><div>' +
     [
-      ['left', 'Left'],
-      ['center', 'Center'],
-      ['right', 'Right'],
+      ['left', t('Left')],
+      ['center', t('Center')],
+      ['right', t('Right')],
     ]
       .map(
         ([value, text]) =>
@@ -193,12 +196,14 @@ export function alignField() {
   );
 }
 /** The link to Batch & presets under a tool's settings. */
-export function batchLink(label = 'Use these settings in batch') {
+export function batchLink(label = t('Use these settings in batch')) {
   return (
     '<div class="reuse-settings wide"><button type="button" class="text-button" data-action="batch-from-editor">' +
     icon('batch') +
     label +
-    '</button><p>Apply this tool to every page in separate PDFs, and save it as a preset.</p></div>'
+    '</button><p>' +
+    t('Apply this tool to every page in separate PDFs, and save it as a preset.') +
+    '</p></div>'
   );
 }
 export function annotationList() {
@@ -206,7 +211,9 @@ export function annotationList() {
   const annotations = state.annotations.filter((a) => a.pageId === ui.activeId);
   if (!annotations.length) return '';
   return (
-    '<div class="annotation-list"><strong id="annotation-list-title">ON THIS PAGE</strong><ul aria-labelledby="annotation-list-title">' +
+    '<div class="annotation-list"><strong id="annotation-list-title">' +
+    t('ON THIS PAGE') +
+    '</strong><ul aria-labelledby="annotation-list-title">' +
     annotations
       .map(
         (a) =>
@@ -222,8 +229,8 @@ export function annotationList() {
           safe(itemLabel(a)) +
           '</span></button><button type="button" class="icon-button" data-remove-annotation="' +
           a.id +
-          '" aria-label="Delete ' +
-          safe(itemLabel(a)) +
+          '" aria-label="' +
+          t('Delete {item}', { item: safe(itemLabel(a)) }) +
           '">' +
           icon('trash') +
           '</button></li>',
@@ -298,8 +305,8 @@ export function renderTool() {
       );
     field.value = String(nearest);
     onPanelInput({ target: field });
-    const label = field.closest('label')?.querySelector('span')?.textContent || 'This number';
-    toast('“' + label + '” can be ' + min + ' to ' + max + ', so it’s set to ' + nearest + '.');
+    const label = field.closest('label')?.querySelector('span')?.textContent || t('This number');
+    toast(t('“{label}” can be {min} to {max}, so it’s set to {value}.', { label, min, max, value: nearest }));
   });
   fillForm({ all: true });
   updateProblems(currentOverlay()?.problems || []);
@@ -352,6 +359,6 @@ export function resizeImageTo(annotation, fraction) {
   width = Math.max(4, width);
   change(() => setFrame(annotation, item, { ...frame, width, height: width / ratio }), {
     key: 'width:' + annotation.id,
-    label: 'Resize ' + annotation.type,
+    label: annotation.type === 'signature' ? t('Resize signature') : t('Resize image'),
   });
 }

@@ -5,6 +5,7 @@
  */
 
 import { textValue } from './layout.js';
+import { t } from './i18n.js';
 import { formKey, geometryOf, pageOverlay, releasePage, renderKey, renderPage } from './preview.js';
 import {
   $,
@@ -280,7 +281,7 @@ export function renderStage({ position = null } = {}) {
   lockCurrentPage();
   keepPosition();
   $('#page-stack').dataset.tool = ui.tool;
-  $('#zoom-label').textContent = ui.zoom === 1 ? 'Fit' : Math.round(ui.zoom * 100) + '%';
+  $('#zoom-label').textContent = ui.zoom === 1 ? t('Fit') : Math.round(ui.zoom * 100) + '%';
   syncViews();
   orderViews();
   renderOverlays();
@@ -401,7 +402,7 @@ function createView(id) {
   crop.className = 'crop-overlay';
   crop.hidden = true;
   crop.setAttribute('aria-hidden', 'true');
-  crop.innerHTML = '<span>Keep this area</span>';
+  crop.innerHTML = '<span>' + t('Keep this area') + '</span>';
   layer.className = 'edit-layer';
   const fields = document.createElement('div');
   fields.className = 'form-layer';
@@ -487,13 +488,10 @@ function wantedRender(entry) {
   return { descriptor, pageKey, forms, scale, key: pageKey + '|' + values + '@' + scale.toFixed(4) };
 }
 function pageLabel(id, index) {
-  return (
-    'Page ' +
-    (index + 1) +
-    ' of ' +
-    state.pages.length +
-    (ui.tool === 'delete' && ui.selected.has(id) ? ', marked for deletion' : '')
-  );
+  const place = { page: index + 1, total: state.pages.length };
+  return ui.tool === 'delete' && ui.selected.has(id)
+    ? t('Page {page} of {total}, marked for deletion', place)
+    : t('Page {page} of {total}', place);
 }
 /** Size and place a page's element, and mark what it shows. */
 function placeView(view) {
@@ -596,7 +594,13 @@ async function renderView(view, wanted) {
       stage.failed.add(wanted.key);
       view.el.classList.remove('render-pending');
       if (stage.views.get(view.id) === view)
-        toast('Could not preview page ' + (pageIndexOf(view.id) + 1) + '. ' + friendly(error), true);
+        toast(
+          t('Could not preview page {page}. {reason}', {
+            page: pageIndexOf(view.id) + 1,
+            reason: friendly(error),
+          }),
+          true,
+        );
     }
     return;
   } finally {
@@ -693,16 +697,23 @@ export function frameTransform(item, frame, scale, extra = '') {
     'matrix(' + [a, b, c, d, tx, ty].map((value) => Math.round(value * 1000) / 1000).join(',') + ')' + extra
   );
 }
-export function itemLabel(annotation) {
-  if (annotation.type === 'text') {
-    const text = textValue(annotation.text).trim().replace(/\s+/g, ' ');
-    return 'Text: ' + (text ? '“' + (text.length > 40 ? text.slice(0, 40) + '…' : text) + '”' : 'empty');
-  }
+/** What kind of item an annotation is, by its name ("Text", "Arrow"). */
+export function itemKind(annotation) {
+  if (annotation.type === 'text') return t('Text');
   if (annotation.type === 'drawing')
     return (
-      { line: 'Line', arrow: 'Arrow', rect: 'Rectangle', ellipse: 'Ellipse' }[annotation.shape] || 'Drawing'
+      { line: t('Line'), arrow: t('Arrow'), rect: t('Rectangle'), ellipse: t('Ellipse') }[annotation.shape] ||
+      t('Drawing')
     );
-  return { image: 'Image', signature: 'Signature' }[annotation.type] || 'Highlight';
+  return { image: t('Image'), signature: t('Signature') }[annotation.type] || t('Highlight');
+}
+/** An item as a list names it: its kind, and a text's first words ("Text: “Hello”"). */
+export function itemLabel(annotation) {
+  if (annotation.type !== 'text') return itemKind(annotation);
+  const text = textValue(annotation.text).trim().replace(/\s+/g, ' ');
+  return text
+    ? t('Text: “{text}”', { text: text.length > 40 ? text.slice(0, 40) + '…' : text })
+    : t('Text: empty');
 }
 export function renderEditLayers() {
   for (const view of ui.stage.views.values()) renderEditLayer(view);
@@ -816,7 +827,7 @@ export function updateCurrentPage() {
   updateSelectionCaption();
   for (const node of $$('#tool-panel [data-current-page]')) node.textContent = index + 1;
   const option = $('#tool-form [name="pictureScope"] option[value="current"]');
-  if (option) option.textContent = 'Current page (' + (index + 1) + ')';
+  if (option) option.textContent = t('Current page ({page})', { page: index + 1 });
   const earlier = $('#tool-form [data-action="move-earlier"]'),
     later = $('#tool-form [data-action="move-later"]');
   // At the first or the last page they are unavailable, not disabled: focus stays
@@ -863,41 +874,44 @@ export function updateProblems(problems) {
 export function updateStageHint() {
   const status = $('#preview-status');
   const problems = currentOverlay()?.problems || [];
-  let hint = 'Your edits show here as you make them.';
+  // In English, a hint says "Tap" on touch screens (tapOrClick); in Chinese, 点击 is both.
+  let hint = t('Your edits show here as you make them.');
   if (ui.tool === 'text')
     hint = ui.editing
-      ? 'Type your text. Click outside it when you are done.'
-      : 'Click the page where your text should start.';
+      ? t('Type your text. Click outside it when you are done.')
+      : t('Click the page where your text should start.');
   if (ui.tool === 'image')
     hint = selectedItem()
-      ? 'Drag the image to move it. Drag a corner to resize it.'
-      : 'Choose an image to add it to this page.';
-  if (ui.tool === 'highlight') hint = 'Drag across the page to highlight an area.';
+      ? t('Drag the image to move it. Drag a corner to resize it.')
+      : t('Choose an image to add it to this page.');
+  if (ui.tool === 'highlight') hint = t('Drag across the page to highlight an area.');
   if (ui.tool === 'draw')
     hint = selectedItem()
-      ? 'Drag the drawing to move it. Drag a handle to resize it.'
-      : 'Drag on the page to draw.';
+      ? t('Drag the drawing to move it. Drag a handle to resize it.')
+      : t('Drag on the page to draw.');
   if (ui.tool === 'signature')
     hint = selectedItem()
-      ? 'Drag the signature to move it. Drag a corner to resize it.'
+      ? t('Drag the signature to move it. Drag a corner to resize it.')
       : ui.signature
-        ? 'Click the page where your signature belongs.'
-        : 'Make your signature in the panel, then click the page to place it.';
-  if (ui.tool === 'crop') hint = 'Drag across the page to choose the area to keep.';
+        ? t('Click the page where your signature belongs.')
+        : t('Make your signature in the panel, then click the page to place it.');
+  if (ui.tool === 'crop') hint = t('Drag across the page to choose the area to keep.');
   if (ui.tool === 'form')
     hint = !documentFields().length
-      ? 'This PDF has no form fields to fill in.'
+      ? t('This PDF has no form fields to fill in.')
       : phone()
-        ? 'Tap a field to fill it in. The page zooms to it; Fit shows it whole.'
-        : 'Click a field to fill it in. Tab moves to the next one.';
+        ? t('Tap a field to fill it in. The page zooms to it; Fit shows it whole.')
+        : t('Click a field to fill it in. Tab moves to the next one.');
   if (ui.tool === 'pages' || ui.tool === 'delete')
-    hint = 'Choose pages with the checkboxes in the page strip.';
-  if (problems.length) hint = 'Check this page: ' + problems[0].message;
+    hint = t('Choose pages with the checkboxes in the page strip.');
+  if (problems.length) hint = t('Check this page: {problem}', { problem: problems[0].message });
   status.classList.toggle('warning', problems.length > 0);
   status.innerHTML = icon(problems.length ? 'help' : 'check') + safe(tapOrClick(hint));
 }
 export function updateSelectionCaption() {
   if (!state.pages.length) return;
-  $('#selection-caption').textContent =
-    'Page ' + (activeIndex() + 1) + ' · ' + ui.selected.size + ' selected';
+  $('#selection-caption').textContent = t('Page {page} · {count} selected', {
+    page: activeIndex() + 1,
+    count: ui.selected.size,
+  });
 }

@@ -4,8 +4,8 @@
  * counterparts, under zh/, are written by scripts/build-pages.mjs. Code keeps
  * its English text and asks t() for it. On a Chinese page the Chinese catalog
  * (i18n-zh.js), which only Chinese pages load, gives the Chinese for each
- * English text; everywhere else (English pages, the export worker, Node) the
- * English is used as it is.
+ * English text; everywhere else (English pages, Node) the English is used as
+ * it is. The export worker works in its page's language.
  *
  * A text names the values it takes as {name}: t('{count} pages', { count }).
  * English plurals are two texts (tn), which the catalog may give one Chinese.
@@ -14,17 +14,37 @@
  * other values than the English does.
  */
 
-const declared = String(globalThis.document?.documentElement?.lang || 'en');
+// A page says its language in <html lang>; the export worker, which has no
+// page, is told its page's in its address (export-worker.js?lang=zh).
+const declared = String(
+  globalThis.document?.documentElement?.lang ||
+    new URLSearchParams(globalThis.location?.search).get('lang') ||
+    'en',
+);
 /** 'zh' on a Chinese page; 'en' everywhere else. */
 export const LANGUAGE = /^zh(-|$)/i.test(declared) ? 'zh' : 'en';
 // Every module that imports this one waits for the catalog, so a module's own
 // constants are in the page's language too.
 const catalog = LANGUAGE === 'zh' ? await import('./i18n-zh.js') : null;
 
-/** `text` with each {name} replaced by params[name]; a name without a value stays as it is. */
+const IDEOGRAPH = /[\u3400-\u9fff\uf900-\ufaff]/;
+const LATIN = /[A-Za-z0-9]/;
+/**
+ * `text` with each {name} replaced by params[name]; a name without a value
+ * stays as it is. Where a value that starts or ends with Latin letters or
+ * digits meets a Chinese character of the text, a space goes between them, as
+ * the catalog writes "打开 PDF": "因为{reasons}" with "PDF/A..." reads
+ * "因为 PDF/A...". The value itself (a file name, say) is never changed.
+ */
 export function fill(text, params) {
   if (!params) return text;
-  return text.replace(/\{(\w+)\}/g, (whole, name) => (name in params ? String(params[name]) : whole));
+  return text.replace(/\{(\w+)\}/g, (whole, name, at) => {
+    if (!(name in params)) return whole;
+    const value = String(params[name]);
+    const before = IDEOGRAPH.test(text[at - 1] || '') && LATIN.test(value[0] || '') ? ' ' : '';
+    const after = IDEOGRAPH.test(text[at + whole.length] || '') && LATIN.test(value.at(-1) || '') ? ' ' : '';
+    return before + value + after;
+  });
 }
 /** The English `text` in the page's language, with its {values} filled. */
 export function t(text, params) {
@@ -33,6 +53,21 @@ export function t(text, params) {
 /** `one` when count is 1, `other` otherwise, through t(), with {count} filled. */
 export function tn(count, one, other, params) {
   return t(count === 1 ? one : other, { count, ...params });
+}
+/**
+ * Sentences (or lists of them) as one text, leaving out empty ones: a space
+ * between sentences in English, none in Chinese, whose 。 ends a sentence.
+ */
+export function sentences(...parts) {
+  return parts
+    .flat()
+    .filter(Boolean)
+    .join(LANGUAGE === 'zh' ? '' : ' ');
+}
+/** Items as a list in a sentence: "a, b and c" in English, "a、b和c" in Chinese. */
+export function listOf(items) {
+  const [comma, and] = LANGUAGE === 'zh' ? ['、', '和'] : [', ', ' and '];
+  return items.length > 1 ? items.slice(0, -1).join(comma) + and + items.at(-1) : (items[0] ?? '');
 }
 /**
  * A tool of routes.js in the page's language: on a Chinese page with its
@@ -47,12 +82,11 @@ export function passage(name, english) {
   return catalog?.PASSAGES[name] ?? english;
 }
 /**
- * An error a visitor reads. It keeps its English text and values, so that one
- * thrown in the export worker, which works in English, is shown in the page's
- * language (localMessage).
+ * An error a visitor reads, in the page's language. It keeps its English text
+ * and values (localMessage). `options` as for Error: { cause }.
  */
-export function userError(text, params) {
-  return Object.assign(new Error(t(text, params)), { text, params });
+export function userError(text, params, options) {
+  return Object.assign(new Error(t(text, params), options), { text, params });
 }
 /** What an error says, in the page's language. */
 export function localMessage(error) {

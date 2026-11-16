@@ -53,6 +53,7 @@ import {
   watermarkText,
   wrapText,
 } from './layout.js';
+import { t, userError } from './i18n.js';
 
 export { contentMargins, cropMarginsForRotation } from './layout.js';
 
@@ -99,15 +100,15 @@ async function runScript(name, url) {
   });
 }
 
-/** Resolve a bundled UMD library's global, loading it on first use. */
+/** Resolve a bundled UMD library's global, loading it on first use. `failure()` makes the error if it can't. */
 function loadGlobal(name, failure) {
   if (globalThis[name]) return Promise.resolve(globalThis[name]);
   if (typeof document === 'undefined' && typeof WorkerGlobalScope === 'undefined')
-    return Promise.reject(new Error(failure));
+    return Promise.reject(failure());
   if (!scriptLoads.has(name)) {
     const loading = runScript(name, VENDOR_SCRIPTS[name].href).then(
-      () => globalThis[name] || Promise.reject(new Error(failure)),
-      () => Promise.reject(new Error(failure)),
+      () => globalThis[name] || Promise.reject(failure()),
+      () => Promise.reject(failure()),
     );
     // A failed download (for example while offline) can be retried later.
     scriptLoads.set(
@@ -123,18 +124,22 @@ function loadGlobal(name, failure) {
 
 /** Load pdf-lib if needed. Safe to call early to warm it up before it is required. */
 export function loadPdfLib() {
-  return loadGlobal('PDFLib', 'The PDF tools did not load. Check your connection, then try again.');
+  return loadGlobal('PDFLib', () =>
+    userError('The PDF tools did not load. Check your connection, then try again.'),
+  );
 }
 
 function loadFontkit() {
   if (!globalThis.fontkit && globalThis.Fontkit) return Promise.resolve(globalThis.Fontkit);
-  return loadGlobal('fontkit', 'The text font engine did not load. Check your connection, then try again.');
+  return loadGlobal('fontkit', () =>
+    userError('The text font engine did not load. Check your connection, then try again.'),
+  );
 }
 
 /** Synchronous access for code that runs after loadPdfLib() has resolved. */
 function library() {
   if (!globalThis.PDFLib)
-    throw new Error('The PDF tools did not load. Check your connection, then try again.');
+    throw userError('The PDF tools did not load. Check your connection, then try again.');
   return globalThis.PDFLib;
 }
 
@@ -143,7 +148,7 @@ function bytesOf(bytes) {
   if (bytes instanceof ArrayBuffer) return new Uint8Array(bytes.slice(0));
   if (ArrayBuffer.isView(bytes))
     return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength).slice();
-  throw new Error('Choose a PDF file to continue.');
+  throw userError('Choose a PDF file to continue.');
 }
 
 // SASLprep (RFC 4013) maps these spaces to a space and drops these invisible characters.
@@ -160,23 +165,21 @@ function preparedPassword(password) {
 
 /** Why a password can't protect a PDF, or null if it can. */
 export function passwordProblem(password) {
-  if (typeof password !== 'string' || !password) return 'Enter a password to protect your PDF.';
+  if (typeof password !== 'string' || !password) return t('Enter a password to protect your PDF.');
   // Includes C1 controls, which SASLprep also prohibits.
-  if (/[\u0000-\u001F\u007F-\u009F]/.test(password)) return 'Passwords can’t contain control characters.';
+  if (/[\u0000-\u001F\u007F-\u009F]/.test(password)) return t('Passwords can’t contain control characters.');
   // PDF readers use the first 127 bytes of a password.
   if (new TextEncoder().encode(preparedPassword(password)).length > 127)
-    return 'This password is too long. Use a shorter one.';
+    return t('This password is too long. Use a shorter one.');
   return null;
 }
 
 /** A PDF that needs a password: error.code is 'password-required' or 'password-incorrect'. */
 function passwordError(code, cause) {
-  const error = new Error(
+  const error =
     code === 'password-incorrect'
-      ? 'That password didn’t open this PDF. Check it and try again.'
-      : 'This PDF is password-protected. Enter its password to open it.',
-    { cause },
-  );
+      ? userError('That password didn’t open this PDF. Check it and try again.', null, { cause })
+      : userError('This PDF is password-protected. Enter its password to open it.', null, { cause });
   error.code = code;
   return error;
 }
@@ -203,14 +206,16 @@ export async function loadPdf(bytes, password = '') {
         throw passwordError('password-incorrect', error);
       }
       if (/encrypt|key length/i.test(message)) {
-        throw new Error(
+        throw userError(
           'This PDF is protected in a way QFT PDF can’t open, such as with a certificate. Remove the protection in the app that made it, then try again.',
+          null,
           { cause: error },
         );
       }
       // Keep the parser's own error as the cause; it is logged with the message.
-      throw new Error(
+      throw userError(
         'This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.',
+        null,
         { cause: error },
       );
     }
@@ -220,12 +225,13 @@ export async function loadPdf(bytes, password = '') {
   try {
     pageCount = doc.getPageCount();
   } catch (error) {
-    throw new Error(
+    throw userError(
       'This file could not be opened as a PDF. Try opening it in a PDF reader and saving a new copy.',
+      null,
       { cause: error },
     );
   }
-  if (!pageCount) throw new Error('This PDF has no pages.');
+  if (!pageCount) throw userError('This PDF has no pages.');
   if (doc.context.isDecrypted && !doc.context.trailerInfo.Info) await restoreTrailer(lib, doc, data);
   // Decrypting leaves the encryption dictionary behind with nothing referring to
   // it. Drop it: its password hashes should not travel with an unlocked copy.
@@ -636,7 +642,10 @@ async function fillForm(doc, values, { flatten, getFont, fieldError }) {
         else field.clear();
       } else continue;
     } catch (error) {
-      throw fieldError(name, `“${fieldLabel(field)}” can’t take this value. ${error.message}`);
+      throw fieldError(
+        name,
+        t('“{field}” can’t take this value. {reason}', { field: fieldLabel(field), reason: error.message }),
+      );
     }
     changed.add(name);
   }
@@ -653,7 +662,11 @@ async function fillForm(doc, values, { flatten, getFont, fieldError }) {
     try {
       font = await getFont(shownText(field, kind));
     } catch (error) {
-      if (error.unsupported) throw fieldError(field.getName(), `“${fieldLabel(field)}”: ${error.message}`);
+      if (error.unsupported)
+        throw fieldError(
+          field.getName(),
+          t('“{field}”: {reason}', { field: fieldLabel(field), reason: error.message }),
+        );
       throw error;
     }
     const kept = [field.acroField.dict, ...field.acroField.getWidgets().map((widget) => widget.dict)].map(
@@ -841,7 +854,7 @@ async function getFontBytes(kind) {
       kind,
       fetchFont(FONT_FILES[kind]).catch(() => {
         fontBytes.delete(kind);
-        throw new Error('The font for this text could not be loaded. Check your connection, then try again.');
+        throw userError('The font for this text could not be loaded. Check your connection, then try again.');
       }),
     );
   }
@@ -910,7 +923,10 @@ export async function measuringFont(kind) {
 
 /** Report a problem with the page and item it is on, so the editor can show it there. */
 function pageError(message, pageIndex, itemId) {
-  return Object.assign(new Error(`Page ${pageIndex + 1}: ${message}`), { pageIndex, itemId });
+  return Object.assign(userError('Page {page}: {message}', { page: pageIndex + 1, message }), {
+    pageIndex,
+    itemId,
+  });
 }
 
 async function fontFor(getFont, text, pageIndex, itemId) {
@@ -986,11 +1002,11 @@ async function drawAnnotation(doc, page, geometry, annotation, getFont, pageInde
     });
     return true;
   } else if (annotation.type === 'image' || annotation.type === 'signature') {
-    if (!annotation.imageBytes) throw new Error('Choose a PNG or JPEG image to add to the PDF.');
+    if (!annotation.imageBytes) throw userError('Choose a PNG or JPEG image to add to the PDF.');
     try {
       page.drawImage(await embeddedImage(doc, annotation), options);
     } catch {
-      throw new Error('This image could not be added. Choose a valid PNG or JPEG image.');
+      throw userError('This image could not be added. Choose a valid PNG or JPEG image.');
     }
     return true;
   }
@@ -2095,16 +2111,16 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   const lib = await loadPdfLib();
   const sources = state?.sources || [];
   const descriptors = state?.pages || [];
-  if (!descriptors.length) throw new Error('Keep at least one page before exporting your PDF.');
+  if (!descriptors.length) throw userError('Keep at least one page before exporting your PDF.');
   const password = protectionPassword(state.protection);
   if (new Set(descriptors.map((page) => page.id)).size !== descriptors.length)
-    throw new Error('The page list contains duplicate page IDs. Reload this document and try again.');
+    throw userError('The page list contains duplicate page IDs. Reload this document and try again.');
   const sourceMap = new Map(sources.map((source) => [source.id, source]));
   const loaded = new Map();
   const needed = [...new Set(descriptors.map((page) => page.sourceId))];
   onProgress(0);
   for (const id of needed) {
-    if (!sourceMap.has(id)) throw new Error('A source PDF is missing. Add the file again before exporting.');
+    if (!sourceMap.has(id)) throw userError('A source PDF is missing. Add the file again before exporting.');
     loaded.set(id, await loadPdf(sourceMap.get(id).bytes));
   }
   for (const descriptor of descriptors) {
@@ -2113,7 +2129,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
       descriptor.index < 0 ||
       descriptor.index >= loaded.get(descriptor.sourceId).getPageCount()
     ) {
-      throw new Error('A selected page does not exist in its source PDF. Reload the file and try again.');
+      throw userError('A selected page does not exist in its source PDF. Reload the file and try again.');
     }
     rotation(descriptor.rotation || 0);
   }
@@ -2221,12 +2237,14 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
   } else {
     for (const source of loaded.values()) {
       if (hasAcroForm(source) && source.getForm().getFields().length)
-        throw new Error(
-          // Nothing was combined or removed: the file itself has one page twice.
-          completeSource && listedTwice
-            ? 'This PDF lists one of its pages twice. To change its pages, QFT PDF copies them, and a form’s pages can be copied only once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.'
-            : 'Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
-        );
+        // Nothing was combined or removed: the file itself has one page twice.
+        throw completeSource && listedTwice
+          ? userError(
+              'This PDF lists one of its pages twice. To change its pages, QFT PDF copies them, and a form’s pages can be copied only once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
+            )
+          : userError(
+              'Pages of a PDF with form fields can only be combined, duplicated or extracted once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
+            );
     }
     doc = await lib.PDFDocument.create();
     doc.setProducer('QFT PDF');
@@ -2378,7 +2396,7 @@ export async function buildPdfWithNotes(state, onProgress = () => {}) {
 export async function blankPdf(width, height) {
   const lib = await loadPdfLib();
   if (!(width >= 1 && height >= 1 && width <= 14400 && height <= 14400))
-    throw new Error('A blank page must be between 1 and 14,400 points wide and high.');
+    throw userError('A blank page must be between 1 and 14,400 points wide and high.');
   const doc = await lib.PDFDocument.create();
   doc.setProducer('QFT PDF');
   doc.addPage([width, height]);
@@ -2394,9 +2412,9 @@ export async function blankPdf(width, height) {
  */
 export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
   const lib = await loadPdfLib();
-  if (!Array.isArray(images) || !images.length) throw new Error('Choose at least one JPG or PNG picture.');
+  if (!Array.isArray(images) || !images.length) throw userError('Choose at least one JPG or PNG picture.');
   if (size !== 'fit' && !Object.hasOwn(PAPER_SIZES, size))
-    throw new Error('Choose a page size: the picture’s own size, A4 or Letter.');
+    throw userError('Choose a page size: the picture’s own size, A4 or Letter.');
   const doc = await lib.PDFDocument.create();
   doc.setProducer('QFT PDF');
   for (const image of images) {
@@ -2404,7 +2422,7 @@ export async function imagesToPdf(images, { size = 'fit', margin = 0 } = {}) {
     try {
       picture = image.type === 'png' ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
     } catch (error) {
-      throw new Error('A picture could not be read. Choose JPG or PNG files.', { cause: error });
+      throw userError('A picture could not be read. Choose JPG or PNG files.', null, { cause: error });
     }
     const natural = { width: picture.width * 0.75, height: picture.height * 0.75 };
     let pageWidth, pageHeight;
@@ -2453,7 +2471,7 @@ export function sheetLayout(count, paper, shape, margin, gap) {
         best = { width, height, columns, rows, cellWidth, cellHeight, scale };
     }
   }
-  if (!best) throw new Error('The margins leave no room for the pages. Make them smaller.');
+  if (!best) throw userError('The margins leave no room for the pages. Make them smaller.');
   return best;
 }
 
@@ -2471,12 +2489,12 @@ export async function pagesPerSheet(
   { perSheet = 2, paper = 'a4', margin = 28.35, gap = 14.17, border = false, password = null } = {},
 ) {
   const lib = await loadPdfLib();
-  if (![2, 4].includes(perSheet)) throw new Error('Choose 2 or 4 pages per sheet.');
-  if (!Object.hasOwn(PAPER_SIZES, paper)) throw new Error('Choose A4 or Letter paper.');
-  if (!(margin >= 0 && gap >= 0)) throw new Error('Margins and gaps can’t be negative.');
+  if (![2, 4].includes(perSheet)) throw userError('Choose 2 or 4 pages per sheet.');
+  if (!Object.hasOwn(PAPER_SIZES, paper)) throw userError('Choose A4 or Letter paper.');
+  if (!(margin >= 0 && gap >= 0)) throw userError('Margins and gaps can’t be negative.');
   const source = await loadPdf(bytes);
   if (hasAcroForm(source) && source.getForm().getFields().length)
-    throw new Error(
+    throw userError(
       'A PDF with form fields goes on sheets once its fields are flattened. Turn on “Flatten fields on download” in Fill form, then try again.',
     );
   const doc = await lib.PDFDocument.create();
@@ -2539,16 +2557,18 @@ export async function pagesPerSheet(
 /** Parse an inclusive, one-based list like "1-3, 5" into zero-based indexes. */
 export function parsePageRange(value, pageCount) {
   if (!Number.isInteger(pageCount) || pageCount < 1)
-    throw new Error('Open a PDF before choosing a page range.');
+    throw userError('Open a PDF before choosing a page range.');
   if (!String(value ?? '').trim()) return Array.from({ length: pageCount }, (_, index) => index);
   const result = new Set();
   for (const token of String(value).split(',')) {
     const match = token.trim().match(/^(\d+)\s*(?:-\s*(\d+))?$/);
-    if (!match) throw new Error('Use page numbers like 1-3, 5.');
+    if (!match) throw userError('Use page numbers like 1-3, 5.');
     const first = Number(match[1]);
     const last = Number(match[2] || match[1]);
     if (first < 1 || last < first || last > pageCount)
-      throw new Error(`Choose page numbers between 1 and ${pageCount}, with each range in ascending order.`);
+      throw userError('Choose page numbers between 1 and {count}, with each range in ascending order.', {
+        count: pageCount,
+      });
     for (let page = first; page <= last; page++) result.add(page - 1);
   }
   return [...result];

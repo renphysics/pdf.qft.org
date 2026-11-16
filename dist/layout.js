@@ -12,8 +12,10 @@
  * Text is measured with a font object offering pdf-lib's PDFFont methods:
  * widthOfTextAtSize(text, size) and heightAtSize(size, { descender }). The
  * engine passes the embedded font; the preview passes the same font loaded
- * from the same file, so line breaks, sizes and positions match.
+ * from the same file, so line breaks, sizes and positions match. Messages are
+ * in the page's language (i18n.js).
  */
+import { t, userError } from './i18n.js';
 
 export const CJK = /[⺀-鿿가-힯豈-﫿\u{20000}-\u{2FA1F}]/u;
 const ASCII = /^[\u0009\u000A\u000D -~]*$/u;
@@ -26,7 +28,7 @@ export function number(value, fallback, min = -Infinity, max = Infinity) {
 export function rotation(value = 0) {
   const angle = Number(value);
   if (!Number.isFinite(angle) || angle % 90 !== 0)
-    throw new Error('Page rotation must be a multiple of 90 degrees.');
+    throw userError('Page rotation must be a multiple of 90 degrees.');
   return ((angle % 360) + 360) % 360;
 }
 
@@ -57,7 +59,12 @@ export function unsupportedCharacter(value, supported) {
 }
 
 export function unsupportedMessage(character) {
-  return `The available font cannot display “${character}”. Remove that character or use a supported alphabet.`;
+  return t(
+    'The available font cannot display “{character}”. Remove that character or use a supported alphabet.',
+    {
+      character,
+    },
+  );
 }
 
 // ---- Page geometry ------------------------------------------------------------
@@ -116,16 +123,15 @@ export function cropMarginsForRotation(crop, currentRotation = 0) {
   for (const edge of Object.keys(margins)) {
     const value = crop[edge] === undefined ? 0 : Number(crop[edge]);
     if (!Number.isFinite(value) || value <= -MAX_GROWTH || value >= 1) {
-      throw new Error(
-        'Crop margins must be less than 100% of the page, and added margins less than ' +
-          MAX_GROWTH +
-          ' times its size.',
+      throw userError(
+        'Crop margins must be less than 100% of the page, and added margins less than {times} times its size.',
+        { times: MAX_GROWTH },
       );
     }
     margins[edge] = value;
   }
   if (margins.left + margins.right >= 1 || margins.top + margins.bottom >= 1) {
-    throw new Error('Crop margins must leave some of the page visible.');
+    throw userError('Crop margins must leave some of the page visible.');
   }
   return turnMargins(margins, crop.rotation ?? currentRotation, currentRotation);
 }
@@ -143,7 +149,7 @@ export function contentMargins(crop, currentRotation = 0) {
   for (const edge of Object.keys(margins)) {
     const value = Number(crop.content[edge] ?? 0);
     if (!Number.isFinite(value) || value < 0 || value >= 1)
-      throw new Error('Crop margins must leave some of the page visible.');
+      throw userError('Crop margins must leave some of the page visible.');
     margins[edge] = value;
   }
   return turnMargins(margins, crop.rotation ?? currentRotation, currentRotation);
@@ -166,7 +172,7 @@ export function croppedGeometry(originalBox, angle, crop, descriptorRotation) {
     (1 - margins.top) * original.height,
   );
   if (!(box.width >= 1 && box.height >= 1))
-    throw new Error('The cropped page must be at least 1 PDF point wide and high.');
+    throw userError('The cropped page must be at least 1 PDF point wide and high.');
   return boxGeometry(box, angle);
 }
 
@@ -193,7 +199,7 @@ const SAME_SIZE = 1.5;
 
 /** A sheet of `paper`, lying on its side (`landscape`) or upright: [width, height] in points. */
 function sheetOf(paper, landscape) {
-  if (!Object.hasOwn(PAPER_SIZES, paper)) throw new Error('Choose a paper size: A4 or Letter.');
+  if (!Object.hasOwn(PAPER_SIZES, paper)) throw userError('Choose a paper size: A4 or Letter.');
   const [short, long] = PAPER_SIZES[paper];
   return landscape ? [long, short] : [short, long];
 }
@@ -299,7 +305,7 @@ export function sheetMargins(added, own, paper) {
     if (grown.width > grown.height === landscape)
       return Object.fromEntries(Object.entries(added).map(([edge, value]) => [edge, value / scale]));
   }
-  throw new Error('These margins leave no room for the page on its sheet. Make them smaller.');
+  throw userError('These margins leave no room for the page on its sheet. Make them smaller.');
 }
 
 /**
@@ -478,7 +484,7 @@ export function layoutTextAnnotation(annotation, geometry, font) {
           : 0;
     const baseline = top - ascent - index * lineHeight;
     if (baseline < 0 && !problem)
-      problem = 'A text annotation extends below its page. Move it up or use a smaller font.';
+      problem = t('A text annotation extends below its page. Move it up or use a smaller font.');
     lines.push({ text: line, x: x + offset, y: baseline, width: lineWidth });
   });
   const count = Math.max(1, wrapped.length);
@@ -719,7 +725,7 @@ export function headerFooterItems(setting, geometry, pageNumber, total, extra) {
         maxWidth,
         align: side(slot.toLowerCase(), setting, pageNumber),
         top: edge === 'header',
-        problem: 'The header or footer is too long. Shorten it or use more than one text position.',
+        problem: t('The header or footer is too long. Shorten it or use more than one text position.'),
       });
     }
   }
@@ -732,7 +738,7 @@ export function pageNumberItem(setting, geometry, pageNumber, total, extra) {
   return {
     key: 'pageNumber',
     text: variables(
-      setting.format || 'Page {page} of {total}',
+      setting.format || t('Page {page} of {total}'),
       pageNumber + number(setting.start, 1, 0, 1000000) - 1,
       total,
       extra,
@@ -746,7 +752,7 @@ export function pageNumberItem(setting, geometry, pageNumber, total, extra) {
       pageNumber,
     ),
     top: position.startsWith('top'),
-    problem: 'The page number text is too long for the page. Shorten it or use a smaller size.',
+    problem: t('The page number text is too long for the page. Shorten it or use a smaller size.'),
   };
 }
 

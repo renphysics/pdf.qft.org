@@ -36,6 +36,7 @@ import { updateDeletionMarks } from './panel-pages.js';
 import { change } from './history.js';
 import { recordView } from './views.js';
 import { interleaveOrder } from './workflows.js';
+import { t, tn } from './i18n.js';
 
 // ---- Pages -------------------------------------------------------------------------
 
@@ -55,12 +56,14 @@ export function formProblem(pages) {
     new Set(pages.map((page) => page.index)).size === pages.length;
   return complete
     ? null
-    : 'This PDF has form fields, so its pages can’t be removed, extracted or combined with other files while the fields stay fillable. Turn on “Flatten fields on download” in Fill form, then try again.';
+    : t(
+        'This PDF has form fields, so its pages can’t be removed, extracted or combined with other files while the fields stay fillable. Turn on “Flatten fields on download” in Fill form, then try again.',
+      );
 }
 /** Splitting always takes a PDF's pages apart, so its fields must be flattened first. */
 export function splitFormProblem() {
   return !state.flattenForms && state.pages.some((page) => sourceOf(page)?.hasForm)
-    ? 'This PDF has form fields. To split it, turn on “Flatten fields on download” in Fill form.'
+    ? t('This PDF has form fields. To split it, turn on “Flatten fields on download” in Fill form.')
     : null;
 }
 export function movePage(id, offset, targetId = null) {
@@ -70,7 +73,7 @@ export function movePage(id, offset, targetId = null) {
   if (!targetId && from >= 0 && (to < 0 || to >= state.pages.length)) {
     // Move earlier at the first page, Move later at the last: the button keeps
     // focus (it is aria-disabled, not disabled) and says why nothing moved.
-    announceMessage(to < 0 ? 'This page is already the first.' : 'This page is already the last.');
+    announceMessage(to < 0 ? t('This page is already the first.') : t('This page is already the last.'));
     return;
   }
   if (from < 0 || to < 0 || to >= state.pages.length || from === to) return;
@@ -80,18 +83,18 @@ export function movePage(id, offset, targetId = null) {
       const [page] = state.pages.splice(from, 1);
       state.pages.splice(to, 0, page);
     },
-    { layout: true, label: 'Move page' },
+    { layout: true, label: t('Move page') },
   );
   renderTool();
-  announceMessage('Page moved to position ' + (to + 1) + '.');
+  announceMessage(t('Page moved to position {position}.', { position: to + 1 }));
 }
 /** Put the pages in reverse order (one undo step). */
 export function reversePages() {
   if (ui.busy || state.pages.length < 2) return;
   stopEditing();
-  change(() => state.pages.reverse(), { layout: true, label: 'Reverse pages' });
+  change(() => state.pages.reverse(), { layout: true, label: t('Reverse pages') });
   renderTool();
-  announceMessage('The pages are in reverse order.');
+  announceMessage(t('The pages are in reverse order.'));
 }
 /**
  * Put paper printed on both sides, scanned one side at a time, in reading order:
@@ -107,10 +110,10 @@ export function interleavePages() {
       const pages = [...state.pages];
       state.pages.splice(0, pages.length, ...order.map((index) => pages[index]));
     },
-    { layout: true, label: 'Interleave pages' },
+    { layout: true, label: t('Interleave pages') },
   );
   renderTool();
-  announceMessage('Fronts and backs are interleaved: each front is followed by its back.');
+  announceMessage(t('Fronts and backs are interleaved: each front is followed by its back.'));
 }
 /** Add a blank page after the current one, the size and shape it shows at (one undo step). */
 export async function insertBlankPage() {
@@ -128,18 +131,20 @@ export async function insertBlankPage() {
   // A form's pages can be combined with others only once its fields are flattened.
   if (formProblem([...state.pages, blank]))
     throw new Error(
-      'This PDF has form fields, so pages can’t be added while the fields stay fillable. Turn on “Flatten fields on download” in Fill form, then try again.',
+      t(
+        'This PDF has form fields, so pages can’t be added while the fields stay fillable. Turn on “Flatten fields on download” in Fill form, then try again.',
+      ),
     );
   const at = pageIndexOf(page.id) + 1;
   const { width, height } = geometryOf(state, page);
   stopEditing();
-  busy(true, 'Adding a blank page…');
+  busy(true, t('Adding a blank page…'));
   try {
     const info = await openPdf(await blankPdf(width, height));
     const source = {
       id: blank.sourceId,
       bytes: info.bytes,
-      name: 'Blank page',
+      name: t('Blank page'),
       blank: true,
       pageCount: 1,
       hasForm: false,
@@ -154,17 +159,18 @@ export async function insertBlankPage() {
         state.sources.push(source);
         state.pages.splice(at, 0, blank);
       },
-      { layout: true, label: 'Add a blank page' },
+      { layout: true, label: t('Add a blank page') },
     );
   } finally {
     busy(false);
   }
   choosePage(blank.id);
   renderTool();
-  toast('Blank page added as page ' + (at + 1) + '.');
+  toast(t('Blank page added as page {page}.', { page: at + 1 }));
 }
 export function selectedIds() {
-  if (!ui.selected.size) throw new Error('Select one or more pages using the checkboxes in the page strip.');
+  if (!ui.selected.size)
+    throw new Error(t('Select one or more pages using the checkboxes in the page strip.'));
   return new Set(ui.selected);
 }
 export function rotateSelected() {
@@ -176,14 +182,14 @@ export function rotateSelected() {
         if (ids.has(p.id)) p.rotation = (p.rotation + 90) % 360;
       });
     },
-    { layout: true, label: 'Rotate pages' },
+    { layout: true, label: t('Rotate pages') },
   );
-  toast(ids.size === 1 ? 'Page rotated.' : ids.size + ' pages rotated.');
+  toast(tn(ids.size, 'Page rotated.', '{count} pages rotated.'));
 }
 export function deletePages() {
   const ids = selectedIds();
   if (ids.size === state.pages.length)
-    throw new Error('Keep at least one page. Deselect a page before removing the others.');
+    throw new Error(t('Keep at least one page. Deselect a page before removing the others.'));
   const remaining = state.pages.filter((p) => !ids.has(p.id));
   const problem = formProblem(remaining);
   if (problem) throw new Error(problem);
@@ -193,12 +199,10 @@ export function deletePages() {
       state.pages = remaining;
       state.annotations = state.annotations.filter((a) => !ids.has(a.pageId));
     },
-    { layout: true, label: 'Delete pages' },
+    { layout: true, label: t('Delete pages') },
   );
   renderTool();
-  toast(
-    ids.size === 1 ? 'Page deleted. You can undo this.' : ids.size + ' pages deleted. You can undo this.',
-  );
+  toast(tn(ids.size, 'Page deleted. You can undo this.', '{count} pages deleted. You can undo this.'));
 }
 export function renderPages() {
   const list = $('#page-list');
@@ -211,21 +215,23 @@ export function renderPages() {
         page.id +
         '" draggable="true"><div class="page-thumb-frame"><button class="page-thumb" type="button" data-page-open="' +
         page.id +
-        '" aria-label="View page ' +
-        (index + 1) +
+        '" aria-label="' +
+        t('View page {page}', { page: index + 1 }) +
         '"' +
         (page.id === ui.activeId ? ' aria-current="page"' : '') +
         '><span class="thumb-loading">' +
         (index + 1) +
         '</span></button></div><div class="page-item-foot"><label><input type="checkbox" data-page-select="' +
         page.id +
-        '" aria-label="Select page ' +
-        (index + 1) +
+        '" aria-label="' +
+        t('Select page {page}', { page: index + 1 }) +
         '"' +
         (ui.selected.has(page.id) ? ' checked' : '') +
         '><span>' +
         (index + 1) +
-        '</span></label></div><span class="delete-badge" hidden>Delete</span></div>',
+        '</span></label></div><span class="delete-badge" hidden>' +
+        t('Delete') +
+        '</span></div>',
     )
     .join('');
   updateDeletionMarks();
@@ -420,7 +426,7 @@ export function setSheet(open) {
   $('.tool-sidebar').classList.toggle('collapsed', !open);
   const toggle = $('#sheet-toggle');
   toggle.setAttribute('aria-expanded', String(open));
-  toggle.setAttribute('aria-label', open ? 'Hide tool settings' : 'Show tool settings');
+  toggle.setAttribute('aria-label', open ? t('Hide tool settings') : t('Show tool settings'));
 }
 
 // ---- The page strip and page navigation ------------------------------------------
@@ -446,7 +452,7 @@ export function syncPageNavigation({ force = false } = {}) {
     index = activeIndex();
   field.max = state.pages.length;
   if (force || document.activeElement !== field) field.value = index + 1;
-  $('#page-counter').textContent = 'of ' + state.pages.length;
+  $('#page-counter').textContent = t('of {total}', { total: state.pages.length });
   $('[data-action=previous]').disabled = index === 0;
   $('[data-action=next]').disabled = index >= state.pages.length - 1;
 }
