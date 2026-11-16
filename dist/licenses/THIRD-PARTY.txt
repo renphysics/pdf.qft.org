@@ -61,6 +61,9 @@ Exact font metadata and full license: NotoSansCJK-OFL.txt
 Source: https://github.com/notofonts/noto-cjk
 The repository stores this original font losslessly in two binary chunks.
 Preparation reconstructs and verifies the identical font; its license is unchanged.
+../assets/fonts/NotoSansCJKsc-GB2312.woff2 is a subset of this font (the
+characters of GB 2312, with ASCII, Latin-1 and punctuation), made with fontTools.
+It keeps the font's name records, copyright and license, and stays under OFL-1.1.
 
 QFT PDF sample PDF
 The original sample text/layout and application illustrations were created for

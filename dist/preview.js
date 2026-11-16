@@ -105,8 +105,22 @@ export function closeDocuments(keep = new Set()) {
 
 // ---- Fonts ----------------------------------------------------------------------
 
-/** CSS families for the bundled fonts. Liberation Sans has Helvetica's metrics. */
-export const FONT_FAMILIES = { standard: 'QFT Helvetica', latin: 'QFT Noto Sans', cjk: 'QFT Noto Sans CJK' };
+/**
+ * CSS families for the bundled fonts. Liberation Sans has Helvetica's metrics.
+ * The common Chinese font (GB 2312) and the full CJK font have the same glyphs
+ * for the characters they share.
+ */
+export const FONT_FAMILIES = {
+  standard: 'QFT Helvetica',
+  latin: 'QFT Noto Sans',
+  cjk: 'QFT Noto Sans CJK',
+  'cjk-full': 'QFT Noto Sans CJK Full',
+};
+/** A CSS font-family for a kind of text: Chinese the common font lacks comes from the full font, once it is there. */
+export function fontStack(kind) {
+  const families = kind === 'cjk' ? [FONT_FAMILIES.cjk, FONT_FAMILIES['cjk-full']] : [FONT_FAMILIES[kind]];
+  return families.map((family) => '"' + family + '"').join(', ') + ', sans-serif';
+}
 const fonts = new Map();
 const fontListeners = new Set();
 
@@ -380,10 +394,18 @@ function textElement(lines, height, font, kind, attributes) {
   );
 }
 
-/** Measure text with the export's font, noting characters the font cannot draw. */
+/**
+ * Measure text with the export's font, noting characters the font cannot draw.
+ * Chinese the common font lacks is measured with the full font, as the export
+ * draws it (pdf-engine.js textFont).
+ */
 function fontFor(text, problems, key) {
-  const kind = fontKind(text);
-  const entry = previewFont(kind);
+  let kind = fontKind(text);
+  let entry = previewFont(kind);
+  if (kind === 'cjk' && entry.font && unsupportedCharacter(text, characterSet(entry.font))) {
+    kind = 'cjk-full';
+    entry = previewFont(kind);
+  }
   if (entry.error) {
     problems.push({ key, message: entry.error.message });
     return null;

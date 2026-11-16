@@ -5,7 +5,7 @@
  */
 
 import { applyMatrix, fontKind, hexColor, invert, number, TEXT_LINE_HEIGHT, textValue } from './layout.js';
-import { FONT_FAMILIES, geometryOf, warmFont } from './preview.js';
+import { FONT_FAMILIES, fontStack, geometryOf, warmFont } from './preview.js';
 import {
   $,
   activeIndex,
@@ -110,7 +110,7 @@ export function positionInlineEditor() {
     room = item.placement.width - frame.x;
   // Left-aligned text grows to the right as you type, so the box may reach the page edge.
   const width = annotation.autoWidth && (annotation.align || 'left') === 'left' ? room : frame.width + 2;
-  editor.style.fontFamily = '"' + FONT_FAMILIES[kind] + '", sans-serif';
+  editor.style.fontFamily = fontStack(kind);
   editor.style.fontSize = size * scale + 'px';
   editor.style.lineHeight = size * TEXT_LINE_HEIGHT * scale + 'px';
   editor.style.color = hexColor(annotation.color);

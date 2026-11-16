@@ -40,10 +40,10 @@ step with the sources, and runs the site-integrity suite on a stamped copy, as
 the Pages workflow does before it deploys. No server, API keys, or external
 document-processing service is needed.
 
-The two text fonts are versioned the same way, and the app keeps them in Cache
+The three text fonts are versioned the same way, and the app keeps them in Cache
 Storage under that URL (`fetchFont` in `pdf-engine.js`): GitHub Pages marks
 every file as changed by a deploy, so without this a returning visitor
-downloaded the 16 MB CJK font again after every deploy. The engine bundles
+downloaded the CJK fonts (1.4 MB and 16 MB) again after every deploy. The engine bundles
 (about 0.9 MB compressed) still follow the browser's cache: loading scripts
 from a cache of our own would need `blob:` scripts, which the content security
 policy forbids.
@@ -506,9 +506,18 @@ Sans CJK SC, drawn with its Simplified Chinese shapes (the preview and the expor
 use none of its language-specific `locl` forms): some Japanese kanji and
 Traditional Chinese characters, such as 骨 and 令, look slightly different from
 Japanese or Traditional Chinese typefaces. Only the glyphs used are embedded, so
-such text typically adds 50–150 KB to a download. The font itself (16 MB) is
-downloaded once, the first time such text is typed, and then comes from the browser
-cache.
+such text typically adds 50–150 KB to a download. The font is downloaded once,
+the first time such text is typed, and then comes from the browser cache: first
+the common Chinese font, `NotoSansCJKsc-GB2312.woff2` (1.4 MB: every character
+of GB 2312, its 6,763 hanzi and its symbols, with ASCII, Latin-1 and the CJK and
+full-width punctuation), and the full font (16 MB) only for text with characters
+outside it, such as Traditional Chinese, Japanese kanji outside GB 2312 or Korean
+(`textFont` in `pdf-engine.js`; the preview chooses the same, `fontFor` in
+`preview.js`). The two fonts draw and measure the characters they share exactly
+alike (`tests/fonts.test.mjs` compares every one), so a text looks the same
+whichever it needs. `scripts/subset-cjk-font.py` makes the common font from the
+full one with fontTools; the same versions make the same bytes, recorded in
+`scripts/asset-checksums.json`.
 
 Deleting, extracting, combining, duplicating and splitting pages copy them into a
 new PDF (`copyPagesWithLinks`, `copyDocumentInfo` and `copyBookmarks` in

@@ -389,6 +389,7 @@ const files = [
   'assets/vendor/pdf-lib.min.js',
   'assets/vendor/fontkit.umd.min.js',
   'assets/fonts/NotoSans-Regular.ttf',
+  'assets/fonts/NotoSansCJKsc-GB2312.woff2',
   'assets/fonts/NotoSansCJKsc-Regular.otf',
 ];
 async function stamped(name, change) {

@@ -21,9 +21,10 @@
  *   after a deploy could not tell the two apart either.)
  * - Each engine bundle (pdf-lib, fontkit, PDF.js and its worker) is versioned
  *   by a hash of its own bytes, so it is downloaded again only when it changes.
- * - The two text fonts are versioned the same way; the app keeps them in Cache
- *   Storage under that URL (pdf-engine.js fetchFont), so they outlive Pages'
- *   ten-minute cache and are downloaded again only when they change.
+ * - The three text fonts (Latin, the common Chinese of GB 2312, the full CJK
+ *   font) are versioned the same way; the app keeps them in Cache Storage
+ *   under that URL (pdf-engine.js fetchFont), so they outlive Pages' ten-minute
+ *   cache and are downloaded again only when they change.
  *
  * Usage: node scripts/stamp-release.mjs [siteDirectory] [--github-output]
  *
@@ -84,6 +85,7 @@ const worker = await engine('pdf.worker.mjs');
 const pdfLib = await engine('pdf-lib.min.js');
 const fontkit = await engine('fontkit.umd.min.js');
 const latinFont = await hashOf('assets/fonts/NotoSans-Regular.ttf');
+const commonFont = await hashOf('assets/fonts/NotoSansCJKsc-GB2312.woff2');
 const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
 const release = sha256(
   [
@@ -93,6 +95,7 @@ const release = sha256(
     pdfLib,
     fontkit,
     latinFont,
+    commonFont,
     cjkFont,
   ].join('\0'),
 ).slice(0, 12);
@@ -147,6 +150,7 @@ const RULES = {
     [/(new URL\('\.\/assets\/vendor\/pdf-lib\.min\.js)'/g, `$1?v=${pdfLib}'`, 1],
     [/(new URL\('\.\/assets\/vendor\/fontkit\.umd\.min\.js)'/g, `$1?v=${fontkit}'`, 1],
     [/(new URL\('\.\/assets\/fonts\/NotoSans-Regular\.ttf)'/g, `$1?v=${latinFont}'`, 1],
+    [/(new URL\('\.\/assets\/fonts\/NotoSansCJKsc-GB2312\.woff2)'/g, `$1?v=${commonFont}'`, 1],
     [/(new URL\('\.\/assets\/fonts\/NotoSansCJKsc-Regular\.otf)'/g, `$1?v=${cjkFont}'`, 1],
   ],
 };
@@ -169,5 +173,5 @@ for (const [name, rules] of Object.entries(RULES)) {
 }
 if (toStepOutput) await appendFile(process.env.GITHUB_OUTPUT, `release=${release}\n`);
 console.log(
-  `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${cjkFont}) in ${site}.`,
+  `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${commonFont} ${cjkFont}) in ${site}.`,
 );

@@ -38,6 +38,7 @@ const files = [
   'assets/vendor/pdf-lib.min.js',
   'assets/vendor/fontkit.umd.min.js',
   'assets/fonts/NotoSans-Regular.ttf',
+  'assets/fonts/NotoSansCJKsc-GB2312.woff2',
   'assets/fonts/NotoSansCJKsc-Regular.otf',
 ];
 const workspace = await mkdtemp(path.join(tmpdir(), 'qft-stamp-'));
@@ -174,7 +175,7 @@ await test('engine bundles and fonts are versioned by their own bytes', async ()
     );
   }
   // Fonts too: the app keeps them in Cache Storage under this URL.
-  for (const font of ['NotoSans-Regular.ttf', 'NotoSansCJKsc-Regular.otf']) {
+  for (const font of ['NotoSans-Regular.ttf', 'NotoSansCJKsc-GB2312.woff2', 'NotoSansCJKsc-Regular.otf']) {
     assert(
       engine.includes(
         `new URL('./assets/fonts/${font}?v=${await hash(path.join(first, 'assets/fonts', font))}'`,
@@ -197,8 +198,8 @@ await test('every versioned reference points at a real file, and every reference
   // app.js) plus its preloads (the editor's in the warm-editor template too, and the catalog on a
   // Chinese page) and the two engines in warm-engines, 3 on the licenses page (its own stylesheet
   // too), every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit
-  // URLs, and two fonts.
-  let expected = 3 + 4 + 2;
+  // URLs, and three fonts.
+  let expected = 3 + 4 + 3;
   for (const name of pages) expected += 5 + preloadsOf(await read(name), upFrom(name)).length + 2;
   for (const name of modules)
     expected += [
@@ -259,6 +260,7 @@ await test('stamping is single-shot and deterministic, and the release changes w
     'assets/vendor/pdf-lib.min.js',
     'assets/vendor/fontkit.umd.min.js',
     'assets/fonts/NotoSans-Regular.ttf',
+    'assets/fonts/NotoSansCJKsc-GB2312.woff2',
     'assets/fonts/NotoSansCJKsc-Regular.otf',
   ])
     assert.notEqual(

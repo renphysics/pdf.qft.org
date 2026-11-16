@@ -65,7 +65,11 @@ const VENDOR_SCRIPTS = {
 const scriptLoads = new Map();
 const FONT_FILES = {
   latin: new URL('./assets/fonts/NotoSans-Regular.ttf', import.meta.url),
-  cjk: new URL('./assets/fonts/NotoSansCJKsc-Regular.otf', import.meta.url),
+  // Chinese, Japanese and Korean text is drawn with the common Chinese font, all
+  // of GB 2312 in 1.4 MB (scripts/subset-cjk-font.py), and with the full font
+  // (16 MB) only when it has characters the common font lacks (fontManager).
+  cjk: new URL('./assets/fonts/NotoSansCJKsc-GB2312.woff2', import.meta.url),
+  'cjk-full': new URL('./assets/fonts/NotoSansCJKsc-Regular.otf', import.meta.url),
 };
 
 /**
@@ -795,7 +799,7 @@ function color(hex, fallback) {
   return library().rgb(...[1, 3, 5].map((offset) => parseInt(text.slice(offset, offset + 2), 16) / 255));
 }
 
-/** The bytes of a bundled font file ('latin' or 'cjk'), downloaded once. */
+/** The bytes of a bundled font file ('latin', 'cjk' or 'cjk-full'), downloaded once. */
 export function fontFile(kind) {
   return getFontBytes(kind);
 }
@@ -895,10 +899,21 @@ export function characterSet(font) {
   return characterSets.get(font);
 }
 
+/**
+ * The font a text is drawn with: its kind's (fontKind), or for Chinese that the
+ * common font cannot draw, the full CJK font. `load(kind)` gives a kind's font.
+ */
+export async function textFont(value, load) {
+  const font = await load(fontKind(value));
+  return fontKind(value) === 'cjk' && unsupportedCharacter(value, characterSet(font))
+    ? load('cjk-full')
+    : font;
+}
+
 function fontManager(doc) {
   const load = fontLoader(doc);
   return async (value) => {
-    const font = await load(fontKind(value));
+    const font = await textFont(value, load);
     const unsupported = unsupportedCharacter(value, characterSet(font));
     if (unsupported) throw Object.assign(new Error(unsupportedMessage(unsupported)), { unsupported });
     return font;
@@ -907,8 +922,8 @@ function fontManager(doc) {
 
 let measuring = null;
 /**
- * The font the export uses for a kind of text ('standard', 'latin' or 'cjk'),
- * for measuring outside an export. The editor preview lays text out with it,
+ * The font the export uses for a kind of text ('standard', 'latin', 'cjk' or
+ * 'cjk-full'), for measuring outside an export. The editor preview lays text out with it,
  * so its line breaks and positions match the downloaded PDF.
  */
 export async function measuringFont(kind) {

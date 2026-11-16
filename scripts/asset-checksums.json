@@ -11,6 +11,10 @@
     "bytes": 16437364,
     "sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b"
   },
+  "assets/fonts/NotoSansCJKsc-GB2312.woff2": {
+    "bytes": 1405140,
+    "sha256": "86a3fa301d9e004f0d1bf053009f288d36bf60bd7d51b4d01cb089cfca7880dd"
+  },
   "assets/vendor/pdf.worker.mjs": {
     "bytes": 1327591,
     "sha256": "b4c8353ded0d88d2e2009574a29eb4e0c3ff7e942ecdf51ef5f71566a9667f31"
