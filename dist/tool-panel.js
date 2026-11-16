@@ -260,6 +260,20 @@ export function fillForm({ all = false } = {}) {
   updateOutputs();
   current?.afterFill?.(values);
 }
+/**
+ * On a phone the tool tabs scroll sideways: the chosen tool's tab is brought
+ * into view, to the middle of the bar, so a tool page opened on a phone shows
+ * its own tab. A tab already in view stays where it is, and only the bar moves.
+ */
+function revealTab() {
+  const bar = $('.tool-tabs'),
+    tab = bar && $('[aria-pressed="true"]', bar);
+  if (!tab || bar.scrollWidth <= bar.clientWidth) return;
+  const box = bar.getBoundingClientRect(),
+    own = tab.getBoundingClientRect();
+  if (own.left >= box.left && own.right <= box.right) return;
+  bar.scrollLeft += own.left - box.left - (box.width - own.width) / 2;
+}
 export function renderTool() {
   // The panel is rebuilt below; remember which control had keyboard focus.
   const restoreKey = !ui.busy && $('#tool-panel').contains(document.activeElement) ? focusKey() : null;
@@ -267,6 +281,7 @@ export function renderTool() {
   $$('.tool-tabs [data-tool]').forEach((button) =>
     button.setAttribute('aria-pressed', String(button.dataset.tool === ui.tool)),
   );
+  revealTab();
   $('#workspace').dataset.tool = ui.tool;
   $('#sheet-title').textContent = names[ui.tool];
   const current = panel(),

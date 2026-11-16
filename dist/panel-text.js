@@ -57,7 +57,9 @@ export function fields(item, index) {
         '</div>' +
         '<button type="button" class="button secondary" data-action="add-text">' +
         icon('plus') +
+        '<span>' +
         t('Add text to page {page}', { page: onPage(index) }) +
+        '</span>' +
         '</button>'
       );
     case 'image':
@@ -85,7 +87,9 @@ export function fields(item, index) {
         (ui.image
           ? '<button type="button" class="button secondary" data-action="place-image">' +
             icon('plus') +
+            '<span>' +
             t('Add it to page {page}', { page: onPage(index) }) +
+            '</span>' +
             '</button>'
           : '')
       );
@@ -107,7 +111,9 @@ export function fields(item, index) {
             '</button>'
           : '<button type="button" class="button secondary" data-action="add-highlight">' +
             icon('plus') +
+            '<span>' +
             t('Add a highlight to page {page}', { page: onPage(index) }) +
+            '</span>' +
             '</button>')
       );
   }

@@ -48,7 +48,9 @@ function signatureFields(item, index) {
       t('Your signature') +
       '"></div><button type="button" class="button primary" data-action="signature-place">' +
       icon('plus') +
+      '<span>' +
       t('Add it to page {page}', { page: '<span data-current-page>' + (index + 1) + '</span>' }) +
+      '</span>' +
       '</button><button type="button" class="button secondary" data-action="signature-place-all">' +
       icon('pages') +
       t('Add it to every page') +

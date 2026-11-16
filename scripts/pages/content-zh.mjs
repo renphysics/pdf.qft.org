@@ -538,7 +538,7 @@ export const PAGES_ZH = [
     description:
       '在每张 A4 或 Letter 纸上放 2 页或 4 页 PDF，比如把课件做成讲义。文字依然清晰。免费，文件留在你的设备上。',
     eyebrow: '多页合一',
-    heading: ['把 PDF 页面拼到纸上。', '一张纸放两页或四页。'],
+    heading: ['把 PDF 页面拼到纸上。', '一张纸放两\u2060页或四\u2060页。'],
     intro: '做讲义，省纸张：每张 A4 或 Letter 纸上放 2 页或 4 页，尽量放大，文字和图形依然清晰。',
     upload: { text: '把 PDF 拖到这里，把它的页面拼到纸上。' },
     how: ['如何把页面', '拼到纸上。'],
@@ -567,7 +567,7 @@ export const PAGES_ZH = [
     description:
       '把照片、扫描件和截图变成 PDF 页面：A4、Letter 或图片自己的尺寸，按你选的顺序排列。免费，图片留在你的设备上。',
     eyebrow: 'JPG 转 PDF',
-    heading: ['把 JPG 转换成 PDF。', '放进图片，得到一份整齐的 PDF。'],
+    heading: ['把 JPG 转换成 PDF。', '放进图片，得到一\u2060份整齐的 PDF。'],
     intro: '把照片、扫描件和截图变成 PDF 页面，排好顺序，下载一个 PDF。',
     upload: {
       heading: '从你的图片开始。',

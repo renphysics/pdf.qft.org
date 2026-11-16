@@ -58,7 +58,9 @@ function drawFields(item, index) {
           '</p>'
         : '<button type="button" class="button secondary" data-action="add-drawing">' +
           icon('plus') +
+          '<span>' +
           next[3]('<span data-current-page>' + (index + 1) + '</span>') +
+          '</span>' +
           '</button>')
   );
 }

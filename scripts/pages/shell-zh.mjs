@@ -81,8 +81,7 @@ export const SHELL_ZH = {
   'Batch &amp; saved presets': '批量处理和保存的预设',
   'Open another PDF': '打开另一个 PDF',
   'Reset document': '重置文档',
-  'Edits show at once and stay on your device until you download.':
-    '修改即时显示，下载之前一直只在你的设备上。',
+  'Edits show at once and stay on your device until you download.': '修改即时显示，下载前只在你的设备上。',
   'Previous page': '上一页',
   Page: '页码',
   'Go to page': '跳转到页面',
