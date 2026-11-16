@@ -187,7 +187,8 @@ export function planSplit(options, total) {
   if (mode === 'ranges') {
     if (typeof options.ranges !== 'string' || !options.ranges.trim())
       throw userError('Enter page groups such as 1-3; 4-6; 7. Each semicolon starts a new PDF.');
-    const entries = options.ranges.split(';');
+    // "；", as a Chinese keyboard types it, is a semicolon too (NFKC).
+    const entries = options.ranges.normalize('NFKC').split(';');
     if (entries.some((entry) => !entry.trim()))
       throw userError(
         'Each page group needs at least one page. Remove empty groups or a trailing semicolon.',

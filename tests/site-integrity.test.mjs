@@ -331,9 +331,17 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
       `${name}: the same warm-editor template as the home page`,
     );
     const data = JSON.parse(page.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+    // A Chinese page's structured data is in Chinese and names the Chinese card.
+    const chinese = name.startsWith('zh/');
+    const sharedCard = chinese ? '/assets/social-card-zh.png' : '/assets/social-card.png';
+    const han = /[一-鿿]/;
     if (url === canonical || url === `${canonical}zh/`) {
       assert.equal(data['@type'], 'WebApplication');
       assert.equal(data.url, url);
+      assert(data.image.endsWith(sharedCard), `${name}: structured data image ${data.image}`);
+      if (chinese)
+        for (const text of [data.description, data.browserRequirements, ...data.featureList])
+          assert.match(text, han, `${name}: “${text}” in the structured data is not Chinese`);
       continue;
     }
     // Tool pages: the app opens this page's tool, and the grid lists every other tool.
@@ -346,6 +354,15 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
     assert.deepEqual(listed, new Set([...cardIds].filter((id) => id !== tool)), `${name}: tools grid`);
     const graph = Object.fromEntries(data['@graph'].map((entry) => [entry['@type'], entry]));
     assert.equal(graph.WebApplication.url, url, `${name}: WebApplication url`);
+    assert(graph.WebApplication.image.endsWith(sharedCard), `${name}: structured data image`);
+    if (chinese) assert.match(graph.WebApplication.browserRequirements, han, `${name}: browserRequirements`);
+    // An answer's tool links become plain names: quoted in Chinese, no link syntax left.
+    for (const entry of graph.FAQPage.mainEntity)
+      assert.doesNotMatch(
+        entry.acceptedAnswer.text,
+        /\]\(tool:|\[/,
+        `${name}: link syntax in “${entry.name}”`,
+      );
     assert.equal(graph.BreadcrumbList.itemListElement.at(-1).item, url, `${name}: breadcrumb`);
     // FAQ structured data must match the questions shown on the page.
     const shown = [...page.matchAll(/<summary>([^<]+)<\/summary>/g)].map((match) => decode(match[1]));

@@ -232,7 +232,10 @@ function filterTools() {
   if (nothing) sayResult($('#no-tools').textContent, `nothing for ${typed.join(' ')} under ${toolFilter}`);
   else sayResult(note.hidden ? '' : note.textContent);
 }
-$('#tool-search').addEventListener('input', filterTools);
+// Not while an input method composes (the pinyin "hebing" on its way to 合并),
+// which would hide every card at each key: once the Chinese is in.
+$('#tool-search').addEventListener('input', (event) => event.isComposing || filterTools());
+$('#tool-search').addEventListener('compositionend', filterTools);
 $$('[data-tool-filter]').forEach((button) =>
   button.addEventListener('click', () => {
     toolFilter = button.dataset.toolFilter;

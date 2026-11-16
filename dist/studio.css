@@ -1134,8 +1134,9 @@ summary:focus-visible {
 .page-view.marked-delete > .page-overlay {
   opacity: 0.5;
 }
+/* Its word comes from the catalog (page-view.js, data-mark); the page strip says the same. */
 .page-view.marked-delete::after {
-  content: 'Delete' / '';
+  content: attr(data-mark) / '';
   position: absolute;
   top: 10px;
   left: 10px;

@@ -2575,7 +2575,13 @@ export function parsePageRange(value, pageCount) {
     throw userError('Open a PDF before choosing a page range.');
   if (!String(value ?? '').trim()) return Array.from({ length: pageCount }, (_, index) => index);
   const result = new Set();
-  for (const token of String(value).split(',')) {
+  // As a Chinese keyboard types them too: full-width digits, commas and dashes
+  // (NFKC), the enumeration comma 、, the dashes – and — and the tilde of 1～3.
+  const text = String(value)
+    .normalize('NFKC')
+    .replace(/、/g, ',')
+    .replace(/[‐‑‒–—―~]/g, '-');
+  for (const token of text.split(',')) {
     const match = token.trim().match(/^(\d+)\s*(?:-\s*(\d+))?$/);
     if (!match) throw userError('Use page numbers like 1-3, 5.');
     const first = Number(match[1]);

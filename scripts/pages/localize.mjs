@@ -52,16 +52,17 @@ export function shellTexts(html, same = new Set()) {
   return found;
 }
 
-// Chinese, and its punctuation; the inline tags a heading puts between its words.
+// Chinese, and its punctuation; the inline tags a heading puts between its words,
+// and the button the sample row puts after its question (只是看看？<button>).
 const CHINESE = '\\p{Script=Han}，。、：；！？“”‘’（）《》…—';
-const INLINE = '<\\/?(?:br|em|strong)\\b[^>]*>';
+const INLINE = '<\\/?(?:br|em|strong|button)\\b[^>]*>';
 const SPACED = new RegExp(
   `([${CHINESE}])((?:${INLINE})*) +((?:${INLINE})*)(?=[${CHINESE}]|(?:${INLINE})+[${CHINESE}])`,
   'gu',
 );
 /**
  * Chinese without the spaces the template puts between its words: where two
- * Chinese texts meet across <br> or <em>, "从打开<br> 到 <em>完成。</em>" reads
+ * Chinese texts meet across <br>, <em> or <button>, "从打开<br> 到 <em>完成。</em>" reads
  * "从打开<br>到<em>完成。</em>". A space beside a Latin word stays, and so does
  * a line break between elements.
  */

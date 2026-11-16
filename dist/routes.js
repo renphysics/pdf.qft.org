@@ -213,23 +213,29 @@ const withoutCommon = (word) => COMMON_ZH.reduce((rest, common) => rest.replaceA
 /**
  * Whether typed Chinese is in a text's Chinese (`han`, its words joined by
  * spaces). Chinese has no spaces to start a word at, so any part of a word
- * counts, as "合" finds "合并" while it is typed. Typed whole, or without the
- * words that name no tool, in parts of two characters or more that each are
- * there, the longest first: "旋转页面" is "旋转" and "页面". Single characters
- * are too common to count apart ("打码" is not "打开" and "密码").
+ * counts, as "合" finds "合并" while it is typed. Typed whole, or cut into parts
+ * that each are there, of two characters or more, and words that name no tool
+ * (COMMON_ZH): "旋转页面" is "旋转" and "页面", "合成一个" is "合成" and "一个".
+ * Every way of cutting it is tried, so "图片转换成" is "图片", "转换" and "成"
+ * where "图片转" is there too, and a common word is taken whole, never out of a
+ * word ("合成" keeps its "成"). Single characters are too common to count apart
+ * ("打码" is not "打开" and "密码").
  */
 function hanFinds(typed, han) {
   if (han.includes(typed)) return true;
-  const rest = withoutCommon(typed);
-  // Only words that name no tool, or one character left of the search (not "合" of "合成").
-  if (rest.length < 2) return !rest;
-  for (let left = rest; left;) {
-    let length = left.length;
-    while (length > 1 && !han.includes(left.slice(0, length))) length--;
-    if (length < 2) return false;
-    left = left.slice(length);
-  }
-  return true;
+  const known = new Map();
+  const cut = (start) => {
+    if (start === typed.length) return true;
+    if (!known.has(start)) {
+      let found = false;
+      for (let end = typed.length; end > start + 1 && !found; end--)
+        found = han.includes(typed.slice(start, end)) && cut(end);
+      for (const common of COMMON_ZH) found ||= typed.startsWith(common, start) && cut(start + common.length);
+      known.set(start, found);
+    }
+    return known.get(start);
+  };
+  return cut(0);
 }
 /** What the search reads for a tool: the name and copy on its card, and its keywords. */
 export const searchText = (item) =>
@@ -386,10 +392,16 @@ export const SEARCH_NOTES = Object.freeze([
 ]);
 const wordMatches = (wanted, typed) =>
   wanted.endsWith('*') ? typed.startsWith(wanted.slice(0, -1)) : typed === wanted;
-/** Whether a note's search is in the words typed: each of its words, or its Chinese inside typed Chinese. */
+/**
+ * Whether a note's search is in the words typed: each of its words, or its
+ * Chinese inside typed Chinese, also with the Chinese typed around other
+ * letters put together, without the words that name no tool ("修改PDF的文字"
+ * has "修改文字").
+ */
 const searched = (search, typed) =>
   HAN.test(search)
-    ? typed.some((word) => word.includes(search))
+    ? typed.some((word) => word.includes(search)) ||
+      withoutCommon(typed.filter((word) => HAN.test(word)).join('')).includes(search)
     : search.split(' ').every((wanted) => typed.some((word) => wordMatches(wanted, word)));
 /**
  * The note for the words typed (searchWords), in the page's language, or

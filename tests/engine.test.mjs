@@ -2830,6 +2830,9 @@ await test('page ranges: parsed; refused when out of range or malformed', async 
   assert.throws(() => parsePageRange('0, 1', 4), /between/);
   assert.throws(() => parsePageRange('3-1', 4), /between/);
   assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
+  // As a Chinese keyboard types them: full-width commas, digits and dashes, 、, and the dashes – and —.
+  for (const typed of ['1-3，4', '1-3、4', '１－３，４', '1–3, 4', '1—3,4'])
+    assert.deepEqual(parsePageRange(typed, 4), [0, 1, 2, 3], typed);
 });
 
 await test('tagged PDFs: repeated content is marked as artifacts; untagged additions are noted', async () => {

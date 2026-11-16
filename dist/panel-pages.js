@@ -146,8 +146,7 @@ export function fields(item, index) {
               '<div class="file-list-item"><strong>' +
               safe(source.name) +
               '</strong>' +
-              t('{count} pages · {size}', {
-                count: source.pageCount,
+              tn(source.pageCount, '{count} page · {size}', '{count} pages · {size}', {
                 size: formatSize(source.bytes.length),
               }) +
               '</div>',

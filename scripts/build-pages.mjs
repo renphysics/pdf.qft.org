@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { TOOLS as TOOLS_ZH } from '../dist/i18n-zh.js';
 import { TOOLS, TOOL_PAGES } from '../dist/routes.js';
 import { PAGES } from './pages/content.mjs';
-import { HOME_ZH, PAGES_ZH, WORDS_ZH } from './pages/content-zh.mjs';
+import { FEATURES_ZH, HOME_ZH, PAGES_ZH, WORDS_ZH } from './pages/content-zh.mjs';
 import { localizeShell, withoutSpacesBetweenChinese } from './pages/localize.mjs';
 import { SAME_IN_CHINESE, SHELL_ZH } from './pages/shell-zh.mjs';
 
@@ -96,7 +96,14 @@ const rich = (text) =>
     if (!TOOL_PAGES[tool]) throw new Error(`Unknown tool in link: ${match}`);
     return `<a href="./${TOOL_PAGES[tool]}/">${label}</a>`;
   });
-const plain = (text) => text.replace(LINK, '$1');
+// In plain text (the FAQ's structured data) a linked name keeps a mark: English
+// capitalises it; Chinese, which cannot, quotes it, as it does a name it does not
+// link (在“填写表单”里), with no space after the closing quote.
+const plain = (text, language = 'en') =>
+  language === 'zh' ? text.replace(/\[([^\]]+)\]\(tool:[a-z]+\) ?/g, '“$1”') : text.replace(LINK, '$1');
+/** The sharing card's address: a Chinese page shares the Chinese card (scripts/social-card/card-zh.html). */
+const card = (text, language) =>
+  language === 'zh' ? text.replace('/social-card.png', '/social-card-zh.png') : text;
 
 function region(html, name) {
   const open = `<!-- page:${name} -->\n`,
@@ -223,10 +230,7 @@ function metaBlock(meta, language, { slug, title, description, ogTitle, ogDescri
     `  <meta property="og:url" content="${url}">`,
     `  <meta property="og:title" content="${escapeHtml(ogTitle)}">`,
     `  <meta property="og:description" content="${escapeHtml(ogDescription)}">`,
-    // A Chinese page shares the Chinese card (scripts/social-card/card-zh.html).
-    language === 'zh'
-      ? shared(/property="og:image"/).replace('/social-card.png', '/social-card-zh.png')
-      : shared(/property="og:image"/),
+    card(shared(/property="og:image"/), language),
     shared(/property="og:image:width"/),
     shared(/property="og:image:height"/),
     imageAlt
@@ -260,10 +264,10 @@ function toolPage(template, page, language = 'en') {
         url,
         description: page.description,
         inLanguage: LANGUAGES[language].html,
-        image: homeData.image,
+        image: card(homeData.image, language),
         applicationCategory: homeData.applicationCategory,
         operatingSystem: homeData.operatingSystem,
-        browserRequirements: homeData.browserRequirements,
+        browserRequirements: language === 'zh' ? HOME_ZH.browserRequirements : homeData.browserRequirements,
         isAccessibleForFree: true,
         offers: homeData.offers,
         isPartOf: { '@type': 'WebSite', name: 'QFT PDF', url: address(language, '') },
@@ -280,7 +284,7 @@ function toolPage(template, page, language = 'en') {
         mainEntity: page.faqs.map(([question, answer]) => ({
           '@type': 'Question',
           name: question,
-          acceptedAnswer: { '@type': 'Answer', text: plain(answer) },
+          acceptedAnswer: { '@type': 'Answer', text: plain(answer, language) },
         })),
       },
     ],
@@ -403,6 +407,9 @@ function chineseHome(template) {
     url: address('zh', ''),
     description: HOME_ZH.description,
     inLanguage: 'zh-CN',
+    image: card(homeData.image, 'zh'),
+    browserRequirements: HOME_ZH.browserRequirements,
+    featureList: FEATURES_ZH,
   };
   const block = metaBlock(meta, 'zh', {
     slug: '',

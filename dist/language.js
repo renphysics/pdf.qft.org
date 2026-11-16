@@ -50,6 +50,23 @@
     }
   }
 
+  // The link's own address was written for the page as it was loaded; the editor
+  // changes the address as tools change. So it is brought up to date before the
+  // link is used another way than a click: opened in a new tab, or copied.
+  function refresh(event) {
+    var link = event.target.closest && event.target.closest('a[data-language]');
+    var target = link && counterpart(link.getAttribute('data-language'));
+    if (target) link.setAttribute('href', target);
+  }
+  ['pointerover', 'pointerdown', 'focusin', 'contextmenu'].forEach(function (type) {
+    document.addEventListener(type, refresh, true);
+  });
+  // A middle click opens it in a new tab, and is a choice as a click is.
+  document.addEventListener('auxclick', function (event) {
+    var link = event.target.closest && event.target.closest('a[data-language]');
+    if (link && event.button === 1) remember(link.getAttribute('data-language'));
+  });
+
   document.addEventListener('click', function (event) {
     var link = event.target.closest && event.target.closest('a[data-language]');
     if (!link || event.defaultPrevented || event.button !== 0) return;

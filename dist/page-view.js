@@ -396,6 +396,7 @@ function createView(id) {
     layer = document.createElement('div');
   el.className = 'page-view blank render-pending';
   el.dataset.viewId = id;
+  el.dataset.mark = t('Delete');
   svg.classList.add('page-overlay');
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('preserveAspectRatio', 'none');

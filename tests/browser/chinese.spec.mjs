@@ -135,6 +135,31 @@ test('the search reads Chinese, and says in Chinese what the site can’t do', a
   await expect(page.locator('#no-tools')).toBeHidden();
 });
 
+test('a page marked in Delete pages is labelled in Chinese, on the page as in the strip', async ({
+  page,
+}) => {
+  // The label is drawn by CSS (::after), which the walk for English below cannot see.
+  await openSample(page, './zh/delete-pages-from-pdf/');
+  await page.click('[data-action="select-none"]');
+  await page.locator('[data-page-select]').nth(1).check();
+  const view = page.locator('.page-view[data-number="2"]');
+  await expect(view).toHaveClass(/marked-delete/);
+  const label = await view.evaluate((element) => getComputedStyle(element, '::after').content);
+  expect(label).toContain('删除');
+  expect(label).not.toContain('Delete');
+});
+
+test('the language link leads to the page as it is now, opened in a new tab too', async ({ page }) => {
+  // Opening a file changes the address to the tool's; the link's written address
+  // ("./zh/" from the home page) would then lead nowhere from a new tab.
+  await openSample(page, './');
+  const now = new URL(page.url()).pathname;
+  expect(now, 'the editor shows the tool’s address').not.toBe('/');
+  const link = page.locator('.language-link');
+  await link.hover();
+  expect(new URL(await link.evaluate((a) => a.href)).pathname).toBe('/zh' + now);
+});
+
 test('leaving for English with unsaved work asks first, in Chinese', async ({ page }) => {
   await openSample(page, './zh/add-text-to-pdf/');
   await page.click('[data-action="add-text"]');
