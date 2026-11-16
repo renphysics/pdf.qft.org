@@ -1461,3 +1461,16 @@ source review does not replace the owner’s browser verification.
   names buttons as they read, one term each (页面列表, 批注, 长期存档格式),
   meaning fixed where the Chinese said more or other than the English, and
   the home page's “从打开到完成” has no space left from the template.
+- A final review in five parts (the editor's words; the panels and the
+  registry; the pages; the code; the requirements), each point checked by a
+  second reviewer, and a look at 40 screenshots (pages at 1280 and 390 px,
+  every tool's panel, the dialogs, phones), each problem confirmed by a
+  second look. Applied: page numbers typed with Chinese punctuation
+  (1-3，5 was refused); the Delete pages label on a page, which said
+  “Delete”; search fixes (合成一个, 图片转换成pdf, 修改PDF的文字, pinyin while
+  composing); the language link after the editor changes the address; the
+  Chinese pages' structured data; layout: the phone privacy strip, two-option
+  choices, bold Chinese with a font that has no bold face, the phone tool
+  tabs, headings that split a word (scanned at seven widths from 320 to
+  1280 px: none left). Not applied: notices on phones over the page toolbar
+  for a few seconds (a choice of the English design, not of the Chinese).

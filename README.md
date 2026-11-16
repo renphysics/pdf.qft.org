@@ -218,7 +218,9 @@ visitor chooses, and the choice is kept in this browser (localStorage,
 `qft-pdf-language`). `dist/language.js` runs before a page shows: with 中文
 chosen, an English address opens its Chinese counterpart. A Chinese address
 never redirects, so a link to one stays Chinese. With unsaved work, the link
-asks first, as leaving does.
+asks first, as leaving does. The link's address follows the editor's (which
+changes as tools change), so it opens the right page in a new tab too. The
+licences page is in English only, and its link says so (开源许可（英文）).
 
 **Pages.** Every page has a counterpart under `zh/` (`/zh/`,
 `/zh/merge-pdf/`...), written by `npm run pages` from the same template: the
@@ -260,11 +262,18 @@ with the English sample's layout and colours; `tests/sample.test.mjs` reads it
 back.
 
 **Search** reads Chinese (`routes.js`): a run of Chinese is a word of its own
-beside letters, found whole in a card's words or in parts of two characters or
-more, without words that name no tool (文件, 怎么, 把...); English works there
-too. Each search note has its Chinese in `NOTES` (`i18n-zh.js`): 缩小, as
-shrink does, brings the note that the site can't compress beside Resize
-pages. `tests/search-zh.test.mjs` checks both.
+beside letters, found whole in a card's words or cut into parts of two
+characters or more that are there, and words that name no tool (文件, 怎么,
+把...), taken whole and never out of a word (合成一个 is 合成 and 一个). Every
+way of cutting is tried (图片转换成 is 图片, 转换 and 成). English works there
+too, and nothing is filtered while an input method is still composing pinyin.
+Each search note has its Chinese in `NOTES` (`i18n-zh.js`), found also with
+the Chinese typed around other letters put together (修改PDF的文字); 缩小 and
+减小, as shrink does, bring the note that the site can't compress beside
+Resize pages. `tests/search-zh.test.mjs` checks both.
+
+**Page numbers** are read as a Chinese keyboard types them too: 1-3，5, 1-3、5,
+full-width digits, 1～3 and dashes, and ； between Split's groups.
 
 **Fonts**: Chinese typed on a page needs the 1.4 MB common font first, and the
 16 MB font only for rarer characters ([Supported input](#supported-input)).
@@ -287,7 +296,8 @@ tracked tighter or slanted, and break evenly (`:lang(zh)` at the end of
 
 And the terms: flatten 拼合; annotation 批注; redact 涂黑; opacity 不透明度;
 point (pt) 磅; page labels 页码标签; bookmark 书签; preset 预设; the page strip
-页面列表; Fit 适合; Undo/Redo 撤销/重做.
+页面列表; Fit 适合; Undo/Redo 撤销/重做; pages put on sheets 排 (排到纸上, not
+拼, which is flatten's); the sample 示例文档.
 
 `tests/browser/chinese.spec.mjs` goes through the Chinese site in every
 browser: the choice and its memory, the editor's notices, download names, the
