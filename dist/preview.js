@@ -34,6 +34,7 @@ import {
   watermarkText,
 } from './layout.js';
 import { characterSet, fontFile, measuringFont } from './pdf-engine.js';
+import { userError } from './i18n.js';
 
 // Resolve assets beside this module, including GitHub Pages project subpaths.
 const assetUrl = (path) => new URL(path, import.meta.url).href;
@@ -142,9 +143,10 @@ export function previewFont(kind) {
           entry.font = font;
         },
         (error) => {
-          entry.error = error?.message?.startsWith('The ')
+          // A message of the engine's own (userError), or what it says when a download fails.
+          entry.error = error?.text
             ? error
-            : new Error('The font for this text could not be loaded. Check your connection, then try again.');
+            : userError('The font for this text could not be loaded. Check your connection, then try again.');
           entry.failedAt = Date.now();
         },
       )

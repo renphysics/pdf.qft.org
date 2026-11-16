@@ -14,7 +14,8 @@ test('loads one versioned release and builds downloads in the export worker', as
   const { bytes } = await download(page, () => page.click('#download-button'));
   expect((await pdfText(bytes))[0]).toContain('Release café 中文 123');
   expect(
-    workers.some((url) => /export-worker\.js\?v=[0-9a-f]{12}$/.test(url)),
+    // In the page's language (documents.js), here English.
+    workers.some((url) => /export-worker\.js\?v=[0-9a-f]{12}&lang=en$/.test(url)),
     'the export ran in the versioned worker',
   ).toBe(true);
 

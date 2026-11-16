@@ -11,39 +11,52 @@ import { $, clamp, friendly, icon, state, toast, ui } from './editor-core.js';
 import { change } from './history.js';
 import { batchLink, numberField, renderTool, selectField } from './tool-panel.js';
 import { choosePage } from './pages.js';
+import { sentences, t, tn } from './i18n.js';
 
 export function fields() {
   return (
-    '<div class="scope-note wide">Margins are percentages of each page’s <strong>current visible area</strong>. The outlined area is kept.</div><div class="field-row">' +
-    numberField('Top (%)', 'top', 0, 99, 0.1) +
-    numberField('Bottom (%)', 'bottom', 0, 99, 0.1) +
+    '<div class="scope-note wide">' +
+    t(
+      'Margins are percentages of each page’s <strong>current visible area</strong>. The outlined area is kept.',
+    ) +
     '</div><div class="field-row">' +
-    numberField('Left (%)', 'left', 0, 99, 0.1) +
-    numberField('Right (%)', 'right', 0, 99, 0.1) +
+    numberField(t('Top (%)'), 'top', 0, 99, 0.1) +
+    numberField(t('Bottom (%)'), 'bottom', 0, 99, 0.1) +
+    '</div><div class="field-row">' +
+    numberField(t('Left (%)'), 'left', 0, 99, 0.1) +
+    numberField(t('Right (%)'), 'right', 0, 99, 0.1) +
     '</div>' +
     selectField(
-      'Apply to',
+      t('Apply to'),
       'scope',
       [
-        ['current', 'Current page'],
-        ['all', 'Every page'],
-        ['selected', 'Selected pages'],
+        ['current', t('Current page')],
+        ['all', t('Every page')],
+        ['selected', t('Selected pages')],
       ],
       true,
     ) +
     '<p id="crop-summary" class="field-hint wide" aria-live="polite"></p>' +
     '<button type="submit" class="button primary">' +
     icon('crop') +
-    'Crop to the outlined area</button>' +
-    '<button type="button" class="button secondary" data-action="clear-crop-margins">Clear margins</button><button type="button" class="button subtle" data-action="restore-crop">Restore original crop for scope</button><p class="field-hint wide">Cropping hides content outside the boundary; it does not securely remove it. Text and graphics keep their original quality.' +
-    (state.pages.some((page) => page.paper)
-      ? ' A resized page stays on its sheet: what you keep of it is fitted to the sheet again.'
-      : '') +
+    t('Crop to the outlined area') +
+    '</button><button type="button" class="button secondary" data-action="clear-crop-margins">' +
+    t('Clear margins') +
+    '</button><button type="button" class="button subtle" data-action="restore-crop">' +
+    t('Restore original crop for scope') +
+    '</button><p class="field-hint wide">' +
+    sentences(
+      t(
+        'Cropping hides content outside the boundary; it does not securely remove it. Text and graphics keep their original quality.',
+      ),
+      state.pages.some((page) => page.paper) &&
+        t('A resized page stays on its sheet: what you keep of it is fitted to the sheet again.'),
+    ) +
     '</p>' +
     batchLink(
       ui.lastCropPreset && !cropDraftActive()
-        ? 'Reuse last applied crop in batch'
-        : 'Use these settings in batch',
+        ? t('Reuse last applied crop in batch')
+        : t('Use these settings in batch'),
     )
   );
 }
@@ -77,7 +90,7 @@ export function cropValues() {
     margins.left + margins.right >= 0.99 ||
     margins.top + margins.bottom >= 0.99
   )
-    throw new Error('Keep more than 1% of the width and height. Reduce the crop margins.');
+    throw new Error(t('Keep more than 1% of the width and height. Reduce the crop margins.'));
   return margins;
 }
 /** Outline the area to keep on the pages the crop applies to (and on the page being dragged on). */
@@ -89,12 +102,10 @@ export function updateCropOverlays() {
     try {
       crop = cropValues();
       if (summary)
-        summary.textContent =
-          'Keep ' +
-          ((1 - crop.left - crop.right) * 100).toFixed(1) +
-          '% of width × ' +
-          ((1 - crop.top - crop.bottom) * 100).toFixed(1) +
-          '% of height.';
+        summary.textContent = t('Keep {width}% of width × {height}% of height.', {
+          width: ((1 - crop.left - crop.right) * 100).toFixed(1),
+          height: ((1 - crop.top - crop.bottom) * 100).toFixed(1),
+        });
     } catch (error) {
       if (summary) summary.textContent = error.message;
     }
@@ -117,7 +128,7 @@ export function scopedPages(value) {
   if (value === 'all') return 'all';
   if (value === 'current') return [ui.activeId];
   const ids = state.pages.filter((p) => ui.selected.has(p.id)).map((p) => p.id);
-  if (!ids.length) throw new Error('Select at least one page in the page strip, or choose Every page.');
+  if (!ids.length) throw new Error(t('Select at least one page in the page strip, or choose Every page.'));
   return ids;
 }
 function applyCrop() {
@@ -125,7 +136,7 @@ function applyCrop() {
     const margins = cropValues(),
       scope = scopedPages(ui.cropDraft.scope);
     if (!Object.values(margins).some((value) => value > 0))
-      throw new Error('Set a margin or drag an area to keep before cropping.');
+      throw new Error(t('Set a margin or drag an area to keep before cropping.'));
     // The margins are of what each page shows. A resized page shows its sheet,
     // and the crop is of the page on it (layout.js: sheetCrop); where the outline
     // only leaves out blank sheet, there is nothing to crop.
@@ -142,18 +153,21 @@ function applyCrop() {
       };
       if (cut.left + cut.right >= 1 || cut.top + cut.bottom >= 1)
         throw refuse(
-          'On page ' +
-            (state.pages.indexOf(page) + 1) +
-            ', the outlined area is on the blank part of its sheet. Outline part of the page itself.',
+          t(
+            'On page {page}, the outlined area is on the blank part of its sheet. Outline part of the page itself.',
+            { page: state.pages.indexOf(page) + 1 },
+          ),
         );
       if ((1 - cut.left - cut.right) * own.width < 1 || (1 - cut.top - cut.bottom) * own.height < 1)
-        throw refuse('The cropped page must be at least 1 PDF point wide and high.');
+        throw refuse(t('The cropped page must be at least 1 PDF point wide and high.'));
       if (Object.values(cut).some((value) => value > 0)) cuts.set(page, cut);
     }
     const targets = [...cuts.keys()];
     if (!targets.length)
       throw new Error(
-        'The outlined area keeps the whole page: only blank sheet lies outside it. Outline less of the page.',
+        t(
+          'The outlined area keeps the whole page: only blank sheet lies outside it. Outline less of the page.',
+        ),
       );
     change(
       () => {
@@ -174,12 +188,12 @@ function applyCrop() {
           };
         }
       },
-      { layout: true, label: 'Crop' },
+      { layout: true, label: t('Crop') },
     );
     ui.lastCropPreset = margins;
     ui.cropDraft = { left: 0, top: 0, right: 0, bottom: 0, scope: ui.cropDraft.scope };
     renderTool();
-    toast(targets.length === 1 ? 'Page cropped.' : targets.length + ' pages cropped.');
+    toast(tn(targets.length, 'Page cropped.', '{count} pages cropped.'));
   } catch (error) {
     toast(friendly(error), true);
   }

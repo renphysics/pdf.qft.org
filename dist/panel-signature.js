@@ -16,41 +16,51 @@ import { number } from './layout.js';
 import { $, announceMessage, friendly, icon, tapOrClick, toast, touch, ui } from './editor-core.js';
 import { overlayItem } from './page-view.js';
 import { makeField, rangeField, renderTool, resizeImageTo } from './tool-panel.js';
+import { t } from './i18n.js';
 
 const INK = [
-  ['#141414', 'Black'],
-  ['#1d3f9e', 'Blue'],
+  ['#141414', t('Black')],
+  ['#1d3f9e', t('Blue')],
 ];
+// Letters the handwriting font draws; any other writing in a typed name (Chinese, say) is drawn in a plain font.
+const HANDWRITTEN = /^[\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]*$/u;
 function signatureFields(item, index) {
   if (item?.type === 'signature')
     return (
-      rangeField('Width', 'width', 2, 100) +
-      '<p class="field-hint wide">Drag the signature to move it, or a corner to resize it. Arrow keys move it, and with Alt they resize it.</p>' +
-      '<button type="button" class="button secondary" data-action="signature-copy">' +
+      rangeField(t('Width'), 'width', 2, 100) +
+      '<p class="field-hint wide">' +
+      t(
+        'Drag the signature to move it, or a corner to resize it. Arrow keys move it, and with Alt they resize it.',
+      ) +
+      '</p><button type="button" class="button secondary" data-action="signature-copy">' +
       icon('pages') +
-      'Put it here on every page</button>' +
-      '<button type="button" class="button danger" data-action="delete-item">' +
+      t('Put it here on every page') +
+      '</button><button type="button" class="button danger" data-action="delete-item">' +
       icon('trash') +
-      'Delete signature</button>'
+      t('Delete signature') +
+      '</button>'
     );
   if (ui.signature)
     return (
       '<div class="signature-preview wide"><img src="' +
       signatureUrl() +
-      '" alt="Your signature"></div>' +
-      '<button type="button" class="button primary" data-action="signature-place">' +
+      '" alt="' +
+      t('Your signature') +
+      '"></div><button type="button" class="button primary" data-action="signature-place">' +
       icon('plus') +
-      'Add it to page <span data-current-page>' +
-      (index + 1) +
-      '</span>' +
+      t('Add it to page {page}', { page: '<span data-current-page>' + (index + 1) + '</span>' }) +
       '</button><button type="button" class="button secondary" data-action="signature-place-all">' +
       icon('pages') +
-      'Add it to every page</button>' +
-      '<p class="field-hint wide">Or click the page where it belongs.</p>' +
-      '<label class="check-field wide"><input type="checkbox" name="keepSignature"' +
+      t('Add it to every page') +
+      '</button><p class="field-hint wide">' +
+      t('Or click the page where it belongs.') +
+      '</p><label class="check-field wide"><input type="checkbox" name="keepSignature"' +
       (ui.signatureKept ? ' checked' : '') +
-      '> Keep it on this device for next time</label>' +
-      '<button type="button" class="button subtle" data-action="signature-new">Make a new signature</button>'
+      '> ' +
+      t('Keep it on this device for next time') +
+      '</label><button type="button" class="button subtle" data-action="signature-new">' +
+      t('Make a new signature') +
+      '</button>'
     );
   const draft = ui.signatureDraft;
   const choice = (name, options, current, legend) =>
@@ -73,39 +83,50 @@ function signatureFields(item, index) {
       .join('') +
     '</div></fieldset>';
   const modes = [
-    ['draw', 'Draw'],
-    ['type', 'Type'],
-    ['upload', 'Upload'],
+    ['draw', t('Draw')],
+    ['type', t('Type')],
+    ['upload', t('Upload')],
   ];
-  let fields = choice('signatureMode', modes, draft.mode, 'Make your signature');
+  let fields = choice('signatureMode', modes, draft.mode, t('Make your signature'));
   if (draft.mode === 'draw')
     fields +=
-      '<div class="signature-pad-wrap wide"><canvas id="signature-pad" class="signature-pad" role="img" aria-label="Signature drawing area" aria-describedby="signature-pad-hint"></canvas></div>' +
-      '<p class="field-hint wide" id="signature-pad-hint">' +
-      (touch() ? 'Sign with your finger or a pen.' : 'Sign with your mouse, trackpad or pen.') +
-      '</p><button type="button" class="button subtle" data-action="signature-clear">Clear</button>';
+      '<div class="signature-pad-wrap wide"><canvas id="signature-pad" class="signature-pad" role="img" aria-label="' +
+      t('Signature drawing area') +
+      '" aria-describedby="signature-pad-hint"></canvas></div><p class="field-hint wide" id="signature-pad-hint">' +
+      (touch() ? t('Sign with your finger or a pen.') : t('Sign with your mouse, trackpad or pen.')) +
+      '</p><button type="button" class="button subtle" data-action="signature-clear">' +
+      t('Clear') +
+      '</button>';
   else if (draft.mode === 'type')
     fields +=
       makeField(
-        'Your name',
-        '<input name="signatureText" type="text" maxlength="60" autocomplete="name" spellcheck="false">',
+        t('Your name'),
+        '<input name="signatureText" type="text" maxlength="60" autocomplete="name" spellcheck="false" aria-describedby="signature-typed-note">',
         true,
-      ) + '<div class="signature-typed wide" id="signature-typed" aria-hidden="true"></div>';
+      ) +
+      '<div class="signature-typed wide" id="signature-typed" aria-hidden="true"></div>' +
+      '<p class="field-hint wide" id="signature-typed-note" hidden>' +
+      t('The handwriting style has Latin letters only: the rest of your name is drawn in a plain font.') +
+      '</p>';
   else
     fields +=
       '<button type="button" class="button primary" data-action="signature-choose">' +
       icon('image') +
-      'Choose a picture of it</button>' +
-      '<label class="check-field wide"><input type="checkbox" name="removeBackground"' +
+      t('Choose a picture of it') +
+      '</button><label class="check-field wide"><input type="checkbox" name="removeBackground"' +
       (draft.removeBackground ? ' checked' : '') +
-      '> Make the paper transparent</label>' +
-      '<p class="field-hint wide">A PNG or JPG of your signature on light paper.</p>';
+      '> ' +
+      t('Make the paper transparent') +
+      '</label><p class="field-hint wide">' +
+      t('A PNG or JPG of your signature on light paper.') +
+      '</p>';
   if (draft.mode !== 'upload')
     fields +=
-      choice('signatureColor', INK, draft.color, 'Ink') +
+      choice('signatureColor', INK, draft.color, t('Ink')) +
       '<button type="button" class="button primary" data-action="signature-use">' +
       icon('check') +
-      'Use this signature</button>';
+      t('Use this signature') +
+      '</button>';
   return fields;
 }
 let signatureObjectUrl = null;
@@ -139,9 +160,11 @@ function attachSignatureTools() {
 function updateTypedSignature() {
   const node = $('#signature-typed');
   if (!node) return;
-  node.textContent = ui.signatureDraft.text.trim() || 'Your name';
+  node.textContent = ui.signatureDraft.text.trim() || t('Your name');
   node.classList.toggle('empty', !ui.signatureDraft.text.trim());
   node.style.color = ui.signatureDraft.color;
+  const note = $('#signature-typed-note');
+  if (note) note.hidden = HANDWRITTEN.test(ui.signatureDraft.text);
 }
 function updateSignatureButton() {
   const button = $('[data-action="signature-use"]');
@@ -153,8 +176,8 @@ export function setSignature(signature) {
   ui.signature = signature;
   if (ui.signatureKept && !saveSignature(signature)) {
     ui.signatureKept = false;
-    toast('This browser could not keep your signature. It stays until you close this tab.', true);
-  } else toast(tapOrClick('Your signature is ready. Click the page where it belongs.'));
+    toast(t('This browser could not keep your signature. It stays until you close this tab.'), true);
+  } else toast(tapOrClick(t('Your signature is ready. Click the page where it belongs.')));
   renderTool();
 }
 export async function useSignature() {
@@ -169,15 +192,17 @@ export async function useSignature() {
 }
 function keepSignature(keep) {
   if (keep && ui.signature && !saveSignature(ui.signature)) {
-    toast('This browser could not keep your signature. It stays until you close this tab.', true);
+    toast(t('This browser could not keep your signature. It stays until you close this tab.'), true);
     keep = false;
   }
   if (!keep) forgetSignature();
   ui.signatureKept = keep;
-  announceMessage(keep ? 'Your signature will be kept on this device.' : 'Your signature is no longer kept.');
+  announceMessage(
+    keep ? t('Your signature will be kept on this device.') : t('Your signature is no longer kept.'),
+  );
 }
 export function title(item) {
-  return item?.type === 'signature' ? 'Edit signature' : null;
+  return item?.type === 'signature' ? t('Edit signature') : null;
 }
 export function fields(item, index) {
   return signatureFields(item, index);

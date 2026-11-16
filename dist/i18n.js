@@ -28,13 +28,15 @@ export const LANGUAGE = /^zh(-|$)/i.test(declared) ? 'zh' : 'en';
 const catalog = LANGUAGE === 'zh' ? await import('./i18n-zh.js') : null;
 
 const IDEOGRAPH = /[\u3400-\u9fff\uf900-\ufaff]/;
-const LATIN = /[A-Za-z0-9]/;
+const LATIN = /[A-Za-z]/;
 /**
  * `text` with each {name} replaced by params[name]; a name without a value
- * stays as it is. Where a value that starts or ends with Latin letters or
- * digits meets a Chinese character of the text, a space goes between them, as
- * the catalog writes "打开 PDF": "因为{reasons}" with "PDF/A..." reads
- * "因为 PDF/A...". The value itself (a file name, say) is never changed.
+ * stays as it is. Where a value that starts or ends with a Latin letter meets
+ * a Chinese character of the text, a space goes between them, as the catalog
+ * writes "打开 PDF": "因为{reasons}" with "PDF/A..." reads "因为 PDF/A...".
+ * (The catalog writes the spaces around numbers itself, "第 {page} 页", and
+ * leaves them out where a number is part of a file name, "-第{number}页".)
+ * The value itself (a file name, say) is never changed.
  */
 export function fill(text, params) {
   if (!params) return text;
