@@ -27,7 +27,8 @@ test('the search and the dialogs need none of the editor; opening a file loads i
   await page.locator('[data-action="tools-home"]').first().dispatchEvent('click');
   await expect(page.locator('#tools-title')).toBeFocused();
   expect(scripts.filter((path) => EDITOR.test(path))).toEqual([]);
-  // language.js runs before the page shows; i18n.js finds the page English and loads no catalog.
+  // language.js runs before the page shows; an English page loads no catalog (zh.js and
+  // i18n-zh.js are a Chinese page's).
   expect([...new Set(scripts)].sort()).toEqual([
     '/app.js',
     '/editor-core.js',

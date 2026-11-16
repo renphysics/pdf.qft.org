@@ -119,13 +119,15 @@ const preloads = {
   '': (sources['index.html'].match(preloadLink('./')) || []).length,
   'zh/': (sources['zh/index.html'].match(preloadLink('../')) || []).length,
 };
-/** A page's rules: its stylesheets, language.js and app.js, its preloads and the engines' links. */
+/** A page's rules: its stylesheets, language.js, zh.js and app.js, its preloads and the engines' links. */
 const pageRules = (name) => {
   const up = pattern(upFrom(name));
   return [
     [new RegExp(`(href="${up}(?:style|studio|batch)\\.css)"`, 'g'), `$1?v=${release}"`, 3],
     [new RegExp(`(src="${up}language\\.js)"`, 'g'), `$1?v=${release}"`, 1],
     [new RegExp(`(src="${up}app\\.js)"`, 'g'), `$1?v=${release}"`, 1],
+    // A Chinese page's first module, which hands i18n.js the catalog (zh.js).
+    [new RegExp(`(src="${up}zh\\.js)"`, 'g'), `$1?v=${release}"`, name.startsWith('zh/') ? 1 : 0],
     [preloadLink(upFrom(name)), `$1?v=${release}"`, preloads[name.startsWith('zh/') ? 'zh/' : '']],
     [new RegExp(`(href="${up}assets\\/vendor\\/pdf\\.mjs)"`, 'g'), `$1?v=${pdfjs}"`, 1],
     [new RegExp(`(href="${up}assets\\/vendor\\/pdf-lib\\.min\\.js)"`, 'g'), `$1?v=${pdfLib}"`, 1],

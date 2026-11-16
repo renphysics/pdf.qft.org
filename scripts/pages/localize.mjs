@@ -52,6 +52,23 @@ export function shellTexts(html, same = new Set()) {
   return found;
 }
 
+// Chinese, and its punctuation; the inline tags a heading puts between its words.
+const CHINESE = '\\p{Script=Han}，。、：；！？“”‘’（）《》…—';
+const INLINE = '<\\/?(?:br|em|strong)\\b[^>]*>';
+const SPACED = new RegExp(
+  `([${CHINESE}])((?:${INLINE})*) +((?:${INLINE})*)(?=[${CHINESE}]|(?:${INLINE})+[${CHINESE}])`,
+  'gu',
+);
+/**
+ * Chinese without the spaces the template puts between its words: where two
+ * Chinese texts meet across <br> or <em>, "从打开<br> 到 <em>完成。</em>" reads
+ * "从打开<br>到<em>完成。</em>". A space beside a Latin word stays, and so does
+ * a line break between elements.
+ */
+export function withoutSpacesBetweenChinese(html) {
+  return html.replace(SPACED, '$1$2$3');
+}
+
 /**
  * The template in another language: `dictionary` maps each English text to
  * its translation; `same` lists texts that stay as they are (QFT PDF). Throws,

@@ -4,8 +4,9 @@
  * counterparts, under zh/, are written by scripts/build-pages.mjs. Code keeps
  * its English text and asks t() for it. On a Chinese page the Chinese catalog
  * (i18n-zh.js), which only Chinese pages load, gives the Chinese for each
- * English text; everywhere else (English pages, Node) the English is used as
- * it is. The export worker works in its page's language.
+ * English text (zh.js hands it over, useCatalog); everywhere else (English
+ * pages, Node) the English is used as it is. The export worker works in its
+ * page's language.
  *
  * A text names the values it takes as {name}: t('{count} pages', { count }).
  * English plurals are two texts (tn), which the catalog may give one Chinese.
@@ -25,9 +26,17 @@ const declared = String(
 export const LANGUAGE = /^zh(-|$)/i.test(declared) ? 'zh' : 'en';
 /** How dates are written: in Chinese on a Chinese page, else as the browser writes them. */
 export const LOCALE = LANGUAGE === 'zh' ? 'zh-CN' : undefined;
-// Every module that imports this one waits for the catalog, so a module's own
-// constants are in the page's language too.
-const catalog = LANGUAGE === 'zh' ? await import('./i18n-zh.js') : null;
+let catalog = null;
+/**
+ * Use the Chinese catalog (the module i18n-zh.js) from now on. A Chinese page
+ * hands it over in zh.js, its first module, before any other module of the
+ * page runs; the export worker before it says it is ready. Not with an await
+ * here: a page waits for its modules before it has loaded, but not for what
+ * they await, and its buttons would do nothing until the catalog came.
+ */
+export function useCatalog(words) {
+  catalog = words;
+}
 
 const IDEOGRAPH = /[\u3400-\u9fff\uf900-\ufaff]/;
 const LATIN = /[A-Za-z]/;

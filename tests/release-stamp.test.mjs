@@ -97,6 +97,13 @@ await test('every page loads the same versioned release: app.js, the stylesheets
     const page = await read(name);
     const up = upFrom(name);
     assert(page.includes(`src="${up}app.js?v=${release}"`), `${name} loads the release's app.js`);
+    // A Chinese page hands i18n.js the catalog in zh.js, its first module, before app.js runs.
+    const first = `<script type="module" src="${up}zh.js?v=${release}"></script>\n  <script type="module" src="${up}app.js`;
+    assert.equal(
+      page.includes(first),
+      name.startsWith('zh/'),
+      `${name}: zh.js before app.js on a Chinese page only`,
+    );
     assert(page.includes(`<script src="${up}language.js?v=${release}"></script>`), `${name}: language.js`);
     for (const sheet of ['style', 'studio', 'batch'])
       assert(page.includes(`href="${up}${sheet}.css?v=${release}"`), `${name} ${sheet}.css versioned`);
@@ -195,12 +202,13 @@ await test('every versioned reference points at a real file, and every reference
     }
   }
   // 5 per page (home and tools, in English and in Chinese: three stylesheets, language.js and
-  // app.js) plus its preloads (the editor's in the warm-editor template too, and the catalog on a
+  // app.js), zh.js on a Chinese page, plus its preloads (the editor's in the warm-editor template too, and the catalog on a
   // Chinese page) and the two engines in warm-engines, 3 on the licenses page (its own stylesheet
   // too), every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit
   // URLs, and three fonts.
   let expected = 3 + 4 + 3;
-  for (const name of pages) expected += 5 + preloadsOf(await read(name), upFrom(name)).length + 2;
+  for (const name of pages)
+    expected += 5 + (name.startsWith('zh/') ? 1 : 0) + preloadsOf(await read(name), upFrom(name)).length + 2;
   for (const name of modules)
     expected += [
       ...(await readFile(path.join(site, name), 'utf8')).matchAll(
@@ -229,6 +237,7 @@ await test('stamping fails on a page that lost a link it is expected to version'
     [tool, '<link rel="modulepreload" href="../documents.js">', /expected \d+ match.*modulepreload/],
     [chinese, '<link rel="modulepreload" href="../../i18n-zh.js">', /expected \d+ match.*modulepreload/],
     [chinese, '<script src="../../language.js"></script>', /expected 1 match.*language/],
+    [chinese, '<script type="module" src="../../zh.js"></script>', /expected 1 match.*zh/],
   ];
   for (const [index, [file, lost, message]] of cases.entries()) {
     const copy = await copySite(`lost-${index}`);

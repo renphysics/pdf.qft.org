@@ -32,7 +32,7 @@ import { TOOLS as TOOLS_ZH } from '../dist/i18n-zh.js';
 import { TOOLS, TOOL_PAGES } from '../dist/routes.js';
 import { PAGES } from './pages/content.mjs';
 import { HOME_ZH, PAGES_ZH, WORDS_ZH } from './pages/content-zh.mjs';
-import { localizeShell } from './pages/localize.mjs';
+import { localizeShell, withoutSpacesBetweenChinese } from './pages/localize.mjs';
 import { SAME_IN_CHINESE, SHELL_ZH } from './pages/shell-zh.mjs';
 
 const ORIGIN = 'https://pdf.qft.org/';
@@ -157,10 +157,16 @@ function staticModules(entry = 'app.js') {
  */
 function withPreloads(html, language = 'en') {
   const shell = staticModules();
-  // A Chinese page also needs the Chinese catalog, which i18n.js imports only there.
+  // A Chinese page also needs the Chinese catalog, which zh.js hands to i18n.js
+  // before app.js runs (dist/zh.js).
   const links = [...shell, ...(language === 'zh' ? ['i18n-zh.js'] : [])].map(
     (name) => `\n  <link rel="modulepreload" href="./${name}">`,
   );
+  if (language === 'zh') {
+    const app = '<script type="module" src="./app.js"></script>';
+    if (!html.includes(app)) throw new Error(`index.html has no ${app}.`);
+    html = html.replace(app, `<script type="module" src="./zh.js"></script>\n  ${app}`);
+  }
   const editor = staticModules('editor.js').filter((name) => !shell.includes(name));
   const warm = [
     '\n  <template id="warm-editor">',
@@ -416,7 +422,10 @@ function chineseHome(template) {
 
 const source = await readFile(path.join(site, 'index.html'), 'utf8');
 const template = withPreloads(withTools(source));
-const chinese = withPreloads(withTools(localizeShell(source, SHELL_ZH, SAME_IN_CHINESE), 'zh'), 'zh');
+const chinese = withPreloads(
+  withTools(withoutSpacesBetweenChinese(localizeShell(source, SHELL_ZH, SAME_IN_CHINESE)), 'zh'),
+  'zh',
+);
 const englishPages = PAGES.map((page) => toolPage(template, page, 'en'));
 // Every English tool page has its Chinese counterpart, and the other way round.
 const missing = PAGES.filter((page) => !PAGES_ZH.some((zh) => zh.tool === page.tool)).map(

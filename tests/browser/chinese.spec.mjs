@@ -3,7 +3,17 @@
 // named in Chinese, the search reads Chinese, and Chinese text in a PDF needs
 // the 1.4 MB common font, not the 16 MB one.
 import AxeBuilder from '@axe-core/playwright';
-import { test, expect, expectToast, openSample, useTool, download, pdfText } from './helpers.mjs';
+import {
+  test,
+  expect,
+  expectToast,
+  fixture,
+  openSample,
+  ready,
+  useTool,
+  download,
+  pdfText,
+} from './helpers.mjs';
 
 const KEY = 'qft-pdf-language';
 const chosen = (page) => page.evaluate((key) => localStorage.getItem(key), KEY);
@@ -40,6 +50,19 @@ test.describe('with a browser that prefers Chinese', () => {
   });
 });
 
+test('a Chinese page works once it has loaded, however slow its catalog', async ({ page }) => {
+  // The catalog comes in zh.js, the page's first module, which the page waits for before
+  // it has loaded; an await in i18n.js would have left the file below unopened.
+  await page.route('**/i18n-zh.js*', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+  await page.goto('./zh/merge-pdf/');
+  await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
+  await ready(page);
+  await expect(page.locator('#tool-panel h2').first()).toHaveText('合并 PDF');
+});
+
 test('the editor speaks Chinese, and a download is named in Chinese', async ({ page }) => {
   const fonts = [];
   page.on('request', (request) => {
@@ -57,7 +80,10 @@ test('the editor speaks Chinese, and a download is named in Chinese', async ({ p
   const { name, bytes } = await download(page, () => page.click('#download-button'));
   expect(name).toBe('示例文档-已加水印.pdf');
   await expectToast(page, '已下载编辑后的 PDF。');
-  expect((await pdfText(bytes)).join(' ')).toContain('草稿');
+  // The Chinese sample (scripts/create-sample-zh.py), with the watermark on it.
+  const text = (await pdfText(bytes)).join(' ');
+  expect(text).toContain('留一点空间');
+  expect(text).toContain('草稿');
   // Chinese in the PDF: the common font of GB 2312 (1.4 MB), not the full one (16 MB).
   expect(fonts).toContain('NotoSansCJKsc-GB2312.woff2');
   expect(fonts).not.toContain('NotoSansCJKsc-Regular.otf');

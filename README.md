@@ -233,10 +233,14 @@ template without Chinese, and on Chinese no longer used.
 (`dist/i18n.js`): `t('Page {page} of {total}', { page, total })`, `tn()` for
 English plurals, `sentences()` and `listOf()` to join sentences and lists as
 each language does, `userError()` for errors a visitor reads. Messages are
-whole sentences with values, never English pieces put together. On a Chinese
-page, `i18n.js` loads the catalog, `dist/i18n-zh.js`, before any module that
-asks for words runs; English pages never download it. The export worker is
-told its page's language in its address (`export-worker.js?lang=zh`).
+whole sentences with values, never English pieces put together. A Chinese
+page lists `dist/zh.js` before `app.js`: it hands `i18n.js` the catalog,
+`dist/i18n-zh.js`, before any module that asks for words runs, and the page
+waits for it before it has loaded, so its buttons work at once, as on an
+English page (an `await` in `i18n.js` would not hold the page back, and a
+click could come before the editor listened). English pages never download
+the catalog. The export worker is told its page's language in its address
+(`export-worker.js?lang=zh`) and loads the catalog before it says it is ready.
 
 To add or change a text: write it in English with `t()` in the code, then its
 Chinese in `dist/i18n-zh.js`, under the module's heading. `npm test`
@@ -249,11 +253,18 @@ the English.
 -第1部分 (a part of a split), -第1页 (a picture), -每张2页, -已处理 and
 -批量处理 (a batch), 文档 for a document without a name.
 
+**The sample.** “试用示例文档” opens the sample's three pages in Chinese
+(`dist/assets/sample-zh.pdf`, 53 KB), as 示例文档.pdf. `python3 -I
+scripts/create-sample-zh.py` writes it from the fonts in `dist/assets/fonts`,
+with the English sample's layout and colours; `tests/sample.test.mjs` reads it
+back.
+
 **Search** reads Chinese (`routes.js`): a run of Chinese is a word of its own
 beside letters, found whole in a card's words or in parts of two characters or
 more, without words that name no tool (文件, 怎么, 把...); English works there
-too. Each search note has its Chinese in `NOTES` (`i18n-zh.js`), and
-`tests/search-zh.test.mjs` checks both.
+too. Each search note has its Chinese in `NOTES` (`i18n-zh.js`): 缩小, as
+shrink does, brings the note that the site can't compress beside Resize
+pages. `tests/search-zh.test.mjs` checks both.
 
 **Fonts**: Chinese typed on a page needs the 1.4 MB common font first, and the
 16 MB font only for rarer characters ([Supported input](#supported-input)).
@@ -734,6 +745,9 @@ and test fixtures. It requires Python `reportlab` and `pypdf`, plus
 `QFT_SAMPLE_FONT_DIR` pointing to a directory with NotoSans-Regular.ttf,
 NotoSans-Bold.ttf, and NotoSerif-Regular.ttf. The ready-to-use sample and fixtures
 are included. Disposable PDF/PNG test output is excluded from Git.
+`scripts/create-sample-zh.py` writes the Chinese sample (`dist/assets/sample-zh.pdf`)
+with Python `reportlab` and `fontTools` and the fonts in `dist/assets/fonts`; it
+writes the same bytes each time.
 
 `scripts/social-card/render.mjs` regenerates the link-preview image
 (`dist/assets/social-card.png`, referenced by the Open Graph tags; with `zh`,

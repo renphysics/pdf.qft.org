@@ -133,3 +133,36 @@ test('a search note’s links lead to the tools’ pages, from the home page and
   await expect(page).toHaveURL(/\/pdf\.qft\.org\/delete-pages-from-pdf\/$/);
   await expect(page.locator('#landing h1')).toContainText('Delete pages');
 });
+
+test('the Chinese pages under the project path: the release’s catalog, a worker in Chinese, the choice remembered', async ({
+  page,
+}) => {
+  const requests = [],
+    workers = [];
+  page.on('request', (request) => requests.push(new URL(request.url())));
+  page.on('worker', (worker) => workers.push(worker.url()));
+  await openSample(page, 'zh/add-text-to-pdf/');
+  await page.click('[data-action="add-text"]');
+  await page.keyboard.type('发布版 中文');
+  await page.keyboard.press('Escape');
+  const { name, bytes } = await download(page, () => page.click('#download-button'));
+  expect(name).toBe('示例文档-已编辑.pdf');
+  expect((await pdfText(bytes))[0]).toContain('发布版 中文');
+  expect(
+    workers.some((url) => /export-worker\.js\?v=[0-9a-f]{12}&lang=zh$/.test(url)),
+    'the export ran in the versioned worker, in Chinese',
+  ).toBe(true);
+  for (const file of ['i18n-zh.js', 'language.js', 'NotoSansCJKsc-GB2312.woff2'])
+    expect(
+      requests.some((url) => url.pathname.endsWith('/' + file) && /^\?v=[0-9a-f]{12}$/.test(url.search)),
+      `${file} is asked for under the release's version`,
+    ).toBe(true);
+  // language.js finds the site's root under the project path.
+  await page.goto('zh/merge-pdf/');
+  await page.locator('.language-link').click();
+  await expect(page).toHaveURL(/\/pdf\.qft\.org\/merge-pdf\/$/);
+  await page.locator('.language-link').click();
+  await expect(page).toHaveURL(/\/pdf\.qft\.org\/zh\/merge-pdf\/$/);
+  await page.goto('split-pdf/');
+  await expect(page).toHaveURL(/\/pdf\.qft\.org\/zh\/split-pdf\/$/);
+});

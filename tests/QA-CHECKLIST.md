@@ -1408,3 +1408,39 @@ source review does not replace the owner’s browser verification.
   image. So did run 54, one commit earlier. The Pages workflow, and with it
   the live job, runs only on a merge to `main`: it has not run with these
   changes.
+
+## The site in Chinese — 2026-11-16
+
+- Every page has a Simplified Chinese counterpart under `zh/` (22 pages),
+  written by `npm run pages` from the same template. English stays the
+  default: nothing guesses from the browser's language or region. The header's
+  中文 / English link is the choice, kept in this browser; once 中文 is chosen
+  an English address opens its Chinese counterpart before it shows, and a
+  Chinese address never redirects. With unsaved work the link asks first.
+- Every word the editor shows comes from the catalog (`dist/i18n-zh.js`):
+  notices, panels, dialogs, undo steps, errors from the engine and from the
+  export worker (which is told its page's language), the batch workspace and
+  the help and privacy dialogs. Messages are whole sentences with values, not
+  English pieces put together, so the Chinese reads in its own order.
+  `tests/i18n.test.mjs` fails on a text without Chinese, on Chinese no code
+  asks for, and on Chinese that names other values than the English.
+- Downloads are named in Chinese on a Chinese page (报告-已合并.pdf,
+  -已加水印, -第1部分, -第1页, -每张2页, -已处理...).
+- The search reads Chinese: a run of Chinese is found whole in a card's words,
+  or in parts of two characters or more, without words such as 文件 and 怎么;
+  "打码" no longer finds 打开 and 密码. The notes on what the site can't do
+  have Chinese of their own.
+- The common Chinese font: every character of GB 2312 (6,763 hanzi and its
+  symbols) with ASCII, Latin-1 and punctuation, 1.4 MB as WOFF2. Chinese text
+  fetches it first, and the 16 MB font only for characters outside it.
+  `tests/fonts.test.mjs` compares the width of each of its 7,858 characters
+  with the full font's (no difference) and counts the fonts a download fetches.
+- Chinese typography: system Chinese fonts after the site's Latin ones, no
+  tight tracking or italics for Chinese, balanced headings, a Chinese sharing
+  card. Under 340 px an English header shows the mark alone, so 中文 fits.
+- `tests/browser/chinese.spec.mjs`, in Chromium, WebKit and Firefox: the
+  choice and its memory with a browser that prefers Chinese, the editor's
+  notices, download names, the fonts fetched, the search, leaving with unsaved
+  work, axe, 320 px, and every tool's panel without English but names,
+  formats, units and keys. `tests/browser/release.spec.mjs`: the same on the
+  stamped release under `/pdf.qft.org/`.

@@ -13,7 +13,10 @@
  * language (i18n.js); an error keeps its English text and values too.
  */
 import { buildPdfWithNotes } from './pdf-engine.js';
-import { userError } from './i18n.js';
+import { LANGUAGE, useCatalog, userError } from './i18n.js';
+
+// The Chinese words, before it says it is ready. (No module calls t() as it loads.)
+if (LANGUAGE === 'zh') useCatalog(await import('./i18n-zh.js'));
 
 self.addEventListener('message', async ({ data }) => {
   const { id, state } = data;

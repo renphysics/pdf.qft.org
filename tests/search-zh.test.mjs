@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
+// The catalog, handed over as a Chinese page's first module does (dist/zh.js).
+await import('../dist/zh.js');
 const { LANGUAGE } = await import('../dist/i18n.js');
 const { SEARCH_NOTES, TOOLS, local, searchFinds, searchNote, searchText, searchWords } =
   await import('../dist/routes.js');
@@ -141,6 +143,7 @@ await test('notes: each Chinese search brings its note, in Chinese, one sentence
     ['compress', 'compress'],
     ['pdf转word', 'office'],
     ['压缩pdf', 'compress'],
+    ['缩小pdf', 'compress'],
     ['怎么压缩文件', 'compress'],
     ['文字识别', 'ocr'],
     ['打码', 'redact'],
@@ -158,7 +161,6 @@ await test('notes: each Chinese search brings its note, in Chinese, one sentence
     '电子签名',
     '图片',
     '表格',
-    '缩小',
     '删除页面',
   ].filter(Boolean))
     assert.equal(noteFor(query), null, `“${query}” brings a note`);
