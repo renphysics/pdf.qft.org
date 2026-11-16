@@ -218,24 +218,29 @@ const withoutCommon = (word) => COMMON_ZH.reduce((rest, common) => rest.replaceA
  * (COMMON_ZH): "旋转页面" is "旋转" and "页面", "合成一个" is "合成" and "一个".
  * Every way of cutting it is tried, so "图片转换成" is "图片", "转换" and "成"
  * where "图片转" is there too, and a common word is taken whole, never out of a
- * word ("合成" keeps its "成"). Single characters are too common to count apart
- * ("打码" is not "打开" and "密码").
+ * word ("合成" keeps its "成"). Failing that, it is cut again without the words
+ * that name no tool, as "转成图片" is "转图片". Single characters are too common
+ * to count apart ("打码" is not "打开" and "密码").
  */
 function hanFinds(typed, han) {
   if (han.includes(typed)) return true;
-  const known = new Map();
-  const cut = (start) => {
-    if (start === typed.length) return true;
-    if (!known.has(start)) {
-      let found = false;
-      for (let end = typed.length; end > start + 1 && !found; end--)
-        found = han.includes(typed.slice(start, end)) && cut(end);
-      for (const common of COMMON_ZH) found ||= typed.startsWith(common, start) && cut(start + common.length);
-      known.set(start, found);
-    }
-    return known.get(start);
+  const cuts = (text) => {
+    const known = new Map();
+    const cut = (start) => {
+      if (start === text.length) return true;
+      if (!known.has(start)) {
+        let found = false;
+        for (let end = text.length; end > start + 1 && !found; end--)
+          found = han.includes(text.slice(start, end)) && cut(end);
+        for (const common of COMMON_ZH)
+          found ||= text.startsWith(common, start) && cut(start + common.length);
+        known.set(start, found);
+      }
+      return known.get(start);
+    };
+    return cut(0);
   };
-  return cut(0);
+  return cuts(typed) || cuts(withoutCommon(typed));
 }
 /** What the search reads for a tool: the name and copy on its card, and its keywords. */
 export const searchText = (item) =>

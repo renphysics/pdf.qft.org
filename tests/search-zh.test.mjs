@@ -89,6 +89,13 @@ await test('cards: Chinese finds the cards it is on, whole or in parts of two ch
     ['加签名', ['signature']],
     ['加页眉', ['footer']],
     ['pdf加图片', ['text']],
+    // Failing that, cut again without the words that name no tool: 转成图片 is 转图片.
+    ['pdf转成图片', ['pdftojpg']],
+    ['把pdf转成照片', ['pdftojpg']],
+    ['添加签名', ['signature']],
+    ['添加页眉页脚', ['footer']],
+    ['添加密码', ['protect']],
+    ['添加空白页', ['pages']],
     ['把图片转为pdf', ['jpgtopdf']],
     ['pdf转图片', ['pdftojpg']],
     ['多页合一', ['sheets']],
