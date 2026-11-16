@@ -53,6 +53,9 @@ await test('the Chinese sample is the English one’s three A4 pages, in Chinese
   assert.equal(zh.getTitle(), 'QFT PDF - 留一点空间给创作');
   assert.match(zh.getSubject(), /示例文档/);
   assert.equal(zh.catalog.lookup(PDFName.of('Lang'))?.decodeText?.(), 'zh-CN');
+  // Document properties shows who made it and when: not reportlab's year 2000.
+  assert.equal(zh.getCreator(), 'QFT PDF');
+  assert.equal(zh.getCreationDate()?.toISOString(), '2026-11-15T16:00:00.000Z');
 });
 
 await test('the Chinese sample carries its own fonts, cut to its characters, and is small', async () => {

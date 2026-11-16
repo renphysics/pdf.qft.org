@@ -1444,3 +1444,20 @@ source review does not replace the owner’s browser verification.
   work, axe, 320 px, and every tool's panel without English but names,
   formats, units and keys. `tests/browser/release.spec.mjs`: the same on the
   stamped release under `/pdf.qft.org/`.
+- 试用示例文档 opens the sample's three pages in Chinese
+  (`dist/assets/sample-zh.pdf`, 53 KB, from `scripts/create-sample-zh.py`).
+  Checked by eye beside the English pages at 80 dpi: the same layout,
+  colours and drawing; Chinese wrapped between characters, no line starting
+  with ，or 。. `tests/sample.test.mjs` reads its text back word for word.
+- A Chinese page works once it has loaded. Measured before the fix: with the
+  catalog loaded by an await in `i18n.js`, Chromium fired load 113 ms before
+  app.js listened (1.5 s with a slow catalog), Firefox 1.4 s with a slow
+  catalog; WebKit 4 to 6 ms. Now `zh.js`, listed before `app.js`, hands the
+  catalog over, and the page waits for it. The browser test that delays the
+  catalog and opens a file at load fails on the old code in Chromium and
+  Firefox, and passes in all three on the new.
+- A review of every Chinese text (40 points) was checked against the
+  English and the controls' own labels, and all were applied: page copy now
+  names buttons as they read, one term each (页面列表, 批注, 长期存档格式),
+  meaning fixed where the Chinese said more or other than the English, and
+  the home page's “从打开到完成” has no space left from the template.

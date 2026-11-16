@@ -181,8 +181,12 @@ def base(c, number, label):
 
 
 c = canvas.Canvas(str(OUT), pagesize=A4, pageCompression=1, invariant=1, lang='zh-CN')
+# The day it was made, not the year 2000 of reportlab's invariant mode: Document
+# properties shows it.
+c.setDateFormatter(lambda *_: "D:20261116000000+08'00'")
 c.setTitle(f'QFT PDF - {TITLE}')
 c.setAuthor('QFT PDF')
+c.setCreator('QFT PDF')
 c.setSubject(SUBJECT)
 
 # 1 / 项目简介
