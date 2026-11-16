@@ -5,6 +5,7 @@
  * PDF as it downloads, edits included.
  */
 import { openDocument } from './preview.js';
+import { t, userError } from './i18n.js';
 
 export const PICTURE_TYPES = ['image/jpeg', 'image/png'];
 const MAX_PICTURE_BYTES = 50 * 1024 * 1024;
@@ -53,7 +54,7 @@ const toBlob = (canvas, type, quality) =>
   new Promise((resolve, reject) =>
     canvas.toBlob(
       (blob) =>
-        blob ? resolve(blob) : reject(new Error('This picture could not be made. Please try again.')),
+        blob ? resolve(blob) : reject(userError('This picture could not be made. Please try again.')),
       type,
       quality,
     ),
@@ -65,9 +66,9 @@ const toBlob = (canvas, type, quality) =>
  * upright, as a high-quality JPEG; other pictures keep their own bytes.
  */
 export async function pictureForPage(file) {
-  if (!isPicture(file)) throw new Error('Choose JPG or PNG pictures, or PDF files.');
+  if (!isPicture(file)) throw userError('Choose JPG or PNG pictures, or PDF files.');
   if (file.size > MAX_PICTURE_BYTES)
-    throw new Error(`“${file.name}” is larger than 50 MB. Choose a smaller picture.`);
+    throw userError('“{name}” is larger than 50 MB. Choose a smaller picture.', { name: file.name });
   let bytes = new Uint8Array(await file.arrayBuffer());
   const type = bytes[0] === 0x89 && bytes[1] === 0x50 ? 'png' : 'jpg';
   let bitmap;
@@ -80,12 +81,18 @@ export async function pictureForPage(file) {
       },
     );
   } catch (error) {
-    throw new Error(`“${file.name}” could not be read. Choose JPG or PNG pictures.`, { cause: error });
+    throw userError(
+      '“{name}” could not be read. Choose JPG or PNG pictures.',
+      { name: file.name },
+      { cause: error },
+    );
   }
   const { width, height } = bitmap;
   try {
     if (width * height > MAX_PICTURE_PIXELS)
-      throw new Error(`“${file.name}” has more than 40 million pixels. Choose a smaller picture.`);
+      throw userError('“{name}” has more than 40 million pixels. Choose a smaller picture.', {
+        name: file.name,
+      });
     if (type === 'jpg' && jpegOrientation(bytes) !== 1) {
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -116,7 +123,7 @@ export async function pagesToImages(
     const doc = await task.promise;
     for (const [position, number] of pageNumbers.entries()) {
       if (shouldCancel())
-        throw Object.assign(new Error('Stopped. No pictures were saved.'), { name: 'AbortError' });
+        throw Object.assign(userError('Stopped. No pictures were saved.'), { name: 'AbortError' });
       const page = await doc.getPage(number);
       const base = page.getViewport({ scale: 1 });
       const scale = Math.min(dpi / 72, Math.sqrt(MAX_CANVAS_PIXELS / (base.width * base.height)));
@@ -130,7 +137,7 @@ export async function pagesToImages(
       await page.render({ canvasContext: context, viewport, canvas }).promise;
       const blob = await toBlob(canvas, type, 0.9);
       results.push({
-        name: `${baseName}-page-${String(number).padStart(width, '0')}.${format === 'png' ? 'png' : 'jpg'}`,
+        name: `${baseName}${t('-page-{number}', { number: String(number).padStart(width, '0') })}.${format === 'png' ? 'png' : 'jpg'}`,
         bytes: new Uint8Array(await blob.arrayBuffer()),
       });
       canvas.width = canvas.height = 0;

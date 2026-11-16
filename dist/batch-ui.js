@@ -1,5 +1,6 @@
 import { normalizePreset, applyPreset, createZip, uniqueFilename, safeBaseName } from './workflows.js';
 import { loadPdfLib } from './pdf-engine.js';
+import { t, tn } from './i18n.js';
 
 const STORAGE_KEY = 'qft-pdf.presets.v1';
 const escapeHtml = (value) =>
@@ -14,7 +15,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const id = () => crypto.randomUUID?.() || `preset-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const watermarkDefaults = {
-  text: 'DRAFT',
+  text: t('DRAFT'),
   size: 48,
   color: '#7c8c76',
   opacity: 0.18,
@@ -33,7 +34,7 @@ const footerDefaults = {
   margin: 28,
 };
 const numbersDefaults = {
-  format: 'Page {page} of {total}',
+  format: t('Page {page} of {total}'),
   start: 1,
   size: 10,
   color: '#53635d',
@@ -45,7 +46,7 @@ const builtIns = [
     id: 'builtin-draft',
     preset: {
       version: 1,
-      name: 'Draft copy',
+      name: t('Draft copy'),
       watermark: watermarkDefaults,
       headerFooter: null,
       pageNumbers: null,
@@ -56,7 +57,7 @@ const builtIns = [
     id: 'builtin-numbered',
     preset: {
       version: 1,
-      name: 'Numbered document',
+      name: t('Numbered document'),
       watermark: null,
       headerFooter: null,
       pageNumbers: numbersDefaults,
@@ -67,9 +68,13 @@ const builtIns = [
     id: 'builtin-teaching',
     preset: {
       version: 1,
-      name: 'Lecture handout',
+      name: t('Lecture handout'),
       watermark: null,
-      headerFooter: { ...footerDefaults, footerLeft: 'Course notes', footerRight: 'Page {page} of {total}' },
+      headerFooter: {
+        ...footerDefaults,
+        footerLeft: t('Course notes'),
+        footerRight: t('Page {page} of {total}'),
+      },
       pageNumbers: null,
       crop: null,
     },
@@ -84,10 +89,10 @@ function select(label, name, options) {
 }
 /** Left and right change places on even pages (printing on both sides). */
 function mirror(name) {
-  return `<label class="batch-check"><input type="checkbox" name="${name}"> Swap left and right on even pages</label>`;
+  return `<label class="batch-check"><input type="checkbox" name="${name}"> ${t('Swap left and right on even pages')}</label>`;
 }
 function operation(name, title, description, contents, checked = false) {
-  return `<section class="batch-operation"><label class="batch-operation-toggle"><input type="checkbox" name="enable-${name}" ${checked ? 'checked' : ''}><span><strong>${title}</strong><small>${description}</small></span></label><fieldset class="batch-operation-fields" data-operation="${name}" aria-label="${title} settings">${contents}</fieldset></section>`;
+  return `<section class="batch-operation"><label class="batch-operation-toggle"><input type="checkbox" name="enable-${name}" ${checked ? 'checked' : ''}><span><strong>${title}</strong><small>${description}</small></span></label><fieldset class="batch-operation-fields" data-operation="${name}" aria-label="${t('{operation} settings', { operation: title })}">${contents}</fieldset></section>`;
 }
 
 export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () => {} } = {}) {
@@ -95,71 +100,71 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
   root.id = 'batch-workspace';
   root.className = 'batch-workspace';
   root.hidden = true;
-  root.setAttribute('aria-label', 'Batch processing and saved presets');
+  root.setAttribute('aria-label', t('Batch processing and saved presets'));
   root.innerHTML = `
     <div class="batch-shell">
-      <div class="batch-topline"><button type="button" class="button subtle compact" data-batch-action="back">${icon('back')}All tools</button><span>${icon('shield')}Processed on your device</span></div>
-      <header class="batch-heading"><div><div class="eyebrow">A WORKFLOW WORTH REPEATING</div><h1 id="batch-title" tabindex="-1">One setup. <em>Every PDF.</em></h1><p>Apply a saved combination of edits to separate files, then download them together.</p></div><span class="batch-tag">BATCH &amp; PRESETS</span></header>
+      <div class="batch-topline"><button type="button" class="button subtle compact" data-batch-action="back">${icon('back')}${t('All tools')}</button><span>${icon('shield')}${t('Processed on your device')}</span></div>
+      <header class="batch-heading"><div><div class="eyebrow">${t('A WORKFLOW WORTH REPEATING')}</div><h1 id="batch-title" tabindex="-1">${t('One setup. <em>Every PDF.</em>')}</h1><p>${t('Apply a saved combination of edits to separate files, then download them together.')}</p></div><span class="batch-tag">${t('BATCH &amp; PRESETS')}</span></header>
       <div class="batch-layout">
-        <aside class="batch-settings" aria-label="Batch preset settings">
-          <div class="batch-section-title"><span class="batch-step">1</span><div><h2>Set up your edits</h2><p>Start with a preset, then make it yours.</p></div></div>
+        <aside class="batch-settings" aria-label="${t('Batch preset settings')}">
+          <div class="batch-section-title"><span class="batch-step">1</span><div><h2>${t('Set up your edits')}</h2><p>${t('Start with a preset, then make it yours.')}</p></div></div>
           <form id="batch-preset-form">
             <fieldset id="batch-settings-controls">
-              <label class="batch-field"><span>Preset</span><select id="batch-preset-select" aria-describedby="batch-preset-storage"></select></label>
-              <div class="batch-save-row">${field('Preset name', 'preset-name', 'text', 'maxlength="80" placeholder="e.g. Course handout"')}<button type="button" class="button secondary compact" data-batch-action="save-preset">Save preset</button></div>
-              <div class="batch-preset-note"><p id="batch-preset-storage">Saved presets stay in this browser. PDF files are never saved with them.</p><button type="button" class="text-button" data-batch-action="delete-preset" hidden>Delete saved preset</button></div>
+              <label class="batch-field"><span>${t('Preset')}</span><select id="batch-preset-select" aria-describedby="batch-preset-storage"></select></label>
+              <div class="batch-save-row">${field(t('Preset name'), 'preset-name', 'text', `maxlength="80" placeholder="${t('e.g. Course handout')}"`)}<button type="button" class="button secondary compact" data-batch-action="save-preset">${t('Save preset')}</button></div>
+              <div class="batch-preset-note"><p id="batch-preset-storage">${t('Saved presets stay in this browser. PDF files are never saved with them.')}</p><button type="button" class="text-button" data-batch-action="delete-preset" hidden>${t('Delete saved preset')}</button></div>
               ${operation(
                 'watermark',
-                'Watermark',
-                'Repeat a text stamp on every page.',
+                t('Watermark'),
+                t('Repeat a text stamp on every page.'),
                 `
-                ${field('Watermark text', 'watermark-text', 'text', 'maxlength="300" required')}
-                <div class="batch-fields-2">${field('Text size (pt)', 'watermark-size', 'number', 'min="8" max="150" step="1" required')}${field('Watermark color', 'watermark-color', 'color')}</div>
-                <div class="batch-fields-2">${field('Opacity (%)', 'watermark-opacity', 'number', 'min="0" max="100" step="1" required')}${field('Angle (°)', 'watermark-angle', 'number', 'min="-90" max="90" step="1" required')}</div>
-                ${select('Watermark position', 'watermark-position', [
-                  ['center', 'Center'],
-                  ['top', 'Top'],
-                  ['bottom', 'Bottom'],
+                ${field(t('Watermark text'), 'watermark-text', 'text', 'maxlength="300" required')}
+                <div class="batch-fields-2">${field(t('Text size (pt)'), 'watermark-size', 'number', 'min="8" max="150" step="1" required')}${field(t('Watermark color'), 'watermark-color', 'color')}</div>
+                <div class="batch-fields-2">${field(t('Opacity (%)'), 'watermark-opacity', 'number', 'min="0" max="100" step="1" required')}${field(t('Angle (°)'), 'watermark-angle', 'number', 'min="-90" max="90" step="1" required')}</div>
+                ${select(t('Watermark position'), 'watermark-position', [
+                  ['center', t('Center')],
+                  ['top', t('Top')],
+                  ['bottom', t('Bottom')],
                 ])}
               `,
                 true,
               )}
               ${operation(
                 'footer',
-                'Headers & footers',
-                'Consistent details at the page edges.',
+                t('Headers & footers'),
+                t('Consistent details at the page edges.'),
                 `
-                <p class="batch-field-note">Use {page} and {total} for page numbers within each file, {date} for today’s date and {filename} for each file’s name.</p>
-                <div class="batch-subheading">Header</div>${field('Header left', 'headerLeft', 'text', 'maxlength="300"')}${field('Header center', 'headerCenter', 'text', 'maxlength="300"')}${field('Header right', 'headerRight', 'text', 'maxlength="300"')}
-                <div class="batch-subheading">Footer</div>${field('Footer left', 'footerLeft', 'text', 'maxlength="300"')}${field('Footer center', 'footerCenter', 'text', 'maxlength="300"')}${field('Footer right', 'footerRight', 'text', 'maxlength="300"')}
-                <div class="batch-fields-3">${field('Size (pt)', 'footer-size', 'number', 'min="6" max="24" step="1" required')}${field('Margin (pt)', 'footer-margin', 'number', 'min="0" max="100" step="1" required')}${field('Text color', 'footer-color', 'color')}</div>
+                <p class="batch-field-note">${t('Use {page} and {total} for page numbers within each file, {date} for today’s date and {filename} for each file’s name.')}</p>
+                <div class="batch-subheading">${t('Header')}</div>${field(t('Header left'), 'headerLeft', 'text', 'maxlength="300"')}${field(t('Header center'), 'headerCenter', 'text', 'maxlength="300"')}${field(t('Header right'), 'headerRight', 'text', 'maxlength="300"')}
+                <div class="batch-subheading">${t('Footer')}</div>${field(t('Footer left'), 'footerLeft', 'text', 'maxlength="300"')}${field(t('Footer center'), 'footerCenter', 'text', 'maxlength="300"')}${field(t('Footer right'), 'footerRight', 'text', 'maxlength="300"')}
+                <div class="batch-fields-3">${field(t('Size (pt)'), 'footer-size', 'number', 'min="6" max="24" step="1" required')}${field(t('Margin (pt)'), 'footer-margin', 'number', 'min="0" max="100" step="1" required')}${field(t('Text color'), 'footer-color', 'color')}</div>
                 ${mirror('footer-mirror')}
               `,
               )}
               ${operation(
                 'numbers',
-                'Page numbers',
-                'Number each document independently.',
+                t('Page numbers'),
+                t('Number each document independently.'),
                 `
-                ${field('Number format', 'numbers-format', 'text', 'maxlength="300" required')}
-                <p class="batch-field-note">Use {page} for the number and {total} for each file’s page count. {date} and {filename} work too.</p>
-                ${select('Number position', 'numbers-position', [
-                  ['bottom-right', 'Bottom right'],
-                  ['bottom-center', 'Bottom center'],
-                  ['bottom-left', 'Bottom left'],
+                ${field(t('Number format'), 'numbers-format', 'text', 'maxlength="300" required')}
+                <p class="batch-field-note">${t('Use {page} for the number and {total} for each file’s page count. {date} and {filename} work too.')}</p>
+                ${select(t('Number position'), 'numbers-position', [
+                  ['bottom-right', t('Bottom right')],
+                  ['bottom-center', t('Bottom center')],
+                  ['bottom-left', t('Bottom left')],
                 ])}
-                <div class="batch-fields-2">${field('Start numbering at', 'numbers-start', 'number', 'min="1" max="1000000" step="1" required')}${field('Number size (pt)', 'numbers-size', 'number', 'min="6" max="24" step="1" required')}</div>
-                <div class="batch-fields-2">${field('Number margin (pt)', 'numbers-margin', 'number', 'min="0" max="100" step="1" required')}${field('Number color', 'numbers-color', 'color')}</div>
+                <div class="batch-fields-2">${field(t('Start numbering at'), 'numbers-start', 'number', 'min="1" max="1000000" step="1" required')}${field(t('Number size (pt)'), 'numbers-size', 'number', 'min="6" max="24" step="1" required')}</div>
+                <div class="batch-fields-2">${field(t('Number margin (pt)'), 'numbers-margin', 'number', 'min="0" max="100" step="1" required')}${field(t('Number color'), 'numbers-color', 'color')}</div>
                 ${mirror('numbers-mirror')}
               `,
               )}
               ${operation(
                 'crop',
-                'Crop margins',
-                'Trim the same percentage from each page.',
+                t('Crop margins'),
+                t('Trim the same percentage from each page.'),
                 `
-                <div class="batch-fields-2">${field('Top margin (%)', 'crop-top', 'number', 'min="0" max="99" step="0.1" required')}${field('Bottom margin (%)', 'crop-bottom', 'number', 'min="0" max="99" step="0.1" required')}${field('Left margin (%)', 'crop-left', 'number', 'min="0" max="99" step="0.1" required')}${field('Right margin (%)', 'crop-right', 'number', 'min="0" max="99" step="0.1" required')}</div>
-                <p class="batch-field-note">Margins follow each page’s visible orientation. Cropping hides content; it is not secure redaction.</p>
+                <div class="batch-fields-2">${field(t('Top margin (%)'), 'crop-top', 'number', 'min="0" max="99" step="0.1" required')}${field(t('Bottom margin (%)'), 'crop-bottom', 'number', 'min="0" max="99" step="0.1" required')}${field(t('Left margin (%)'), 'crop-left', 'number', 'min="0" max="99" step="0.1" required')}${field(t('Right margin (%)'), 'crop-right', 'number', 'min="0" max="99" step="0.1" required')}</div>
+                <p class="batch-field-note">${t('Margins follow each page’s visible orientation. Cropping hides content; it is not secure redaction.')}</p>
               `,
               )}
             </fieldset>
@@ -167,19 +172,19 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
         </aside>
         <div class="batch-main">
           <section class="batch-file-card" aria-labelledby="batch-file-title">
-            <div class="batch-section-title"><span class="batch-step">2</span><div><h2 id="batch-file-title">Add your PDFs</h2><p>Each file stays separate. Your originals stay unchanged.</p></div></div>
-            <button type="button" id="batch-drop-zone" class="batch-drop-zone" data-batch-action="choose-files"><span class="batch-upload-icon">${icon('upload')}</span><strong>Choose PDFs or drop them here</strong><span>Multiple files · no fixed size or page limit</span></button>
-            <div class="batch-queue-toolbar" hidden><strong id="batch-queue-count"></strong><button type="button" class="text-button" data-batch-action="clear-queue">Clear list</button></div>
-            <ul id="batch-file-list" class="batch-file-list" aria-label="Files in this batch"></ul>
-            <p class="batch-device-note">Large batches depend on available browser memory. Files are processed one at a time.</p>
+            <div class="batch-section-title"><span class="batch-step">2</span><div><h2 id="batch-file-title">${t('Add your PDFs')}</h2><p>${t('Each file stays separate. Your originals stay unchanged.')}</p></div></div>
+            <button type="button" id="batch-drop-zone" class="batch-drop-zone" data-batch-action="choose-files"><span class="batch-upload-icon">${icon('upload')}</span><strong>${t('Choose PDFs or drop them here')}</strong><span>${t('Multiple files · no fixed size or page limit')}</span></button>
+            <div class="batch-queue-toolbar" hidden><strong id="batch-queue-count"></strong><button type="button" class="text-button" data-batch-action="clear-queue">${t('Clear list')}</button></div>
+            <ul id="batch-file-list" class="batch-file-list" aria-label="${t('Files in this batch')}"></ul>
+            <p class="batch-device-note">${t('Large batches depend on available browser memory. Files are processed one at a time.')}</p>
           </section>
           <section class="batch-run-card" aria-labelledby="batch-run-title">
-            <div class="batch-section-title"><span class="batch-step">3</span><div><h2 id="batch-run-title">Process and download</h2><p id="batch-operation-summary">Watermark on every page.</p></div></div>
-            <p id="batch-settings-warning" class="batch-inline-note" hidden>Settings changed. Existing downloads use the previous settings; process again to update them.</p>
-            <div id="batch-progress-region" hidden><div class="batch-progress-label"><span id="batch-progress-label">Preparing files…</span><span id="batch-progress-percent">0%</span></div><progress id="batch-progress" max="100" value="0" aria-label="Batch processing progress"></progress></div>
-            <p id="batch-status" class="batch-status" role="status" aria-live="polite">Add PDFs to get started.</p>
-            <div class="batch-run-actions"><button type="button" class="button primary" data-batch-action="process" disabled>${icon('check')}Process PDFs</button><button type="button" class="button secondary" data-batch-action="stop" hidden>Stop after this file</button><button type="button" class="button secondary" data-batch-action="download-zip" hidden>${icon('download')}Download ZIP</button></div>
-            <p class="batch-result-note" id="batch-result-note" hidden>Download individual files from the list, or collect successful results in one ZIP.</p>
+            <div class="batch-section-title"><span class="batch-step">3</span><div><h2 id="batch-run-title">${t('Process and download')}</h2><p id="batch-operation-summary"></p></div></div>
+            <p id="batch-settings-warning" class="batch-inline-note" hidden>${t('Settings changed. Existing downloads use the previous settings; process again to update them.')}</p>
+            <div id="batch-progress-region" hidden><div class="batch-progress-label"><span id="batch-progress-label">${t('Preparing files…')}</span><span id="batch-progress-percent">0%</span></div><progress id="batch-progress" max="100" value="0" aria-label="${t('Batch processing progress')}"></progress></div>
+            <p id="batch-status" class="batch-status" role="status" aria-live="polite">${t('Add PDFs to get started.')}</p>
+            <div class="batch-run-actions"><button type="button" class="button primary" data-batch-action="process" disabled>${icon('check')}${t('Process PDFs')}</button><button type="button" class="button secondary" data-batch-action="stop" hidden>${t('Stop after this file')}</button><button type="button" class="button secondary" data-batch-action="download-zip" hidden>${icon('download')}${t('Download ZIP')}</button></div>
+            <p class="batch-result-note" id="batch-result-note" hidden>${t('Download individual files from the list, or collect successful results in one ZIP.')}</p>
           </section>
         </div>
       </div>
@@ -236,13 +241,13 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
   function updatePresetMenu() {
     const menu = $('#batch-preset-select');
     menu.innerHTML =
-      '<option value="">Custom settings</option><optgroup label="Ready to use">' +
+      `<option value="">${t('Custom settings')}</option><optgroup label="${t('Ready to use')}">` +
       builtIns
         .map((entry) => `<option value="${entry.id}">${escapeHtml(entry.preset.name)}</option>`)
         .join('') +
       '</optgroup>' +
       (saved.length
-        ? '<optgroup label="Your saved presets">' +
+        ? `<optgroup label="${t('Your saved presets')}">` +
           saved
             .map(
               (entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.preset.name)}</option>`,
@@ -253,8 +258,8 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     menu.value = activePresetId;
     $('[data-batch-action="delete-preset"]').hidden = !saved.some((entry) => entry.id === activePresetId);
     $('#batch-preset-storage').textContent = storageAvailable
-      ? 'Saved presets stay in this browser. PDF files are never saved with them.'
-      : 'Browser storage is unavailable. Presets are available in this tab only.';
+      ? t('Saved presets stay in this browser. PDF files are never saved with them.')
+      : t('Browser storage is unavailable. Presets are available in this tab only.');
   }
   function updateOperationPanels() {
     for (const key of ['watermark', 'footer', 'numbers', 'crop']) {
@@ -265,16 +270,16 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
       fields.closest('.batch-operation').classList.toggle('enabled', enabled);
     }
     const labels = [
-      ['watermark', 'Watermark'],
-      ['footer', 'Headers & footers'],
-      ['numbers', 'Page numbers'],
-      ['crop', 'Crop margins'],
+      ['watermark', t('Watermark')],
+      ['footer', t('Headers & footers')],
+      ['numbers', t('Page numbers')],
+      ['crop', t('Crop margins')],
     ]
       .filter(([key]) => input(`enable-${key}`).checked)
       .map(([, label]) => label);
     $('#batch-operation-summary').textContent = labels.length
-      ? `${labels.join(' · ')}. Applied to every page of each file.`
-      : 'Enable at least one edit in your preset.';
+      ? t('{operations}. Applied to every page of each file.', { operations: labels.join(' · ') })
+      : t('Enable at least one edit in your preset.');
   }
   function setPreset(preset, presetId = '') {
     const normalized = normalizePreset(preset);
@@ -317,7 +322,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     const number = (name) => Number(value(name));
     return normalizePreset({
       version: 1,
-      name: value('preset-name').trim() || 'Custom preset',
+      name: value('preset-name').trim() || t('Custom preset'),
       watermark: input('enable-watermark').checked
         ? {
             text: value('watermark-text'),
@@ -363,7 +368,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     if (!form.reportValidity()) return;
     if (!input('preset-name').value.trim()) {
       input('preset-name').focus();
-      inform('Give your preset a name before saving it.', true);
+      inform(t('Give your preset a name before saving it.'), true);
       return;
     }
     try {
@@ -378,12 +383,12 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
       updatePresetMenu();
       inform(
         persistent
-          ? `“${preset.name}” saved in this browser.`
-          : `“${preset.name}” is saved for this tab only. Browser storage is unavailable.`,
+          ? t('“{name}” saved in this browser.', { name: preset.name })
+          : t('“{name}” is saved for this tab only. Browser storage is unavailable.', { name: preset.name }),
         !persistent,
       );
     } catch (error) {
-      inform(error.message || 'The preset could not be saved.', true);
+      inform(error.message || t('The preset could not be saved.'), true);
     }
   }
   function deletePreset() {
@@ -395,27 +400,28 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     updatePresetMenu();
     inform(
       persistent
-        ? 'Saved preset deleted. Its settings remain here until you change them.'
-        : 'Preset removed from this tab. Browser storage could not be updated.',
+        ? t('Saved preset deleted. Its settings remain here until you change them.')
+        : t('Preset removed from this tab. Browser storage could not be updated.'),
       !persistent,
     );
   }
   function renderQueue() {
     const statuses = {
-      waiting: 'Ready',
-      processing: 'Processing',
-      done: 'Ready to download',
-      error: 'Could not process',
+      waiting: t('Ready'),
+      processing: t('Processing'),
+      done: t('Ready to download'),
+      error: t('Could not process'),
     };
     $('#batch-file-list').innerHTML = queue
       .map(
         (entry) =>
-          `<li class="batch-file-row ${entry.status}" data-batch-file="${entry.id}"><span class="batch-file-icon">${icon(entry.status === 'done' ? 'check' : 'file')}</span><div class="batch-file-copy"><strong title="${escapeHtml(entry.file.name)}">${escapeHtml(entry.file.name)}</strong><span>${sizeLabel(entry.file.size)}<span aria-hidden="true"> · </span><span data-batch-file-status>${statuses[entry.status]}${entry.status === 'done' ? ` · ${sizeLabel(entry.bytes.length)}` : ''}</span></span>${entry.error ? `<p class="batch-file-error">${escapeHtml(entry.error)}</p>` : ''}${entry.status === 'done' ? `<small>${escapeHtml(entry.outputName)}</small>` : ''}</div><div class="batch-file-actions">${entry.status === 'done' ? `<button type="button" class="button secondary compact" data-batch-action="download-file" data-file-id="${entry.id}" aria-label="Download ${escapeHtml(entry.outputName)}">${icon('download')}<span>Download</span></button>` : ''}<button type="button" class="icon-button" data-batch-action="remove-file" data-file-id="${entry.id}" aria-label="Remove ${escapeHtml(entry.file.name)} from batch" ${processing ? 'disabled' : ''}>${icon('close')}</button></div></li>`,
+          `<li class="batch-file-row ${entry.status}" data-batch-file="${entry.id}"><span class="batch-file-icon">${icon(entry.status === 'done' ? 'check' : 'file')}</span><div class="batch-file-copy"><strong title="${escapeHtml(entry.file.name)}">${escapeHtml(entry.file.name)}</strong><span>${sizeLabel(entry.file.size)}<span aria-hidden="true"> · </span><span data-batch-file-status>${statuses[entry.status]}${entry.status === 'done' ? ` · ${sizeLabel(entry.bytes.length)}` : ''}</span></span>${entry.error ? `<p class="batch-file-error">${escapeHtml(entry.error)}</p>` : ''}${entry.status === 'done' ? `<small>${escapeHtml(entry.outputName)}</small>` : ''}</div><div class="batch-file-actions">${entry.status === 'done' ? `<button type="button" class="button secondary compact" data-batch-action="download-file" data-file-id="${entry.id}" aria-label="${t('Download {name}', { name: escapeHtml(entry.outputName) })}">${icon('download')}<span>${t('Download')}</span></button>` : ''}<button type="button" class="icon-button" data-batch-action="remove-file" data-file-id="${entry.id}" aria-label="${t('Remove {name} from batch', { name: escapeHtml(entry.file.name) })}" ${processing ? 'disabled' : ''}>${icon('close')}</button></div></li>`,
       )
       .join('');
     $('.batch-queue-toolbar').hidden = !queue.length;
-    $('#batch-queue-count').textContent =
-      `${queue.length} PDF${queue.length === 1 ? '' : 's'} · ${sizeLabel(queue.reduce((total, entry) => total + entry.file.size, 0))}`;
+    $('#batch-queue-count').textContent = tn(queue.length, '{count} PDF · {size}', '{count} PDFs · {size}', {
+      size: sizeLabel(queue.reduce((total, entry) => total + entry.file.size, 0)),
+    });
     $('#batch-drop-zone').classList.toggle('has-files', !!queue.length);
     renderActions();
   }
@@ -426,18 +432,21 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     run.innerHTML =
       icon('check') +
       (processing
-        ? 'Processing…'
+        ? t('Processing…')
         : hadRun
-          ? `Process ${queue.length} PDF${queue.length === 1 ? '' : 's'} again`
-          : `Process ${queue.length || ''} PDF${queue.length === 1 ? '' : 's'}`);
+          ? tn(queue.length, 'Process {count} PDF again', 'Process {count} PDFs again')
+          : queue.length
+            ? tn(queue.length, 'Process {count} PDF', 'Process {count} PDFs')
+            : t('Process PDFs'));
     $('[data-batch-action="stop"]').hidden = !processing;
     $('[data-batch-action="stop"]').disabled = stopping;
     $('[data-batch-action="stop"]').textContent = stopping
-      ? 'Stopping after this file…'
-      : 'Stop after this file';
+      ? t('Stopping after this file…')
+      : t('Stop after this file');
     $('[data-batch-action="download-zip"]').hidden = !success.length;
     $('[data-batch-action="download-zip"]').disabled = processing;
-    $('[data-batch-action="download-zip"]').innerHTML = icon('download') + `Download ZIP (${success.length})`;
+    $('[data-batch-action="download-zip"]').innerHTML =
+      icon('download') + t('Download ZIP ({count})', { count: success.length });
     $('#batch-result-note').hidden = !success.length;
     $('#batch-settings-warning').hidden = !(settingsChanged && success.length);
     $('#batch-settings-controls').disabled = processing;
@@ -448,7 +457,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
   }
   function addFiles(files) {
     if (processing) {
-      inform('Wait for this batch to finish, or stop after the current file, before adding PDFs.', true);
+      inform(t('Wait for this batch to finish, or stop after the current file, before adding PDFs.'), true);
       return;
     }
     const list = [...files];
@@ -469,11 +478,14 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     );
     if (accepted.length) {
       renderQueue();
-      $('#batch-status').textContent =
-        `${accepted.length} PDF${accepted.length === 1 ? '' : 's'} added. Choose your settings, then process the batch.`;
+      $('#batch-status').textContent = tn(
+        accepted.length,
+        '{count} PDF added. Choose your settings, then process the batch.',
+        '{count} PDFs added. Choose your settings, then process the batch.',
+      );
     }
     if (accepted.length < list.length)
-      inform('Only PDF files were added. Choose PNG/JPG images in the single-document editor.', true);
+      inform(t('Only PDF files were added. Choose PNG/JPG images in the single-document editor.'), true);
   }
   function downloadBlob(blob, name) {
     const url = URL.createObjectURL(blob),
@@ -489,7 +501,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     if (!entry?.bytes) return;
     downloadBlob(new Blob([entry.bytes], { type: 'application/pdf' }), entry.outputName);
     entry.downloaded = true;
-    inform(`${entry.outputName} downloaded.`);
+    inform(t('{name} downloaded.', { name: entry.outputName }));
   }
   async function downloadZip() {
     const completed = queue.filter((entry) => entry.status === 'done');
@@ -498,13 +510,19 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     button.disabled = true;
     try {
       const zip = await createZip(completed.map((entry) => ({ name: entry.outputName, bytes: entry.bytes })));
-      downloadBlob(zip, `${safeBaseName(lastRunName || 'qft-pdf')}-batch.zip`);
+      downloadBlob(zip, `${safeBaseName(lastRunName || 'qft-pdf')}${t('-batch')}.zip`);
       completed.forEach((entry) => {
         entry.downloaded = true;
       });
-      inform(`${completed.length} processed PDF${completed.length === 1 ? '' : 's'} downloaded in a ZIP.`);
+      inform(
+        tn(
+          completed.length,
+          '{count} processed PDF downloaded in a ZIP.',
+          '{count} processed PDFs downloaded in a ZIP.',
+        ),
+      );
     } catch (error) {
-      inform(error.message || 'The ZIP could not be created. Download files individually instead.', true);
+      inform(error.message || t('The ZIP could not be created. Download files individually instead.'), true);
     } finally {
       renderActions();
     }
@@ -515,7 +533,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
     try {
       preset = readPreset();
     } catch (error) {
-      inform(error.message || 'Check your preset settings.', true);
+      inform(error.message || t('Check your preset settings.'), true);
       return;
     }
     processing = true;
@@ -544,8 +562,15 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
         const entry = queue[index];
         entry.status = 'processing';
         renderQueue();
-        $('#batch-progress-label').textContent = `File ${index + 1} of ${queue.length} · ${entry.file.name}`;
-        $('#batch-status').textContent = `Applying “${preset.name}” to file ${index + 1} of ${queue.length}.`;
+        const place = { number: index + 1, total: queue.length };
+        $('#batch-progress-label').textContent = t('File {number} of {total} · {name}', {
+          ...place,
+          name: entry.file.name,
+        });
+        $('#batch-status').textContent = t('Applying “{preset}” to file {number} of {total}.', {
+          ...place,
+          preset: preset.name,
+        });
         await tick();
         try {
           const bytes = new Uint8Array(await entry.file.arrayBuffer());
@@ -555,10 +580,13 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
             (fraction) => setProgress(index, fraction),
             entry.file.name,
           );
-          entry.outputName = uniqueFilename(`${safeBaseName(entry.file.name)}-processed.pdf`, usedNames);
+          entry.outputName = uniqueFilename(
+            `${safeBaseName(entry.file.name)}${t('-processed')}.pdf`,
+            usedNames,
+          );
           entry.status = 'done';
         } catch (error) {
-          entry.error = error.message || 'This PDF could not be processed.';
+          entry.error = error.message || t('This PDF could not be processed.');
           entry.status = 'error';
         }
         setProgress(index, 1);
@@ -571,9 +599,17 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
       const done = queue.filter((entry) => entry.status === 'done').length,
         failed = queue.filter((entry) => entry.status === 'error').length,
         waiting = queue.filter((entry) => entry.status === 'waiting').length;
-      $('#batch-progress-label').textContent = waiting ? 'Stopped after the current file' : 'Batch complete';
-      const summary = `${done} file${done === 1 ? '' : 's'} ready${failed ? ` · ${failed} could not be processed` : ''}${waiting ? ` · ${waiting} not processed` : ''}.`;
-      inform(summary, done === 0 && failed > 0);
+      $('#batch-progress-label').textContent = waiting
+        ? t('Stopped after the current file')
+        : t('Batch complete');
+      const summary = [
+        tn(done, '{count} file ready', '{count} files ready'),
+        failed && t('{count} could not be processed', { count: failed }),
+        waiting && t('{count} not processed', { count: waiting }),
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      inform(t('{summary}.', { summary }), done === 0 && failed > 0);
     }
   }
 
@@ -596,7 +632,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
       if (!queue.length) {
         hadRun = false;
         settingsChanged = false;
-        $('#batch-status').textContent = 'Add PDFs to get started.';
+        $('#batch-status').textContent = t('Add PDFs to get started.');
       }
       renderQueue();
     }
@@ -605,13 +641,15 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
       hadRun = false;
       settingsChanged = false;
       renderQueue();
-      $('#batch-status').textContent = 'Add PDFs to get started.';
+      $('#batch-status').textContent = t('Add PDFs to get started.');
     }
     if (action === 'process') void run();
     if (action === 'stop') {
       stopping = true;
       renderActions();
-      $('#batch-status').textContent = 'The current file will finish; remaining files will stay unprocessed.';
+      $('#batch-status').textContent = t(
+        'The current file will finish; remaining files will stay unprocessed.',
+      );
     }
     if (action === 'download-file') downloadFile(queue.find((entry) => entry.id === target.dataset.fileId));
     if (action === 'download-zip') void downloadZip();
@@ -655,7 +693,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
       try {
         setPreset(preset);
       } catch (error) {
-        inform(error.message || 'This preset could not be opened.', true);
+        inform(error.message || t('This preset could not be opened.'), true);
       }
     }
     root.hidden = false;
@@ -667,7 +705,7 @@ export function initBatch({ onShow = () => {}, onBack = () => {}, notify = () =>
   }
   function close() {
     if (processing) {
-      inform('Finish this batch, or stop after the current file, before switching workspaces.', true);
+      inform(t('Finish this batch, or stop after the current file, before switching workspaces.'), true);
       return false;
     }
     root.hidden = true;

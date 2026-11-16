@@ -32,6 +32,7 @@ import {
 import { rememberThumb, setSheet, thumbKey } from './pages.js';
 import { usedSources } from './documents.js';
 import { change } from './history.js';
+import { sentences, t, tn } from './i18n.js';
 
 // ---- Filling in forms ------------------------------------------------------------
 // With Fill form open, each page shows inputs over its form fields, and PDF.js
@@ -267,7 +268,10 @@ function commitControl(control) {
         [source.id]: { ...(state.formValues[source.id] || {}), [field.name]: value },
       };
     },
-    { key: field.kind === 'text' ? 'form:' + source.id + ':' + field.name : null, label: 'Fill in a field' },
+    {
+      key: field.kind === 'text' ? 'form:' + source.id + ':' + field.name : null,
+      label: t('Fill in a field'),
+    },
   );
   refreshThumbnailsSoon();
 }
@@ -383,15 +387,17 @@ export function updateFormSummary() {
   if (!node) return;
   const { total, filled, required } = formSummary(),
     text =
-      '<strong>' +
-      filled +
-      ' of ' +
-      total +
-      ' field' +
-      (total === 1 ? '' : 's') +
-      ' filled in.</strong>' +
+      tn(
+        total,
+        '<strong>{filled} of {count} field filled in.</strong>',
+        '<strong>{filled} of {count} fields filled in.</strong>',
+        {
+          filled,
+        },
+      ) +
       (required
-        ? '<br>' + required + ' required field' + (required === 1 ? ' is' : 's are') + ' still empty.'
+        ? '<br>' +
+          tn(required, '{count} required field is still empty.', '{count} required fields are still empty.')
         : '');
   if (node.innerHTML !== text) node.innerHTML = text;
   const next = $('#tool-form [data-action="form-next"]');
@@ -403,36 +409,47 @@ export function formPanel() {
   if (!fields.length)
     return (
       '<p class="scope-note wide">' +
-      (sources.length
-        ? 'This PDF’s form has no fields to type in.'
-        : 'This PDF has no form fields to fill in.') +
-      ' To write on a page, use Add text.</p>' +
-      '<button type="button" class="button secondary" data-tool="text">' +
+      sentences(
+        sources.length
+          ? t('This PDF’s form has no fields to type in.')
+          : t('This PDF has no form fields to fill in.'),
+        t('To write on a page, use Add text.'),
+      ) +
+      '</p><button type="button" class="button secondary" data-tool="text">' +
       icon('text') +
-      'Add text</button>'
+      t('Add text') +
+      '</button>'
     );
   const notes = [];
   if (sources.some((source) => source.form.fields.some((field) => field.kind === 'signature')))
-    notes.push('Signature fields stay empty here. To sign, use Sign PDF.');
+    notes.push(t('Signature fields stay empty here. To sign, use Sign PDF.'));
   if (sources.some((source) => source.form.scripts))
-    notes.push('Calculations and checks built into this form don’t run here.');
+    notes.push(t('Calculations and checks built into this form don’t run here.'));
   if (sources.some((source) => source.form.xfa))
     notes.push(
-      'This PDF also has an XFA version of its form, which some apps show instead. Once you fill in fields here, the download has these fields only.',
+      t(
+        'This PDF also has an XFA version of its form, which some apps show instead. Once you fill in fields here, the download has these fields only.',
+      ),
     );
   return (
     '<p id="form-summary" class="scope-note wide" aria-live="polite"></p>' +
     '<button type="button" class="button primary" data-action="form-next">' +
     icon('arrow') +
-    'Go to the next empty field</button>' +
-    '<label class="check-field wide"><input type="checkbox" name="flattenForms"' +
+    t('Go to the next empty field') +
+    '</button><label class="check-field wide"><input type="checkbox" name="flattenForms"' +
     (state.flattenForms ? ' checked' : '') +
-    '> Flatten fields on download</label>' +
-    '<p class="field-hint wide">Flattened fields become part of the page: the PDF looks the same in every app, but its fields can no longer be changed. Flattening also lets you combine these pages with other PDFs.</p>' +
-    '<button type="button" class="button secondary" data-action="download">' +
+    '> ' +
+    t('Flatten fields on download') +
+    '</label><p class="field-hint wide">' +
+    t(
+      'Flattened fields become part of the page: the PDF looks the same in every app, but its fields can no longer be changed. Flattening also lets you combine these pages with other PDFs.',
+    ) +
+    '</p><button type="button" class="button secondary" data-action="download">' +
     icon('download') +
-    'Download filled PDF</button>' +
-    '<button type="button" class="button subtle" data-action="form-clear">Clear all fields</button>' +
+    t('Download filled PDF') +
+    '</button><button type="button" class="button subtle" data-action="form-clear">' +
+    t('Clear all fields') +
+    '</button>' +
     notes.map((note) => '<p class="field-hint wide">' + note + '</p>').join('')
   );
 }
@@ -449,10 +466,10 @@ export function clearForm() {
         values[source.id] = { ...(values[source.id] || {}), [field.name]: empty[field.kind] };
       state.formValues = values;
     },
-    { label: 'Clear the form' },
+    { label: t('Clear the form') },
   );
   refreshThumbnailsSoon();
-  toast('Fields cleared. Undo brings their values back.');
+  toast(t('Fields cleared. Undo brings their values back.'));
 }
 let thumbnailRefresh = 0;
 /** Draw again the thumbnails whose form values changed, once typing pauses. */
@@ -563,6 +580,6 @@ export function afterRender() {
 }
 export function onInput(name, value) {
   if (name !== 'flattenForms') return;
-  change(() => (state.flattenForms = value), { label: 'Flatten fields' });
-  announceMessage(value ? 'Fields will be flattened on download.' : 'Fields will stay fillable.');
+  change(() => (state.flattenForms = value), { label: t('Flatten fields') });
+  announceMessage(value ? t('Fields will be flattened on download.') : t('Fields will stay fillable.'));
 }

@@ -7,9 +7,16 @@
  * Messages out: { id, progress }        (0..1, while building)
  *               { id, bytes, notes }    (the finished PDF, its buffer transferred,
  *                                        and notes from buildPdfWithNotes)
- *               { id, error }           ({ message, pageIndex, itemId })
+ *               { id, error }           ({ message, text, params, pageIndex, itemId })
+ *
+ * Its address names its page's language (?lang=zh), so it reports in that
+ * language (i18n.js); an error keeps its English text and values too.
  */
 import { buildPdfWithNotes } from './pdf-engine.js';
+import { LANGUAGE, useCatalog, userError } from './i18n.js';
+
+// The Chinese words, before it says it is ready. (No module calls t() as it loads.)
+if (LANGUAGE === 'zh') useCatalog(await import('./i18n-zh.js'));
 
 self.addEventListener('message', async ({ data }) => {
   const { id, state } = data;
@@ -18,10 +25,13 @@ self.addEventListener('message', async ({ data }) => {
     self.postMessage({ id, bytes, notes }, [bytes.buffer]);
   } catch (error) {
     // The editor reports the error (and logs it) where the user is.
+    const shown = error?.message ? error : userError('The PDF could not be created.');
     self.postMessage({
       id,
       error: {
-        message: error?.message || 'The PDF could not be created.',
+        message: shown.message,
+        text: shown.text,
+        params: shown.params,
         pageIndex: error?.pageIndex,
         itemId: error?.itemId,
       },

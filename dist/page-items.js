@@ -5,7 +5,7 @@
  */
 
 import { applyMatrix, fontKind, hexColor, invert, number, TEXT_LINE_HEIGHT, textValue } from './layout.js';
-import { FONT_FAMILIES, geometryOf, warmFont } from './preview.js';
+import { FONT_FAMILIES, fontStack, geometryOf, warmFont } from './preview.js';
 import {
   $,
   activeIndex,
@@ -25,7 +25,7 @@ import {
 import {
   focusItem,
   frameTransform,
-  itemLabel,
+  itemKind,
   overlayItem,
   pageById,
   renderEditLayers,
@@ -39,6 +39,7 @@ import {
 } from './page-view.js';
 import { fillForm, renderTool } from './tool-panel.js';
 import { updateCropOverlays } from './panel-crop.js';
+import { t, tn } from './i18n.js';
 import { chooseTool, refreshThumbOverlays, setSheet } from './pages.js';
 import { change, documentChanged, record } from './history.js';
 import { recordView } from './views.js';
@@ -109,7 +110,7 @@ export function positionInlineEditor() {
     room = item.placement.width - frame.x;
   // Left-aligned text grows to the right as you type, so the box may reach the page edge.
   const width = annotation.autoWidth && (annotation.align || 'left') === 'left' ? room : frame.width + 2;
-  editor.style.fontFamily = '"' + FONT_FAMILIES[kind] + '", sans-serif';
+  editor.style.fontFamily = fontStack(kind);
   editor.style.fontSize = size * scale + 'px';
   editor.style.lineHeight = size * TEXT_LINE_HEIGHT * scale + 'px';
   editor.style.color = hexColor(annotation.color);
@@ -142,7 +143,7 @@ export function stopEditing() {
         () => {
           state.annotations = state.annotations.filter((item) => item.id !== id);
         },
-        { key: 'text:' + id, label: 'Delete text' },
+        { key: 'text:' + id, label: t('Delete text') },
       );
     if (ui.item === id) ui.item = null;
   }
@@ -236,7 +237,7 @@ function moveItem(gesture, point) {
   };
   change(() => setFrame(annotation, item, moved), {
     key: gesture.key,
-    label: 'Move ' + itemName(annotation),
+    label: itemStep('move', annotation),
   });
 }
 function resizeItem(gesture, point) {
@@ -255,7 +256,7 @@ function resizeItem(gesture, point) {
         annotation.width = width / W;
         annotation.autoWidth = false;
       },
-      { key: gesture.key, label: 'Resize text' },
+      { key: gesture.key, label: t('Resize text') },
     );
     return;
   }
@@ -290,7 +291,7 @@ function resizeItem(gesture, point) {
   }
   change(() => setFrame(annotation, item, { x: left, y: top, width: right - left, height: bottom - top }), {
     key: gesture.key,
-    label: 'Resize ' + itemName(annotation),
+    label: itemStep('resize', annotation),
   });
 }
 function drawHighlight(gesture, point) {
@@ -317,12 +318,13 @@ function drawHighlight(gesture, point) {
       opacity: ui.styles.highlight.opacity,
       ...box,
     };
-    change(() => state.annotations.push(annotation), { key: gesture.key, label: 'Add highlight' });
+    change(() => state.annotations.push(annotation), { key: gesture.key, label: t('Add highlight') });
     ui.item = gesture.id;
     return;
   }
   const annotation = annotationById(gesture.id);
-  if (annotation) change(() => Object.assign(annotation, box), { key: gesture.key, label: 'Add highlight' });
+  if (annotation)
+    change(() => Object.assign(annotation, box), { key: gesture.key, label: t('Add highlight') });
 }
 /** Add a highlight at a spot on a page (keyboard and touch alternative to drawing). */
 export function addHighlight(page, point) {
@@ -341,7 +343,7 @@ export function addHighlight(page, point) {
     width: Math.max(0.01, width),
     height: Math.max(0.005, height),
   };
-  change(() => state.annotations.push(annotation), { label: 'Add highlight' });
+  change(() => state.annotations.push(annotation), { label: t('Add highlight') });
   selectItem(annotation.id);
 }
 /** Draw: a pen stroke follows the pointer; other shapes stretch from where the drag started. */
@@ -398,11 +400,12 @@ function sketch(gesture, point) {
       strokeWidth: style.width,
       ...fields,
     };
-    change(() => state.annotations.push(annotation), { key: gesture.key, label: 'Add drawing' });
+    change(() => state.annotations.push(annotation), { key: gesture.key, label: t('Add drawing') });
     return;
   }
   const annotation = annotationById(gesture.id);
-  if (annotation) change(() => Object.assign(annotation, fields), { key: gesture.key, label: 'Add drawing' });
+  if (annotation)
+    change(() => Object.assign(annotation, fields), { key: gesture.key, label: t('Add drawing') });
 }
 /** Add a line, arrow, rectangle or ellipse to a page (keyboard and touch alternative to dragging). */
 export function addDrawing(page) {
@@ -430,7 +433,7 @@ export function addDrawing(page) {
         }
       : {}),
   };
-  change(() => state.annotations.push(annotation), { label: 'Add drawing' });
+  change(() => state.annotations.push(annotation), { label: t('Add drawing') });
   selectItem(annotation.id);
 }
 export function placeImage(image, point = null) {
@@ -458,7 +461,7 @@ export function placeImage(image, point = null) {
     imageBytes: image.bytes,
     imageType: image.type,
   };
-  change(() => state.annotations.push(annotation), { label: 'Add image' });
+  change(() => state.annotations.push(annotation), { label: t('Add image') });
   selectItem(annotation.id);
 }
 function nudge(id, dx, dy) {
@@ -479,7 +482,7 @@ function nudge(id, dx, dy) {
   };
   change(() => setFrame(annotation, item, moved), {
     key: 'nudge:' + id,
-    label: 'Move ' + itemName(annotation),
+    label: itemStep('move', annotation),
   });
 }
 
@@ -585,9 +588,9 @@ function resize(id, place) {
           annotation.width = frame.width / item.placement.width;
           annotation.autoWidth = false;
         },
-        { key, label: 'Resize text' },
+        { key, label: t('Resize text') },
       );
-  } else change(() => setFrame(annotation, item, frame), { key, label: 'Resize ' + itemName(annotation) });
+  } else change(() => setFrame(annotation, item, frame), { key, label: itemStep('resize', annotation) });
   // The size is said in the measure the panel shows for the item: a highlight's
   // or a shape's sides as they lie on the screen (its Width and Height fields), a
   // picture's own width (its Width slider), and for text the width its lines wrap at.
@@ -595,10 +598,10 @@ function resize(id, place) {
   const own = () => (storedFrame(annotation, item).width / item.placement.width) * 100,
     size = itemSize(id),
     message = text
-      ? `Width ${Math.round(own() * 10) / 10}% of the page.`
+      ? t('Width {width}% of the page.', { width: Math.round(own() * 10) / 10 })
       : picture
-        ? `Width ${Math.round(own())}% of the page.`
-        : size && `Width ${size.width}% of the page, height ${size.height}%.`;
+        ? t('Width {width}% of the page.', { width: Math.round(own()) })
+        : size && t('Width {width}% of the page, height {height}%.', size);
   if (message) announceRested(message, () => ui.item === id);
 }
 /**
@@ -656,7 +659,7 @@ export function itemSize(id) {
 export function deleteItem(id) {
   const annotation = annotationById(id);
   if (!annotation) return;
-  const label = itemLabel(annotation).split(':')[0];
+  const kind = itemKind(annotation);
   if (ui.editing === id) {
     ui.editing = null;
     $('#inline-editor').hidden = true;
@@ -671,12 +674,12 @@ export function deleteItem(id) {
       () => {
         state.annotations = state.annotations.filter((item) => item.id !== id);
       },
-      { label: 'Delete ' + itemName(annotation) },
+      { label: itemStep('delete', annotation) },
     );
   ui.item = null;
   renderTool();
   $('#canvas-scroll').focus({ preventScroll: true });
-  announceMessage(label + ' deleted.');
+  announceMessage(t('{item} deleted.', { item: kind }));
 }
 /** Select an item; its page becomes current. `reveal` scrolls it into view (chosen from a list, it may be out of view). */
 export function selectItem(id, { focus = true, reveal = false } = {}) {
@@ -912,7 +915,7 @@ export function initPageItems() {
       () => {
         annotation.text = inlineEditor.value;
       },
-      { key: 'text:' + id, before, label: 'Edit text' },
+      { key: 'text:' + id, before, label: t('Edit text') },
     );
     warmFont(inlineEditor.value);
     const field = $('#tool-form [name="text"]');
@@ -958,12 +961,12 @@ export function initPageItems() {
 export async function addImageFile(file) {
   try {
     if (!['image/png', 'image/jpeg'].includes(file.type))
-      throw new Error('Please choose a PNG or JPG image.');
-    if (file.size > 15 * 1024 * 1024) throw new Error('Please choose an image smaller than 15 MB.');
+      throw new Error(t('Please choose a PNG or JPG image.'));
+    if (file.size > 15 * 1024 * 1024) throw new Error(t('Please choose an image smaller than 15 MB.'));
     const bitmap = await createImageBitmap(file);
     if (bitmap.width * bitmap.height > 30000000) {
       bitmap.close();
-      throw new Error('Choose an image with fewer than 30 million pixels.');
+      throw new Error(t('Choose an image with fewer than 30 million pixels.'));
     }
     ui.image = {
       name: file.name,
@@ -974,19 +977,39 @@ export async function addImageFile(file) {
     bitmap.close();
     if (ui.tool !== 'image') chooseTool('image');
     placeImage(ui.image);
-    toast('Image added. Drag it into place, or drag a corner to resize it.');
+    toast(t('Image added. Drag it into place, or drag a corner to resize it.'));
   } catch (error) {
     toast(friendly(error), true);
   }
 }
 
 /** What an item is called in an undo step: "Move image", "Delete text". */
-function itemName(annotation) {
-  return (
-    { image: 'image', highlight: 'highlight', signature: 'signature', drawing: 'drawing' }[
-      annotation?.type
-    ] || 'text'
-  );
+/** The undo step for moving, resizing or deleting an item ("Move image"), by its kind. */
+const STEPS = {
+  move: {
+    text: t('Move text'),
+    image: t('Move image'),
+    highlight: t('Move highlight'),
+    signature: t('Move signature'),
+    drawing: t('Move drawing'),
+  },
+  resize: {
+    text: t('Resize text'),
+    image: t('Resize image'),
+    highlight: t('Resize highlight'),
+    signature: t('Resize signature'),
+    drawing: t('Resize drawing'),
+  },
+  delete: {
+    text: t('Delete text'),
+    image: t('Delete image'),
+    highlight: t('Delete highlight'),
+    signature: t('Delete signature'),
+    drawing: t('Delete drawing'),
+  },
+};
+function itemStep(step, annotation) {
+  return STEPS[step][annotation?.type] || STEPS[step].text;
 }
 
 // ---- Signatures on pages (made in panel-signature.js) -----------------------------
@@ -1029,13 +1052,13 @@ function signatureAnnotation(page, geometry, frame, bytes = ui.signature.bytes) 
 /** Place the signature at a point on a page, or (from the panel) in the corner of the current page. */
 export function placeSignature(point = null, page = currentPage()) {
   if (!ui.signature) {
-    toast('Make your signature first: draw, type or upload it in the panel.');
+    toast(t('Make your signature first: draw, type or upload it in the panel.'));
     if (phone()) setSheet(true);
     return;
   }
   const geometry = geometryOf(state, page),
     annotation = signatureAnnotation(page, geometry, signatureFrame(geometry, point));
-  change(() => state.annotations.push(annotation), { label: 'Add signature' });
+  change(() => state.annotations.push(annotation), { label: t('Add signature') });
   // Placed with a button, it may be out of view.
   selectItem(annotation.id, { reveal: !point });
 }
@@ -1044,9 +1067,9 @@ export function placeSignatureEverywhere() {
     const geometry = geometryOf(state, page);
     return signatureAnnotation(page, geometry, signatureFrame(geometry));
   });
-  change(() => state.annotations.push(...added), { label: 'Add signature' });
+  change(() => state.annotations.push(...added), { label: t('Add signature') });
   selectItem(added[activeIndex()].id, { reveal: true });
-  toast('Your signature is on all ' + added.length + ' pages. Drag any of them to adjust it.');
+  toast(t('Your signature is on all {count} pages. Drag any of them to adjust it.', { count: added.length }));
 }
 /** Copy a placed signature to the same place, at the same size, on every other page. */
 export function copySignature(item) {
@@ -1077,6 +1100,6 @@ export function copySignature(item) {
       return signatureAnnotation(page, geometry, frame, item.imageBytes);
     });
   if (!added.length) return;
-  change(() => state.annotations.push(...added), { label: 'Add signature' });
-  toast('Signature added to ' + added.length + ' more page' + (added.length === 1 ? '' : 's') + '.');
+  change(() => state.annotations.push(...added), { label: t('Add signature') });
+  toast(tn(added.length, 'Signature added to {count} more page.', 'Signature added to {count} more pages.'));
 }

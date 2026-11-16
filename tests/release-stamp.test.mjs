@@ -15,14 +15,20 @@ import { TOOL_PAGES } from '../dist/routes.js';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const site = path.join(root, 'dist');
 const script = path.join(root, 'scripts/stamp-release.mjs');
-const toolPages = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
+// The home page and every tool page, in English and, under zh/, in Chinese.
+const slugs = [...new Set(Object.values(TOOL_PAGES))];
+const pages = ['', 'zh/'].flatMap((folder) => [
+  `${folder}index.html`,
+  ...slugs.map((slug) => `${folder}${slug}/index.html`),
+]);
+/** How a page names the site's files: "./" from index.html, "../" or "../../" from a folder below. */
+const upFrom = (name) => '../'.repeat(name.split('/').length - 1) || './';
 // Every module beside index.html: app.js, the editor's modules, the engine and the rest.
 const modules = (await readdir(site)).filter((name) => name.endsWith('.js')).sort();
 const files = [
-  'index.html',
+  ...pages,
   'licenses/index.html',
   'licenses/licenses.css',
-  ...toolPages,
   ...modules,
   'style.css',
   'studio.css',
@@ -32,6 +38,7 @@ const files = [
   'assets/vendor/pdf-lib.min.js',
   'assets/vendor/fontkit.umd.min.js',
   'assets/fonts/NotoSans-Regular.ttf',
+  'assets/fonts/NotoSansCJKsc-GB2312.woff2',
   'assets/fonts/NotoSansCJKsc-Regular.otf',
 ];
 const workspace = await mkdtemp(path.join(tmpdir(), 'qft-stamp-'));
@@ -61,8 +68,16 @@ const read = (name) => readFile(path.join(first, name), 'utf8');
 const html = await read('index.html');
 const release = html.match(/src="\.\/app\.js\?v=([0-9a-f]{12})"/)?.[1];
 const engineUrl = `'./pdf-engine.js?v=${release}'`;
-// The modules app.js imports statically are preloaded, with the release, on every page.
+// The modules app.js imports statically are preloaded, with the release, on every page
+// (and the Chinese catalog on a Chinese page).
 const preloads = [...html.matchAll(/rel="modulepreload" href="\.\/([\w-]+\.js)\?v=([0-9a-f]{12})"/g)];
+/** The modules a page preloads, by name, each with the release. */
+const preloadsOf = (page, up) =>
+  [
+    ...page.matchAll(
+      new RegExp(`rel="modulepreload" href="${up.replaceAll('.', '\\.')}([\\w-]+\\.js)\\?v=${release}"`, 'g'),
+    ),
+  ].map((match) => match[1]);
 const vendor = (file) => path.join(first, 'assets/vendor', file);
 
 await test('every page loads the same versioned release: app.js, the stylesheets and the preloads', async () => {
@@ -76,16 +91,26 @@ await test('every page loads the same versioned release: app.js, the stylesheets
     preloads.length >= 2 && preloads.every((match) => match[2] === release),
     'index.html preloads the release modules',
   );
-  // Every tool page loads the same release as the home page.
-  for (const name of toolPages) {
+  // Every page loads the same release as the home page, and language.js before it shows.
+  const home = preloadsOf(html, './');
+  for (const name of pages) {
     const page = await read(name);
-    assert(page.includes(`src="../app.js?v=${release}"`), `${name} loads the release's app.js`);
-    for (const sheet of ['style', 'studio', 'batch'])
-      assert(page.includes(`href="../${sheet}.css?v=${release}"`), `${name} ${sheet}.css versioned`);
+    const up = upFrom(name);
+    assert(page.includes(`src="${up}app.js?v=${release}"`), `${name} loads the release's app.js`);
+    // A Chinese page hands i18n.js the catalog in zh.js, its first module, before app.js runs.
+    const first = `<script type="module" src="${up}zh.js?v=${release}"></script>\n  <script type="module" src="${up}app.js`;
     assert.equal(
-      page.match(/rel="modulepreload" href="\.\.\/[\w-]+\.js\?v=/g)?.length,
-      preloads.length,
-      `${name} preloads the modules`,
+      page.includes(first),
+      name.startsWith('zh/'),
+      `${name}: zh.js before app.js on a Chinese page only`,
+    );
+    assert(page.includes(`<script src="${up}language.js?v=${release}"></script>`), `${name}: language.js`);
+    for (const sheet of ['style', 'studio', 'batch'])
+      assert(page.includes(`href="${up}${sheet}.css?v=${release}"`), `${name} ${sheet}.css versioned`);
+    assert.deepEqual(
+      preloadsOf(page, up).sort(),
+      [...home, ...(name.startsWith('zh/') ? ['i18n-zh.js'] : [])].sort(),
+      `${name} preloads the home page's modules, and a Chinese page the catalog`,
     );
   }
 });
@@ -144,8 +169,9 @@ await test('engine bundles and fonts are versioned by their own bytes', async ()
   // addresses: a second spelling would be a second download, and a second copy of PDF.js.
   const pdfjsLink = `assets/vendor/pdf.mjs?v=${await hash(vendor('pdf.mjs'))}`;
   const pdfLibLink = `assets/vendor/pdf-lib.min.js?v=${await hash(vendor('pdf-lib.min.js'))}`;
-  for (const [name, up] of [['index.html', './'], ...toolPages.map((page) => [page, '../'])]) {
+  for (const name of pages) {
     const page = await read(name);
+    const up = upFrom(name);
     assert(
       page.includes(`<link rel="modulepreload" href="${up}${pdfjsLink}">`),
       `${name}: PDF.js link versioned`,
@@ -156,7 +182,7 @@ await test('engine bundles and fonts are versioned by their own bytes', async ()
     );
   }
   // Fonts too: the app keeps them in Cache Storage under this URL.
-  for (const font of ['NotoSans-Regular.ttf', 'NotoSansCJKsc-Regular.otf']) {
+  for (const font of ['NotoSans-Regular.ttf', 'NotoSansCJKsc-GB2312.woff2', 'NotoSansCJKsc-Regular.otf']) {
     assert(
       engine.includes(
         `new URL('./assets/fonts/${font}?v=${await hash(path.join(first, 'assets/fonts', font))}'`,
@@ -175,11 +201,14 @@ await test('every versioned reference points at a real file, and every reference
       checked++;
     }
   }
-  // 4 per page (home and tools: three stylesheets and app.js) plus its preloads (the editor's in the
-  // warm-editor template too) and the two engines in warm-engines, 3 on the licenses page (its own
-  // stylesheet too), every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit
-  // URLs, and two fonts.
-  let expected = (4 + preloads.length + 2) * (1 + toolPages.length) + 3 + 4 + 2;
+  // 5 per page (home and tools, in English and in Chinese: three stylesheets, language.js and
+  // app.js), zh.js on a Chinese page, plus its preloads (the editor's in the warm-editor template too, and the catalog on a
+  // Chinese page) and the two engines in warm-engines, 3 on the licenses page (its own stylesheet
+  // too), every import between modules, the export worker, PDF.js worker, pdf-lib and fontkit
+  // URLs, and three fonts.
+  let expected = 3 + 4 + 3;
+  for (const name of pages)
+    expected += 5 + (name.startsWith('zh/') ? 1 : 0) + preloadsOf(await read(name), upFrom(name)).length + 2;
   for (const name of modules)
     expected += [
       ...(await readFile(path.join(site, name), 'utf8')).matchAll(
@@ -196,18 +225,27 @@ await test('every versioned reference points at a real file, and every reference
 await test('stamping fails on a page that lost a link it is expected to version', async () => {
   // Each warm-up link has a rule that expects it, so a page written another way fails here
   // and not on a visitor's connection: a link left unversioned is a download of its own.
+  const tool = 'merge-pdf/index.html',
+    chinese = 'zh/merge-pdf/index.html';
   const cases = [
-    ['<link rel="preload" as="script" href="../assets/vendor/pdf-lib.min.js">', /expected 1 match.*pdf-lib/],
-    ['<link rel="modulepreload" href="../assets/vendor/pdf.mjs">', /expected 1 match.*pdf\\\.mjs/],
-    ['<link rel="modulepreload" href="../documents.js">', /expected \d+ match.*modulepreload/],
+    [
+      tool,
+      '<link rel="preload" as="script" href="../assets/vendor/pdf-lib.min.js">',
+      /expected 1 match.*pdf-lib/,
+    ],
+    [tool, '<link rel="modulepreload" href="../assets/vendor/pdf.mjs">', /expected 1 match.*pdf\\\.mjs/],
+    [tool, '<link rel="modulepreload" href="../documents.js">', /expected \d+ match.*modulepreload/],
+    [chinese, '<link rel="modulepreload" href="../../i18n-zh.js">', /expected \d+ match.*modulepreload/],
+    [chinese, '<script src="../../language.js"></script>', /expected 1 match.*language/],
+    [chinese, '<script type="module" src="../../zh.js"></script>', /expected 1 match.*zh/],
   ];
-  for (const [index, [lost, message]] of cases.entries()) {
+  for (const [index, [file, lost, message]] of cases.entries()) {
     const copy = await copySite(`lost-${index}`);
-    const name = path.join(copy, toolPages[0]);
+    const name = path.join(copy, file);
     const page = await readFile(name, 'utf8');
-    assert(page.includes(lost), `${toolPages[0]} has ${lost}`);
+    assert(page.includes(lost), `${file} has ${lost}`);
     await writeFile(name, page.replace(lost, ''));
-    assert.throws(() => stamp(copy), message, `stamping a page without ${lost} must fail`);
+    assert.throws(() => stamp(copy), message, `stamping ${file} without ${lost} must fail`);
   }
 });
 
@@ -231,6 +269,7 @@ await test('stamping is single-shot and deterministic, and the release changes w
     'assets/vendor/pdf-lib.min.js',
     'assets/vendor/fontkit.umd.min.js',
     'assets/fonts/NotoSans-Regular.ttf',
+    'assets/fonts/NotoSansCJKsc-GB2312.woff2',
     'assets/fonts/NotoSansCJKsc-Regular.otf',
   ])
     assert.notEqual(

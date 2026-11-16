@@ -6,7 +6,8 @@
  *
  * The release id is the one scripts/stamp-release.mjs gave the build (with
  * --github-output it is the build job's output `release`). It holds when:
- * - the home page and one tool page load app.js under this release, and
+ * - the home page, one tool page and one Chinese tool page load app.js under
+ *   this release, and
  * - app.js under this release is this release's: it imports its neighbours
  *   under the same id. (A server ignores the query, so a 200 alone would
  *   prove nothing.)
@@ -22,9 +23,10 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// The pages asked for, besides app.js: the home page and one tool page (each
-// tool page is generated apart from the home page: scripts/build-pages.mjs).
-export const PAGES = ['', 'merge-pdf/'];
+// The pages asked for, besides app.js: the home page, one tool page and one
+// Chinese tool page (each is generated apart from the home page:
+// scripts/build-pages.mjs).
+export const PAGES = ['', 'merge-pdf/', 'zh/merge-pdf/'];
 const HEADERS = ['age', 'x-cache', 'x-served-by', 'last-modified'];
 const USAGE =
   'Usage: node scripts/check-live-release.mjs <site URL> <release id: 12 characters, 0-9 and a-f> [seconds]';
@@ -102,7 +104,7 @@ async function main() {
           headers: headers.join(', '),
         };
       } catch (error) {
-        // Which of the three addresses did not answer, and why.
+        // Which of the addresses did not answer, and why.
         throw new Error(`${url.href}: ${error.cause?.message || error.message}`);
       }
     };

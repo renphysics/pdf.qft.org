@@ -5,6 +5,8 @@
  * transparent. Nothing is sent anywhere, and a signature is kept on this
  * device only when the person asks for it.
  */
+import { userError } from './i18n.js';
+
 const assetUrl = (path) => new URL(path, import.meta.url).href;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -32,7 +34,7 @@ export function loadSignatureFont() {
     }),
   ).catch((error) => {
     fontLoading = null;
-    throw new Error('The signature font could not be loaded. Check your connection, then try again.', {
+    throw userError('The signature font could not be loaded. Check your connection, then try again.', null, {
       cause: error,
     });
   });
@@ -63,7 +65,7 @@ function inkBox(canvas) {
 /** A signature image from the ink on a canvas: cropped, with a little room, as PNG bytes. */
 async function signatureFrom(canvas) {
   const box = inkBox(canvas);
-  if (!box) throw new Error('There is no signature yet. Draw, type or upload one first.');
+  if (!box) throw userError('There is no signature yet. Draw, type or upload one first.');
   const room = Math.round(Math.max(box.width, box.height) * 0.03) + 2;
   const out = document.createElement('canvas');
   out.width = box.width + room * 2;
@@ -72,7 +74,7 @@ async function signatureFrom(canvas) {
     .getContext('2d')
     .drawImage(canvas, box.x, box.y, box.width, box.height, room, room, box.width, box.height);
   const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error('The signature could not be made. Please try again.');
+  if (!blob) throw userError('The signature could not be made. Please try again.');
   return {
     bytes: new Uint8Array(await blob.arrayBuffer()),
     type: 'png',
@@ -178,7 +180,7 @@ export function signaturePad(canvas, strokes, { color = '#1f2a44', onChange = ()
 /** A typed signature: the text in the handwriting font, as a PNG image. */
 export async function typedSignature(text, color = '#1f2a44') {
   const value = String(text || '').trim();
-  if (!value) throw new Error('Type your name to make a signature.');
+  if (!value) throw userError('Type your name to make a signature.');
   await loadSignatureFont();
   const size = 160;
   const font = `${size}px "${SIGNATURE_FONT}"`;
@@ -203,13 +205,13 @@ export async function typedSignature(text, color = '#1f2a44') {
  */
 export async function uploadedSignature(file, { removeBackground = true } = {}) {
   if (!['image/png', 'image/jpeg'].includes(file.type))
-    throw new Error('Choose a PNG or JPG picture of your signature.');
-  if (file.size > 15 * 1024 * 1024) throw new Error('Choose a picture smaller than 15 MB.');
+    throw userError('Choose a PNG or JPG picture of your signature.');
+  if (file.size > 15 * 1024 * 1024) throw userError('Choose a picture smaller than 15 MB.');
   let bitmap;
   try {
     bitmap = await createImageBitmap(file);
   } catch (error) {
-    throw new Error('This picture could not be read. Choose a PNG or JPG file.', { cause: error });
+    throw userError('This picture could not be read. Choose a PNG or JPG file.', null, { cause: error });
   }
   const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');

@@ -34,7 +34,8 @@ import {
   ui,
 } from './editor-core.js';
 import { finishLanding } from './views.js';
-import { TOOLS, TOOL_PAGES, searchFinds, searchNote, searchText, searchWords } from './routes.js';
+import { LANGUAGE_KEY, pageAddress, t } from './i18n.js';
+import { TOOLS, TOOL_PAGES, local, searchFinds, searchNote, searchText, searchWords } from './routes.js';
 
 // ---- The editor, loaded once ----------------------------------------------------------
 
@@ -57,7 +58,7 @@ const reloaded = history.state?.reloaded || null;
 function sameRelease(module) {
   if (module.ui === ui) return module;
   stale = true;
-  throw new Error('QFT PDF was updated while this page was open. Please reload the page.');
+  throw new Error(t('QFT PDF was updated while this page was open. Please reload the page.'));
 }
 /**
  * The visitor did something that needs the editor, and the editor is another
@@ -69,7 +70,7 @@ function sameRelease(module) {
  */
 function refresh() {
   if (Date.now() - (reloaded?.at || 0) < 60000) {
-    toast('QFT PDF was updated while this page was open. Please reload the page.', true);
+    toast(t('QFT PDF was updated while this page was open. Please reload the page.'), true);
     return;
   }
   history.replaceState({ ...history.state, reloaded: { at: Date.now() } }, '');
@@ -93,7 +94,7 @@ export function loadEditor() {
       // Firefox fetches again on the next try; Chromium never does in the same page
       // (nor WebKit, for a module the editor imports), so the notice says to reload.
       loading = null;
-      throw new Error('The editor could not be loaded. Check your connection, then reload the page.', {
+      throw new Error(t('The editor could not be loaded. Check your connection, then reload the page.'), {
         cause: error,
       });
     })
@@ -138,13 +139,19 @@ if (pageTool === 'batch') warmEditor();
 let toolFilter = 'all';
 const siteRoot = new URL('./', import.meta.url);
 const toolOf = (id) => TOOLS.find((item) => item.id === id);
-/** What the search reads for a tool: its card (routes.js) and its category, named as on the filter buttons. */
+/**
+ * What the search reads for a tool: its card (routes.js) and its category,
+ * named as on the filter buttons. On a Chinese page, its English words too, as
+ * people type "merge" or "pdf to jpg" there as well.
+ */
 const cardText = (item) =>
-  searchText(item) + ' ' + ($(`[data-tool-filter="${item.category}"]`)?.textContent || '');
+  [...new Set([searchText(local(item)), searchText(item)])].join(' ') +
+  ' ' +
+  ($(`[data-tool-filter="${item.category}"]`)?.textContent || '');
 /** A link to a tool that works as its card does: with a document open, the editor switches tools in place. */
 function toolLink(id, label) {
   const link = document.createElement('a');
-  link.href = new URL(TOOL_PAGES[id] + '/', siteRoot).pathname;
+  link.href = pageAddress(siteRoot.pathname, TOOL_PAGES[id]);
   if (toolOf(id).tab) link.dataset.startTool = id;
   else link.dataset.action = id;
   link.textContent = label;
@@ -176,10 +183,15 @@ function noteContent(text) {
  * document open, a link takes the document to the tool.
  */
 function ownToolContent(item) {
-  const name = `You are on ${item.title || item.name}: `;
-  if (state.pages.length && item.tab) return [name, toolLink(item.id, 'use it on your open document'), '.'];
+  const tool = local(item).title || local(item).name;
+  if (state.pages.length && item.tab) {
+    const [before, after] = t('You are on {tool}: {link}.', { tool }).split('{link}');
+    return [before, toolLink(item.id, t('use it on your open document')), after];
+  }
   const choose = $('#drop-zone .upload-button').textContent.trim();
-  return [name + choose[0].toLowerCase() + choose.slice(1) + ' above.'];
+  return [
+    t('You are on {tool}: {action} above.', { tool, action: choose[0].toLowerCase() + choose.slice(1) }),
+  ];
 }
 let sayTimer = 0,
   said = '';
@@ -220,7 +232,10 @@ function filterTools() {
   if (nothing) sayResult($('#no-tools').textContent, `nothing for ${typed.join(' ')} under ${toolFilter}`);
   else sayResult(note.hidden ? '' : note.textContent);
 }
-$('#tool-search').addEventListener('input', filterTools);
+// Not while an input method composes (the pinyin "hebing" on its way to 合并),
+// which would hide every card at each key: once the Chinese is in.
+$('#tool-search').addEventListener('input', (event) => event.isComposing || filterTools());
+$('#tool-search').addEventListener('compositionend', filterTools);
 $$('[data-tool-filter]').forEach((button) =>
   button.addEventListener('click', () => {
     toolFilter = button.dataset.toolFilter;
@@ -270,9 +285,36 @@ function chooseForBatch() {
   picker.click();
   withEditor((module) => module.action('batch'));
 }
+/** This page's address in `language` (language.js works it out the same way). */
+function languageAddress(language) {
+  const root = siteRoot.pathname,
+    page = location.pathname.slice(root.length).replace(/^zh(\/|$)/, '');
+  return pageAddress(root, '', language) + page + location.search + location.hash;
+}
+// The language link leaves the page for its counterpart (language.js). With the
+// editor here, it asks first when there is work not downloaded; the link is then
+// followed here, or not at all.
+window.addEventListener(
+  'click',
+  (event) => {
+    const link = event.target.closest?.('a[data-language]');
+    if (!link || !editor || !plainClick(event)) return;
+    event.preventDefault();
+    editor.confirmLeaving().then((leave) => {
+      if (!leave) return;
+      try {
+        localStorage.setItem(LANGUAGE_KEY, link.dataset.language);
+      } catch {
+        // Not remembered: the page still changes.
+      }
+      location.assign(languageAddress(link.dataset.language));
+    });
+  },
+  true,
+);
 document.addEventListener('click', (event) => {
   const target = event.target.closest('button,a');
-  if (!target) return;
+  if (!target || target.matches('[data-language]')) return;
   // The visitor has moved on from the search: what it was about to say is stale,
   // and would be said over what comes next (the editor announces an opened PDF).
   if (!target.closest('.tool-discovery')) clearTimeout(sayTimer);
@@ -372,9 +414,9 @@ window.addEventListener('popstate', (event) => {
 history.scrollRestoration = 'manual';
 history.replaceState({ view: 'landing', depth: 0 }, '');
 // The page reloaded itself into a newer release when the visitor opened something (refresh).
-if (reloaded) toast('QFT PDF has been updated, so this page was reloaded. Please try again.');
+if (reloaded) toast(t('QFT PDF has been updated, so this page was reloaded. Please try again.'));
 if (!window.File || !window.Blob || !window.Worker)
   toast(
-    'QFT PDF needs a modern browser. Please use a recent version of Chrome, Edge, Firefox, or Safari.',
+    t('QFT PDF needs a modern browser. Please use a recent version of Chrome, Edge, Firefox, or Safari.'),
     true,
   );

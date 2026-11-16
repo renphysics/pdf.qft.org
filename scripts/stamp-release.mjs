@@ -21,9 +21,10 @@
  *   after a deploy could not tell the two apart either.)
  * - Each engine bundle (pdf-lib, fontkit, PDF.js and its worker) is versioned
  *   by a hash of its own bytes, so it is downloaded again only when it changes.
- * - The two text fonts are versioned the same way; the app keeps them in Cache
- *   Storage under that URL (pdf-engine.js fetchFont), so they outlive Pages'
- *   ten-minute cache and are downloaded again only when they change.
+ * - The three text fonts (Latin, the common Chinese of GB 2312, the full CJK
+ *   font) are versioned the same way; the app keeps them in Cache Storage
+ *   under that URL (pdf-engine.js fetchFont), so they outlive Pages' ten-minute
+ *   cache and are downloaded again only when they change.
  *
  * Usage: node scripts/stamp-release.mjs [siteDirectory] [--github-output]
  *
@@ -45,16 +46,20 @@ if (toStepOutput && !process.env.GITHUB_OUTPUT)
 const site = path.resolve(
   args.find((arg) => !arg.startsWith('--')) || fileURLToPath(new URL('../dist', import.meta.url)),
 );
-// One generated page per tool address (routes.js; scripts/build-pages.mjs).
+// The home page and one generated page per tool address (routes.js;
+// scripts/build-pages.mjs), in English and, under zh/, in Chinese.
 const { TOOL_PAGES } = await import(pathToFileURL(path.join(site, 'routes.js')).href);
-const TOOL_PAGE_FILES = [...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`);
+const SLUGS = [...new Set(Object.values(TOOL_PAGES))];
+const PAGE_FILES = ['', 'zh/'].flatMap((folder) => [
+  `${folder}index.html`,
+  ...SLUGS.map((slug) => `${folder}${slug}/index.html`),
+]);
 // Every module beside index.html (app.js and the editor's modules, the engine...).
 const MODULES = (await readdir(site)).filter((name) => name.endsWith('.js')).sort();
 const FIRST_PARTY = [
-  'index.html',
+  ...PAGE_FILES,
   'licenses/index.html',
   'licenses/licenses.css',
-  ...TOOL_PAGE_FILES,
   ...MODULES,
   'style.css',
   'studio.css',
@@ -80,6 +85,7 @@ const worker = await engine('pdf.worker.mjs');
 const pdfLib = await engine('pdf-lib.min.js');
 const fontkit = await engine('fontkit.umd.min.js');
 const latinFont = await hashOf('assets/fonts/NotoSans-Regular.ttf');
+const commonFont = await hashOf('assets/fonts/NotoSansCJKsc-GB2312.woff2');
 const cjkFont = await hashOf('assets/fonts/NotoSansCJKsc-Regular.otf');
 const release = sha256(
   [
@@ -89,6 +95,7 @@ const release = sha256(
     pdfLib,
     fontkit,
     latinFont,
+    commonFont,
     cjkFont,
   ].join('\0'),
 ).slice(0, 12);
@@ -99,32 +106,37 @@ const release = sha256(
 // static (from) and dynamic (import()); the check below fails on any relative
 // import left unversioned.
 const imports = [/((?:from |import\()'\.\/[\w-]+\.js)'/g, `$1?v=${release}'`, null];
-// The modules a page preloads (scripts/build-pages.mjs): those app.js imports, and
-// the editor's in the warm-editor template. Counted with the rule's own pattern;
+// A page names the site's files from where it is: "./" from index.html, "../"
+// from a tool page, "../../" from a Chinese tool page.
+const upFrom = (name) => '../'.repeat(name.split('/').length - 1) || './';
+const pattern = (text) => text.replace(/[./]/g, (char) => `\\${char}`);
+// The modules a page preloads (scripts/build-pages.mjs): those app.js imports, the
+// catalog on a Chinese page, and the editor's in the warm-editor template. Each
+// tool page preloads what its home page does, counted with the rule's own pattern;
 // the engine links in warm-engines have rules of their own, with the engines' ids.
-const preloads = (sources['index.html'].match(/rel="modulepreload" href="\.\/[\w-]+\.js"/g) || []).length;
+const preloadLink = (up) => new RegExp(`(rel="modulepreload" href="${pattern(up)}[\\w-]+\\.js)"`, 'g');
+const preloads = {
+  '': (sources['index.html'].match(preloadLink('./')) || []).length,
+  'zh/': (sources['zh/index.html'].match(preloadLink('../')) || []).length,
+};
+/** A page's rules: its stylesheets, language.js, zh.js and app.js, its preloads and the engines' links. */
+const pageRules = (name) => {
+  const up = pattern(upFrom(name));
+  return [
+    [new RegExp(`(href="${up}(?:style|studio|batch)\\.css)"`, 'g'), `$1?v=${release}"`, 3],
+    [new RegExp(`(src="${up}language\\.js)"`, 'g'), `$1?v=${release}"`, 1],
+    [new RegExp(`(src="${up}app\\.js)"`, 'g'), `$1?v=${release}"`, 1],
+    // A Chinese page's first module, which hands i18n.js the catalog (zh.js).
+    [new RegExp(`(src="${up}zh\\.js)"`, 'g'), `$1?v=${release}"`, name.startsWith('zh/') ? 1 : 0],
+    [preloadLink(upFrom(name)), `$1?v=${release}"`, preloads[name.startsWith('zh/') ? 'zh/' : '']],
+    [new RegExp(`(href="${up}assets\\/vendor\\/pdf\\.mjs)"`, 'g'), `$1?v=${pdfjs}"`, 1],
+    [new RegExp(`(href="${up}assets\\/vendor\\/pdf-lib\\.min\\.js)"`, 'g'), `$1?v=${pdfLib}"`, 1],
+  ];
+};
 const RULES = {
   ...Object.fromEntries(MODULES.map((name) => [name, [imports]])),
-  'index.html': [
-    [/(href="\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
-    [/(src="\.\/app\.js)"/g, `$1?v=${release}"`, 1],
-    [/(rel="modulepreload" href="\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
-    [/(href="\.\/assets\/vendor\/pdf\.mjs)"/g, `$1?v=${pdfjs}"`, 1],
-    [/(href="\.\/assets\/vendor\/pdf-lib\.min\.js)"/g, `$1?v=${pdfLib}"`, 1],
-  ],
+  ...Object.fromEntries(PAGE_FILES.map((name) => [name, pageRules(name)])),
   'licenses/index.html': [[/(href="(?:\.\.\/(?:style|studio)|\.\/licenses)\.css)"/g, `$1?v=${release}"`, 3]],
-  ...Object.fromEntries(
-    TOOL_PAGE_FILES.map((name) => [
-      name,
-      [
-        [/(href="\.\.\/(?:style|studio|batch)\.css)"/g, `$1?v=${release}"`, 3],
-        [/(src="\.\.\/app\.js)"/g, `$1?v=${release}"`, 1],
-        [/(rel="modulepreload" href="\.\.\/[\w-]+\.js)"/g, `$1?v=${release}"`, preloads],
-        [/(href="\.\.\/assets\/vendor\/pdf\.mjs)"/g, `$1?v=${pdfjs}"`, 1],
-        [/(href="\.\.\/assets\/vendor\/pdf-lib\.min\.js)"/g, `$1?v=${pdfLib}"`, 1],
-      ],
-    ]),
-  ),
   'documents.js': [
     imports,
     // The export worker is a module too: one URL per release.
@@ -140,6 +152,7 @@ const RULES = {
     [/(new URL\('\.\/assets\/vendor\/pdf-lib\.min\.js)'/g, `$1?v=${pdfLib}'`, 1],
     [/(new URL\('\.\/assets\/vendor\/fontkit\.umd\.min\.js)'/g, `$1?v=${fontkit}'`, 1],
     [/(new URL\('\.\/assets\/fonts\/NotoSans-Regular\.ttf)'/g, `$1?v=${latinFont}'`, 1],
+    [/(new URL\('\.\/assets\/fonts\/NotoSansCJKsc-GB2312\.woff2)'/g, `$1?v=${commonFont}'`, 1],
     [/(new URL\('\.\/assets\/fonts\/NotoSansCJKsc-Regular\.otf)'/g, `$1?v=${cjkFont}'`, 1],
   ],
 };
@@ -162,5 +175,5 @@ for (const [name, rules] of Object.entries(RULES)) {
 }
 if (toStepOutput) await appendFile(process.env.GITHUB_OUTPUT, `release=${release}\n`);
 console.log(
-  `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${cjkFont}) in ${site}.`,
+  `Stamped release ${release} (pdf.js ${pdfjs}, worker ${worker}, pdf-lib ${pdfLib}, fontkit ${fontkit}, fonts ${latinFont} ${commonFont} ${cjkFont}) in ${site}.`,
 );

@@ -40,7 +40,7 @@ export const PAGES = [
       ],
       [
         'Which languages can I type?',
-        'Latin-script languages and Chinese, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes, not megabytes. The Chinese font (16 MB) downloads once, the first time you type it.',
+        'Latin-script languages and Chinese, as well as Japanese kana and Korean Hangul. Only the characters you use are embedded, so Chinese text adds kilobytes, not megabytes. The Chinese font downloads once, the first time you type it: 1.4 MB for the common characters (all of GB2312), and the full 16 MB font only for rarer ones.',
       ],
       [
         'What images can I add?',

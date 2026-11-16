@@ -11,37 +11,46 @@ import { friendly, icon, state, toast, ui } from './editor-core.js';
 import { change } from './history.js';
 import { scopedPages } from './panel-crop.js';
 import { fillForm, numberField, renderTool, selectField } from './tool-panel.js';
+import { sentences, t, tn } from './i18n.js';
 
 const MM = 72 / 25.4; // points in a millimetre
 function marginFields() {
   return (
     '<div class="field-row">' +
-    numberField('Top (mm)', 'marginTop', 0, 100) +
-    numberField('Bottom (mm)', 'marginBottom', 0, 100) +
+    numberField(t('Top (mm)'), 'marginTop', 0, 100) +
+    numberField(t('Bottom (mm)'), 'marginBottom', 0, 100) +
     '</div><div class="field-row">' +
-    numberField('Left (mm)', 'marginLeft', 0, 100) +
-    numberField('Right (mm)', 'marginRight', 0, 100) +
+    numberField(t('Left (mm)'), 'marginLeft', 0, 100) +
+    numberField(t('Right (mm)'), 'marginRight', 0, 100) +
     '</div><button type="button" class="button secondary" data-action="margins-notes">' +
     icon('margins') +
-    'A wide right margin for notes</button>' +
+    t('A wide right margin for notes') +
+    '</button>' +
     selectField(
-      'Apply to',
+      t('Apply to'),
       'marginScope',
       [
-        ['all', 'Every page'],
-        ['current', 'Current page'],
-        ['selected', 'Selected pages'],
+        ['all', t('Every page')],
+        ['current', t('Current page')],
+        ['selected', t('Selected pages')],
       ],
       true,
     ) +
     '<button type="submit" class="button primary">' +
     icon('plus') +
-    'Add margins</button><button type="button" class="button subtle" data-action="margins-remove">Remove added margins</button>' +
-    '<p class="field-hint wide">' +
-    (state.pages.some((page) => page.paper)
-      ? 'The margins are blank space around each page. A page you resized to A4 or Letter stays on that paper, so it is made smaller to leave room for them; on other pages nothing moves or shrinks.'
-      : 'The margins are blank space around each page: nothing on it moves or shrinks.') +
-    ' Page numbers, headers and footers go to the new edges.</p>'
+    t('Add margins') +
+    '</button><button type="button" class="button subtle" data-action="margins-remove">' +
+    t('Remove added margins') +
+    '</button><p class="field-hint wide">' +
+    sentences(
+      state.pages.some((page) => page.paper)
+        ? t(
+            'The margins are blank space around each page. A page you resized to A4 or Letter stays on that paper, so it is made smaller to leave room for them; on other pages nothing moves or shrinks.',
+          )
+        : t('The margins are blank space around each page: nothing on it moves or shrinks.'),
+      t('Page numbers, headers and footers go to the new edges.'),
+    ) +
+    '</p>'
   );
 }
 /** A wide right margin for notes: 60 mm, the others none. */
@@ -60,7 +69,7 @@ function addMargins() {
       added = Object.fromEntries(['top', 'bottom', 'left', 'right'].map((edge) => [edge, draft[edge] * MM])),
       scope = scopedPages(draft.scope);
     if (!Object.values(added).some((value) => value > 0))
-      throw new Error('Enter the margins to add, in millimetres.');
+      throw new Error(t('Enter the margins to add, in millimetres.'));
     const targets = state.pages.filter((p) => scope === 'all' || scope.includes(p.id));
     // Each page as it is without a sheet, and the margins it gets, in its own
     // units. A resized page stays on its sheet, so it is made smaller, and its
@@ -76,7 +85,7 @@ function addMargins() {
         !page.paper &&
         (geometry.width + own.left + own.right > 14400 || geometry.height + own.top + own.bottom > 14400)
       )
-        throw new Error('A page can’t be larger than 5 metres (200 inches).');
+        throw new Error(t('A page can’t be larger than 5 metres (200 inches).'));
       const old = cropMarginsForRotation(page.crop, page.rotation),
         shown = contentMargins(page.crop, page.rotation),
         width = 1 - old.left - old.right,
@@ -97,9 +106,9 @@ function addMargins() {
         cropMarginsForRotation(crop, page.rotation);
       } catch {
         throw new Error(
-          'These margins are too large for page ' +
-            (state.pages.indexOf(page) + 1) +
-            ': more than 20 times its size. Make them smaller.',
+          t('These margins are too large for page {page}: more than 20 times its size. Make them smaller.', {
+            page: state.pages.indexOf(page) + 1,
+          }),
         );
       }
       crops.set(page, crop);
@@ -108,13 +117,11 @@ function addMargins() {
       () => {
         for (const p of targets) p.crop = crops.get(p);
       },
-      { layout: true, label: 'Add margins' },
+      { layout: true, label: t('Add margins') },
     );
     ui.marginDraft = { top: 0, bottom: 0, left: 0, right: 0, scope: draft.scope };
     renderTool();
-    toast(
-      targets.length === 1 ? 'Margins added to the page.' : 'Margins added to ' + targets.length + ' pages.',
-    );
+    toast(tn(targets.length, 'Margins added to the page.', 'Margins added to {count} pages.'));
   } catch (error) {
     toast(friendly(error), true);
   }
@@ -124,7 +131,7 @@ export function removeMargins() {
   try {
     const scope = scopedPages(ui.marginDraft.scope),
       targets = state.pages.filter((p) => (scope === 'all' || scope.includes(p.id)) && p.crop?.content);
-    if (!targets.length) throw new Error('These pages have no added margins.');
+    if (!targets.length) throw new Error(t('These pages have no added margins.'));
     change(
       () => {
         for (const p of targets) {
@@ -137,14 +144,10 @@ export function removeMargins() {
           else p.crop = { ...crop, rotation: p.rotation };
         }
       },
-      { layout: true, label: 'Remove margins' },
+      { layout: true, label: t('Remove margins') },
     );
     renderTool();
-    toast(
-      targets.length === 1
-        ? 'The added margins are removed.'
-        : 'Added margins removed from ' + targets.length + ' pages.',
-    );
+    toast(tn(targets.length, 'The added margins are removed.', 'Added margins removed from {count} pages.'));
   } catch (error) {
     toast(friendly(error), true);
   }

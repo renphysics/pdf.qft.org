@@ -7,6 +7,7 @@
 import { icon, safe, state, toast } from './editor-core.js';
 import { change } from './history.js';
 import { renderTool, textField } from './tool-panel.js';
+import { LOCALE, t } from './i18n.js';
 
 const PROPERTY_FIELDS = ['title', 'author', 'subject', 'keywords', 'language'];
 /** The details the first PDF keeps about itself (pictures and blank pages have none). */
@@ -24,25 +25,30 @@ function propertiesPanel() {
   const extra = clean
     ? []
     : [
-        own.creator && 'made with ' + own.creator,
-        own.producer && own.producer !== own.creator && 'saved by ' + own.producer,
-        own.created && 'created on ' + new Date(own.created).toLocaleDateString(),
+        own.creator && t('made with {app}', { app: own.creator }),
+        own.producer && own.producer !== own.creator && t('saved by {app}', { app: own.producer }),
+        own.created && t('created on {date}', { date: new Date(own.created).toLocaleDateString(LOCALE) }),
       ].filter(Boolean);
   return (
-    textField('Title', 'title', '', true) +
-    textField('Author', 'author', '', true) +
-    textField('Subject', 'subject', '', true) +
-    textField('Keywords', 'keywords', 'Separated by commas', true) +
-    textField('Language', 'language', 'For example en-GB, de or zh-CN', true) +
+    textField(t('Title'), 'title', '', true) +
+    textField(t('Author'), 'author', '', true) +
+    textField(t('Subject'), 'subject', '', true) +
+    textField(t('Keywords'), 'keywords', t('Separated by commas'), true) +
+    textField(t('Language'), 'language', t('For example en-GB, de or zh-CN'), true) +
     '<p class="field-hint wide" id="properties-extra">' +
     (extra.length
-      ? 'Also in the file: ' + safe(extra.join(', ')) + '.'
+      ? t('Also in the file: {details}.', { details: safe(extra.join(t(', '))) })
       : clean
-        ? 'Your download keeps only the details above.'
+        ? t('Your download keeps only the details above.')
         : '') +
     '</p><button type="button" class="button danger" data-action="properties-clear">' +
     icon('trash') +
-    'Remove all</button><p class="field-hint wide">Removes the title, author, subject and keywords, and what apps add without asking: which app made the PDF, when, and a second copy of these details. The language stays, because screen readers need it.</p>'
+    t('Remove all') +
+    '</button><p class="field-hint wide">' +
+    t(
+      'Removes the title, author, subject and keywords, and what apps add without asking: which app made the PDF, when, and a second copy of these details. The language stays, because screen readers need it.',
+    ) +
+    '</p>'
   );
 }
 /** Remove all: keep only the language, for privacy before sharing (one undo step). */
@@ -57,10 +63,10 @@ export function clearProperties() {
         keywords: '',
         clean: true,
       }),
-    { label: 'Remove details' },
+    { label: t('Remove details') },
   );
   renderTool();
-  toast('Details removed. Your download won’t include them.');
+  toast(t('Details removed. Your download won’t include them.'));
 }
 export function fields() {
   return propertiesPanel();

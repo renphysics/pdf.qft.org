@@ -21,6 +21,7 @@ import {
   ui,
 } from './editor-core.js';
 import { change, onDocumentChanged } from './history.js';
+import { t, tn } from './i18n.js';
 import {
   batchLink,
   colorField,
@@ -99,8 +100,13 @@ onDocumentChanged(() => {
 });
 function rememberField() {
   return (
-    '<label class="check-field wide"><input type="checkbox" name="rememberSetting" aria-describedby="remember-hint"> Remember these settings on this device</label>' +
-    '<p class="field-hint wide" id="remember-hint">Kept in this browser only: the text and options above, not your PDF or which pages. This tool starts from them next time; untick to forget them.</p>'
+    '<label class="check-field wide"><input type="checkbox" name="rememberSetting" aria-describedby="remember-hint"> ' +
+    t('Remember these settings on this device') +
+    '</label><p class="field-hint wide" id="remember-hint">' +
+    t(
+      'Kept in this browser only: the text and options above, not your PDF or which pages. This tool starts from them next time; untick to forget them.',
+    ) +
+    '</p>'
   );
 }
 
@@ -129,13 +135,13 @@ export function showSettingDefaults({ notice = true } = {}) {
   change(() => (state[key] = start));
   const message = saved
     ? {
-        watermark: 'Your saved watermark is shown on every page. Undo takes it away.',
-        headerFooter: 'Your saved headers and footers are shown on every page. Undo takes them away.',
-        pageNumbers: 'Your saved page numbers are shown on every page. Undo takes them away.',
+        watermark: t('Your saved watermark is shown on every page. Undo takes it away.'),
+        headerFooter: t('Your saved headers and footers are shown on every page. Undo takes them away.'),
+        pageNumbers: t('Your saved page numbers are shown on every page. Undo takes them away.'),
       }[key]
     : key === 'watermark'
-      ? 'Watermark “DRAFT” shown on every page. Undo takes it away.'
-      : 'Page numbers shown on every page. Undo takes them away.';
+      ? t('Watermark “DRAFT” shown on every page. Undo takes it away.')
+      : t('Page numbers shown on every page. Undo takes them away.');
   if (notice) toast(message);
   return message;
 }
@@ -153,29 +159,39 @@ function switchField(key, label) {
 /** Headers & footers and Page numbers: left and right change places on even pages. */
 function mirrorField() {
   return (
-    '<label class="check-field wide"><input type="checkbox" name="mirror" aria-describedby="mirror-hint"> Swap left and right on even pages</label>' +
-    '<p class="field-hint wide" id="mirror-hint">For printing on both sides: text on the right of odd pages goes on the left of even pages, so it stays on the outer edge.</p>'
+    '<label class="check-field wide"><input type="checkbox" name="mirror" aria-describedby="mirror-hint"> ' +
+    t('Swap left and right on even pages') +
+    '</label><p class="field-hint wide" id="mirror-hint">' +
+    t(
+      'For printing on both sides: text on the right of odd pages goes on the left of even pages, so it stays on the outer edge.',
+    ) +
+    '</p>'
   );
 }
 function scopeFields() {
   return (
     selectField(
-      'Show on',
+      t('Show on'),
       'scope',
       [
-        ['all', 'Every page'],
-        ['pages', 'Only some pages'],
+        ['all', t('Every page')],
+        ['pages', t('Only some pages')],
       ],
       true,
     ) +
     '<div class="scope-pages wide" id="scope-pages">' +
     makeField(
-      'Page numbers',
-      '<input name="scopePages" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1-3, 5" aria-describedby="scope-hint">',
+      t('Page numbers'),
+      '<input name="scopePages" type="text" inputmode="numeric" autocomplete="off" placeholder="' +
+        t('e.g. 1-3, 5') +
+        '" aria-describedby="scope-hint">',
       true,
     ) +
-    '<p id="scope-hint" class="field-hint" aria-live="polite">Numbers follow the current page order.</p>' +
-    '<button type="button" class="button secondary" data-action="scope-selected">Use the selected pages</button></div>'
+    '<p id="scope-hint" class="field-hint" aria-live="polite">' +
+    t('Numbers follow the current page order.') +
+    '</p><button type="button" class="button secondary" data-action="scope-selected">' +
+    t('Use the selected pages') +
+    '</button></div>'
   );
 }
 /** Edit a watermark, header/footer or page-number setting. Any edit also shows it. */
@@ -183,7 +199,7 @@ function updateSetting(key, name, value) {
   if (name === 'scopePages') {
     try {
       const ids = parsePageRange(value, state.pages.length).map((index) => state.pages[index].id);
-      if (!value.trim()) throw new Error('Enter the page numbers to show this on, for example 1-3, 5.');
+      if (!value.trim()) throw new Error(t('Enter the page numbers to show this on, for example 1-3, 5.'));
       delete ui.scopeErrors[key];
       change(
         () => {
@@ -226,24 +242,26 @@ export function toggleSetting() {
     state[key].enabled = on;
   });
   fillForm();
-  announceMessage(names[ui.tool] + (on ? ' shown.' : ' hidden.'));
+  announceMessage(
+    on ? t('{tool} shown.', { tool: names[ui.tool] }) : t('{tool} hidden.', { tool: names[ui.tool] }),
+  );
 }
 export function fields() {
   switch (ui.tool) {
     case 'watermark':
       return (
-        switchField('watermark', 'Show the watermark') +
-        textField('Watermark text', 'text', 'e.g. DRAFT', true) +
+        switchField('watermark', t('Show the watermark')) +
+        textField(t('Watermark text'), 'text', t('e.g. DRAFT'), true) +
         '<div class="field-row">' +
-        numberField('Text size (pt)', 'size', 8, 150) +
+        numberField(t('Text size (pt)'), 'size', 8, 150) +
         colorField() +
         '</div>' +
-        rangeField('Opacity', 'opacity', 3, 100) +
-        rangeField('Angle', 'angle', -90, 90, '°') +
-        selectField('Position', 'position', [
-          ['center', 'Center of page'],
-          ['top', 'Top of page'],
-          ['bottom', 'Bottom of page'],
+        rangeField(t('Opacity'), 'opacity', 3, 100) +
+        rangeField(t('Angle'), 'angle', -90, 90, '°') +
+        selectField(t('Position'), 'position', [
+          ['center', t('Center of page')],
+          ['top', t('Top of page')],
+          ['bottom', t('Bottom of page')],
         ]) +
         scopeFields() +
         rememberField() +
@@ -251,20 +269,28 @@ export function fields() {
       );
     case 'footer':
       return (
-        switchField('headerFooter', 'Show headers & footers') +
-        '<div class="scope-note wide">Type <strong>{page}</strong> for the page number and <strong>{total}</strong> for the number of pages: “Page {page} of {total}” shows as “Page 2 of 5”. <strong>{date}</strong> is today’s date and <strong>{filename}</strong> the file’s name.</div><div class="field-section wide">HEADER</div>' +
-        textField('Left', 'headerLeft', 'e.g. Project name') +
-        textField('Center', 'headerCenter') +
-        textField('Right', 'headerRight') +
-        '<div class="field-section wide">FOOTER</div>' +
-        textField('Left', 'footerLeft', 'e.g. Your name') +
-        textField('Center', 'footerCenter', 'e.g. © Your organization') +
-        textField('Right', 'footerRight', 'e.g. Page {page}') +
+        switchField('headerFooter', t('Show headers & footers')) +
+        '<div class="scope-note wide">' +
+        t(
+          'Type <strong>{page}</strong> for the page number and <strong>{total}</strong> for the number of pages: “Page {page} of {total}” shows as “Page 2 of 5”. <strong>{date}</strong> is today’s date and <strong>{filename}</strong> the file’s name.',
+        ) +
+        '</div><div class="field-section wide">' +
+        t('HEADER') +
+        '</div>' +
+        textField(t('Left'), 'headerLeft', t('e.g. Project name')) +
+        textField(t('Center'), 'headerCenter') +
+        textField(t('Right'), 'headerRight') +
+        '<div class="field-section wide">' +
+        t('FOOTER') +
+        '</div>' +
+        textField(t('Left'), 'footerLeft', t('e.g. Your name')) +
+        textField(t('Center'), 'footerCenter', t('e.g. © Your organization')) +
+        textField(t('Right'), 'footerRight', t('e.g. Page {page}')) +
         '<div class="field-row">' +
-        numberField('Text size (pt)', 'size', 6, 24) +
+        numberField(t('Text size (pt)'), 'size', 6, 24) +
         colorField() +
         '</div>' +
-        numberField('Edge margin (pt)', 'margin', 0, 100) +
+        numberField(t('Edge margin (pt)'), 'margin', 0, 100) +
         mirrorField() +
         scopeFields() +
         rememberField() +
@@ -272,26 +298,30 @@ export function fields() {
       );
     case 'numbers':
       return (
-        switchField('pageNumbers', 'Show page numbers') +
-        textField('Number format', 'format', 'Page {page} of {total}', true) +
-        '<div class="scope-note wide"><strong>{page}</strong> is the page number. <strong>{total}</strong> is the document page count. <strong>{date}</strong> and <strong>{filename}</strong> work too.</div>' +
+        switchField('pageNumbers', t('Show page numbers')) +
+        textField(t('Number format'), 'format', t('Page {page} of {total}'), true) +
+        '<div class="scope-note wide">' +
+        t(
+          '<strong>{page}</strong> is the page number. <strong>{total}</strong> is the document page count. <strong>{date}</strong> and <strong>{filename}</strong> work too.',
+        ) +
+        '</div>' +
         selectField(
-          'Position',
+          t('Position'),
           'position',
           [
-            ['bottom-right', 'Bottom right'],
-            ['bottom-center', 'Bottom center'],
-            ['bottom-left', 'Bottom left'],
+            ['bottom-right', t('Bottom right')],
+            ['bottom-center', t('Bottom center')],
+            ['bottom-left', t('Bottom left')],
           ],
           true,
         ) +
         '<div class="field-row">' +
-        numberField('Start numbering at', 'start', 1, 100000) +
-        numberField('Text size (pt)', 'size', 6, 24) +
+        numberField(t('Start numbering at'), 'start', 1, 100000) +
+        numberField(t('Text size (pt)'), 'size', 6, 24) +
         '</div>' +
         '<div class="field-row">' +
         colorField() +
-        numberField('Edge margin (pt)', 'margin', 0, 100) +
+        numberField(t('Edge margin (pt)'), 'margin', 0, 100) +
         '</div>' +
         mirrorField() +
         scopeFields() +
@@ -315,13 +345,13 @@ export function onInput(name, value) {
   const key = SETTINGS[ui.tool];
   if (name === 'rememberSetting') {
     if (!remember(key, value ? state[key] || defaultSetting(key) : null)) {
-      toast('This browser could not keep these settings.', true);
+      toast(t('This browser could not keep these settings.'), true);
       fillForm({ all: true });
     } else
       announceMessage(
         value
-          ? 'These settings will be remembered on this device.'
-          : 'These settings are no longer remembered.',
+          ? t('These settings will be remembered on this device.')
+          : t('These settings are no longer remembered.'),
       );
     return;
   }
@@ -335,13 +365,13 @@ export function afterFill(values) {
     const button = $('[data-action="scope-selected"]', scopePages);
     button.disabled = !ui.selected.size;
     button.textContent = ui.selected.size
-      ? 'Use the ' + ui.selected.size + ' selected page' + (ui.selected.size === 1 ? '' : 's')
-      : 'Select pages in the strip to use them';
+      ? tn(ui.selected.size, 'Use the {count} selected page', 'Use the {count} selected pages')
+      : t('Select pages in the strip to use them');
     const error = ui.scopeErrors[SETTINGS[ui.tool]];
     const field = $('[name="scopePages"]', scopePages);
     field.setAttribute('aria-invalid', String(Boolean(error)));
     const hint = $('#scope-hint'),
-      text = error || 'Numbers follow the current page order.';
+      text = error || t('Numbers follow the current page order.');
     if (hint.textContent !== text) hint.textContent = text;
     hint.classList.toggle('invalid', Boolean(error));
   }

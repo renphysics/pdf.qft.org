@@ -6,6 +6,15 @@ Copyright notice preserved from this font’s name-table metadata:
 
 Source: https://github.com/notofonts/noto-cjk
 
+../assets/fonts/NotoSansCJKsc-GB2312.woff2 is a subset of this font: the
+characters of GB 2312 with ASCII, Latin-1 and punctuation, made with
+fontTools (scripts/subset-cjk-font.py in the source repository). It is a
+Modified Version under this license, which names no Reserved Font Name, and
+is distributed under the same license. The Chinese sample PDF
+(../assets/sample-zh.pdf) embeds a subset of this font, its outlines
+converted to TrueType (scripts/create-sample-zh.py); the license does not
+apply to the document's content.
+
 This Font Software is licensed under the SIL Open Font License,
 Version 1.1.
 

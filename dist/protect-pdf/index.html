@@ -6,10 +6,14 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="theme-color" content="#244e41">
+  <script src="../language.js"></script>
   <!-- page:meta -->
   <title>Password-protect a PDF for free — QFT PDF</title>
   <meta name="description" content="Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.">
   <link rel="canonical" href="https://pdf.qft.org/protect-pdf/">
+  <link rel="alternate" hreflang="en" href="https://pdf.qft.org/protect-pdf/">
+  <link rel="alternate" hreflang="zh-CN" href="https://pdf.qft.org/zh/protect-pdf/">
+  <link rel="alternate" hreflang="x-default" href="https://pdf.qft.org/protect-pdf/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="QFT PDF">
   <meta property="og:url" content="https://pdf.qft.org/protect-pdf/">
@@ -20,16 +24,18 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="QFT PDF. Every PDF. A little simpler. Edit, merge, split and number PDFs for free, right in your browser.">
   <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="zh_CN">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Protect PDF — QFT PDF","url":"https://pdf.qft.org/protect-pdf/","description":"Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"Protect PDF","item":"https://pdf.qft.org/protect-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How strong is the protection?","acceptedAnswer":{"@type":"Answer","text":"The PDF is encrypted with AES-256, the strongest encryption PDF readers support. As with any password, a long one that is hard to guess protects best."}},{"@type":"Question","name":"What if I forget the password?","acceptedAnswer":{"@type":"Answer","text":"QFT PDF doesn’t keep it and can’t recover it, so store it somewhere safe. Your original, unprotected file is unchanged."}},{"@type":"Question","name":"Is my password sent anywhere?","acceptedAnswer":{"@type":"Answer","text":"No. The PDF is encrypted in your browser, and neither the file nor the password leaves your device."}},{"@type":"Question","name":"Can I edit the PDF before protecting it?","acceptedAnswer":{"@type":"Answer","text":"Yes. Add text, page numbers or a watermark, or reorder and remove pages, then download it protected. Split parts and downloaded page selections get the same password."}},{"@type":"Question","name":"Will it open in other PDF readers?","acceptedAnswer":{"@type":"Answer","text":"Yes. Current PDF readers, including Adobe Acrobat and web browsers, ask for the password and then open it."}}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Protect PDF — QFT PDF","url":"https://pdf.qft.org/protect-pdf/","description":"Add a password to a PDF with AES-256 encryption, so only people who know it can open the file. Free, and your PDF and password stay on your device.","inLanguage":"en","image":"https://pdf.qft.org/assets/social-card.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and a recent version of Chrome, Edge, Firefox or Safari.","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@type":"WebSite","name":"QFT PDF","url":"https://pdf.qft.org/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QFT PDF","item":"https://pdf.qft.org/"},{"@type":"ListItem","position":2,"name":"Protect PDF","item":"https://pdf.qft.org/protect-pdf/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How strong is the protection?","acceptedAnswer":{"@type":"Answer","text":"The PDF is encrypted with AES-256, the strongest encryption PDF readers support. As with any password, a long one that is hard to guess protects best."}},{"@type":"Question","name":"What if I forget the password?","acceptedAnswer":{"@type":"Answer","text":"QFT PDF doesn’t keep it and can’t recover it, so store it somewhere safe. Your original, unprotected file is unchanged."}},{"@type":"Question","name":"Is my password sent anywhere?","acceptedAnswer":{"@type":"Answer","text":"No. The PDF is encrypted in your browser, and neither the file nor the password leaves your device."}},{"@type":"Question","name":"Can I edit the PDF before protecting it?","acceptedAnswer":{"@type":"Answer","text":"Yes. Add text, page numbers or a watermark, or reorder and remove pages, then download it protected. Split parts and downloaded page selections get the same password."}},{"@type":"Question","name":"Will it open in other PDF readers?","acceptedAnswer":{"@type":"Answer","text":"Yes. Current PDF readers, including Adobe Acrobat and web browsers, ask for the password and then open it."}}]}]}</script>
   <!-- /page:meta -->
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="../studio.css">
   <link rel="stylesheet" href="../batch.css">
   <!-- modules:preload -->
   <link rel="modulepreload" href="../editor-core.js">
+  <link rel="modulepreload" href="../i18n.js">
   <link rel="modulepreload" href="../routes.js">
   <link rel="modulepreload" href="../views.js">
   <template id="warm-editor">
@@ -115,6 +121,7 @@
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#tools" data-action="tools-home">All tools</a>
       <button class="text-button" data-action="privacy">Your privacy</button>
+      <a class="language-link" href="../zh/protect-pdf/" hreflang="zh-CN" lang="zh-CN" data-language="zh">中文</a>
     </nav>
     <span class="header-note"><span class="status-dot"></span> Private. Practical. PDF.</span>
   </header>
@@ -195,7 +202,7 @@
       <!-- page:sections -->
       <!-- /page:sections -->
       <section class="privacy-strip section-wrap"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><div><h3>Your documents stay with you.</h3><p>PDF processing happens on your device. No document uploads, no account to create.</p></div><button class="text-button" data-action="privacy">How we handle files <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></section>
-      <footer class="site-footer section-wrap"><a href="../" class="footer-brand">QFT PDF</a><span>PDF tools that respect your time and your privacy.</span><div><button data-action="help">Help &amp; supported files</button><a href="../licenses/index.html" target="_blank" rel="noopener">Open-source credits</a></div></footer>
+      <footer class="site-footer section-wrap"><a href="../" class="footer-brand">QFT PDF</a><span>PDF tools that respect your time and your privacy.</span><div><button data-action="help">Help &amp; supported files</button><a href="../licenses/index.html" hreflang="en" target="_blank" rel="noopener">Open-source credits</a></div></footer>
     </section>
     <section id="workspace" hidden aria-label="PDF editor">
       <div class="document-bar">

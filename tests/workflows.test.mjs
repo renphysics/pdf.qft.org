@@ -103,6 +103,11 @@ await test('split planning: every page, chunks, page groups, 350 pages, invalid 
     [2, 0, 1],
     [3, 4],
   ]);
+  // A Chinese keyboard's semicolon and comma.
+  assert.deepEqual(planSplit({ mode: 'ranges', ranges: '1-2；3，5' }, 5), [
+    [0, 1],
+    [2, 4],
+  ]);
   assert.equal(planSplit({ mode: 'each' }, 350).length, 350, 'Split does not reintroduce a 300-page cap');
   for (const options of [
     { mode: 'ranges', ranges: '' },

@@ -34,6 +34,7 @@ const {
   measuringFont,
   imagesToPdf,
   blankPdf,
+  textFont,
 } = await import('../dist/pdf-engine.js');
 const {
   baseName,
@@ -532,7 +533,6 @@ await test('Chinese, kana and Hangul: the CJK font is subset, read without warni
     `Noto Sans CJK is subset, not embedded whole (+${cjk.length - fixtureBytes.length} bytes)`,
   );
   assert.deepEqual(await renderWarnings(cjk), [], 'PDF.js reads the CJK subset without font warnings');
-  const cjkFont = await measuringFont('cjk');
   const cjkItems = (await extract(cjk))[0].items;
   for (const line of cjkLines) {
     const item = cjkItems.find((candidate) => candidate.text === line);
@@ -542,9 +542,10 @@ await test('Chinese, kana and Hangul: the CJK font is subset, read without warni
       (candidate) => candidate.str === line,
     ).width;
     await doc.loadingTask.destroy();
+    // Measured with the font it is drawn with: the common Chinese font, or the full one (tests/fonts.test.mjs).
     approx(
       width,
-      cjkFont.widthOfTextAtSize(line, 14),
+      (await textFont(line, measuringFont)).widthOfTextAtSize(line, 14),
       `"${line}" is as wide as the preview measures it`,
       0.05,
     );
@@ -2829,6 +2830,9 @@ await test('page ranges: parsed; refused when out of range or malformed', async 
   assert.throws(() => parsePageRange('0, 1', 4), /between/);
   assert.throws(() => parsePageRange('3-1', 4), /between/);
   assert.throws(() => parsePageRange('one', 4), /Use page numbers/);
+  // As a Chinese keyboard types them: full-width commas, digits and dashes, 、, and the dashes – and —.
+  for (const typed of ['1-3，4', '1-3、4', '１－３，４', '1–3, 4', '1—3,4'])
+    assert.deepEqual(parsePageRange(typed, 4), [0, 1, 2, 3], typed);
 });
 
 await test('tagged PDFs: repeated content is marked as artifacts; untagged additions are noted', async () => {

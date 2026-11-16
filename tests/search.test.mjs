@@ -342,21 +342,31 @@ const SAID = {
   office:
     'QFT PDF can’t convert between PDF and Word, Excel or PowerPoint; to make a PDF from an Office file, save it as PDF in the app that made it.',
 };
-// A sentence that names one of these...
-const NAMES = /\bcompress|\bOCR\b|\bsearchable\b|\bredact|\bWord\b|\bPowerPoint\b|\bExcel\b/;
+// A sentence that names one of these, in English or in Chinese (压缩 compress,
+// 识别 recognise, 涂黑 redact, 可搜索 searchable)...
+const NAMES =
+  /\bcompress|\bOCR\b|\bsearchable\b|\bredact|\bWord\b|\bPowerPoint\b|\bExcel\b|压缩|识别|涂黑|可搜索/;
 // ...says that the site does not do it.
-const DENIES = /can’t|cannot|doesn’t|does not|don’t|isn’t|\bnot\b|\bno\b/i;
-/** The statements in a text as a visitor reads it: no markup, and no questions (a question claims nothing). */
+const DENIES = /can’t|cannot|doesn’t|does not|don’t|isn’t|\bnot\b|\bno\b|不能|不会|不是|没有|无法|不支持/i;
+/**
+ * The statements in a text as a visitor reads it: no markup, and no questions
+ * (a question claims nothing). A Chinese sentence ends at 。！？ with no space.
+ */
 const statements = (text) =>
   text
     .replace(/<(script|style)[\s\S]*?<\/\1>/g, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replaceAll('&amp;', '&')
-    .split(/(?<=[.!?])\s+/)
+    .split(/(?<=[.!?])\s+|(?<=[。！？])/)
     .map((sentence) => sentence.replace(/\s+/g, ' ').trim())
-    .filter((sentence) => sentence && !sentence.endsWith('?'));
+    .filter((sentence) => sentence && !/[?？]$/.test(sentence));
 const dist = new URL('../dist/', import.meta.url);
-const pageFiles = ['index.html', ...new Set(Object.values(TOOL_PAGES).map((slug) => `${slug}/index.html`))];
+const slugs = [...new Set(Object.values(TOOL_PAGES))];
+// Each page in English and in Chinese.
+const pageFiles = ['', 'zh/'].flatMap((folder) => [
+  `${folder}index.html`,
+  ...slugs.map((slug) => `${folder}${slug}/index.html`),
+]);
 const pageText = Object.fromEntries(
   await Promise.all(pageFiles.map(async (name) => [name, await readFile(new URL(name, dist), 'utf8')])),
 );

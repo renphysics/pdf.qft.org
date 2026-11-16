@@ -13,13 +13,19 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const site = path.join(root, 'dist');
 const html = await readFile(path.join(site, 'index.html'), 'utf8');
 const canonical = 'https://pdf.qft.org/';
-// Every public page and its canonical address: home plus one page per tool.
-const PAGES = {
-  'index.html': canonical,
-  ...Object.fromEntries(
-    [...new Set(Object.values(TOOL_PAGES))].map((slug) => [`${slug}/index.html`, `${canonical}${slug}/`]),
-  ),
-};
+// Every public page and its canonical address: home plus one page per tool, in
+// English and, under zh/, in Chinese.
+const SLUGS = [...new Set(Object.values(TOOL_PAGES))];
+const PAGES = Object.fromEntries(
+  ['', 'zh/'].flatMap((folder) => [
+    [`${folder}index.html`, `${canonical}${folder}`],
+    ...SLUGS.map((slug) => [`${folder}${slug}/index.html`, `${canonical}${folder}${slug}/`]),
+  ]),
+);
+/** How a page names the site's root: "./" from index.html, "../" from a folder below it. */
+const upFrom = (name) => '../'.repeat(name.split('/').length - 1) || './';
+/** How wide a text is in a search result: a Chinese character takes the room of two letters. */
+const width = (text) => [...text].reduce((sum, char) => sum + (/[⺀-鿿＀-￯]/.test(char) ? 2 : 1), 0);
 // The Pages workflow runs this suite on the copy it deploys, where every address
 // between the site's own files carries the release ("./editor.js?v=0123456789ab").
 const RELEASE = String.raw`(?:\?v=[0-9a-f]{12})?`;
@@ -81,8 +87,9 @@ await test('module graph: a page loads app.js and its static imports only; the e
     );
     let shellBytes = 0;
     for (const name of ['app.js', ...shell]) shellBytes += (await stat(path.join(site, name))).size;
+    // 75,000: the language core (i18n.js) and the search's Chinese took it past 70,000.
     assert(
-      shellBytes < 70000,
+      shellBytes < 75000,
       `the landing page's modules weigh ${shellBytes} bytes; a stray import into app.js?`,
     );
     for (const name of (await readdir(site)).filter((file) => file.endsWith('.js')))
@@ -95,8 +102,8 @@ await test('module graph: a page loads app.js and its static imports only; the e
         ...(await source(leaf)).matchAll(new RegExp(String.raw`from '\./([\w-]+\.js)${RELEASE}'`, 'g')),
       ].map((match) => match[1]);
       assert(
-        imports.every((name) => ['editor-core.js', 'routes.js'].includes(name)),
-        `${leaf} imports only editor-core.js and routes.js, so any module can import it`,
+        imports.every((name) => ['editor-core.js', 'routes.js', 'i18n.js'].includes(name)),
+        `${leaf} imports only editor-core.js, routes.js and i18n.js, so any module can import it`,
       );
     }
     const page = await source('index.html');
@@ -271,20 +278,20 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
     assert.equal(meta('property', 'og:url'), url, `${name}: og:url`);
     const title = decode(page.match(/<title>([^<]+)<\/title>/)[1]);
     assert(
-      title.includes('QFT PDF') && title.length <= 60,
-      `${name}: title must name QFT PDF in 60 characters: ${title}`,
+      title.includes('QFT PDF') && width(title) <= 60,
+      `${name}: title must name QFT PDF in the room of 60 letters: ${title}`,
     );
     assert(!titles.has(title), `${name}: duplicate title`);
     titles.add(title);
     const description = decode(meta('name', 'description') || '');
     assert(
-      description.length >= 50 && description.length <= 160,
-      `${name}: description must be 50-160 characters`,
+      width(description) >= 50 && width(description) <= 160,
+      `${name}: description must take the room of 50-160 letters`,
     );
     assert(!descriptions.has(description), `${name}: duplicate description`);
     descriptions.add(description);
     for (const key of ['og:title', 'og:description', 'og:image:alt'])
-      assert(meta('property', key)?.length > 20, `${name}: missing ${key}`);
+      assert(width(decode(meta('property', key) || '')) > 20, `${name}: missing ${key}`);
     assert.equal(meta('name', 'twitter:card'), 'summary_large_image', `${name}: twitter:card`);
     assert.deepEqual(
       [meta('property', 'og:image:width'), meta('property', 'og:image:height')],
@@ -309,7 +316,7 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
       ),
       `${name}: must not load the PDF engines eagerly`,
     );
-    const up = name === 'index.html' ? './' : '../';
+    const up = upFrom(name);
     assert.deepEqual(
       engines?.match(/<link [^>]*>/g),
       [
@@ -324,21 +331,38 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
       `${name}: the same warm-editor template as the home page`,
     );
     const data = JSON.parse(page.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
-    if (name === 'index.html') {
+    // A Chinese page's structured data is in Chinese and names the Chinese card.
+    const chinese = name.startsWith('zh/');
+    const sharedCard = chinese ? '/assets/social-card-zh.png' : '/assets/social-card.png';
+    const han = /[一-鿿]/;
+    if (url === canonical || url === `${canonical}zh/`) {
       assert.equal(data['@type'], 'WebApplication');
-      assert.equal(data.url, canonical);
+      assert.equal(data.url, url);
+      assert(data.image.endsWith(sharedCard), `${name}: structured data image ${data.image}`);
+      if (chinese)
+        for (const text of [data.description, data.browserRequirements, ...data.featureList])
+          assert.match(text, han, `${name}: “${text}” in the structured data is not Chinese`);
       continue;
     }
     // Tool pages: the app opens this page's tool, and the grid lists every other tool.
     const tool = page.match(/<body data-tool="(\w+)">/)?.[1];
     assert(
-      tool && `${TOOL_PAGES[tool]}/index.html` === name,
+      tool && `${TOOL_PAGES[tool]}/index.html` === name.replace(/^zh\//, ''),
       `${name}: body data-tool must name this page's tool`,
     );
     const listed = new Set([...page.matchAll(/data-card="(\w+)"/g)].map((match) => match[1]));
     assert.deepEqual(listed, new Set([...cardIds].filter((id) => id !== tool)), `${name}: tools grid`);
     const graph = Object.fromEntries(data['@graph'].map((entry) => [entry['@type'], entry]));
     assert.equal(graph.WebApplication.url, url, `${name}: WebApplication url`);
+    assert(graph.WebApplication.image.endsWith(sharedCard), `${name}: structured data image`);
+    if (chinese) assert.match(graph.WebApplication.browserRequirements, han, `${name}: browserRequirements`);
+    // An answer's tool links become plain names: quoted in Chinese, no link syntax left.
+    for (const entry of graph.FAQPage.mainEntity)
+      assert.doesNotMatch(
+        entry.acceptedAnswer.text,
+        /\]\(tool:|\[/,
+        `${name}: link syntax in “${entry.name}”`,
+      );
     assert.equal(graph.BreadcrumbList.itemListElement.at(-1).item, url, `${name}: breadcrumb`);
     // FAQ structured data must match the questions shown on the page.
     const shown = [...page.matchAll(/<summary>([^<]+)<\/summary>/g)].map((match) => decode(match[1]));

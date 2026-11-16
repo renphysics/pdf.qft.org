@@ -374,10 +374,12 @@ await test('the live check: its arguments, its addresses and what it counts as t
 // serves the project address, from a server in this process.
 const site = path.join(root, 'dist');
 const files = [
-  'index.html',
+  ...['', 'zh/'].flatMap((folder) => [
+    `${folder}index.html`,
+    ...[...new Set(Object.values(TOOL_PAGES))].map((slug) => `${folder}${slug}/index.html`),
+  ]),
   'licenses/index.html',
   'licenses/licenses.css',
-  ...[...new Set(Object.values(TOOL_PAGES))].map((slug) => `${slug}/index.html`),
   ...(await readdir(site)).filter((name) => name.endsWith('.js')),
   'style.css',
   'studio.css',
@@ -387,6 +389,7 @@ const files = [
   'assets/vendor/pdf-lib.min.js',
   'assets/vendor/fontkit.umd.min.js',
   'assets/fonts/NotoSans-Regular.ttf',
+  'assets/fonts/NotoSansCJKsc-GB2312.woff2',
   'assets/fonts/NotoSansCJKsc-Regular.otf',
 ];
 async function stamped(name, change) {
@@ -436,7 +439,7 @@ await test('the live check passes when the site serves the release, and asks pas
   const result = await check(base, newer.release, 5);
   assert.equal(result.code, 0, `the right release passes:\n${result.stdout}`);
   assert.match(result.stdout, new RegExp(`serves release ${newer.release} \\(attempt 1,`));
-  assert.equal(requests.length, 3, 'the home page, a tool page and app.js');
+  assert.equal(requests.length, 4, 'the home page, a tool page, a Chinese tool page and app.js');
   assert(
     requests.every((url) => /[?&]deploy-check=[\w-]+$/.test(url)),
     `each request has a query of its own: ${requests.join(' ')}`,

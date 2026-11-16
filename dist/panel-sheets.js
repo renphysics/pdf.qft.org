@@ -10,12 +10,15 @@ import { geometryOf } from './preview.js';
 import { $, busy, icon, protectedDownload, snapshot, state, toast, ui } from './editor-core.js';
 import { downloadBytes, exportDocument, exportNotes, outputBase, showExportError } from './documents.js';
 import { numberField, selectField } from './tool-panel.js';
+import { sentences, t, tn } from './i18n.js';
 
 const MM = 72 / 25.4; // points in a millimetre
 
 function sheetFields() {
   return (
-    '<fieldset class="segmented wide"><legend>Pages per sheet</legend><div>' +
+    '<fieldset class="segmented wide"><legend>' +
+    t('Pages per sheet') +
+    '</legend><div>' +
     ['2', '4']
       .map(
         (value) =>
@@ -28,7 +31,7 @@ function sheetFields() {
       .join('') +
     '</div></fieldset>' +
     selectField(
-      'Paper',
+      t('Paper'),
       'sheetPaper',
       [
         ['a4', 'A4'],
@@ -37,15 +40,21 @@ function sheetFields() {
       true,
     ) +
     '<div class="field-row">' +
-    numberField('Margin (mm)', 'sheetMargin', 0, 30) +
-    numberField('Gap (mm)', 'sheetGap', 0, 30) +
-    '</div><label class="check-field wide"><input type="checkbox" name="sheetBorder"> A thin border around each page</label>' +
-    '<p id="sheet-summary" class="field-hint wide" aria-live="polite"></p>' +
+    numberField(t('Margin (mm)'), 'sheetMargin', 0, 30) +
+    numberField(t('Gap (mm)'), 'sheetGap', 0, 30) +
+    '</div><label class="check-field wide"><input type="checkbox" name="sheetBorder"> ' +
+    t('A thin border around each page') +
+    '</label><p id="sheet-summary" class="field-hint wide" aria-live="polite"></p>' +
     '<button type="submit" class="button primary">' +
     icon('download') +
-    'Download the sheets</button>' +
-    '<p class="field-hint wide">Each page goes on its sheet as it looks with your edits, as large as fits, and text and drawings stay sharp. Links and comments don’t carry over; form fields are flattened, so their answers do.' +
-    (protectedDownload() ? ' The PDF needs your password to open.' : '') +
+    t('Download the sheets') +
+    '</button><p class="field-hint wide">' +
+    sentences(
+      t(
+        'Each page goes on its sheet as it looks with your edits, as large as fits, and text and drawings stay sharp. Links and comments don’t carry over; form fields are flattened, so their answers do.',
+      ),
+      protectedDownload() && t('The PDF needs your password to open.'),
+    ) +
     '</p>'
   );
 }
@@ -64,18 +73,23 @@ function updateSheetSummary() {
       draft.margin * MM,
       draft.gap * MM,
     );
+    const values = {
+      count,
+      sheets,
+      orientation: layout.width > layout.height ? t('landscape') : t('portrait'),
+      paper: draft.paper === 'a4' ? 'A4' : 'Letter',
+      columns: layout.columns,
+      rows: layout.rows,
+    };
     node.textContent =
-      count +
-      (count === 1 ? ' page on ' : ' pages on ') +
-      sheets +
-      (layout.width > layout.height ? ' landscape ' : ' portrait ') +
-      (draft.paper === 'a4' ? 'A4' : 'Letter') +
-      (sheets === 1 ? ' sheet' : ' sheets') +
-      ': ' +
-      layout.columns +
-      ' across, ' +
-      layout.rows +
-      ' down.';
+      count === 1
+        ? t('{count} page on {sheets} {orientation} {paper} sheet: {columns} across, {rows} down.', values)
+        : sheets === 1
+          ? t('{count} pages on {sheets} {orientation} {paper} sheet: {columns} across, {rows} down.', values)
+          : t(
+              '{count} pages on {sheets} {orientation} {paper} sheets: {columns} across, {rows} down.',
+              values,
+            );
     node.classList.remove('invalid');
   } catch (error) {
     node.textContent = error.message;
@@ -89,7 +103,7 @@ async function saveSheets() {
   try {
     // From the PDF as it downloads, with its fields flattened (their answers become part of the pages).
     const { bytes, notes } = await exportDocument({ ...snapshot(), flattenForms: true, protection: null });
-    busy(true, 'Putting the pages on sheets…');
+    busy(true, t('Putting the pages on sheets…'));
     const password = protectedDownload() ? state.protection.password : null;
     const sheets = await pagesPerSheet(bytes, {
       perSheet: draft.perSheet,
@@ -100,7 +114,7 @@ async function saveSheets() {
       password,
     });
     const base = safeBaseName(outputBase());
-    downloadBytes(sheets, base + '-' + draft.perSheet + '-per-sheet.pdf');
+    downloadBytes(sheets, base + t('-{count}-per-sheet', { count: draft.perSheet }) + '.pdf');
     const count = Math.ceil(state.pages.length / draft.perSheet);
     // A handout is a new PDF: it says what the original's pages left behind, here
     // or already in the export (pages deleted or files combined make a copy).
@@ -108,11 +122,11 @@ async function saveSheets() {
       ...new Set([...notes.filter((note) => note.endsWith('-dropped')), ...(await copyNotes(bytes))]),
     ];
     toast(
-      'Your ' +
-        (count === 1 ? 'sheet has' : count + ' sheets have') +
-        ' been downloaded.' +
-        (password ? ' The PDF needs your password to open.' : '') +
+      sentences(
+        tn(count, 'Your sheet has been downloaded.', 'Your {count} sheets have been downloaded.'),
+        password && t('The PDF needs your password to open.'),
         exportNotes([...notes.filter((note) => note === 'signature-invalid'), ...losses]),
+      ),
     );
   } catch (error) {
     showExportError(error);

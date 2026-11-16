@@ -27,7 +27,16 @@ test('the search and the dialogs need none of the editor; opening a file loads i
   await page.locator('[data-action="tools-home"]').first().dispatchEvent('click');
   await expect(page.locator('#tools-title')).toBeFocused();
   expect(scripts.filter((path) => EDITOR.test(path))).toEqual([]);
-  expect([...new Set(scripts)].sort()).toEqual(['/app.js', '/editor-core.js', '/routes.js', '/views.js']);
+  // language.js runs before the page shows; an English page loads no catalog (zh.js and
+  // i18n-zh.js are a Chinese page's).
+  expect([...new Set(scripts)].sort()).toEqual([
+    '/app.js',
+    '/editor-core.js',
+    '/i18n.js',
+    '/language.js',
+    '/routes.js',
+    '/views.js',
+  ]);
   await page.setInputFiles('#file-input', fixture('rotated-cropped.pdf'));
   await ready(page);
   expect(scripts.some((path) => /\/editor\.js$/.test(path))).toBe(true);

@@ -20,11 +20,14 @@ import {
   sizeFields,
   sizeValues,
 } from './tool-panel.js';
+import { t } from './i18n.js';
 
+/** The button that adds an item to the current page: its number updates as the document is read. */
+const onPage = (index) => '<span data-current-page>' + (index + 1) + '</span>';
 export function title(item) {
-  if (item?.type === 'text') return 'Edit text';
-  if (item?.type === 'image') return 'Edit image';
-  if (item?.type === 'highlight') return 'Edit highlight';
+  if (item?.type === 'text') return t('Edit text');
+  if (item?.type === 'image') return t('Edit image');
+  if (item?.type === 'highlight') return t('Edit highlight');
   return null;
 }
 export function fields(item, index) {
@@ -32,52 +35,60 @@ export function fields(item, index) {
     case 'text':
       if (item?.type === 'text')
         return (
-          makeField('Text', '<textarea name="text" maxlength="1000" rows="3"></textarea>', true) +
+          makeField(t('Text'), '<textarea name="text" maxlength="1000" rows="3"></textarea>', true) +
           '<div class="field-row">' +
-          numberField('Size (pt)', 'size', 4, 200) +
+          numberField(t('Size (pt)'), 'size', 4, 200) +
           colorField() +
           '</div>' +
           alignField() +
-          '<p class="field-hint wide">Drag the text to move it, or its right edge to set where lines wrap. With the text selected, arrow keys move it, and with Alt they set where lines wrap.</p>' +
-          '<button type="button" class="button danger" data-action="delete-item">' +
+          '<p class="field-hint wide">' +
+          t(
+            'Drag the text to move it, or its right edge to set where lines wrap. With the text selected, arrow keys move it, and with Alt they set where lines wrap.',
+          ) +
+          '</p><button type="button" class="button danger" data-action="delete-item">' +
           icon('trash') +
-          'Delete text</button>'
+          t('Delete text') +
+          '</button>'
         );
       return (
         '<div class="field-row">' +
-        numberField('Size (pt)', 'size', 4, 200) +
+        numberField(t('Size (pt)'), 'size', 4, 200) +
         colorField() +
         '</div>' +
         '<button type="button" class="button secondary" data-action="add-text">' +
         icon('plus') +
-        'Add text to page <span data-current-page>' +
-        (index + 1) +
+        '<span>' +
+        t('Add text to page {page}', { page: onPage(index) }) +
         '</span>' +
         '</button>'
       );
     case 'image':
       if (item?.type === 'image')
         return (
-          rangeField('Width', 'width', 2, 100) +
-          rangeField('Opacity', 'opacity', 10, 100) +
-          '<p class="field-hint wide">Drag the image to move it, or a corner to resize it. Arrow keys move it, and with Alt they resize it.</p>' +
-          '<button type="button" class="button danger" data-action="delete-item">' +
+          rangeField(t('Width'), 'width', 2, 100) +
+          rangeField(t('Opacity'), 'opacity', 10, 100) +
+          '<p class="field-hint wide">' +
+          t(
+            'Drag the image to move it, or a corner to resize it. Arrow keys move it, and with Alt they resize it.',
+          ) +
+          '</p><button type="button" class="button danger" data-action="delete-item">' +
           icon('trash') +
-          'Delete image</button>'
+          t('Delete image') +
+          '</button>'
         );
       return (
         '<div class="file-chosen wide">' +
-        (ui.image ? safe(ui.image.name) : 'PNG or JPG · up to 15 MB') +
+        (ui.image ? safe(ui.image.name) : t('PNG or JPG · up to 15 MB')) +
         '</div>' +
         '<button type="button" class="button primary" data-action="choose-image">' +
         icon('image') +
-        (ui.image ? 'Choose another image' : 'Choose an image') +
+        (ui.image ? t('Choose another image') : t('Choose an image')) +
         '</button>' +
         (ui.image
           ? '<button type="button" class="button secondary" data-action="place-image">' +
             icon('plus') +
-            'Add it to page <span data-current-page>' +
-            (index + 1) +
+            '<span>' +
+            t('Add it to page {page}', { page: onPage(index) }) +
             '</span>' +
             '</button>'
           : '')
@@ -86,18 +97,22 @@ export function fields(item, index) {
       return (
         '<div class="field-row">' +
         colorField() +
-        rangeField('Opacity', 'opacity', 5, 80) +
+        rangeField(t('Opacity'), 'opacity', 5, 80) +
         '</div>' +
         (item?.type === 'highlight'
           ? sizeFields() +
-            '<p class="field-hint wide">Drag the highlight to move it, or a handle to resize it. Arrow keys move it, and with Alt they resize it. Width and height are shares of the page.</p>' +
-            '<button type="button" class="button danger" data-action="delete-item">' +
+            '<p class="field-hint wide">' +
+            t(
+              'Drag the highlight to move it, or a handle to resize it. Arrow keys move it, and with Alt they resize it. Width and height are shares of the page.',
+            ) +
+            '</p><button type="button" class="button danger" data-action="delete-item">' +
             icon('trash') +
-            'Delete highlight</button>'
+            t('Delete highlight') +
+            '</button>'
           : '<button type="button" class="button secondary" data-action="add-highlight">' +
             icon('plus') +
-            'Add a highlight to page <span data-current-page>' +
-            (index + 1) +
+            '<span>' +
+            t('Add a highlight to page {page}', { page: onPage(index) }) +
             '</span>' +
             '</button>')
       );
@@ -141,7 +156,7 @@ export function onInput(name, value, field, item) {
       () => {
         item[keys[name]] = name === 'size' ? Number(value) : value;
       },
-      { key: name + ':' + item.id, label: 'Edit text' },
+      { key: name + ':' + item.id, label: t('Edit text') },
     );
     if (name === 'text') warmFont(value);
     if (ui.editing === item.id && name === 'text') inlineEditor.value = value;
@@ -152,12 +167,15 @@ export function onInput(name, value, field, item) {
     const parsed = name === 'opacity' ? Number(value) / 100 : value;
     ui.styles.highlight[name] = parsed;
     if (item?.type === 'highlight')
-      change(() => (item[name] = parsed), { key: name + ':' + item.id, label: 'Edit highlight' });
+      change(() => (item[name] = parsed), { key: name + ':' + item.id, label: t('Edit highlight') });
     return;
   }
   if (ui.tool === 'image' && item?.type === 'image') {
     if (name === 'opacity')
-      change(() => (item.opacity = Number(value) / 100), { key: 'opacity:' + item.id, label: 'Edit image' });
+      change(() => (item.opacity = Number(value) / 100), {
+        key: 'opacity:' + item.id,
+        label: t('Edit image'),
+      });
     if (name === 'width') resizeImageTo(item, Number(value) / 100);
   }
 }

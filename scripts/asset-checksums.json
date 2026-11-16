@@ -3,6 +3,10 @@
     "bytes": 48448,
     "sha256": "4cec60e0ff8b4057dcd57bcdb249cbd420173de86a1f48133f23e635cecca117"
   },
+  "assets/sample-zh.pdf": {
+    "bytes": 53096,
+    "sha256": "b33ef8b7467cefcd23e6c88ab4a0ad9780f2b702d954312ff6872ff71731ba7b"
+  },
   "assets/fonts/NotoSans-Regular.ttf": {
     "bytes": 825628,
     "sha256": "f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5"
@@ -10,6 +14,10 @@
   "assets/fonts/NotoSansCJKsc-Regular.otf": {
     "bytes": 16437364,
     "sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b"
+  },
+  "assets/fonts/NotoSansCJKsc-GB2312.woff2": {
+    "bytes": 1405140,
+    "sha256": "86a3fa301d9e004f0d1bf053009f288d36bf60bd7d51b4d01cb089cfca7880dd"
   },
   "assets/vendor/pdf.worker.mjs": {
     "bytes": 1327591,

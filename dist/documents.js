@@ -4,6 +4,7 @@
  */
 
 import { buildPdfWithNotes, imagesToPdf, loadPdfLib, openPdf, passwordProblem } from './pdf-engine.js';
+import { LANGUAGE, listOf, sentences, t, tn, userError } from './i18n.js';
 import { baseName, rescaledMargins } from './layout.js';
 import { safeBaseName } from './workflows.js';
 import { isPicture, pictureForPage } from './convert.js';
@@ -47,7 +48,10 @@ function exportWorker() {
   if (exporter === false || typeof Worker === 'undefined') return null;
   if (!exporter) {
     try {
-      const worker = new Worker(new URL('./export-worker.js', import.meta.url), { type: 'module' });
+      // In the page's language, so that what it reports reads as the page does.
+      const address = new URL('./export-worker.js', import.meta.url);
+      address.searchParams.set('lang', LANGUAGE);
+      const worker = new Worker(address, { type: 'module' });
       const jobs = new Map();
       const ready = new Promise((resolve) => {
         worker.addEventListener('message', (event) => event.data?.ready && resolve(true));
@@ -66,7 +70,7 @@ function exportWorker() {
       worker.addEventListener('error', (event) => {
         event.preventDefault();
         for (const job of jobs.values())
-          job.reject(new Error('The PDF could not be created. Please try again.'));
+          job.reject(userError('The PDF could not be created. Please try again.'));
         jobs.clear();
         worker.terminate();
         if (exporter?.worker === worker) exporter = null;
@@ -85,11 +89,11 @@ async function build(input, onProgress) {
     const id = ++exportSequence;
     return new Promise((resolve, reject) => {
       current.jobs.set(id, { resolve, reject, progress: onProgress });
-      cancellable('Cancel', () => {
+      cancellable(t('Cancel'), () => {
         current.jobs.delete(id);
         current.worker.terminate();
         if (exporter === current) exporter = null;
-        const error = new Error('Stopped. Your document is unchanged.');
+        const error = userError('Stopped. Your document is unchanged.');
         error.name = 'AbortError';
         reject(error);
       });
@@ -104,7 +108,7 @@ async function build(input, onProgress) {
  * The document as a PDF: { bytes, notes } (see buildPdfWithNotes). Reuses the
  * last build while nothing has changed.
  */
-export async function exportDocument(input = null, label = 'Preparing your PDF…') {
+export async function exportDocument(input = null, label = t('Preparing your PDF…')) {
   stopEditing();
   if (!input && ui.exported?.version === ui.version) return ui.exported.result;
   const version = ui.version;
@@ -169,43 +173,44 @@ export function outputBase(pages = state.pages) {
   const first = pages
     .map((page) => state.sources.find((source) => source.id === page.sourceId))
     .find((source) => source && !source.blank);
-  return first ? baseName(first.name) : 'document';
+  return first ? baseName(first.name) : t('document');
 }
 /**
- * What a download's name says was done: its protection; "converted" for
- * pictures made into pages; "merged" for several files; one word when the
- * edits are of one kind (numbered, watermarked, cropped, resized, signed,
- * filled, organized); and "edited" for anything else.
+ * What a download's name says was done, as the end of its name in the page's
+ * language ("-merged", "-已合并"): its protection; converted for pictures made
+ * into pages; merged for several files; one word when the edits are of one
+ * kind (numbered, watermarked, cropped, resized, signed, filled, organized);
+ * and edited for anything else.
  */
 function outputKind() {
-  if (protectedDownload()) return 'protected';
-  if (unlockedDownload()) return 'unlocked';
+  if (protectedDownload()) return t('-protected');
+  if (unlockedDownload()) return t('-unlocked');
   const files = usedSources().filter((source) => !source.blank);
-  if (files.length && files.every((source) => source.picture)) return 'converted';
-  if (files.length > 1) return 'merged';
+  if (files.length && files.every((source) => source.picture)) return t('-converted');
+  if (files.length > 1) return t('-merged');
   const on = (key) => state[key] && state[key].enabled !== false;
   const kinds = new Set();
-  if (on('pageNumbers')) kinds.add('numbered');
-  if (on('watermark') && String(state.watermark.text || '').trim()) kinds.add('watermarked');
+  if (on('pageNumbers')) kinds.add(t('-numbered'));
+  if (on('watermark') && String(state.watermark.text || '').trim()) kinds.add(t('-watermarked'));
   if (
     on('headerFooter') &&
     ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].some((slot) =>
       String(state.headerFooter[slot] || '').trim(),
     )
   )
-    kinds.add('edited');
+    kinds.add(t('-edited'));
   for (const annotation of state.annotations)
-    kinds.add(annotation.type === 'signature' ? 'signed' : 'edited');
+    kinds.add(annotation.type === 'signature' ? t('-signed') : t('-edited'));
   if (state.pages.some((page) => page.crop))
-    kinds.add(state.pages.some((page) => page.crop?.content) ? 'edited' : 'cropped');
+    kinds.add(state.pages.some((page) => page.crop?.content) ? t('-edited') : t('-cropped'));
   // Pages a sheet changes (one that is that size already stays as it is).
-  if (state.pages.some((page) => page.paper && geometryOf(state, page).scale)) kinds.add('resized');
+  if (state.pages.some((page) => page.paper && geometryOf(state, page).scale)) kinds.add(t('-resized'));
   if (
     state.flattenForms ||
     Object.values(state.formValues || {}).some((values) => Object.keys(values).length)
   )
-    kinds.add('filled');
-  if (state.properties) kinds.add('edited');
+    kinds.add(t('-filled'));
+  if (state.properties) kinds.add(t('-edited'));
   // Pages moved, turned, removed, repeated or added.
   const [file] = files;
   if (
@@ -215,50 +220,53 @@ function outputKind() {
         (page, index) => page.sourceId !== file.id || page.index !== index || (page.rotation || 0) !== 0,
       ))
   )
-    kinds.add('organized');
-  return kinds.size === 1 ? [...kinds][0] : 'edited';
+    kinds.add(t('-organized'));
+  return kinds.size === 1 ? [...kinds][0] : t('-edited');
 }
-/** The download's name, in a form every system takes (safeBaseName): not left to the browser. */
+/**
+ * The download's name, in a form every system takes (safeBaseName): not left
+ * to the browser. `suffix` ends it, in the page's language: t('-selected').
+ */
 export function outputName(suffix = outputKind(), pages = state.pages) {
-  return safeBaseName(outputBase(pages)) + '-' + suffix + '.pdf';
+  return safeBaseName(outputBase(pages)) + suffix + '.pdf';
 }
 /**
  * What a download message adds about the file, or the files of a split
- * (`several`), from the build's notes (see buildPdfWithNotes).
+ * (`several`), from the build's notes (see buildPdfWithNotes): sentences, for
+ * sentences() to put after the message.
  */
 export function exportNotes(notes, { several = false } = {}) {
   const reasons = [
-    notes.includes('pdfa-removed-password') && 'PDF/A files can’t have a password',
-    notes.includes('pdfa-removed') && 'added text and marks don’t meet PDF/A rules',
+    notes.includes('pdfa-removed-password') && t('PDF/A files can’t have a password'),
+    notes.includes('pdfa-removed') && t('added text and marks don’t meet PDF/A rules'),
     notes.includes('pdfa-removed-hidden') &&
-      'comments, links or fields outside the visible page were hidden, which PDF/A doesn’t allow',
+      t('comments, links or fields outside the visible page were hidden, which PDF/A doesn’t allow'),
     notes.includes('pdfa-removed-properties') &&
-      'changing its details removes the metadata that declares PDF/A',
+      t('changing its details removes the metadata that declares PDF/A'),
   ].filter(Boolean);
   const left = [
-    notes.includes('labels-dropped') && 'page labels (such as i, ii, iii)',
-    notes.includes('attachments-dropped') && 'attached files',
-    notes.includes('tags-dropped') && 'accessibility tags',
+    notes.includes('labels-dropped') && t('page labels (such as i, ii, iii)'),
+    notes.includes('attachments-dropped') && t('attached files'),
+    notes.includes('tags-dropped') && t('accessibility tags'),
   ].filter(Boolean);
-  let text = reasons.length
-    ? ' It’s no longer marked as PDF/A (archival), because ' + reasons.join(', and ') + '.'
-    : '';
-  if (left.length) {
-    const list = left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left.at(-1) : left[0];
-    text +=
-      (several ? ' Their pages were copied into new PDFs' : ' Its pages were copied into a new PDF') +
-      ', without the original’s ' +
-      list +
-      '.';
-  }
-  if (notes.includes('signature-invalid'))
-    text +=
-      ' The original was digitally signed: its signature isn’t valid in ' +
-      (several ? 'these copies.' : 'this copy.');
-  if (notes.includes('additions-untagged'))
-    text +=
-      ' What you added isn’t tagged for screen readers; they skip the page numbers, headers, footers and watermark, which are marked as artifacts.';
-  return text;
+  return [
+    reasons.length &&
+      t('It’s no longer marked as PDF/A (archival), because {reasons}.', {
+        reasons: reasons.join(t(', and ')),
+      }),
+    left.length &&
+      (several
+        ? t('Their pages were copied into new PDFs, without the original’s {list}.', { list: listOf(left) })
+        : t('Its pages were copied into a new PDF, without the original’s {list}.', { list: listOf(left) })),
+    notes.includes('signature-invalid') &&
+      (several
+        ? t('The original was digitally signed: its signature isn’t valid in these copies.')
+        : t('The original was digitally signed: its signature isn’t valid in this copy.')),
+    notes.includes('additions-untagged') &&
+      t(
+        'What you added isn’t tagged for screen readers; they skip the page numbers, headers, footers and watermark, which are marked as artifacts.',
+      ),
+  ].filter(Boolean);
 }
 export async function downloadDocument() {
   try {
@@ -268,11 +276,14 @@ export async function downloadDocument() {
     downloadBytes(bytes, outputName());
     ui.savedVersion = version;
     toast(
-      (locked
-        ? 'Your protected PDF has been downloaded. It needs your password to open.'
-        : unlockedDownload()
-          ? 'Your unlocked PDF has been downloaded.'
-          : 'Your edited PDF has been downloaded.') + exportNotes(notes),
+      sentences(
+        locked
+          ? t('Your protected PDF has been downloaded. It needs your password to open.')
+          : unlockedDownload()
+            ? t('Your unlocked PDF has been downloaded.')
+            : t('Your edited PDF has been downloaded.'),
+        exportNotes(notes),
+      ),
     );
   } catch (error) {
     showExportError(error);
@@ -300,15 +311,18 @@ export async function downloadSelected() {
     extraction.pages = extraction.pages.filter((p) => ids.has(p.id));
     const problem = formProblem(extraction.pages);
     if (problem) throw new Error(problem);
-    const { bytes, notes } = await exportDocument(extraction, 'Preparing selected pages…');
-    downloadBytes(bytes, outputName('selected', extraction.pages));
+    const { bytes, notes } = await exportDocument(extraction, t('Preparing selected pages…'));
+    downloadBytes(bytes, outputName(t('-selected'), extraction.pages));
     toast(
-      extraction.pages.length +
-        ' selected page' +
-        (extraction.pages.length === 1 ? '' : 's') +
-        ' downloaded.' +
-        (protectedDownload() ? ' The PDF needs your password to open.' : '') +
+      sentences(
+        tn(
+          extraction.pages.length,
+          '{count} selected page downloaded.',
+          '{count} selected pages downloaded.',
+        ),
+        protectedDownload() && t('The PDF needs your password to open.'),
         exportNotes(notes),
+      ),
     );
   } catch (error) {
     showExportError(error);
@@ -338,7 +352,7 @@ function passwordDialog(name, several, attempt) {
     submit = $('#password-submit'),
     cancel = $('#password-cancel');
   $('#password-file').textContent = '“' + name + '”';
-  cancel.textContent = several ? 'Skip this file' : 'Cancel';
+  cancel.textContent = several ? t('Skip this file') : t('Cancel');
   input.value = '';
   input.type = 'password';
   reveal.checked = false;
@@ -368,13 +382,13 @@ function passwordDialog(name, several, attempt) {
       event.preventDefault();
       if (working) return;
       if (!input.value) {
-        showError('Enter the password.');
+        showError(t('Enter the password.'));
         input.focus();
         return;
       }
       working = true;
       submit.disabled = true;
-      submit.textContent = 'Opening…';
+      submit.textContent = t('Opening…');
       try {
         finish(await attempt(input.value));
       } catch (failure) {
@@ -386,7 +400,7 @@ function passwordDialog(name, several, attempt) {
       } finally {
         working = false;
         submit.disabled = false;
-        submit.textContent = 'Open PDF';
+        submit.textContent = t('Open PDF');
       }
     };
     const onCancel = () => finish(null);
@@ -425,7 +439,7 @@ let reassured = false;
 function reassurance() {
   if (reassured) return '';
   reassured = true;
-  return ' Everything happens on your device.';
+  return t('Everything happens on your device.');
 }
 function openedMessage(sources, { added, kept, skipped, shown = null }) {
   const withPassword = sources.some((source) => source.protection === 'password'),
@@ -435,31 +449,40 @@ function openedMessage(sources, { added, kept, skipped, shown = null }) {
   if (pictures === sources.length && !added)
     parts.push(
       pictures === 1
-        ? 'Your picture is a PDF page now. Download it, or add more pictures.'
-        : 'Your ' + pictures + ' pictures are PDF pages now. Put them in order, then download one PDF.',
+        ? t('Your picture is a PDF page now. Download it, or add more pictures.')
+        : t('Your {count} pictures are PDF pages now. Put them in order, then download one PDF.', {
+            count: pictures,
+          }),
     );
   else if (added)
-    parts.push(added + ' page' + (added === 1 ? '' : 's') + ' added. Arrange them, then download.');
+    parts.push(
+      tn(
+        added,
+        '{count} page added. Arrange them, then download.',
+        '{count} pages added. Arrange them, then download.',
+      ),
+    );
   else if (ui.tool === 'unlock' && (withPassword || limited))
     parts.push(
-      'Your PDF is unlocked. Download a copy that opens without a password' +
-        (limited ? ' and without limits on printing, copying or changes.' : '.'),
+      limited
+        ? t(
+            'Your PDF is unlocked. Download a copy that opens without a password and without limits on printing, copying or changes.',
+          )
+        : t('Your PDF is unlocked. Download a copy that opens without a password.'),
     );
-  else if (withPassword) parts.push('Your PDF is unlocked for editing, here on your device.');
+  else if (withPassword) parts.push(t('Your PDF is unlocked for editing, here on your device.'));
   else if (!added && ui.tool === 'form' && documentFields().length)
-    parts.push('Your PDF has fields to fill in: click one to type in it.' + reassurance());
-  else parts.push('Your PDF is ready.' + reassurance());
-  if (kept) parts.push('Your download will keep the same password. Change it in Protect PDF.');
+    parts.push(t('Your PDF has fields to fill in: click one to type in it.'), reassurance());
+  else parts.push(t('Your PDF is ready.'), reassurance());
+  if (kept) parts.push(t('Your download will keep the same password. Change it in Protect PDF.'));
   if (limited && ui.tool !== 'unlock')
-    parts.push('It had limits on printing, copying or changes, which your download won’t have.');
-  if (skipped.length)
-    parts.push(
-      skipped.map((name) => '“' + name + '”').join(', ') +
-        (skipped.length === 1 ? ' wasn’t' : ' weren’t') +
-        ' opened.',
-    );
+    parts.push(t('It had limits on printing, copying or changes, which your download won’t have.'));
+  if (skipped.length) {
+    const names = listOf(skipped.map((name) => '“' + name + '”'));
+    parts.push(tn(skipped.length, '{names} wasn’t opened.', '{names} weren’t opened.', { names }));
+  }
   if (shown) parts.push(shown);
-  return parts.join(' ');
+  return sentences(parts);
 }
 /** A picture file as a one-page source; it keeps the picture to lay the page out again. */
 async function pictureSource(file, picture = null) {
@@ -487,7 +510,7 @@ export async function relayoutPictures() {
     (source) => source.picture && state.pages.some((p) => p.sourceId === source.id),
   );
   if (!old.length) return;
-  busy(true, 'Updating the pages made from pictures…');
+  busy(true, t('Updating the pages made from pictures…'));
   try {
     // New sources with new ids: the preview keeps rendered pages by source.
     const replaced = new Map();
@@ -507,7 +530,7 @@ export async function relayoutPictures() {
           return { ...page, sourceId: source.id, crop };
         });
       },
-      { layout: true, label: 'Page size' },
+      { layout: true, label: t('Page size') },
     );
   } catch (error) {
     toast(friendly(error), true);
@@ -526,7 +549,7 @@ export async function openFiles(files, append = false) {
   const isPdf = (file) => file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
   if (list.some((file) => !isPdf(file) && !isPicture(file))) {
     resetPicker();
-    toast('Please choose PDF files, or JPG and PNG pictures to make pages from.', true);
+    toast(t('Please choose PDF files, or JPG and PNG pictures to make pages from.'), true);
     return;
   }
   // With Add an image, a picture dropped on the page goes on the page.
@@ -541,17 +564,17 @@ export async function openFiles(files, append = false) {
     state.pages.length &&
     isDirty() &&
     !(await confirmDialog({
-      eyebrow: 'START A NEW DOCUMENT',
-      title: 'Replace your current document?',
-      body: 'Your edits will be cleared. Download your edited PDF first if you want to keep it.',
-      confirmLabel: 'Open new PDF',
+      eyebrow: t('START A NEW DOCUMENT'),
+      title: t('Replace your current document?'),
+      body: t('Your edits will be cleared. Download your edited PDF first if you want to keep it.'),
+      confirmLabel: t('Open new PDF'),
     }))
   ) {
     resetPicker();
     return;
   }
   stopEditing();
-  busy(true, 'Opening your PDF' + (list.length > 1 ? 's' : '') + '…');
+  busy(true, list.length > 1 ? t('Opening your PDFs…') : t('Opening your PDF…'));
   loadPdfjs().catch(() => {});
   try {
     const sources = [],
@@ -604,7 +627,7 @@ export async function openFiles(files, append = false) {
       sources.forEach((source) => known.set(source.id, source));
       const used = [...state.pages, ...pages].map((page) => known.get(page.sourceId));
       if (!state.flattenForms && used.some((source) => source.hasForm))
-        throw new Error(
+        throw userError(
           'PDFs with form fields can only be combined with other files once their fields are flattened. Turn on “Flatten fields on download” in Fill form, then add the file again.',
         );
       change(
@@ -613,7 +636,7 @@ export async function openFiles(files, append = false) {
           state.pages.push(...pages);
           if (keep) state.protection = { enabled: true, password };
         },
-        { layout: true, label: 'Add files' },
+        { layout: true, label: t('Add files') },
       );
       renderTool();
       toast(openedMessage(sources, { added: pages.length, kept: keep, skipped }));
@@ -690,7 +713,7 @@ export function showLanding() {
     resume.id = 'resume-document';
     resume.className = 'button secondary';
     resume.dataset.action = 'resume';
-    resume.textContent = 'Return to your open document';
+    resume.textContent = t('Return to your open document');
     resume.style.marginTop = '14px';
     $('#drop-zone').append(resume);
   }

@@ -8,8 +8,12 @@
  * scripts/build-pages.mjs writes the cards, the menu and the tabs into
  * index.html from this list and generates one page per address, and the editor
  * names tools from it, so a tool is described once. Keep slugs stable: people
- * bookmark them and search engines index them.
+ * bookmark them and search engines index them. The Chinese of each tool's
+ * words is in i18n-zh.js (TOOLS, by id), which only Chinese pages load;
+ * local() gives a tool in the page's language (README, "Chinese").
  */
+import { localNote, localTool } from './i18n.js';
+
 const tool = (id, slug, name, tab, icon, extra = {}) =>
   Object.freeze({ id, slug, name, tab, icon, ...extra });
 
@@ -147,15 +151,25 @@ export const TOOLS = Object.freeze([
   }),
 ]);
 
+/** A tool in the page's language: its name, title, tab, card and keywords (on an English page, as it is). */
+export const local = localTool;
+
 /** Each tool's address (the slug of its page). The app shows it while the tool is in use. */
 export const TOOL_PAGES = Object.freeze(Object.fromEntries(TOOLS.map((item) => [item.id, item.slug])));
 
-/** The words of a text, for the tool search: lowercase letters and digits, "e-sign" as "e" and "sign". */
+const HAN = /\p{Script=Han}/u;
+/**
+ * The words of a text, for the tool search: lowercase letters and digits,
+ * "e-sign" as "e" and "sign". Chinese, written without spaces, is a word of
+ * its own beside other letters ("合并pdf" is "合并" and "pdf"), and full-width
+ * letters are letters ("ＰＤＦ" is "pdf").
+ */
 export const searchWords = (text) =>
   String(text)
     .toLowerCase()
     .normalize('NFKD')
     .replace(/\p{M}/gu, '')
+    .replace(/\p{Script=Han}+/gu, ' $& ')
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
 // Words that name no tool, as every tool works on a PDF file: "merge pdf files",
@@ -163,6 +177,71 @@ export const searchWords = (text) =>
 const COMMON = new Set(
   'pdf pdfs file files document documents free online a an the my to from of in on for and with'.split(' '),
 );
+// Chinese that names no tool either, as words of their own or inside a search:
+// "合并pdf文件", "怎么合并" and "合并成一个" find what "合并" finds. Longest first.
+const COMMON_ZH = [
+  '文件',
+  '文档',
+  '免费',
+  '在线',
+  '工具',
+  '软件',
+  '网站',
+  '怎么',
+  '如何',
+  '怎样',
+  '一个',
+  '一下',
+  '多个',
+  '几个',
+  '可以',
+  '帮我',
+  '我要',
+  '我想',
+  '的',
+  '把',
+  '将',
+  '给',
+  '请',
+  '吗',
+  '呢',
+  '了',
+  '成',
+  '为',
+];
+const withoutCommon = (word) => COMMON_ZH.reduce((rest, common) => rest.replaceAll(common, ''), word);
+/**
+ * Whether typed Chinese is in a text's Chinese (`han`, its words joined by
+ * spaces). Chinese has no spaces to start a word at, so any part of a word
+ * counts, as "合" finds "合并" while it is typed. Typed whole, or cut into parts
+ * that each are there, of two characters or more, and words that name no tool
+ * (COMMON_ZH): "旋转页面" is "旋转" and "页面", "合成一个" is "合成" and "一个".
+ * Every way of cutting it is tried, so "图片转换成" is "图片", "转换" and "成"
+ * where "图片转" is there too, and a common word is taken whole, never out of a
+ * word ("合成" keeps its "成"). Failing that, it is cut again without the words
+ * that name no tool, as "转成图片" is "转图片". Single characters are too common
+ * to count apart ("打码" is not "打开" and "密码").
+ */
+function hanFinds(typed, han) {
+  if (han.includes(typed)) return true;
+  const cuts = (text) => {
+    const known = new Map();
+    const cut = (start) => {
+      if (start === text.length) return true;
+      if (!known.has(start)) {
+        let found = false;
+        for (let end = text.length; end > start + 1 && !found; end--)
+          found = han.includes(text.slice(start, end)) && cut(end);
+        for (const common of COMMON_ZH)
+          found ||= text.startsWith(common, start) && cut(start + common.length);
+        known.set(start, found);
+      }
+      return known.get(start);
+    };
+    return cut(0);
+  };
+  return cuts(typed) || cuts(withoutCommon(typed));
+}
 /** What the search reads for a tool: the name and copy on its card, and its keywords. */
 export const searchText = (item) =>
   [item.title || item.name, ...(item.card || []), item.keywords || ''].join(' ');
@@ -193,10 +272,12 @@ function inflects(word, found) {
  * or a noun's ending (inflects).
  */
 export function searchFinds(typed, text) {
-  const own = searchWords(text);
+  const own = searchWords(text),
+    han = own.filter((word) => HAN.test(word)).join(' ');
   return typed
     .filter((word) => !COMMON.has(word))
     .every((word) => {
+      if (HAN.test(word)) return hanFinds(word, han);
       const single = word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word;
       return own.some((found) => found.startsWith(word) || found.startsWith(single) || inflects(word, found));
     });
@@ -316,13 +397,24 @@ export const SEARCH_NOTES = Object.freeze([
 ]);
 const wordMatches = (wanted, typed) =>
   wanted.endsWith('*') ? typed.startsWith(wanted.slice(0, -1)) : typed === wanted;
-/** The note for the words typed (searchWords), or null: the first whose search is all there. */
+/**
+ * Whether a note's search is in the words typed: each of its words, or its
+ * Chinese inside typed Chinese, also with the Chinese typed around other
+ * letters put together, without the words that name no tool ("修改PDF的文字"
+ * has "修改文字").
+ */
+const searched = (search, typed) =>
+  HAN.test(search)
+    ? typed.some((word) => word.includes(search)) ||
+      withoutCommon(typed.filter((word) => HAN.test(word)).join('')).includes(search)
+    : search.split(' ').every((wanted) => typed.some((word) => wordMatches(wanted, word)));
+/**
+ * The note for the words typed (searchWords), in the page's language, or
+ * null: the first whose search is all there. (On a Chinese page its Chinese
+ * searches bring it too: i18n-zh.js, NOTES.)
+ */
 export function searchNote(typed) {
   return (
-    SEARCH_NOTES.find((item) =>
-      item.words.some((search) =>
-        search.split(' ').every((wanted) => typed.some((word) => wordMatches(wanted, word))),
-      ),
-    ) || null
+    SEARCH_NOTES.map(localNote).find((item) => item.words.some((search) => searched(search, typed))) || null
   );
 }

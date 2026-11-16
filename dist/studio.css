@@ -928,6 +928,13 @@ textarea:focus-visible {
     min-width: 30px;
   }
 }
+@media (max-width: 340px) {
+  /* On an English page three links and the site's name do not fit side by
+     side: the mark alone stands for the name, which the link's label says. */
+  :lang(en) .brand > span {
+    display: none;
+  }
+}
 
 /* Phones: one row of document actions. Undo shows only its icon, but its label
    stays available to assistive technology. */
@@ -1127,8 +1134,9 @@ summary:focus-visible {
 .page-view.marked-delete > .page-overlay {
   opacity: 0.5;
 }
+/* Its word comes from the catalog (page-view.js, data-mark); the page strip says the same. */
 .page-view.marked-delete::after {
-  content: 'Delete' / '';
+  content: attr(data-mark) / '';
   position: absolute;
   top: 10px;
   left: 10px;
@@ -1360,7 +1368,7 @@ summary:focus-visible {
 .switch[aria-checked='true'] .switch-track > span {
   transform: translateX(16px);
 }
-/* Alignment: three options in one row. */
+/* Two or three options in one row, of equal width (alignment, ink, format...). */
 .segmented {
   min-width: 0;
   margin: 0 0 15px;
@@ -1376,13 +1384,18 @@ summary:focus-visible {
 }
 .segmented > div {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   overflow: hidden;
   border: 1px solid var(--color-border-input);
   border-radius: 7px;
 }
 .segmented label {
   position: relative;
+}
+/* What Pages per sheet will make: in lines of even length, not one word left alone. */
+#sheet-summary {
+  text-wrap: balance;
 }
 .segmented input {
   position: absolute;
@@ -1797,7 +1810,9 @@ summary:focus-visible {
     align-items: center;
     justify-content: center;
     gap: 3px;
-    min-width: 66px;
+    /* 5.5 tabs to the screen: the last is cut, so the bar shows it scrolls (two-character
+       Chinese names would otherwise fill six whole tabs, and seem to be all). */
+    min-width: calc((100vw - 8px) / 5.5 - 2px);
     min-height: 52px;
     padding: 4px 6px;
     border: 0;
@@ -2042,4 +2057,69 @@ select.form-list option {
   outline-style: dotted;
   background: transparent;
   cursor: default;
+}
+
+/* ---- Chinese pages (zh/, <html lang="zh-CN">) ----------------------------------------------
+   Latin letters stay in the site's fonts, and Chinese comes from the reader's system: PingFang
+   and Hiragino on Apple systems, Microsoft YaHei on Windows, Noto or Source Han elsewhere; the
+   display serif falls back to a Song face. Han characters are not tracked tighter, as the Latin
+   display type is, and an emphasis is not slanted: Chinese has no italic. */
+html:lang(zh) {
+  --font-sans:
+    Inter, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    'Source Han Sans SC', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: Georgia, 'Songti SC', STSong, 'Noto Serif CJK SC', 'Source Han Serif SC', SimSun, serif;
+}
+html:lang(zh)
+  body
+  :is(
+    .hero-copy h1,
+    .upload-card h2,
+    .section-heading h2,
+    .tool-card-copy strong,
+    .tool-panel h2,
+    .info-dialog h2,
+    .batch-heading h1,
+    .batch-section-title h2
+  ) {
+  letter-spacing: 0;
+}
+html:lang(zh) body :is(.eyebrow, .field-section, .batch-tag, .batch-subheading) {
+  letter-spacing: 0.08em;
+}
+/* A system Chinese font without a bold face (WenQuanYi Zen Hei, on many Linux
+   systems) is drawn bold where the page asks for bold, as its Latin letters are;
+   style.css turns synthesis off for the site's own fonts. Never slanted. */
+html:lang(zh) {
+  font-synthesis: weight;
+}
+html:lang(zh) body :is(h1, h2, h3) em {
+  font-style: normal;
+}
+/* Han characters fill their square, so the display heading is set a little
+   smaller and looser, and a long line breaks in the middle, not before its last
+   character or two. */
+html:lang(zh) body .hero-copy h1 {
+  font-size: calc(var(--text-display) * 0.86);
+  line-height: 1.22;
+}
+html:lang(zh) body :is(h1, h2) {
+  text-wrap: balance;
+}
+html:lang(zh) body .hero-copy h1 em {
+  display: inline-block;
+}
+/* On the narrowest phones How it works has two columns of about 130 px, where a
+   Chinese heading, which may break after any character, breaks inside its words
+   (如何删除 / PDF 页 / 面。). There the heading takes the whole row. */
+@media (max-width: 400px) {
+  html:lang(zh) body .how-title {
+    grid-column: 1 / -1;
+  }
+}
+/* Its two lines are short phrases (如何编辑 / PDF 元数据。): they break at a space or
+   punctuation, not inside a word, and anywhere only if a phrase cannot fit. */
+html:lang(zh) body .how-title h2 {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }

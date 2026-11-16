@@ -16,13 +16,15 @@ import {
   sizeFields,
   sizeValues,
 } from './tool-panel.js';
+import { t } from './i18n.js';
 
+// Each shape: its value, its name, its Delete button, and its Add button (on page {page}).
 const SHAPES = [
-  ['pen', 'Pen', 'drawing', 'a drawing'],
-  ['line', 'Line', 'line', 'a line'],
-  ['arrow', 'Arrow', 'arrow', 'an arrow'],
-  ['rect', 'Rectangle', 'rectangle', 'a rectangle'],
-  ['ellipse', 'Ellipse', 'ellipse', 'an ellipse'],
+  ['pen', t('Pen'), t('Delete drawing'), null],
+  ['line', t('Line'), t('Delete line'), (page) => t('Add a line to page {page}', { page })],
+  ['arrow', t('Arrow'), t('Delete arrow'), (page) => t('Add an arrow to page {page}', { page })],
+  ['rect', t('Rectangle'), t('Delete rectangle'), (page) => t('Add a rectangle to page {page}', { page })],
+  ['ellipse', t('Ellipse'), t('Delete ellipse'), (page) => t('Add an ellipse to page {page}', { page })],
 ];
 function drawFields(item, index) {
   const drawing = item?.type === 'drawing' ? item : null,
@@ -31,32 +33,35 @@ function drawFields(item, index) {
   return (
     // Always shown: choosing a shape ends a selection, ready to draw.
     selectField(
-      'Draw with',
+      t('Draw with'),
       'shape',
       SHAPES.map(([value, label]) => [value, label]),
       true,
     ) +
     '<div class="field-row">' +
     colorField() +
-    rangeField('Line width', 'width', 1, 16, ' pt') +
+    rangeField(t('Line width'), 'width', 1, 16, t(' pt')) +
     '</div>' +
     (drawing
       ? sizeFields() +
-        '<p class="field-hint wide">Drag it to move it, or a handle to resize it. Arrow keys move it, and with Alt they resize it. Width and height are shares of the page.</p>' +
-        '<button type="button" class="button danger" data-action="delete-item">' +
+        '<p class="field-hint wide">' +
+        t(
+          'Drag it to move it, or a handle to resize it. Arrow keys move it, and with Alt they resize it. Width and height are shares of the page.',
+        ) +
+        '</p><button type="button" class="button danger" data-action="delete-item">' +
         icon('trash') +
-        'Delete ' +
         shape[2] +
         '</button>'
       : next[0] === 'pen'
-        ? '<p class="field-hint wide">Draw on the page with a mouse, a pen or a finger. On a touch screen, two fingers scroll.</p>'
+        ? '<p class="field-hint wide">' +
+          t('Draw on the page with a mouse, a pen or a finger. On a touch screen, two fingers scroll.') +
+          '</p>'
         : '<button type="button" class="button secondary" data-action="add-drawing">' +
           icon('plus') +
-          'Add ' +
-          next[3] +
-          ' to page <span data-current-page>' +
-          (index + 1) +
-          '</span></button>')
+          '<span>' +
+          next[3]('<span data-current-page>' + (index + 1) + '</span>') +
+          '</span>' +
+          '</button>')
   );
 }
 export function fields(item, index) {
@@ -85,6 +90,6 @@ export function onInput(name, value, field, item) {
   if (item?.type === 'drawing')
     change(() => (item[name === 'width' ? 'strokeWidth' : 'color'] = parsed), {
       key: name + ':' + item.id,
-      label: 'Edit drawing',
+      label: t('Edit drawing'),
     });
 }
