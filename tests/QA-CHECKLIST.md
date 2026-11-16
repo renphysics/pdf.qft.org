@@ -1474,3 +1474,9 @@ source review does not replace the owner’s browser verification.
   tabs, headings that split a word (scanned at seven widths from 320 to
   1280 px: none left). Not applied: notices on phones over the page toolbar
   for a few seconds (a choice of the English design, not of the Chinese).
+- Runs on the last commit: `npm test` 491 passed; `npx playwright test`
+  (Chromium, WebKit, Firefox, phones and the stamped release, two workers)
+  454 passed, 4 skipped, 0 failed, in 12.2 minutes. An earlier run with more
+  workers had two WebKit tests fail once and pass alone, with the CSP report
+  “style-src-elem blocked inline at :5” that a run from 2026-11-10, before
+  this work, shows too: WebKit under load, not the Chinese site.
