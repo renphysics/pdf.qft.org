@@ -79,6 +79,21 @@ export function localTool(item) {
   const chinese = item && catalog?.TOOLS[item.id];
   return chinese ? { ...item, ...chinese } : item;
 }
+/**
+ * A search note of routes.js in the page's language: on a Chinese page with
+ * the catalog's sentence (NOTES), and its Chinese searches beside the English.
+ */
+export function localNote(item) {
+  const chinese = item && catalog?.NOTES[item.id];
+  return chinese
+    ? {
+        ...item,
+        text: chinese.text,
+        words: [...item.words, ...chinese.words],
+        missing: [...item.missing, ...chinese.missing],
+      }
+    : item;
+}
 /** A long passage of HTML in the page's language: the catalog's, by name, or the English given. */
 export function passage(name, english) {
   return catalog?.PASSAGES[name] ?? english;

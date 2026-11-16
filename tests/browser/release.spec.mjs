@@ -22,7 +22,11 @@ test('loads one versioned release and builds downloads in the export worker', as
   // Every script, style and engine request carries the release's version.
   const code = requests.filter((url) => /\.(m?js|css)$/.test(url.pathname));
   expect(code.length).toBeGreaterThan(5);
-  expect(code.filter((url) => !/^\?v=[0-9a-f]{12}$/.test(url.search)).map((url) => url.pathname)).toEqual([]);
+  // The export worker's address also names its page's language.
+  const versioned = (url) =>
+    /^\?v=[0-9a-f]{12}$/.test(url.search) ||
+    (url.pathname.endsWith('/export-worker.js') && /^\?v=[0-9a-f]{12}&lang=en$/.test(url.search));
+  expect(code.filter((url) => !versioned(url)).map((url) => url.pathname)).toEqual([]);
   expect(requests.every((url) => url.pathname.startsWith('/pdf.qft.org/'))).toBe(true);
 });
 

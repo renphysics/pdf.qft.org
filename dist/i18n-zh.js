@@ -37,7 +37,7 @@ export const TOOLS = {
     name: '填写表单',
     tab: '表单',
     card: ['在表单字段里输入，勾选复选框。', '保留可填写，或拼合到页面上。'],
-    keywords: '表单 填写 填表 字段 复选框 申请表 拼合',
+    keywords: '表单 表格 填写 填表 字段 复选框 申请表 拼合',
   },
   properties: {
     name: '文档属性',
@@ -145,6 +145,55 @@ export const TOOLS = {
     name: '批量处理和预设',
     card: ['一次设置，处理多个 PDF。', '保存设置，一起处理。'],
     keywords: '批量 批处理 预设 多个文件 多个',
+  },
+};
+
+/**
+ * What the tool search says, by the id of a note in routes.js (SEARCH_NOTES),
+ * where the site has no tool for what was typed: its sentence, the Chinese
+ * searches that bring it beside the English ones, and what the note says no
+ * tool does, which no tool's Chinese words may come to offer.
+ */
+export const NOTES = {
+  compress: {
+    words: ['压缩', '缩小文件', '减小文件', '减小体积', '文件太大', '文件大小', '体积'],
+    text: 'QFT PDF 不能压缩 PDF，但用[删除页面](tool:delete)或[拆分 PDF](tool:split)去掉不需要的页面，可以让副本变小。',
+    missing: ['压缩', '文件大小'],
+  },
+  ocr: {
+    words: ['识别', '扫描件转文字', '图片转文字', '可搜索', '可复制'],
+    text: 'QFT PDF 不能把扫描件识别成文字（OCR）：扫描的页面仍然是图片，[JPG 转 PDF](tool:jpgtopdf)能把它们放进 PDF，但不能让文字可以搜索。',
+    missing: ['识别', '可搜索'],
+  },
+  redact: {
+    words: ['涂黑', '打码', '遮盖', '脱敏', '马赛克', '隐藏文字', '删除文字', '擦除', '抹掉'],
+    text: 'QFT PDF 不能真正涂黑内容：在页面上加东西盖住，或者把它裁掉，都只是把它隐藏，它仍然留在文件里。',
+    missing: ['涂黑', '打码', '脱敏'],
+  },
+  'edit-text': {
+    words: ['修改文字', '编辑文字', '改字', '修改内容', '编辑内容', '替换文字', '改错字', '编辑原文'],
+    text: 'QFT PDF 不能修改 PDF 里原有的文字；[添加文字](tool:text)会在页面上加上新的文字。',
+    missing: ['修改文字', '编辑文字', '替换文字'],
+  },
+  office: {
+    words: ['幻灯片', '演示文稿', '电子表格', '办公文档'],
+    text: 'QFT PDF 不能在 PDF 和 Word、Excel 或 PowerPoint 之间转换；要把 Office 文件做成 PDF，请在制作它的软件里另存为 PDF。',
+    missing: ['幻灯片', '演示文稿', '电子表格'],
+  },
+  'images-out': {
+    words: ['提取图片', '提取照片', '取出图片'],
+    text: 'QFT PDF 不能把 PDF 里的图片单独取出来；[PDF 转 JPG](tool:pdftojpg)会把整页存成图片。',
+    missing: ['提取图片', '提取照片'],
+  },
+  bookmarks: {
+    words: ['书签', '目录', '大纲'],
+    text: 'QFT PDF 不能添加或编辑书签，只有[合并 PDF](tool:merge)可以给合并的每个 PDF 加上它自己的书签。',
+    missing: ['书签', '目录'],
+  },
+  'digital-signature': {
+    words: ['数字签名', '数字证书', '证书'],
+    text: '[签署 PDF](tool:signature)放上的是你签名的图片；QFT PDF 不能添加基于证书的数字签名。',
+    missing: ['数字签名', '证书'],
   },
 };
 

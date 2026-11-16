@@ -87,8 +87,9 @@ await test('module graph: a page loads app.js and its static imports only; the e
     );
     let shellBytes = 0;
     for (const name of ['app.js', ...shell]) shellBytes += (await stat(path.join(site, name))).size;
+    // 75,000: the language core (i18n.js) and the search's Chinese took it past 70,000.
     assert(
-      shellBytes < 70000,
+      shellBytes < 75000,
       `the landing page's modules weigh ${shellBytes} bytes; a stray import into app.js?`,
     );
     for (const name of (await readdir(site)).filter((file) => file.endsWith('.js')))

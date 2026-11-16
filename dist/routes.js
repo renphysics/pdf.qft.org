@@ -12,7 +12,7 @@
  * words is in i18n-zh.js (TOOLS, by id), which only Chinese pages load;
  * local() gives a tool in the page's language (README, "Chinese").
  */
-import { localTool } from './i18n.js';
+import { localNote, localTool } from './i18n.js';
 
 const tool = (id, slug, name, tab, icon, extra = {}) =>
   Object.freeze({ id, slug, name, tab, icon, ...extra });
@@ -157,12 +157,19 @@ export const local = localTool;
 /** Each tool's address (the slug of its page). The app shows it while the tool is in use. */
 export const TOOL_PAGES = Object.freeze(Object.fromEntries(TOOLS.map((item) => [item.id, item.slug])));
 
-/** The words of a text, for the tool search: lowercase letters and digits, "e-sign" as "e" and "sign". */
+const HAN = /\p{Script=Han}/u;
+/**
+ * The words of a text, for the tool search: lowercase letters and digits,
+ * "e-sign" as "e" and "sign". Chinese, written without spaces, is a word of
+ * its own beside other letters ("合并pdf" is "合并" and "pdf"), and full-width
+ * letters are letters ("ＰＤＦ" is "pdf").
+ */
 export const searchWords = (text) =>
   String(text)
     .toLowerCase()
     .normalize('NFKD')
     .replace(/\p{M}/gu, '')
+    .replace(/\p{Script=Han}+/gu, ' $& ')
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
 // Words that name no tool, as every tool works on a PDF file: "merge pdf files",
@@ -170,6 +177,60 @@ export const searchWords = (text) =>
 const COMMON = new Set(
   'pdf pdfs file files document documents free online a an the my to from of in on for and with'.split(' '),
 );
+// Chinese that names no tool either, as words of their own or inside a search:
+// "合并pdf文件", "怎么合并" and "合并成一个" find what "合并" finds. Longest first.
+const COMMON_ZH = [
+  '文件',
+  '文档',
+  '免费',
+  '在线',
+  '工具',
+  '软件',
+  '网站',
+  '怎么',
+  '如何',
+  '怎样',
+  '一个',
+  '一下',
+  '多个',
+  '几个',
+  '可以',
+  '帮我',
+  '我要',
+  '我想',
+  '的',
+  '把',
+  '将',
+  '给',
+  '请',
+  '吗',
+  '呢',
+  '了',
+  '成',
+  '为',
+];
+const withoutCommon = (word) => COMMON_ZH.reduce((rest, common) => rest.replaceAll(common, ''), word);
+/**
+ * Whether typed Chinese is in a text's Chinese (`han`, its words joined by
+ * spaces). Chinese has no spaces to start a word at, so any part of a word
+ * counts, as "合" finds "合并" while it is typed. Typed whole, or without the
+ * words that name no tool, in parts of two characters or more that each are
+ * there, the longest first: "旋转页面" is "旋转" and "页面". Single characters
+ * are too common to count apart ("打码" is not "打开" and "密码").
+ */
+function hanFinds(typed, han) {
+  if (han.includes(typed)) return true;
+  const rest = withoutCommon(typed);
+  // Only words that name no tool, or one character left of the search (not "合" of "合成").
+  if (rest.length < 2) return !rest;
+  for (let left = rest; left;) {
+    let length = left.length;
+    while (length > 1 && !han.includes(left.slice(0, length))) length--;
+    if (length < 2) return false;
+    left = left.slice(length);
+  }
+  return true;
+}
 /** What the search reads for a tool: the name and copy on its card, and its keywords. */
 export const searchText = (item) =>
   [item.title || item.name, ...(item.card || []), item.keywords || ''].join(' ');
@@ -200,10 +261,12 @@ function inflects(word, found) {
  * or a noun's ending (inflects).
  */
 export function searchFinds(typed, text) {
-  const own = searchWords(text);
+  const own = searchWords(text),
+    han = own.filter((word) => HAN.test(word)).join(' ');
   return typed
     .filter((word) => !COMMON.has(word))
     .every((word) => {
+      if (HAN.test(word)) return hanFinds(word, han);
       const single = word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word;
       return own.some((found) => found.startsWith(word) || found.startsWith(single) || inflects(word, found));
     });
@@ -323,13 +386,18 @@ export const SEARCH_NOTES = Object.freeze([
 ]);
 const wordMatches = (wanted, typed) =>
   wanted.endsWith('*') ? typed.startsWith(wanted.slice(0, -1)) : typed === wanted;
-/** The note for the words typed (searchWords), or null: the first whose search is all there. */
+/** Whether a note's search is in the words typed: each of its words, or its Chinese inside typed Chinese. */
+const searched = (search, typed) =>
+  HAN.test(search)
+    ? typed.some((word) => word.includes(search))
+    : search.split(' ').every((wanted) => typed.some((word) => wordMatches(wanted, word)));
+/**
+ * The note for the words typed (searchWords), in the page's language, or
+ * null: the first whose search is all there. (On a Chinese page its Chinese
+ * searches bring it too: i18n-zh.js, NOTES.)
+ */
 export function searchNote(typed) {
   return (
-    SEARCH_NOTES.find((item) =>
-      item.words.some((search) =>
-        search.split(' ').every((wanted) => typed.some((word) => wordMatches(wanted, word))),
-      ),
-    ) || null
+    SEARCH_NOTES.map(localNote).find((item) => item.words.some((search) => searched(search, typed))) || null
   );
 }

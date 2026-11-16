@@ -139,9 +139,15 @@ if (pageTool === 'batch') warmEditor();
 let toolFilter = 'all';
 const siteRoot = new URL('./', import.meta.url);
 const toolOf = (id) => TOOLS.find((item) => item.id === id);
-/** What the search reads for a tool: its card (routes.js) and its category, named as on the filter buttons. */
+/**
+ * What the search reads for a tool: its card (routes.js) and its category,
+ * named as on the filter buttons. On a Chinese page, its English words too, as
+ * people type "merge" or "pdf to jpg" there as well.
+ */
 const cardText = (item) =>
-  searchText(item) + ' ' + ($(`[data-tool-filter="${item.category}"]`)?.textContent || '');
+  [...new Set([searchText(local(item)), searchText(item)])].join(' ') +
+  ' ' +
+  ($(`[data-tool-filter="${item.category}"]`)?.textContent || '');
 /** A link to a tool that works as its card does: with a document open, the editor switches tools in place. */
 function toolLink(id, label) {
   const link = document.createElement('a');
