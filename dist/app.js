@@ -35,16 +35,7 @@ import {
 } from './editor-core.js';
 import { finishLanding } from './views.js';
 import { LANGUAGE_KEY, pageAddress, t } from './i18n.js';
-import {
-  TOOLS,
-  TOOL_PAGES,
-  local,
-  searchFinds,
-  searchNote,
-  searchText,
-  searchWords,
-  searchedText,
-} from './routes.js';
+import { TOOLS, TOOL_PAGES, local, cardFinds, searchNote, searchText, searchWords } from './routes.js';
 
 // ---- The editor, loaded once ----------------------------------------------------------
 
@@ -225,14 +216,14 @@ function filterTools() {
   let count = 0;
   $$('.tool-card').forEach((card) => {
     const item = toolOf(card.dataset.card);
-    card.hidden = !(shown(item) && searchFinds(typed, searchedText(item, typed, cardText)));
+    card.hidden = !(shown(item) && cardFinds(item, typed, cardText));
     if (!card.hidden) count++;
   });
   // What the site does not do, said plainly: above the cards, or in place of "No tools
   // match". On a tool page, a search that finds only the page's own tool says so.
   const found = searchNote(typed),
     own = !found && !count && pageTool ? toolOf(pageTool) : null,
-    here = own && shown(own) && searchFinds(typed, cardText(own)),
+    here = own && shown(own) && cardFinds(own, typed, cardText),
     note = $('#search-note');
   note.replaceChildren(...(found ? noteContent(found.text) : here ? ownToolContent(own) : []));
   note.hidden = !found && !here;

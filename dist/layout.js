@@ -18,16 +18,23 @@
 import { t, userError } from './i18n.js';
 
 /**
- * Text drawn with Noto Sans CJK: Chinese, Japanese and Korean, and what only the
- * Chinese fonts have of the rest of GB 2312 and of the full-width forms, which
- * Noto Sans lacks: full-width brackets, commas and digits, circled numbers, Roman
- * numerals, arrows, math signs, box drawing, stars and squares. A text of those
- * alone, a bracketed year or a page number set in full-width brackets, would
- * otherwise go to Noto Sans and fail. tests/fonts.test.mjs keeps this equal to
- * what the common Chinese font draws and Noto Sans does not, beside the CJK blocks.
+ * Text drawn with Noto Sans CJK: Chinese, Japanese and Korean, and every other
+ * character the Chinese fonts have and Noto Sans lacks: full-width brackets, commas
+ * and digits, circled numbers, Roman numerals, arrows, math signs, box drawing,
+ * stars, check marks. A text of those alone, a bracketed year or a page number set
+ * in full-width brackets, would otherwise go to Noto Sans and fail. What the common
+ * Chinese font lacks of them comes from the full one (pdf-engine.js textFont).
+ * tests/fonts.test.mjs keeps this equal to what the two Chinese fonts draw and Noto
+ * Sans does not, beside the CJK blocks.
  */
 export const CJK =
-  /[\u2160-\u216B\u2170-\u217B\u2190-\u2193\u2208\u220B\u220F\u2211\u221A\u221D-\u221E\u2220\u2225\u2227-\u222B\u222E\u2234-\u2237\u223D\u2245\u2248\u224C\u2260-\u2261\u2264-\u2265\u226E-\u226F\u2299\u22A5\u2312\u2460-\u2469\u2474-\u249B\u2500-\u254B\u25A0-\u25A1\u25B2-\u25B3\u25C6-\u25C7\u25CB\u25CE-\u25CF\u2605-\u2606\u2640\u2642\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE4F\uFF01-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC\uFFE0-\uFFE6\uFFE8-\uFFEE\u{20000}-\u{2FA1F}]/u;
+  /[\u1100-\u11FF\u20DD\u20DE\u2160-\u216B\u2170-\u217B\u2190-\u2199\u21B8\u21B9\u21C4-\u21C6\u21CB\u21CC\u21D0\u21D2\u21D4\u21E6-\u21E9\u21F5\u2200\u2202\u2203\u2205-\u220B\u220F\u2211\u2213\u2215\u221A\u221D-\u2220\u2223\u2225-\u222E\u2234-\u2237\u223D\u2243\u2245\u2248\u224C\u2260-\u2262\u2264-\u2267\u226A\u226B\u226E\u226F\u2272\u2273\u2276\u2277\u2282-\u2287\u228A\u228B\u2295-\u2299\u22A0\u22A5\u22BF\u22DA\u22DB\u22EF\u2305-\u2307\u2312\u2318\u2329\u232A\u23B0\u23B1\u23BE-\u23CC\u23CE\u23DA\u23DB\u2423\u2460-\u25AB\u25B1-\u25B3\u25B6\u25B7\u25BC\u25BD\u25C0\u25C1\u25C6\u25C7\u25C9-\u25CB\u25CE-\u25D3\u25E2-\u25E6\u25EF\u2600-\u2603\u2605\u2606\u2609\u260E\u260F\u2616\u2617\u261C-\u261F\u262F\u2640-\u2642\u2660-\u266F\u2672-\u267D\u26A0\u26BD\u26BE\u2702\u2713\u271A\u273D\u273F\u2740\u2756\u2776-\u2793\u27A1\u2934\u2935\u29BF\u29FA\u29FB\u2B05-\u2B07\u2B1A\u2B95\u2E80-\u9FFF\uA960-\uA97C\uAC00-\uD7AF\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE66\uFE68-\uFE6B\uFF01-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC\uFFE0-\uFFE6\uFFE8-\uFFEE\u{1F100}-\u{1F10C}\u{1F110}-\u{1F16C}\u{1F170}-\u{1F1AC}\u{1F200}-\u{1F202}\u{1F210}-\u{1F23B}\u{1F240}-\u{1F248}\u{1F250}\u{1F251}\u{20000}-\u{2FA1F}\u{30729}\u{30EDD}\u{30EDE}\u{3106C}]/u;
+/**
+ * Chinese, Japanese and Korean themselves (the CJK blocks), which break between any
+ * two characters. A line with only symbols from CJK, such as an arrow in English
+ * text, still breaks at its spaces.
+ */
+const CJK_SCRIPT = /[\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\u{20000}-\u{2FA1F}]/u;
 const ASCII = /^[\u0009\u000A\u000D -~]*$/u;
 
 export function number(value, fallback, min = -Infinity, max = Infinity) {
@@ -59,6 +66,18 @@ export function textValue(value) {
 export function fontKind(value) {
   const text = textValue(value);
   return ASCII.test(text) ? 'standard' : CJK.test(text) ? 'cjk' : 'latin';
+}
+
+/**
+ * The character to name when a text cannot be drawn, `missing` being the first its
+ * font lacks. A text without Chinese, Japanese or Korean takes the Chinese fonts only
+ * for a symbol they alone have (→ ① ★); when they then lack a letter Noto Sans draws
+ * (Ł in "Łódź → Kraków"), the symbol is what stands in the way, and is named.
+ */
+export function blockingCharacter(value, missing) {
+  const text = textValue(value);
+  if (CJK.test(missing) || CJK_SCRIPT.test(text)) return missing;
+  return [...text].find((char) => CJK.test(char)) ?? missing;
 }
 
 /** The first character a font cannot draw, if any. `supported` is a Set of code points. */
@@ -412,7 +431,7 @@ export function applyMatrix([a, b, c, d, e, f], x, y) {
 
 // ---- Text and item layout -----------------------------------------------------
 
-/** Break text into lines no wider than maxWidth: at spaces where possible, between characters in CJK text and long words. */
+/** Break text into lines no wider than maxWidth: at spaces where possible, between characters in Chinese, Japanese and Korean lines and long words. */
 export function wrapText(text, font, size, maxWidth) {
   const lines = [];
   for (const paragraph of text.split('\n')) {
@@ -425,7 +444,7 @@ export function wrapText(text, font, size, maxWidth) {
     for (const character of paragraph) {
       const test = line + character;
       if (line && font.widthOfTextAtSize(test, size) > maxWidth) {
-        if (wordBreak > 0 && !CJK.test(line)) {
+        if (wordBreak > 0 && !CJK_SCRIPT.test(line)) {
           lines.push(line.slice(0, wordBreak).trimEnd());
           line = line.slice(wordBreak + 1) + character;
         } else {

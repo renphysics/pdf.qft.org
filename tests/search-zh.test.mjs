@@ -10,7 +10,7 @@ import { test } from 'node:test';
 // The catalog, handed over as a Chinese page's first module does (dist/zh.js).
 await import('../dist/zh.js');
 const { LANGUAGE } = await import('../dist/i18n.js');
-const { SEARCH_NOTES, TOOLS, local, searchFinds, searchNote, searchText, searchWords, searchedText } =
+const { SEARCH_NOTES, TOOLS, cardFinds, local, searchFinds, searchNote, searchText, searchWords } =
   await import('../dist/routes.js');
 const { NOTES, TOOLS: TOOLS_ZH } = await import('../dist/i18n-zh.js');
 
@@ -24,9 +24,7 @@ const cards = TOOLS.filter((item) => item.card);
 const cardText = (item) =>
   [...new Set([searchText(local(item)), searchText(item)])].join(' ') + ' ' + labels[item.category];
 const found = (query) =>
-  cards
-    .filter((item) => searchFinds(searchWords(query), searchedText(item, searchWords(query), cardText)))
-    .map((item) => item.id);
+  cards.filter((item) => cardFinds(item, searchWords(query), cardText)).map((item) => item.id);
 const noteFor = (query) => searchNote(searchWords(query))?.id || null;
 const LINK = /\[([^\]]+)\]\(tool:([a-z]+)\)/g;
 
@@ -103,9 +101,22 @@ await test('cards: Chinese finds the cards it is on, whole or in parts of two ch
     ['批量添加页码', ['batch']],
     ['批量裁剪', ['batch']],
     ['批量加页眉页脚', ['batch']],
-    ['添加中文', ['text']],
+    // Batch is found with one of its tools, not with words taken from two of them:
+    // it adds no pages (添加 from Watermark, 页面 from Crop).
+    ['批量添加页面', []],
+    ['批量增加页面', []],
+    // Chinese is typed with Add text, and a watermark can be Chinese too.
+    ['添加中文', ['text', 'watermark']],
+    ['加中文', ['text']],
+    ['写中文', ['text']],
+    ['中文水印', ['watermark']],
+    // 增加 asks for what 添加 does, for every tool.
     ['增加页边距', ['margins']],
     ['增加页码', ['numbers']],
+    ['增加空白页', ['pages']],
+    ['增加页眉', ['footer']],
+    ['增加密码', ['protect']],
+    ['增加签名', ['signature']],
     ['把图片转为pdf', ['jpgtopdf']],
     ['pdf转图片', ['pdftojpg']],
     ['多页合一', ['sheets']],
@@ -211,4 +222,13 @@ await test('notes: no tool’s Chinese words offer what a note says the site can
       for (const phrase of note.missing)
         assert(!offered.includes(phrase), `${tool.id} offers “${phrase}”, which a note says no tool does`);
   }
+});
+
+await test('增加 finds what 添加 finds, for every 添加 a tool is asked for with', () => {
+  const asked = new Set();
+  for (const item of cards)
+    for (const word of searchWords(cardText(item))) if (word.startsWith('添加')) asked.add(word);
+  assert(asked.size > 5, [...asked].join(' '));
+  for (const word of asked)
+    assert.deepEqual(found(word.replace('添加', '增加')), found(word), `${word} and its 增加 twin`);
 });

@@ -103,7 +103,7 @@ await test('the common font draws and measures as the full font does, and text p
     assert.equal(await textFont(text, measuringFont), font, `“${text}” is drawn with the wrong font`);
 });
 
-const { CJK } = await import('../dist/layout.js');
+const { CJK, blockingCharacter, wrapText } = await import('../dist/layout.js');
 const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
 /** The page's text, as PDF.js reads it. */
 async function pageText(bytes) {
@@ -139,20 +139,66 @@ await test('full-width forms and the symbols of GB 2312, alone, are drawn with t
     assert(text.includes(expected), `${expected}: ${text}`);
 });
 
-await test('the Chinese fonts take exactly what the common font has and Noto Sans lacks, beside the CJK blocks', async () => {
+await test('the Chinese fonts take exactly what they have and Noto Sans lacks, beside the CJK blocks', async () => {
   const latin = characterSet(await measuringFont('latin')),
-    common = characterSet(await measuringFont('cjk'));
+    common = characterSet(await measuringFont('cjk')),
+    full = characterSet(await measuringFont('cjk-full'));
   const blocks = /[\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\u{20000}-\u{2FA1F}]/u;
   const wrong = [];
-  for (const code of new Set([...latin, ...common])) {
+  for (const code of new Set([...latin, ...common, ...full])) {
     // (U+FFFF ends a font's character map; it is no character.)
     if (code <= 0x7e || code === 0xffff) continue;
     const char = String.fromCodePoint(code);
-    if (CJK.test(char) !== (blocks.test(char) || (common.has(code) && !latin.has(code)))) wrong.push(char);
+    const chinese = (common.has(code) || full.has(code)) && !latin.has(code);
+    if (CJK.test(char) !== (blocks.test(char) || chinese)) wrong.push(char);
   }
   assert.deepEqual(
     wrong.map((char) => char.codePointAt(0).toString(16)),
     [],
     'characters drawn with the wrong font',
   );
+});
+
+await test('symbols only the full Chinese font has, alone, are drawn with it and read back', async () => {
+  // Not in GB 2312, nor in Noto Sans: ⑪, a check mark, a double arrow.
+  const full = await measuringFont('cjk-full');
+  for (const text of ['⑪', '✓ Done', 'A ↔ B', 'x ⇒ y'])
+    assert.equal(await textFont(text, measuringFont), full, text);
+  const text = await pageText(await download(['⑪', '✓ Done', 'A ↔ B']));
+  for (const expected of ['⑪', '✓', 'Done', '↔']) assert(text.includes(expected), `${expected}: ${text}`);
+});
+
+await test('a text that cannot be drawn names the character in its way', async () => {
+  // A symbol only the Chinese fonts have takes Latin text to them, and they lack
+  // some letters Noto Sans has (Ł): the symbol is what to remove, not the letter.
+  assert.equal(blockingCharacter('Łódź → Kraków', 'Ł'), '→');
+  assert.equal(blockingCharacter('① Zażółć', 'ż'), '①');
+  // Chinese beside such a letter: the letter is what the font lacks.
+  assert.equal(blockingCharacter('中文 Ł', 'Ł'), 'Ł');
+  // Without Chinese fonts in play, the missing character itself.
+  assert.equal(blockingCharacter('Unicorn 🦄', '🦄'), '🦄');
+  await assert.rejects(download(['Łódź → Kraków']), /“→”/);
+  await assert.rejects(download(['中文 Ł']), /“Ł”/);
+  // Without the symbol the letters are drawn, with Noto Sans.
+  assert.match(await pageText(await download(['Łódź – Kraków'])), /Łódź/);
+});
+
+await test('lines break at spaces unless they hold Chinese, Japanese or Korean, whatever their font', async () => {
+  const cjk = await measuringFont('cjk');
+  // English with one symbol only the Chinese fonts have: drawn with them, broken at spaces.
+  for (const text of [
+    '→ Please return the signed contract before Friday, together with the invoice.',
+    'Speed ≤ 30 km/h in the residential streets around the school.',
+  ]) {
+    const lines = wrapText(text, cjk, 14, 180);
+    assert(lines.length > 1, text);
+    assert.equal(lines.join(' '), text, `broken inside a word: ${JSON.stringify(lines)}`);
+  }
+  // Chinese breaks between any two characters, so its lines fill the width.
+  const chinese = '我们在这里写一段很长的中文文字，用来看看它在窄的文本框里怎样换行。';
+  const lines = wrapText(chinese, cjk, 14, 120);
+  assert(lines.length > 2, JSON.stringify(lines));
+  assert.equal(lines.join(''), chinese);
+  for (const line of lines.slice(0, -1))
+    assert(cjk.widthOfTextAtSize(line, 14) > 120 - 2 * 14, `a short line: ${line}`);
 });

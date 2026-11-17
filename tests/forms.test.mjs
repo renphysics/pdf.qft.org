@@ -396,6 +396,41 @@ await test('a character no font has is reported on the field’s page', async ()
   });
 });
 
+await test('a list box whose options no one font has is drawn in its chosen value’s font, and downloads', async () => {
+  // No bundled font has Arabic: the options can't all be drawn in one font. The
+  // chosen value decides, as before, and the download works, flattened or not.
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(globalThis.fontkit);
+  const page = doc.addPage([300, 300]);
+  const font = await doc.embedFont(
+    await readFile(path.join(here, '../dist/assets/fonts/NotoSansCJKsc-Regular.otf')),
+    { subset: true },
+  );
+  const list = doc.getForm().createOptionList('language');
+  list.setOptions(['English', 'العربية', '中文']);
+  list.select('中文');
+  list.addToPage(page, { x: 40, y: 120, width: 140, height: 72, font });
+  const source = await doc.save();
+  for (const [chosen, expected] of [
+    [['English'], 'English'],
+    [['中文'], '中文'],
+    [[], 'English'],
+  ])
+    for (const flattenForms of [true, false]) {
+      const { bytes } = await buildPdfWithNotes({
+        sources: [{ id: 'list', bytes: source }],
+        pages: [{ id: 'p', sourceId: 'list', index: 0 }],
+        formValues: { list: { language: chosen } },
+        flattenForms,
+      });
+      const out = await PDFDocument.load(bytes);
+      if (flattenForms) {
+        const [text] = await pageTexts(bytes);
+        assert.ok(text.includes(expected), `${chosen}: ${text}`);
+      } else assert.deepEqual(out.getForm().getOptionList('language').getSelected(), chosen);
+    }
+});
+
 await test('a list box draws all its options with a font that has them, whatever is chosen', async () => {
   // A list box shows every option, not only the one chosen: with "A" chosen
   // among "中文" and "龘", a font picked for "A" alone drew them as question marks.

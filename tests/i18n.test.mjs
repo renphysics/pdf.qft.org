@@ -291,9 +291,16 @@ await test('the language link remembers the choice and leads to the counterpart 
   assert.deepEqual(tab.went, []);
   // Its address names its language, kept up to date before the link is opened in
   // a new tab from its menu, or copied.
-  const menu = visit('/zh/merge-pdf/', 'zh', { search: '?a=1' });
-  assert.equal(menu.press('en', {}, 'contextmenu').link.href, '/merge-pdf/?a=1&language=en');
-  assert.equal(menu.stored(), 'zh', 'opening the menu chooses nothing');
+  for (const type of ['pointerover', 'pointerdown', 'focusin', 'contextmenu']) {
+    const menu = visit('/zh/merge-pdf/', 'zh', { search: '?a=1', hash: '#faq-title' });
+    assert.equal(menu.press('en', {}, type).link.href, '/merge-pdf/?a=1&language=en#faq-title', type);
+    assert.equal(menu.stored(), 'zh', `${type} chooses nothing`);
+  }
+  // A middle click opens it in a new tab, and is a choice as a click is.
+  const middle = visit('/zh/merge-pdf/', 'zh');
+  middle.press('en', { button: 1 }, 'auxclick');
+  assert.equal(middle.stored(), 'en');
+  assert.deepEqual(middle.went, []);
   // The editor asked first (unsaved work) and the visitor stayed: nothing changes.
   const stay = visit('/merge-pdf/');
   stay.press('zh', { defaultPrevented: true });

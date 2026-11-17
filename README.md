@@ -222,10 +222,12 @@ Chinese. With unsaved work, the link asks first, as leaving does. The link's
 address names its language (`?language=en`): `language.js` keeps that as the
 choice and takes it out of the address, so the choice holds however the link
 is opened, clicked, in a new tab from its menu or with a middle click, or
-copied. Its address also follows the editor's, which changes as tools change.
-On a phone the footer's links wrap whole, the language link at the right end
-of the last row. The licences page is in English only, and its link says so
-(开源许可（英文）).
+copied. Its address also follows the page's, query and hash included. On a
+phone the footer's links wrap whole, the language link at the right end of the
+last row. The footer belongs to a page's landing view, which the editor and the
+batch workspace cover: with a document open, Back to all tools (the document
+is kept) leads to it. The licences page is in English only, and its link says
+so (开源许可（英文）).
 
 **Pages.** Every page has a counterpart under `zh/` (`/zh/`,
 `/zh/merge-pdf/`...), written by `npm run pages` from the same template: the
@@ -275,10 +277,13 @@ too, and nothing is filtered while an input method is still composing pinyin.
 Each search note has its Chinese in `NOTES` (`i18n-zh.js`), found also with
 the Chinese typed around other letters put together (修改PDF的文字); 缩小 and
 减小, as shrink does, bring the note that the site can't compress beside
-Resize pages. 批量 (or batch, bulk) with what Batch & presets does finds that
-card: 批量加水印, 批量添加页码, 批量裁剪 (`searchedText`). A tool's search words
-are the ways it is asked for, 增加 as well as 添加: 添加中文 finds 添加文字,
-增加页边距 finds 添加页边距. `tests/search-zh.test.mjs` checks both.
+Resize pages. 批量 (or batch, bulk) with what one of Batch & presets' tools
+does finds that card: 批量加水印, 批量添加页码, 批量裁剪, batch watermark; words
+of two of them together do not (batch add margins) (`cardFinds`), also on the
+Batch page itself. 增加 is read as 添加, for every tool: 增加页眉 finds what 添加页眉
+finds. 添加中文, 加中文 and 写中文 find 添加文字 (添加中文 also 水印, which can be
+Chinese), 中文水印 finds 水印, and add chinese text finds Add text.
+`tests/search-zh.test.mjs` checks both.
 
 **Page numbers** are read as a Chinese keyboard types them too: 1-3，5, 1-3、5,
 full-width digits, 1～3 and dashes, and ； between Split's groups.
@@ -286,9 +291,15 @@ full-width digits, 1～3 and dashes, and ； between Split's groups.
 **Fonts**: Chinese on a page needs the 1.4 MB common font first, and the
 16 MB font only for rarer characters ([Supported input](#supported-input)).
 So do full-width forms and the symbols only the Chinese fonts have, even
-alone: （2026）, １２３, ，, ①, ★ (`CJK` in `layout.js`, which
-`tests/fonts.test.mjs` checks against the fonts' own characters). A form's list
-box is drawn with the font all of its choices need, not only the chosen one's.
+alone: （2026）, １２３, ，, ①, ★, and from the full font ⑪, ✓, ↔ (`CJK` in
+`layout.js`, which `tests/fonts.test.mjs` checks against both fonts'
+characters). Lines still break at spaces unless they hold Chinese, Japanese or
+Korean, so an arrow in English text breaks no word. When such a symbol takes
+Latin text to the Chinese fonts and they lack one of its letters (Ł in
+Łódź → Kraków), the message names the symbol, which is what to remove. A
+form's list box is drawn with the font all of its choices need, not only the
+chosen one's; when no bundled font has them all (Arabic beside 中文), with the
+chosen one's, as before, so the download still works.
 
 **Input methods.** While one composes (pinyin on its way to 汉字), Escape and
 Enter are its own, to drop or choose a candidate: text being typed on a page
@@ -312,9 +323,11 @@ tracked tighter or slanted, and break evenly (`:lang(zh)` at the end of
 
 And the terms: flatten 拼合; annotation 批注; redact 涂黑; opacity 不透明度;
 point (pt) 磅; page labels 页码标签; bookmark 书签; preset 预设; the page strip
-页面列表; Fit 适合宽度, which is what it does; Undo/Redo 撤销/重做; pages put on
-sheets 排 (排到纸上, not 拼, which is flatten's), and what Pages per sheet
-downloads 多页合一 PDF; the sample 示例文档.
+页面列表; Fit 适合窗口, as the page fits the window, by its width on a computer
+and whole on a phone (zoomed, the button shows the zoom, and its name starts
+with it: 125%，缩放到适合窗口); Undo/Redo 撤销/重做; pages put on sheets 排 (排到纸上,
+not 拼, which is flatten's), and what Pages per sheet downloads 多页合一 PDF; the
+sample 示例文档.
 
 `tests/browser/chinese.spec.mjs` goes through the Chinese site in every
 browser: the choice and its memory, the footer link opened in a new tab, the

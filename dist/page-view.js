@@ -281,7 +281,14 @@ export function renderStage({ position = null } = {}) {
   lockCurrentPage();
   keepPosition();
   $('#page-stack').dataset.tool = ui.tool;
-  $('#zoom-label').textContent = ui.zoom === 1 ? t('Fit') : Math.round(ui.zoom * 100) + '%';
+  // The button's name starts with what it shows, "125%" too, and says what it does.
+  const zoomLabel = $('#zoom-label'),
+    zoom = Math.round(ui.zoom * 100) + '%';
+  zoomLabel.textContent = ui.zoom === 1 ? t('Fit') : zoom;
+  zoomLabel.setAttribute(
+    'aria-label',
+    ui.zoom === 1 ? t('Fit page to available width') : t('{zoom}, fit page to available width', { zoom }),
+  );
   syncViews();
   orderViews();
   renderOverlays();

@@ -52,6 +52,19 @@ test('home page, tool pages, licenses and batch', async ({ page }) => {
   expect(await violations(page), 'batch with a file').toEqual([]);
 });
 
+test('the zoom button is named by what it shows: Fit, or the zoom, such as 125%', async ({ page }) => {
+  await openSample(page, 'add-text-to-pdf/');
+  const zoomLabel = page.locator('#zoom-label');
+  await expect(zoomLabel).toHaveText('Fit');
+  await expect(zoomLabel).toHaveAttribute('aria-label', 'Fit page to available width');
+  await page.click('[data-action="zoom-in"]');
+  await expect(zoomLabel).toHaveText('125%');
+  await expect(zoomLabel).toHaveAttribute('aria-label', '125%, fit page to available width');
+  expect(await violations(page), 'zoomed in').toEqual([]);
+  await page.click('[data-action="zoom-fit"]');
+  await expect(zoomLabel).toHaveAttribute('aria-label', 'Fit page to available width');
+});
+
 test('every editor tool, with items selected and settings shown', async ({ page }) => {
   await openSample(page, 'add-text-to-pdf/');
   await page.click('[data-action="add-text"]');
