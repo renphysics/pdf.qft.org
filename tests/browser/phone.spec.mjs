@@ -95,7 +95,8 @@ test('in Chinese: text typed on the page and downloaded, and every tool fits fro
   await expect(page.locator('#inline-editor')).toBeFocused();
   await page.keyboard.type('手机上的中文（2026）');
   await page.keyboard.press('Escape');
-  expect(await overlayLines(page)).toEqual(['手机上的中文（2026）']);
+  // Drawn once the Chinese font has loaded, which the first character typed asks for.
+  await expect.poll(() => overlayLines(page)).toEqual(['手机上的中文（2026）']);
   // The download button can be tapped, nothing lying over it, and the file is named in Chinese.
   const { name, bytes } = await download(page, () => page.locator('#download-button').click());
   expect(name).toBe('示例文档-已编辑.pdf');

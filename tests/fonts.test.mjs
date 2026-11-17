@@ -93,6 +93,8 @@ await test('the common font draws and measures as the full font does, and text p
   for (const text of ['——', '中文“引号”——破折号……', 'Mixed 混合 ABC abc 123'])
     assert.equal(common.widthOfTextAtSize(text, 14), full.widthOfTextAtSize(text, 14), text);
   assert.equal(common.heightAtSize(14), full.heightAtSize(14));
+  // Fonts are compared by identity: assert.equal on two font objects would print them
+  // whole when it fails, and run out of memory before naming the text.
   for (const [text, font] of [
     ['你好，世界', common],
     ['ひらがな、カタカナ', common],
@@ -100,7 +102,7 @@ await test('the common font draws and measures as the full font does, and text p
     ['한국어', full],
     ['龘', full],
   ])
-    assert.equal(await textFont(text, measuringFont), font, `“${text}” is drawn with the wrong font`);
+    assert.ok((await textFont(text, measuringFont)) === font, `“${text}” is drawn with the wrong font`);
 });
 
 const { CJK, blockingCharacter, wrapText } = await import('../dist/layout.js');
@@ -116,7 +118,10 @@ async function pageText(bytes) {
 await test('full-width forms and the symbols of GB 2312, alone, are drawn with the Chinese font and read back', async () => {
   // Noto Sans has none of these: a text of them alone went to it and failed to export.
   for (const text of ['（2026）', '１２３', '，', '①②③', '★ ■ →', 'Ⅻ'])
-    assert.equal(await textFont(text, measuringFont), await measuringFont('cjk'), text);
+    assert.ok(
+      (await textFont(text, measuringFont)) === (await measuringFont('cjk')),
+      `${text}: not the common Chinese font`,
+    );
   const bytes = await buildPdf({
     sources: [{ id: 's', bytes: blank }],
     pages: [{ id: 'p', sourceId: 's', index: 0 }],
@@ -163,7 +168,7 @@ await test('symbols only the full Chinese font has, alone, are drawn with it and
   // Not in GB 2312, nor in Noto Sans: ⑪, a check mark, a double arrow.
   const full = await measuringFont('cjk-full');
   for (const text of ['⑪', '✓ Done', 'A ↔ B', 'x ⇒ y'])
-    assert.equal(await textFont(text, measuringFont), full, text);
+    assert.ok((await textFont(text, measuringFont)) === full, `${text}: not the full Chinese font`);
   const text = await pageText(await download(['⑪', '✓ Done', 'A ↔ B']));
   for (const expected of ['⑪', '✓', 'Done', '↔']) assert(text.includes(expected), `${expected}: ${text}`);
 });

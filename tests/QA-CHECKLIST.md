@@ -1559,6 +1559,14 @@ source review does not replace the owner’s browser verification.
     The unsaved-work test clicked the link where it is hidden; it now goes back
     to all tools first, as a visitor does. The editor itself has no language
     link since the header lost it, as asked.
+  - Two test faults: a font check that failed compared two font objects with
+    assert.equal, which printed them whole and ran out of memory before naming
+    the text (now compared by identity: with the old class the file fails in
+    13 s, naming （2026）); and the Chinese phone test read the page's text once,
+    which could come before the Chinese font had loaded (it now waits for it).
+- Runs on 13b8dd5: `npm test` 500 passed; `npx playwright test` (Chromium,
+  WebKit, Firefox, phones and the stamped release, two workers) 462 passed,
+  4 skipped, 0 failed, in 12.4 minutes.
 - Two browser tests failed once in the run on 8e6c000, under load: WebKit's
   resize.spec.mjs:346 (a CSP report “style-src-elem blocked inline at :5”, then
   no box for the signature) and Firefox's editor.spec.mjs:722 (a check box
