@@ -71,15 +71,12 @@ test('the editor speaks Chinese, and a download is named in Chinese', async ({ p
   });
   await openSample(page, './zh/add-watermark-to-pdf/');
   // The opening notice, and what Watermark shows at once: 草稿, DRAFT in Chinese.
-  await expectToast(
-    page,
-    '你的 PDF 已经打开。一切都在你的设备上完成。已在每一页显示水印“草稿”。撤销可以去掉它。',
-  );
+  await expectToast(page, 'PDF 已打开。一切都在你的设备上完成。已在每一页显示水印“草稿”。撤销可以去掉它。');
   await expect(page.locator('#tool-panel h2').first()).toHaveText('水印');
   await expect(page.locator('#document-name')).toHaveText('示例文档.pdf');
   const { name, bytes } = await download(page, () => page.click('#download-button'));
   expect(name).toBe('示例文档-已加水印.pdf');
-  await expectToast(page, '已下载编辑后的 PDF。');
+  await expectToast(page, '已下载处理后的 PDF。');
   // The Chinese sample (scripts/create-sample-zh.py), with the watermark on it.
   const text = (await pdfText(bytes)).join(' ');
   expect(text).toContain('留一点空间');
@@ -211,7 +208,7 @@ test('leaving for English with unsaved work asks first, in Chinese', async ({ pa
   await expect(link).toBeVisible();
   await link.click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
-  await expect(page.locator('#confirm-title')).toHaveText('要离开你的文档吗？');
+  await expect(page.locator('#confirm-title')).toHaveText('要离开当前文档吗？');
   await page.locator('[data-confirm="cancel"]').click();
   await expect(page.locator('#confirm-dialog')).toBeHidden();
   expect(page.url()).toMatch(/\/zh\/add-text-to-pdf\/$/);

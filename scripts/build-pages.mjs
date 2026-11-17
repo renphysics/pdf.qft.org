@@ -33,7 +33,7 @@ import { TOOLS, TOOL_PAGES } from '../dist/routes.js';
 import { PAGES } from './pages/content.mjs';
 import { FEATURES_ZH, HOME_ZH, PAGES_ZH, WORDS_ZH } from './pages/content-zh.mjs';
 import { localizeShell, withoutSpacesBetweenChinese } from './pages/localize.mjs';
-import { SAME_IN_CHINESE, SHELL_ZH } from './pages/shell-zh.mjs';
+import { SAME_IN_CHINESE, SHELL_ZH, SHELL_ZH_HTML } from './pages/shell-zh.mjs';
 
 const ORIGIN = 'https://pdf.qft.org/';
 const site = fileURLToPath(new URL('../dist/', import.meta.url));
@@ -432,7 +432,10 @@ function chineseHome(template) {
 const source = await readFile(path.join(site, 'index.html'), 'utf8');
 const template = withPreloads(withTools(source));
 const chinese = withPreloads(
-  withTools(withoutSpacesBetweenChinese(localizeShell(source, SHELL_ZH, SAME_IN_CHINESE)), 'zh'),
+  withTools(
+    withoutSpacesBetweenChinese(localizeShell(source, SHELL_ZH, SAME_IN_CHINESE, SHELL_ZH_HTML)),
+    'zh',
+  ),
   'zh',
 );
 const englishPages = PAGES.map((page) => toolPage(template, page, 'en'));

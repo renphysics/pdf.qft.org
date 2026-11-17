@@ -72,10 +72,21 @@ export function withoutSpacesBetweenChinese(html) {
 
 /**
  * The template in another language: `dictionary` maps each English text to
- * its translation; `same` lists texts that stay as they are (QFT PDF). Throws,
- * naming them, when a text has no translation or a translation no text.
+ * its translation; `same` lists texts that stay as they are (QFT PDF);
+ * `fragments` maps a piece of the template's markup to its translation as a
+ * whole, where the language needs other markup (a heading on one line), and
+ * goes first. Throws, naming them, when a text has no translation or a
+ * translation no text, or a fragment is not in the template exactly once.
  */
-export function localizeShell(html, dictionary, same = new Set()) {
+export function localizeShell(html, dictionary, same = new Set(), fragments = {}) {
+  // A fragment's texts are translated already: they stay as they are.
+  same = new Set(same);
+  for (const [english, translated] of Object.entries(fragments)) {
+    if (html.split(english).length !== 2)
+      throw new Error(`This fragment is not in index.html exactly once:\n  ${english}`);
+    html = html.replace(english, () => translated);
+    for (const text of shellTexts(translated)) same.add(text);
+  }
   const missing = [],
     used = new Set();
   const localized = eachText(html, (text) => {

@@ -16,7 +16,7 @@ export const TOOLS = {
     name: '添加文字',
     title: '添加文字和图片',
     tab: '文字',
-    card: ['一句备注、一个标志、一点补充。', '在页面上留下你的印记。'],
+    card: ['一句备注、一个标志、一点补充，', '都能直接加到页面上。'],
     keywords:
       '文字 文本 中文 汉字 加中文 写中文 加字 写字 打字 输入 备注 标签 说明 图片 照片 加图片 插入图片 标志 高亮',
   },
@@ -31,7 +31,7 @@ export const TOOLS = {
   signature: {
     name: '签署 PDF',
     tab: '签名',
-    card: ['手写、输入或上传你的签名。', '放在一页或每一页上。'],
+    card: ['手写或输入签名，也可以选择签名图片，', '放在一页或每一页上。'],
     keywords: '签名 加签名 添加签名 签字 签署 手写签名 电子签名 签名图片 盖章 填写',
   },
   form: {
@@ -43,7 +43,7 @@ export const TOOLS = {
   properties: {
     name: '文档属性',
     tab: '属性',
-    card: ['修改标题、作者等信息。', '或者在分享前删掉它们。'],
+    card: ['修改标题、作者等信息，', '也可以在分享前删掉。'],
     keywords: '属性 元数据 信息 标题 作者 主题 关键词 语言 隐私 删除信息',
   },
   draw: {
@@ -55,19 +55,19 @@ export const TOOLS = {
   watermark: {
     name: '水印',
     tab: '水印',
-    card: ['给每一页加上低调的标记，', '文字、颜色和透明度都由你定。'],
+    card: ['给每一页加上低调的标记，', '文字、颜色和不透明度都由你定。'],
     keywords: '水印 加水印 添加水印 文字水印 中文水印 草稿 机密 标记',
   },
   footer: {
     name: '页眉和页脚',
     tab: '页眉页脚',
-    card: ['你的名字、项目和其他信息，', '放在每一页的同一个位置。'],
+    card: ['姓名、项目名称和其他信息，', '放在每一页的同一个位置。'],
     keywords: '页眉 页脚 页眉页脚 加页眉 加页脚 添加页眉 添加页脚 标题 日期 姓名 文件名',
   },
   numbers: {
     name: '页码',
     tab: '页码',
-    card: ['加上页码，条理更清楚。', '从头到尾，按你的格式编号。'],
+    card: ['加上页码，条理更清楚。', '格式和起始页码都可以自定义。'],
     keywords: '页码 加页码 添加页码 编号 编页码 页数',
   },
   pages: {
@@ -79,19 +79,19 @@ export const TOOLS = {
   delete: {
     name: '删除页面',
     tab: '删除',
-    card: ['去掉不需要的页面。', '选中、删除、保存。'],
+    card: ['去掉不需要的页面。', '选中、删除，然后下载。'],
     keywords: '删除 删页 删除页面 去掉 移除 页面',
   },
   crop: {
     name: '裁剪 PDF',
     tab: '裁剪',
-    card: ['边缘少一点。', '裁掉页边，实时预览。'],
+    card: ['裁掉多余的页边，', '效果实时预览。'],
     keywords: '裁剪 剪裁 裁切 切边 去白边 白边 页边 页面',
   },
   margins: {
     name: '添加页边距',
     tab: '页边距',
-    card: ['边缘多一点空间，', '用来写笔记、装订或打孔。'],
+    card: ['在页面四周留出空白，', '方便写笔记、装订或打孔。'],
     keywords: '页边距 边距 加边距 留白 空白 装订 打孔 笔记 页面',
   },
   resize: {
@@ -139,12 +139,12 @@ export const TOOLS = {
   unlock: {
     name: '解锁 PDF',
     tab: '解锁',
-    card: ['知道密码？那就把它去掉。', '另存一份不用密码就能打开的副本。'],
+    card: ['知道密码？那就把它去掉。', '下载一份不用密码就能打开的副本。'],
     keywords: '解锁 解密 去密码 去除密码 删除密码 移除密码 取消密码 密码 解除限制 限制',
   },
   batch: {
     name: '批量处理和预设',
-    card: ['一次设置，处理多个 PDF。', '保存设置，一起处理。'],
+    card: ['一次设置，处理多个 PDF。', '还能保存为预设，下次再用。'],
     keywords: '批量 批处理 预设 多个文件 多个',
   },
 };
@@ -202,8 +202,8 @@ export const NOTES = {
 /** Long passages of HTML, by name (passage() in i18n.js). */
 export const PASSAGES = {
   privacy:
-    '<div class="eyebrow">你的文件，你的空间</div><h2 id="dialog-title">隐私，从设计开始。</h2><p>QFT PDF 在这个浏览器里处理你的 PDF。编辑器不会把文档内容、文件名或你的编辑发送到任何处理服务器。</p><h3>哪些东西留在你的设备上？</h3><p>你的 PDF 文件、添加的图片和文字，以及编辑后的文档。PDF 文件和生成的结果保存在这个标签页的内存里，关闭或刷新标签页就会清除。保存的预设包含你选择的文字和设置，会一直留在这个浏览器里，直到你删除它们或清除网站数据。水印、页眉和页脚、页码的设置也一样：勾选“在这台设备上记住这些设置”时保存，取消勾选就会忘记。</p><p>密码只在这个标签页里使用：用来打开有密码保护的 PDF，以及保护你下载的文件。密码从不保存，预设里也不会有。只有你选择“保存在这台设备上”，你的签名才会留在这个浏览器里；取消勾选就会删除它。你选择的语言也记在这个浏览器里。</p><h3>哪些需要联网？</h3><p>你的浏览器会加载这个网站、它的 PDF 程序库和字体文件。托管服务商可能会收到普通的网站请求。QFT PDF 不包含广告或统计脚本。</p><p>用“下载 PDF”保存完成的副本。你的原文件不会被覆盖。</p>',
-  help: '<div class="eyebrow">使用指南</div><h2 id="dialog-title">请随意使用。</h2><p>打开一个 PDF，选择一个工具，直接在页面上编辑。每个修改都立即显示，和它在你的 PDF 里的样子完全一样。“下载 PDF”会保存一份新的副本。</p><h3>能编辑什么？</h3><p>添加文字、PNG/JPG 图片、高亮、绘图、水印、页眉、页脚和页码。填写 PDF 表单。合并 PDF，或者调整页面顺序、倒序、旋转、删除、裁剪、提取和拆分页面，把双面扫描的页面交错排列，添加空白页或页边距。把页面调整到 A4 或 Letter 纸上。每张纸放 2 页或 4 页，做成讲义。批量工具把存好的预设分别应用到多个 PDF 上。</p><h3>文字、图片和高亮</h3><p>用“添加文字”时，点击页面然后输入。拖动一个项目可以移动它，拖动控制点可以调整大小。选中一个项目可以在面板里修改它，或者按 Delete 删除。选中项目后，方向键移动它，Alt 加方向键调整大小（按住 Shift 步子更大），Enter 编辑文字。</p><h3>撤销和重做</h3><p>撤销（Ctrl+Z 或 ⌘Z）撤回最近的编辑；重做（Ctrl+Shift+Z 或 ⌘⇧Z）把它们恢复。每个按钮都会写明它要撤回或恢复哪一步。重置会回到你最初打开的文档。关闭或刷新这个标签页后，工作区不会保存。</p><h3>删除页面和裁剪 PDF</h3><p>在“删除页面”里，可以选择缩略图，或者输入页面范围，比如 2, 4-6。至少要留下一页。在“裁剪 PDF”里，可以拖出要保留的区域，或者输入边距百分比，然后应用到当前页、选中的页面或每一页。每次裁剪都在当前的可见区域上再裁。“恢复原始裁剪”会为你选的范围找回原来的页面边界。裁剪只是隐藏内容，不是安全的涂黑。</p><p>“添加文字”是加上新的内容，不会改写原有的段落。高亮是批注，不是安全的涂黑。修改可能让已有的数字签名失效。QFT PDF 不能压缩 PDF，不能识别扫描件里的文字（OCR），也不能和 Word 互相转换。</p><h3>签名</h3><p>用“签署 PDF”时，手写你的签名，输入你的名字（手写字体只有拉丁字母），或者上传签名的图片。点击页面放置它，或者加到每一页上；拖动它可以移动，拖动一角可以调整大小。它是你签名的图片，不是基于证书的数字签名。</p><h3>表单</h3><p>用“填写表单”时，点击字段输入文字，或者勾选复选框；Tab 跳到下一个字段。在手机上，页面会放大到你点的字段，“适合窗口”会重新显示整页。下载的文件保留可以填写的字段；打开“下载时拼合字段”，你填的内容就会成为页面的一部分。表单里内置的计算不会运行，只用 Adobe XFA 格式做的表单不能填写。</p><h3>绘图</h3><p>用“绘图”时，在页面上拖动用画笔画，或者选择直线、箭头、矩形或椭圆。每一笔是一个撤销步骤。选中一个图形可以移动它、调整大小，或者修改颜色和线宽。在触摸屏上，一根手指画画，两根手指滚动。</p><h3>文档属性</h3><p>“文档属性”显示保存在你的 PDF 里的标题、作者、主题、关键词和语言。修改它们，或者在分享文件前选择“全部删除”：它还会删掉 PDF 由哪个软件、在什么时候制作的记录。语言会保留，因为读屏软件需要它。</p><h3>密码</h3><p>需要密码的 PDF 会在你打开时要求输入。下载的文件保留这个密码：可以在“加密 PDF”里修改，或者在“解锁 PDF”里去掉。只限制打印、复制或修改的 PDF 打开时不会询问，下载的文件也没有这些限制。密码只留在你的设备上，不会保存。</p><h3>支持的文件</h3><p>PDF 文件不设固定的大小或页数上限，包括有密码保护的 PDF（用证书保护的除外）。JPG 和 PNG 图片会作为页面打开（JPG 转 PDF）；“PDF 转 JPG”把页面存成图片。能处理多大的文件取决于你的设备和浏览器可用的内存。特别大的文件可能很慢，或者打不开，尤其是在手机上。要合并、删除、提取或拆分有表单字段的 PDF 的页面，先在“填写表单”里打开“下载时拼合字段”。</p><h3>字体</h3><p>支持拉丁字母和中文，还有日文假名和韩文。日文汉字和繁体中文用的是字体的简体中文字形，所以有些字看起来略有不同。只嵌入你用到的字，所以中文通常只让 PDF 多几十 KB。需要显示中文时，先加载约 1.4 MB 的常用字体（GB2312 的全部字符）；遇到它没有收录的字符，再加载约 16 MB 的完整字体。字体会缓存在浏览器里，供以后使用。其他文字取决于内置字体覆盖的范围。</p><h3>拆分 PDF 和批量预设</h3><p>按单页、每 N 页，或者 1-3; 4-6 这样的自定义分组拆分。分号表示开始一个新的输出 PDF。可以分别下载，或者下载一个 ZIP。批量工具可以组合水印、页眉和页脚、页码和裁剪。每个文件的编号都重新开始。预设保存在这个浏览器里；PDF 不会保存。</p>',
+    '<div class="eyebrow">隐私说明</div><h2 id="dialog-title">文件在本机处理</h2><p>QFT PDF 在这个浏览器里处理 PDF。编辑器不会把文档内容、文件名或你做的修改发送到任何处理服务器。</p><h3>哪些东西留在你的设备上？</h3><p>PDF 文件、添加的图片和文字，以及修改后的文档。PDF 文件和生成的结果保存在这个标签页的内存里，关闭或刷新标签页就会清除。保存的预设包含你选择的文字和设置，会一直留在这个浏览器里，直到你删除它们或清除网站数据。水印、页眉和页脚、页码的设置也一样：勾选“在这台设备上记住这些设置”时保存，取消勾选就会忘记。</p><p>密码只在这个标签页里使用：用来打开有密码保护的 PDF，以及保护你下载的文件。密码从不保存，预设里也不会有。只有你选择“保存在这台设备上”，签名才会留在这个浏览器里；取消勾选就会删除它。你选择的语言也记在这个浏览器里。</p><h3>哪些需要联网？</h3><p>你的浏览器会加载这个网站、它的 PDF 程序库和字体文件。托管服务商可能会收到普通的网站请求。QFT PDF 不包含广告或统计脚本。</p><p>用“下载 PDF”保存处理好的副本，原文件不会被覆盖。</p>',
+  help: '<div class="eyebrow">使用指南</div><h2 id="dialog-title">如何使用 QFT PDF</h2><p>打开 PDF，选择工具，直接在页面上操作。修改即时显示，效果和下载后的 PDF 完全一样。“下载 PDF”会保存一份新的副本。</p><h3>能做什么？</h3><p>添加文字、PNG/JPG 图片、高亮、绘图、水印、页眉、页脚和页码。填写 PDF 表单。合并 PDF，或者调整页面顺序、倒序、旋转、删除、裁剪、提取和拆分页面，把双面扫描的页面交错排列，添加空白页或页边距。把页面调整到 A4 或 Letter 纸上。每张纸放 2 页或 4 页，做成讲义。批量工具把存好的预设分别应用到多个 PDF 上。</p><h3>文字、图片和高亮</h3><p>用“添加文字”时，点击页面然后输入。拖动一个项目可以移动它，拖动控制点可以调整大小。选中一个项目可以在面板里修改它，或者按 Delete 删除。选中项目后，方向键移动它，Alt 加方向键调整大小（按住 Shift 步子更大），Enter 编辑文字。</p><h3>撤销和重做</h3><p>撤销（Ctrl+Z 或 ⌘Z）撤回最近的修改；重做（Ctrl+Shift+Z 或 ⌘⇧Z）把它们恢复。每个按钮都会写明它要撤回或恢复哪一步。重置会回到最初打开的文档。关闭或刷新这个标签页后，工作区不会保存。</p><h3>删除页面和裁剪 PDF</h3><p>在“删除页面”里，可以选择缩略图，或者输入页面范围，比如 2, 4-6。至少要留下一页。在“裁剪 PDF”里，可以拖出要保留的区域，或者输入边距百分比，然后应用到当前页、选中的页面或每一页。每次裁剪都在当前的可见区域上再裁。“恢复原始裁剪”会为你选的范围找回原来的页面边界。裁剪只是隐藏内容，不是安全的涂黑。</p><p>“添加文字”是加上新的内容，不会改写原有的段落。高亮是批注，不是安全的涂黑。修改可能让已有的数字签名失效。QFT PDF 不能压缩 PDF，不能识别扫描件里的文字（OCR），也不能和 Word 互相转换。</p><h3>签名</h3><p>用“签署 PDF”时，可以手写签名、输入名字（手写字体只有拉丁字母），或者选择签名图片。点击页面放置签名，或者加到每一页上；拖动它可以移动，拖动一角可以调整大小。它是你签名的图片，不是基于证书的数字签名。</p><h3>表单</h3><p>用“填写表单”时，点击字段输入文字，或者勾选复选框；Tab 跳到下一个字段。在手机上，页面会放大到你点的字段，“适合窗口”会重新显示整页。下载的文件保留可以填写的字段；打开“下载时拼合字段”，你填的内容就会成为页面的一部分。表单里内置的计算不会运行，只用 Adobe XFA 格式做的表单不能填写。</p><h3>绘图</h3><p>用“绘图”时，在页面上拖动用画笔画，或者选择直线、箭头、矩形或椭圆。每一笔是一个撤销步骤。选中一个图形可以移动它、调整大小，或者修改颜色和线宽。在触摸屏上，一根手指画画，两根手指滚动。</p><h3>文档属性</h3><p>“文档属性”显示保存在 PDF 里的标题、作者、主题、关键词和语言。修改它们，或者在分享文件前选择“全部删除”：它还会删掉 PDF 由哪个软件、在什么时候制作的记录。语言会保留，因为读屏软件需要它。</p><h3>密码</h3><p>需要密码的 PDF 会在你打开时要求输入。下载的文件保留这个密码：可以在“加密 PDF”里修改，或者在“解锁 PDF”里去掉。只限制打印、复制或修改的 PDF 打开时不会询问，下载的文件也没有这些限制。密码只在本机使用，不会保存。</p><h3>支持的文件</h3><p>PDF 文件不设固定的大小或页数上限，包括有密码保护的 PDF（用证书保护的除外）。JPG 和 PNG 图片会作为页面打开（JPG 转 PDF）；“PDF 转 JPG”把页面存成图片。能处理多大的文件取决于你的设备和浏览器可用的内存。特别大的文件可能很慢，或者打不开，尤其是在手机上。要合并、删除、提取或拆分有表单字段的 PDF 的页面，先在“填写表单”里打开“下载时拼合字段”。</p><h3>字体</h3><p>支持拉丁字母和中文，还有日文假名和韩文。日文汉字和繁体中文用的是字体的简体中文字形，所以有些字看起来略有不同。只嵌入你用到的字，所以中文通常只让 PDF 多几十 KB。需要显示中文时，先加载约 1.4 MB 的常用字体（GB2312 的全部字符）；遇到它没有收录的字符，再加载约 16 MB 的完整字体。字体会缓存在浏览器里，供以后使用。其他文字取决于内置字体覆盖的范围。</p><h3>拆分 PDF 和批量预设</h3><p>按单页、每 N 页，或者 1-3; 4-6 这样的自定义分组拆分。分号表示开始一个新的输出 PDF。可以分别下载，或者下载一个 ZIP。批量工具可以组合水印、页眉和页脚、页码和裁剪。每个文件的编号都重新开始。预设保存在这个浏览器里；PDF 不会保存。</p>',
 };
 
 /** Each English text of the interface, and its Chinese. */
@@ -216,11 +216,11 @@ export const ZH = {
   'Drag across the page to highlight an area. Drag a highlight to move it.':
     '在页面上拖动，高亮一块区域。拖动高亮可以移动它。',
   'A text mark across your pages, as bold or as subtle as you like. Changes show as you make them.':
-    '横跨页面的文字标记，醒目或低调随你。修改立即显示。',
+    '横跨页面的文字标记，醒目或低调随你。修改即时显示。',
   'Put the same details in a consistent place on your pages. Type in any position to add it.':
     '把同样的信息放在每一页的固定位置。在任意位置输入即可添加。',
   'Give your document an easy-to-follow sequence. Changes show as you make them.':
-    '给文档编上清楚的页码。修改立即显示。',
+    '给文档编上清楚的页码。修改即时显示。',
   'Choose pages in the strip. Drag to reorder, or use the buttons below.':
     '在页面列表里选择页面。拖动调整顺序，或者用下面的按钮。',
   'Add PDF files, then arrange their pages in the strip.': '添加 PDF 文件，然后在页面列表里排列它们的页面。',
@@ -232,27 +232,28 @@ export const ZH = {
     '在页面周围加上空白：留出写笔记、装订或打孔的空间。',
   'Put your pages on A4 or Letter paper, each scaled to fit: one size for a document of mixed or odd sizes.':
     '把页面放到 A4 或 Letter 纸上，每一页缩放到合适大小：让大小不一的文档统一尺寸。',
-  'Create separate PDFs from this document, including your edits.': '把这份文档拆成几个 PDF，带上你的编辑。',
+  'Create separate PDFs from this document, including your edits.':
+    '把这份文档拆分成多个 PDF，已做的修改都会保留。',
   'Put 2 or 4 pages on each sheet, for handouts or to save paper. The sheets download as a new PDF; your document stays as it is.':
-    '每张纸放 2 页或 4 页，做讲义或节省纸张。排好的纸张作为新的 PDF 下载；你的文档保持原样。',
+    '每张纸放 2 页或 4 页，做讲义或节省纸张。排好的纸张会下载为新的多页合一 PDF，当前文档保持原样。',
   'Choose a password. Anyone who opens the PDF you download will need it.':
-    '设一个密码。打开你下载的 PDF 的人都需要它。',
+    '设置一个密码。任何人打开下载的 PDF，都需要输入这个密码。',
   'Download a copy of your PDF that opens without a password.': '下载一份不用密码就能打开的 PDF 副本。',
   'Draw, type or upload your signature, then click the page where it belongs. Drag it to move it, or a corner to resize it.':
-    '手写、输入或上传你的签名，然后点击页面上要签名的地方。拖动它可以移动，拖动一角可以调整大小。',
+    '手写或输入签名，也可以选择签名图片，然后点击页面上要签名的地方。拖动它可以移动，拖动一角可以调整大小。',
   'Your JPG and PNG pictures are pages. Choose their paper size, put them in order in the page strip, then download one PDF.':
-    '你的 JPG 和 PNG 图片就是页面。选择页面尺寸，在页面列表里排好顺序，然后下载一个 PDF。',
+    '每张 JPG 或 PNG 图片都是一页。选择页面尺寸，在页面列表里排好顺序，然后下载为一个 PDF。',
   'Save pages as JPG or PNG pictures, exactly as they look with your edits.':
-    '把页面存成 JPG 或 PNG 图片，和加上编辑后看到的一模一样。',
+    '把页面连同所做的修改存成 JPG 或 PNG 图片，和预览中看到的完全一样。',
   'Click a field to type in it, or tick its box. Tab moves to the next field.':
     '点击字段输入文字，或者勾选复选框。按 Tab 跳到下一个字段。',
   'The title, author and other details saved in your PDF. Change them, or remove them before you share it.':
-    '保存在你的 PDF 里的标题、作者等信息。修改它们，或者在分享前删掉。',
+    '保存在 PDF 里的标题、作者等信息。可以修改，也可以在分享前删掉。',
   'Draw on the page with a pen, or drag to add a line, an arrow, a rectangle or an ellipse.':
     '用画笔在页面上画，或者拖动添加直线、箭头、矩形或椭圆。',
   DRAFT: '草稿',
   'Page {page} of {total}': '第 {page} 页，共 {total} 页',
-  'Working on your PDF…': '正在处理你的 PDF…',
+  'Working on your PDF…': '正在处理 PDF…',
   'That did not work. Please try a different PDF.': '没有成功。请换一个 PDF 试试。',
   // ---- editor.js
   'Your download will need its password to open': '下载的文件需要密码才能打开',
@@ -265,7 +266,7 @@ export const ZH = {
   '{count} pages · {size}': '{count} 页 · {size}',
   Reset: '重置',
   'Back to your original document. Undo brings your edits back.':
-    '已回到原来的文档。撤销可以把你的编辑找回来。',
+    '已回到原来的文档。撤销可以找回刚才的修改。',
   'Stop the batch or wait for it to finish before switching workspaces.':
     '先停止批量处理，或者等它完成，再切换工作区。',
   'Stopping after the current output…': '当前文件完成后停止…',
@@ -275,7 +276,7 @@ export const ZH = {
   'START FRESH': '重新开始',
   'Reset this document?': '要重置这份文档吗？',
   'This clears your edits and added PDFs and returns to the document you first opened. Undo brings your edits back. Your original files are unchanged.':
-    '这会清除你的编辑和添加的 PDF，回到你最初打开的文档。撤销可以把编辑找回来。你的原文件不会被改动。',
+    '这会清除所有修改，移除添加的 PDF，回到最初打开的文档。撤销可以找回这些修改。原文件不会被改动。',
   'Reset document': '重置文档',
   'Remove password': '去掉密码',
   'Password removed. Your download will open without one.': '密码已去掉。下载的文件不用密码就能打开。',
@@ -289,9 +290,9 @@ export const ZH = {
   'Wait for the current task to finish, or stop it, before leaving this view.':
     '先等当前任务完成，或者停止它，再离开这个视图。',
   'CHANGE LANGUAGE': '切换语言',
-  'Leave your document?': '要离开你的文档吗？',
+  'Leave your document?': '要离开当前文档吗？',
   'The page opens again in the other language, without your document. Download your edited PDF first if you want to keep it.':
-    '页面会用另一种语言重新打开，你的文档不会带过去。如果想保留它，请先下载编辑后的 PDF。',
+    '页面会用另一种语言重新打开，当前文档不会保留。如果想保留修改，请先下载 PDF。',
   'Change language': '切换语言',
   // ---- app.js
   'QFT PDF was updated while this page was open. Please reload the page.':
@@ -299,7 +300,7 @@ export const ZH = {
   'The editor could not be loaded. Check your connection, then reload the page.':
     '编辑器没能加载。请检查网络连接，然后重新加载页面。',
   'You are on {tool}: {link}.': '你在“{tool}”页面：{link}。',
-  'use it on your open document': '用在你打开的文档上',
+  'use it on your open document': '用在已打开的文档上',
   'You are on {tool}: {action} above.': '你在“{tool}”页面：请在上方{action}。',
   'QFT PDF has been updated, so this page was reloaded. Please try again.':
     'QFT PDF 已经更新，所以这个页面重新加载了。请再试一次。',
@@ -311,8 +312,8 @@ export const ZH = {
   'The PDF could not be created. Please try again.': '无法生成 PDF，请重试。',
   'The PDF could not be created.': '无法生成 PDF。',
   Cancel: '取消',
-  'Stopped. Your document is unchanged.': '已停止，你的文档没有改动。',
-  'Preparing your PDF…': '正在准备你的 PDF…',
+  'Stopped. Your document is unchanged.': '已停止，文档没有改动。',
+  'Preparing your PDF…': '正在准备 PDF…',
   document: '文档',
   '-protected': '-已加密',
   '-unlocked': '-已解锁',
@@ -339,9 +340,9 @@ export const ZH = {
     '它不再标记为 PDF/A（长期存档格式），因为{reasons}。',
   ', and ': '，而且',
   'Their pages were copied into new PDFs, without the original’s {list}.':
-    '这些页面已复制到新的 PDF 中，没有带上原文件的{list}。',
+    '这些页面已复制到新的 PDF 中，原文件的{list}没有保留。',
   'Its pages were copied into a new PDF, without the original’s {list}.':
-    '它的页面已复制到一个新的 PDF 中，没有带上原文件的{list}。',
+    '它的页面已复制到一个新的 PDF 中，原文件的{list}没有保留。',
   'The original was digitally signed: its signature isn’t valid in these copies.':
     '原文件有数字签名：这个签名在这些副本里不再有效。',
   'The original was digitally signed: its signature isn’t valid in this copy.':
@@ -349,32 +350,31 @@ export const ZH = {
   'What you added isn’t tagged for screen readers; they skip the page numbers, headers, footers and watermark, which are marked as artifacts.':
     '你添加的内容没有为读屏软件加标签。页码、页眉、页脚和水印被标记为非正文内容，读屏软件会跳过它们。',
   'Your protected PDF has been downloaded. It needs your password to open.':
-    '已下载加密的 PDF。打开它需要你的密码。',
+    '已下载加密的 PDF。打开时需要输入密码。',
   'Your unlocked PDF has been downloaded.': '已下载解锁后的 PDF。',
-  'Your edited PDF has been downloaded.': '已下载编辑后的 PDF。',
+  'Your edited PDF has been downloaded.': '已下载处理后的 PDF。',
   'Preparing selected pages…': '正在准备选中的页面…',
   '{count} selected page downloaded.': '已下载选中的 {count} 页。',
   '{count} selected pages downloaded.': '已下载选中的 {count} 页。',
-  'The PDF needs your password to open.': '打开这个 PDF 需要你的密码。',
+  'The PDF needs your password to open.': '下载的文件需要密码才能打开。',
   'Skip this file': '跳过这个文件',
   'Enter the password.': '请输入密码。',
   'Opening…': '正在打开…',
   'Open PDF': '打开 PDF',
   'Everything happens on your device.': '一切都在你的设备上完成。',
   'Your picture is a PDF page now. Download it, or add more pictures.':
-    '你的图片已经变成 PDF 页面。可以下载，也可以再添加图片。',
+    '图片已变成 PDF 页面。可以直接下载，也可以再添加图片。',
   'Your {count} pictures are PDF pages now. Put them in order, then download one PDF.':
-    '你的 {count} 张图片已经变成 PDF 页面。排好顺序，然后下载成一个 PDF。',
+    '{count} 张图片已变成 PDF 页面。排好顺序，然后下载为一个 PDF。',
   '{count} page added. Arrange them, then download.': '已添加 {count} 页。排好顺序，然后下载。',
   '{count} pages added. Arrange them, then download.': '已添加 {count} 页。排好顺序，然后下载。',
   'Your PDF is unlocked. Download a copy that opens without a password and without limits on printing, copying or changes.':
-    '你的 PDF 已解锁。下载一份副本，打开时不需要密码，打印、复制和修改也不受限制。',
+    'PDF 已解锁。下载一份副本，打开时不需要密码，打印、复制和修改也不受限制。',
   'Your PDF is unlocked. Download a copy that opens without a password.':
-    '你的 PDF 已解锁。下载一份副本，打开时不需要密码。',
-  'Your PDF is unlocked for editing, here on your device.': '你的 PDF 已在这台设备上解锁，可以编辑了。',
-  'Your PDF has fields to fill in: click one to type in it.':
-    '你的 PDF 有可以填写的字段：点击一个字段就能输入。',
-  'Your PDF is ready.': '你的 PDF 已经打开。',
+    'PDF 已解锁。下载一份副本，打开时不需要密码。',
+  'Your PDF is unlocked for editing, here on your device.': 'PDF 已在本机解锁，可以开始处理了。',
+  'Your PDF has fields to fill in: click one to type in it.': '这个 PDF 有可以填写的字段，点击字段就能输入。',
+  'Your PDF is ready.': 'PDF 已打开。',
   'Your download will keep the same password. Change it in Protect PDF.':
     '下载的文件会保留同样的密码。可以在“加密 PDF”里修改。',
   'It had limits on printing, copying or changes, which your download won’t have.':
@@ -388,14 +388,14 @@ export const ZH = {
   'START A NEW DOCUMENT': '打开新文档',
   'Replace your current document?': '要替换当前的文档吗？',
   'Your edits will be cleared. Download your edited PDF first if you want to keep it.':
-    '你的编辑会被清除。如果想保留，请先下载编辑后的 PDF。',
+    '当前的修改会被清除。如果想保留，请先下载 PDF。',
   'Open new PDF': '打开新的 PDF',
-  'Opening your PDF…': '正在打开你的 PDF…',
-  'Opening your PDFs…': '正在打开你的 PDF…',
+  'Opening your PDF…': '正在打开 PDF…',
+  'Opening your PDFs…': '正在打开 PDF…',
   'PDFs with form fields can only be combined with other files once their fields are flattened. Turn on “Flatten fields on download” in Fill form, then add the file again.':
     '有表单字段的 PDF 要先拼合字段，才能和其他文件合并。请在“填写表单”里打开“下载时拼合字段”，然后再添加这个文件。',
   'Add files': '添加文件',
-  'Return to your open document': '回到你打开的文档',
+  'Return to your open document': '返回已打开的文档',
   // ---- editor.js
   'Redone.': '已重做。',
   'Undone.': '已撤销。',
@@ -550,15 +550,15 @@ export const ZH = {
   '{operation} settings': '{operation}设置',
   'Batch processing and saved presets': '批量处理和保存的预设',
   'All tools': '全部工具',
-  'Processed on your device': '在你的设备上处理',
-  'A WORKFLOW WORTH REPEATING': '值得反复使用的流程',
-  'One setup. <em>Every PDF.</em>': '一次设置，<em>处理每一份 PDF。</em>',
+  'Processed on your device': '本机处理',
+  'A WORKFLOW WORTH REPEATING': '多份文件，做相同的修改',
+  'One setup. <em>Every PDF.</em>': '一次设置，<em>应用到每个 PDF</em>',
   'Apply a saved combination of edits to separate files, then download them together.':
-    '把保存好的一组编辑分别应用到多个文件，然后一起下载。',
+    '用保存好的一组修改分别处理每个文件，然后一起下载。',
   'BATCH &amp; PRESETS': '批量处理和预设',
   'Batch preset settings': '批量预设设置',
-  'Set up your edits': '设置你的编辑',
-  'Start with a preset, then make it yours.': '从一个预设开始，再按你的需要调整。',
+  'Set up your edits': '设置要做的修改',
+  'Start with a preset, then make it yours.': '从一个预设开始，再按需调整。',
   Preset: '预设',
   'e.g. Course handout': '比如：课程讲义',
   'Save preset': '保存预设',
@@ -607,10 +607,10 @@ export const ZH = {
   'Right margin (%)': '右边距（%）',
   'Margins follow each page’s visible orientation. Cropping hides content; it is not secure redaction.':
     '边距按每一页显示的方向计算。裁剪只是隐藏内容，不是安全的涂黑。',
-  'Add your PDFs': '添加你的 PDF',
+  'Add your PDFs': '添加 PDF',
   'Each file stays separate. Your originals stay unchanged.': '每个文件分别处理，原文件保持不变。',
-  'Choose PDFs or drop them here': '选择 PDF，或者拖到这里',
-  'Multiple files · no fixed size or page limit': '可以选多个文件 · 不设大小和页数上限',
+  'Choose PDFs or drop them here': '选择 PDF 文件，或者拖到这里',
+  'Multiple files · no fixed size or page limit': '可以选多个文件 · 不设固定大小或页数上限',
   'Clear list': '清空列表',
   'Files in this batch': '这一批的文件',
   'Large batches depend on available browser memory. Files are processed one at a time.':
@@ -632,7 +632,7 @@ export const ZH = {
   'Browser storage is unavailable. Presets are available in this tab only.':
     '浏览器存储不可用。预设只能在这个标签页里使用。',
   '{operations}. Applied to every page of each file.': '{operations}。应用到每个文件的每一页。',
-  'Enable at least one edit in your preset.': '请在预设里至少打开一项编辑。',
+  'Enable at least one edit in your preset.': '请在预设里至少勾选一项操作。',
   'Custom preset': '自定义预设',
   'Give your preset a name before saving it.': '保存前请先给预设起个名字。',
   '“{name}” saved in this browser.': '“{name}”已保存在这个浏览器里。',
@@ -700,7 +700,7 @@ export const ZH = {
   'Use these settings in batch': '在批量处理里使用这些设置',
   'Apply this tool to every page in separate PDFs, and save it as a preset.':
     '把这个工具应用到多个 PDF 的每一页，还可以保存为预设。',
-  'ON THIS PAGE': '这一页上的内容',
+  'ON THIS PAGE': '这一页添加的内容',
   'Delete {item}': '删除{item}',
   'This number': '这个数字',
   '“{label}” can be {min} to {max}, so it’s set to {value}.':
@@ -710,7 +710,7 @@ export const ZH = {
   // ---- panel-settings.js
   'Remember these settings on this device': '在这台设备上记住这些设置',
   'Kept in this browser only: the text and options above, not your PDF or which pages. This tool starts from them next time; untick to forget them.':
-    '只保存在这个浏览器里：上面的文字和选项，不包括你的 PDF，也不包括选了哪些页。下次打开这个工具时会用这些设置；取消勾选就会忘掉它们。',
+    '只保存在这个浏览器里：上面的文字和选项，不包括 PDF 文件，也不包括选了哪些页。下次打开这个工具时会用这些设置；取消勾选就会忘掉它们。',
   'Your saved watermark is shown on every page. Undo takes it away.':
     '已在每一页显示你保存的水印。撤销可以去掉它。',
   'Your saved headers and footers are shown on every page. Undo takes them away.':
@@ -784,10 +784,10 @@ export const ZH = {
   'Delete signature': '删除签名',
   'Delete drawing': '删除绘图',
   'Make your signature first: draw, type or upload it in the panel.':
-    '请先制作签名：在面板里手写、输入或上传。',
+    '请先制作签名：在面板里手写、输入，或者选择签名的图片。',
   'Add signature': '添加签名',
   'Your signature is on all {count} pages. Drag any of them to adjust it.':
-    '你的签名已放到全部 {count} 页上。拖动其中任意一个就能调整。',
+    '签名已放到全部 {count} 页上。拖动其中任意一个就能调整。',
   'Signature added to {count} more page.': '签名已添加到另外 {count} 页。',
   'Signature added to {count} more pages.': '签名已添加到另外 {count} 页。',
   // ---- page-view.js
@@ -809,7 +809,7 @@ export const ZH = {
   'Text: “{text}”': '文字：“{text}”',
   'Text: empty': '文字：空',
   'Current page ({page})': '当前页（第 {page} 页）',
-  'Your edits show here as you make them.': '你的编辑会实时显示在这里。',
+  'Your edits show here as you make them.': '修改会即时显示在这里。',
   'Type your text. Click outside it when you are done.': '输入文字。完成后点击文字框外面。',
   'Click the page where your text should start.': '点击页面上文字开始的位置。',
   'Drag the image to move it. Drag a corner to resize it.': '拖动图片可以移动它，拖动一角可以调整大小。',
@@ -872,7 +872,7 @@ export const ZH = {
   'Drag the signature to move it, or a corner to resize it. Arrow keys move it, and with Alt they resize it.':
     '拖动签名可以移动它，拖动一角可以调整大小。方向键可以移动它，按住 Alt 再按方向键可以调整大小。',
   'Put it here on every page': '在每一页的这个位置都放上它',
-  'Your signature': '你的签名',
+  'Your signature': '签名',
   'Add it to page {page}': '添加到第 {page} 页',
   'Add it to every page': '添加到每一页',
   'Or click the page where it belongs.': '也可以直接点击页面上要放的位置。',
@@ -880,8 +880,8 @@ export const ZH = {
   'Make a new signature': '制作新的签名',
   Draw: '手写',
   Type: '输入',
-  Upload: '上传',
-  'Make your signature': '制作你的签名',
+  Upload: '图片',
+  'Make your signature': '制作签名',
   'Signature drawing area': '签名手写区域',
   'Sign with your finger or a pen.': '用手指或触控笔签名。',
   'Sign with your mouse, trackpad or pen.': '用鼠标、触控板或触控笔签名。',
@@ -895,15 +895,16 @@ export const ZH = {
   Ink: '墨水颜色',
   'Use this signature': '使用这个签名',
   'This browser could not keep your signature. It stays until you close this tab.':
-    '这个浏览器无法保存你的签名。关闭这个标签页之前，签名会一直保留。',
+    '这个浏览器无法保存签名。关闭这个标签页之前，签名会一直保留。',
   'Your signature is ready. Click the page where it belongs.': '签名已经准备好。点击页面上要放签名的位置。',
-  'Your signature will be kept on this device.': '这台设备会保存你的签名。',
-  'Your signature is no longer kept.': '不再保存你的签名。',
+  'Your signature will be kept on this device.': '这台设备会保存签名。',
+  'Your signature is no longer kept.': '不再保存签名。',
   'Edit signature': '编辑签名',
   // ---- signature.js
   'The signature font could not be loaded. Check your connection, then try again.':
     '签名字体没有加载成功。请检查网络连接，然后重试。',
-  'There is no signature yet. Draw, type or upload one first.': '还没有签名。请先手写、输入或上传一个。',
+  'There is no signature yet. Draw, type or upload one first.':
+    '还没有签名。请先手写、输入，或者选择签名的图片。',
   'The signature could not be made. Please try again.': '无法生成签名，请重试。',
   'Type your name to make a signature.': '请输入你的名字来生成签名。',
   'Choose a PNG or JPG picture of your signature.': '请选择签名的 PNG 或 JPG 图片。',
@@ -929,9 +930,9 @@ export const ZH = {
   'High, for print (300 dpi)': '高，用于打印（300 dpi）',
   Pages: '页面',
   'Selected pages ({count})': '选中的页面（{count}）',
-  'Save as pictures': '保存为图片',
+  'Save as pictures': '下载图片',
   'Each page is saved as it looks with your edits. Several pages download together as a ZIP.':
-    '每一页都按加上编辑后的样子保存。多页会打包成一个 ZIP 一起下载。',
+    '每一页都按修改后的样子保存。多页会打包成一个 ZIP 一起下载。',
   'Pictures can’t have a password.': '图片不能设置密码。',
   'Select pages in the page strip first.': '请先在页面列表里选择页面。',
   'Saving pages as pictures…': '正在把页面保存为图片…',
@@ -1033,7 +1034,7 @@ export const ZH = {
   'Add margins': '添加边距',
   'Remove added margins': '去掉添加的边距',
   'The margins are blank space around each page. A page you resized to A4 or Letter stays on that paper, so it is made smaller to leave room for them; on other pages nothing moves or shrinks.':
-    '边距是每一页四周的空白。调整成 A4 或 Letter 的页面仍在那张纸上，所以会缩小一点，为边距留出空间；其他页面的内容不会移动或缩小。',
+    '边距是每一页四周的空白。调整成 A4 或 Letter 的页面仍在那张纸上，所以会缩小，为边距留出空间；其他页面的内容不会移动或缩小。',
   'The margins are blank space around each page: nothing on it moves or shrinks.':
     '边距是每一页四周的空白：页面上的内容不会移动或缩小。',
   'Page numbers, headers and footers go to the new edges.': '页码、页眉和页脚会移到新的边缘。',
@@ -1101,9 +1102,9 @@ export const ZH = {
   '-part-{number}': '-第{number}部分',
   '{count} PDF is ready to download.': '{count} 个 PDF 可以下载了。',
   '{count} PDFs are ready to download.': '{count} 个 PDF 可以下载了。',
-  'It needs your password to open.': '打开它需要你的密码。',
-  'Each needs your password to open.': '每个文件打开时都需要你的密码。',
-  'Splitting cancelled. Your document is unchanged.': '已取消拆分，你的文档没有改动。',
+  'It needs your password to open.': '打开时需要输入密码。',
+  'Each needs your password to open.': '每个文件打开时都需要输入密码。',
+  'Splitting cancelled. Your document is unchanged.': '已取消拆分，文档没有改动。',
   // ---- panel-sheets.js
   'Pages per sheet': '每张纸的页数',
   'Margin (mm)': '边距（毫米）',
@@ -1111,7 +1112,7 @@ export const ZH = {
   'A thin border around each page': '每页四周加一圈细边框',
   'Download the sheets': '下载多页合一 PDF',
   'Each page goes on its sheet as it looks with your edits, as large as fits, and text and drawings stay sharp. Links and comments don’t carry over; form fields are flattened, so their answers do.':
-    '每一页都按加上编辑后的样子、以放得下的最大尺寸排到纸上，文字和图形保持清晰。链接和批注不会带过去；表单字段会被拼合，所以填写的内容会保留。',
+    '每一页都按修改后的样子、以放得下的最大尺寸排到纸上，文字和图形保持清晰。链接和批注不会保留；表单字段会被拼合，所以填写的内容会保留。',
   landscape: '横放',
   portrait: '竖放',
   '{count} page on {sheets} {orientation} {paper} sheet: {columns} across, {rows} down.':
