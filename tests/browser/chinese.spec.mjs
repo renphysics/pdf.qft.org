@@ -149,15 +149,53 @@ test('a page marked in Delete pages is labelled in Chinese, on the page as in th
   expect(label).not.toContain('Delete');
 });
 
-test('the language link leads to the page as it is now, opened in a new tab too', async ({ page }) => {
-  // Opening a file changes the address to the tool's; the link's written address
-  // ("./zh/" from the home page) would then lead nowhere from a new tab.
-  await openSample(page, './');
-  const now = new URL(page.url()).pathname;
-  expect(now, 'the editor shows the tool’s address').not.toBe('/');
-  const link = page.locator('.language-link');
+test('the language link is at the right end of the footer, and keeps its choice opened in a new tab', async ({
+  page,
+  context,
+}) => {
+  // With a query and a hash, which the link keeps.
+  await page.goto('./zh/merge-pdf/?x=1#faq-title');
+  await page.evaluate((key) => localStorage.setItem(key, 'zh'), KEY);
+  // Not in the header: at the right end of the footer, after the other links.
+  await expect(page.locator('.site-header .language-link')).toHaveCount(0);
+  const link = page.locator('.site-footer .language-link');
+  await expect(link).toHaveText('English');
+  const last = await page
+    .locator('.site-footer > div > *')
+    .evaluateAll((items) => items.at(-1).classList.contains('language-link'));
+  expect(last).toBe(true);
+  // Its address names its language: as the page was written, and brought up to date
+  // when the pointer reaches it. Opened in a new tab from its menu, as copied:
+  // English, chosen, though 中文 was, and the address shown without it.
+  expect(await link.getAttribute('href')).toBe('../../merge-pdf/?language=en');
   await link.hover();
-  expect(new URL(await link.evaluate((a) => a.href)).pathname).toBe('/zh' + now);
+  const href = new URL(await link.evaluate((a) => a.href));
+  expect(href.pathname + href.search + href.hash).toBe('/merge-pdf/?x=1&language=en#faq-title');
+  const tab = await context.newPage();
+  await tab.goto(href.href);
+  await expect(tab.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(tab).toHaveURL(/\/merge-pdf\/\?x=1#faq-title$/);
+  expect(await chosen(tab)).toBe('en');
+  await tab.close();
+});
+
+test('while an input method composes, Escape is its own and the typing goes on', async ({ page }) => {
+  await openSample(page, './zh/add-text-to-pdf/');
+  await page.click('[data-action="add-text"]');
+  const editor = page.locator('#inline-editor');
+  await expect(editor).toBeFocused();
+  await page.keyboard.type('拼音');
+  // Escape as an input method sends it, a candidate showing: it drops the candidate.
+  await editor.evaluate((element) =>
+    element.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true, cancelable: true }),
+    ),
+  );
+  await expect(editor).toBeFocused();
+  await expect(editor).toBeVisible();
+  // Escape once the Chinese is in finishes the typing.
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeHidden();
 });
 
 test('leaving for English with unsaved work asks first, in Chinese', async ({ page }) => {
@@ -165,7 +203,13 @@ test('leaving for English with unsaved work asks first, in Chinese', async ({ pa
   await page.click('[data-action="add-text"]');
   await page.keyboard.type('还没下载');
   await page.keyboard.press('Escape');
-  await page.locator('.language-link').evaluate((link) => link.click());
+  // The link is in the footer of the page's landing view, which the editor covers:
+  // back to all tools, the document kept, and then the link.
+  const link = page.locator('.site-footer .language-link');
+  await expect(link).toBeHidden();
+  await page.click('[data-action="back"]');
+  await expect(link).toBeVisible();
+  await link.click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
   await expect(page.locator('#confirm-title')).toHaveText('要离开你的文档吗？');
   await page.locator('[data-confirm="cancel"]').click();
@@ -229,6 +273,14 @@ test('the Chinese pages and the Chinese editor pass axe, and fit 320 px', async 
     ).toEqual([]);
   }
   await openSample(page, './zh/sign-pdf/');
+  expect((await new AxeBuilder({ page }).analyze()).violations.map((violation) => violation.id)).toEqual([]);
+  // Zoomed, the zoom button shows 125%: its name says so first, as it says 适合窗口 at Fit.
+  const zoomLabel = page.locator('#zoom-label');
+  await expect(zoomLabel).toHaveText('适合窗口');
+  await expect(zoomLabel).toHaveAttribute('aria-label', '缩放到适合窗口');
+  await page.click('[data-action="zoom-in"]');
+  await expect(zoomLabel).toHaveText('125%');
+  await expect(zoomLabel).toHaveAttribute('aria-label', '125%，缩放到适合窗口');
   expect((await new AxeBuilder({ page }).analyze()).violations.map((violation) => violation.id)).toEqual([]);
   await page.setViewportSize({ width: 320, height: 700 });
   for (const address of ['./zh/', './zh/pdf-pages-per-sheet/']) {

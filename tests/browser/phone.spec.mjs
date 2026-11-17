@@ -1,6 +1,16 @@
 // Phones (iPhone 13 size, touch): the document comes first, tools sit in a
 // bottom bar, controls are large enough to tap, and nothing scrolls sideways.
-import { test, expect, fixture, openFiles, openSample, ready, overlayLines } from './helpers.mjs';
+import {
+  test,
+  expect,
+  fixture,
+  openFiles,
+  openSample,
+  ready,
+  overlayLines,
+  download,
+  pdfText,
+} from './helpers.mjs';
 
 const TOOLS = [
   'text',
@@ -73,6 +83,32 @@ test('the page comes first, and tapping it adds text', async ({ page }) => {
   await page.locator('.tool-tabs [data-tool="watermark"]').click();
   await expect(page.locator('[data-action="toggle-setting"]')).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('.page-view.current .page-overlay')).toContainText('DRAFT');
+});
+
+test('in Chinese: text typed on the page and downloaded, and every tool fits from 320 to 390 px', async ({
+  page,
+}) => {
+  await openSample(page, 'zh/add-text-to-pdf/');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  const surface = await page.locator('.page-view.current').boundingBox();
+  await page.touchscreen.tap(surface.x + surface.width * 0.2, surface.y + surface.height * 0.3);
+  await expect(page.locator('#inline-editor')).toBeFocused();
+  await page.keyboard.type('手机上的中文（2026）');
+  await page.keyboard.press('Escape');
+  // Drawn once the Chinese font has loaded, which the first character typed asks for.
+  await expect.poll(() => overlayLines(page)).toEqual(['手机上的中文（2026）']);
+  // The download button can be tapped, nothing lying over it, and the file is named in Chinese.
+  const { name, bytes } = await download(page, () => page.locator('#download-button').click());
+  expect(name).toBe('示例文档-已编辑.pdf');
+  expect((await pdfText(bytes)).join(' ')).toContain('手机上的中文（2026）');
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const tool of TOOLS) {
+      await page.locator(`.tool-tabs [data-tool="${tool}"]`).click();
+      await expect(page.locator('.tool-tabs [aria-pressed="true"]')).toHaveAttribute('data-tool', tool);
+      expect(await overflow(page), `${tool} at ${width} px`).toEqual({ page: 0, wide: [] });
+    }
+  }
 });
 
 /** Swipe with one finger, as a touch screen sends it (Playwright has taps only). */

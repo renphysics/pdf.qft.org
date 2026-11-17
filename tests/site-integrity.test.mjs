@@ -305,6 +305,27 @@ await test('pages: titles, descriptions, canonical addresses, sharing tags, FAQ 
       `${name}: og:image must be 1200x630`,
     );
     assert.match(page, /<h1 id="landing-title"/, `${name}: page heading`);
+    // The link to the other language ends the footer and is not in the header. It
+    // leads to this page's counterpart, and its address names its language, so that
+    // the choice holds however it is opened (language.js), even before the pointer
+    // reaches it and language.js brings it up to date.
+    const other = name.startsWith('zh/') ? 'en' : 'zh';
+    const counterpart = (other === 'en' ? name.slice('zh/'.length) : `zh/${name}`).replace(
+      /index\.html$/,
+      '',
+    );
+    const footerLinks = page.match(/<footer class="site-footer[\s\S]*?<\/footer>/)?.[0].match(/<a [^>]*>/g);
+    assert(
+      footerLinks
+        ?.at(-1)
+        .startsWith(`<a class="language-link" href="${upFrom(name)}${counterpart}?language=${other}" `),
+      `${name}: the footer must end with the link to the other language, not ${footerLinks?.at(-1)}`,
+    );
+    assert.doesNotMatch(
+      page.match(/<header class="site-header">[\s\S]*?<\/header>/)?.[0] ?? '',
+      /language-link/,
+      `${name}: the language link is in the footer, not the header`,
+    );
     // Keep pages light: pdf-lib, fontkit and PDF.js load on demand. Only the
     // warm-engines template names them, for the first sign of intent, at the very
     // addresses preview.js and pdf-engine.js load them from: another spelling would

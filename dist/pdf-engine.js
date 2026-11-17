@@ -28,6 +28,7 @@
  */
 import {
   applies,
+  blockingCharacter,
   boxGeometry,
   contentBox,
   drawingPath,
@@ -606,11 +607,30 @@ function automaticSize(kind, multiline, rect, font, text, options = []) {
   return Math.min(Math.max(size, 1), 1000);
 }
 
-/** The text a field shows, to pick a font that has its characters. */
+/**
+ * The text a field shows, to pick a font that has its characters: a list box
+ * draws every option, not only those chosen (a choice of "A" among "中文" and
+ * "龘" would draw them with Helvetica, as question marks); a dropdown, the one chosen.
+ */
 function shownText(field, kind) {
   if (kind === 'text') return field.getText() ?? '';
-  if (kind === 'dropdown' || kind === 'list') return field.getSelected().join('\n');
+  if (kind === 'list') return field.getOptions().join('\n');
+  if (kind === 'dropdown') return field.getSelected().join('\n');
   return '';
+}
+
+/**
+ * The font a field is drawn with (shownText). When no bundled font has every option
+ * of a list box (Arabic beside 中文), the font of what is chosen draws it, as before,
+ * and options that font lacks show question marks: the download still works.
+ */
+async function fieldFont(field, kind, getFont) {
+  try {
+    return await getFont(shownText(field, kind));
+  } catch (error) {
+    if (!error.unsupported || kind !== 'list') throw error;
+    return getFont(field.getSelected().join('\n'));
+  }
 }
 
 /**
@@ -664,7 +684,7 @@ async function fillForm(doc, values, { flatten, getFont, fieldError }) {
     if (kind !== 'text' && kind !== 'dropdown' && kind !== 'list') continue;
     let font;
     try {
-      font = await getFont(shownText(field, kind));
+      font = await fieldFont(field, kind, getFont);
     } catch (error) {
       if (error.unsupported)
         throw fieldError(
@@ -914,8 +934,11 @@ function fontManager(doc) {
   const load = fontLoader(doc);
   return async (value) => {
     const font = await textFont(value, load);
-    const unsupported = unsupportedCharacter(value, characterSet(font));
-    if (unsupported) throw Object.assign(new Error(unsupportedMessage(unsupported)), { unsupported });
+    const missing = unsupportedCharacter(value, characterSet(font));
+    if (missing) {
+      const unsupported = blockingCharacter(value, missing);
+      throw Object.assign(new Error(unsupportedMessage(unsupported)), { unsupported });
+    }
     return font;
   };
 }

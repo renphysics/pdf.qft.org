@@ -212,15 +212,22 @@ starts again from the page's landing view).
 ## Chinese
 
 The whole site is in Simplified Chinese too. English stays the default, and
-nothing guesses from the browser's language or region: the header's link to
-the other language (中文 on English pages, English on Chinese ones) is how a
-visitor chooses, and the choice is kept in this browser (localStorage,
-`qft-pdf-language`). `dist/language.js` runs before a page shows: with 中文
-chosen, an English address opens its Chinese counterpart. A Chinese address
-never redirects, so a link to one stays Chinese. With unsaved work, the link
-asks first, as leaving does. The link's address follows the editor's (which
-changes as tools change), so it opens the right page in a new tab too. The
-licences page is in English only, and its link says so (开源许可（英文）).
+nothing guesses from the browser's language or region: the link to the other
+language at the right end of the footer (a globe and 中文 on English pages,
+English on Chinese ones) is how a visitor chooses, and the choice is kept in
+this browser (localStorage, `qft-pdf-language`). `dist/language.js` runs before
+a page shows: with 中文 chosen, an English address opens its Chinese
+counterpart. A Chinese address never redirects, so a link to one stays
+Chinese. With unsaved work, the link asks first, as leaving does. The link's
+address names its language (`?language=en`): `language.js` keeps that as the
+choice and takes it out of the address, so the choice holds however the link
+is opened, clicked, in a new tab from its menu or with a middle click, or
+copied. Its address also follows the page's, query and hash included. On a
+phone the footer's links wrap whole, the language link at the right end of the
+last row. The footer belongs to a page's landing view, which the editor and the
+batch workspace cover: with a document open, Back to all tools (the document
+is kept) leads to it. The licences page is in English only, and its link says
+so (开源许可（英文）).
 
 **Pages.** Every page has a counterpart under `zh/` (`/zh/`,
 `/zh/merge-pdf/`...), written by `npm run pages` from the same template: the
@@ -270,13 +277,33 @@ too, and nothing is filtered while an input method is still composing pinyin.
 Each search note has its Chinese in `NOTES` (`i18n-zh.js`), found also with
 the Chinese typed around other letters put together (修改PDF的文字); 缩小 and
 减小, as shrink does, bring the note that the site can't compress beside
-Resize pages. `tests/search-zh.test.mjs` checks both.
+Resize pages. 批量 (or batch, bulk) with what one of Batch & presets' tools
+does finds that card: 批量加水印, 批量添加页码, 批量裁剪, batch watermark; words
+of two of them together do not (batch add margins) (`cardFinds`), also on the
+Batch page itself. 增加 is read as 添加, for every tool: 增加页眉 finds what 添加页眉
+finds. 添加中文, 加中文 and 写中文 find 添加文字 (添加中文 also 水印, which can be
+Chinese), 中文水印 finds 水印, and add chinese text finds Add text.
+`tests/search-zh.test.mjs` checks both.
 
 **Page numbers** are read as a Chinese keyboard types them too: 1-3，5, 1-3、5,
 full-width digits, 1～3 and dashes, and ； between Split's groups.
 
-**Fonts**: Chinese typed on a page needs the 1.4 MB common font first, and the
+**Fonts**: Chinese on a page needs the 1.4 MB common font first, and the
 16 MB font only for rarer characters ([Supported input](#supported-input)).
+So do full-width forms and the symbols only the Chinese fonts have, even
+alone: （2026）, １２３, ，, ①, ★, and from the full font ⑪, ✓, ↔ (`CJK` in
+`layout.js`, which `tests/fonts.test.mjs` checks against both fonts'
+characters). Lines still break at spaces unless they hold Chinese, Japanese or
+Korean, so an arrow in English text breaks no word. When such a symbol takes
+Latin text to the Chinese fonts and they lack one of its letters (Ł in
+Łódź → Kraków), the message names the symbol, which is what to remove. A
+form's list box is drawn with the font all of its choices need, not only the
+chosen one's; when no bundled font has them all (Arabic beside 中文), with the
+chosen one's, as before, so the download still works.
+
+**Input methods.** While one composes (pinyin on its way to 汉字), Escape and
+Enter are its own, to drop or choose a candidate: text being typed on a page
+stays open, and the tool search waits for the characters.
 
 **Style.** Plain, short sentences, addressed as 你; Chinese punctuation (，。：；“”（）……);
 a space between Chinese and Latin letters or digits, written in the catalog
@@ -296,13 +323,18 @@ tracked tighter or slanted, and break evenly (`:lang(zh)` at the end of
 
 And the terms: flatten 拼合; annotation 批注; redact 涂黑; opacity 不透明度;
 point (pt) 磅; page labels 页码标签; bookmark 书签; preset 预设; the page strip
-页面列表; Fit 适合; Undo/Redo 撤销/重做; pages put on sheets 排 (排到纸上, not
-拼, which is flatten's); the sample 示例文档.
+页面列表; Fit 适合窗口, as the page fits the window, by its width on a computer
+and whole on a phone (zoomed, the button shows the zoom, and its name starts
+with it: 125%，缩放到适合窗口); Undo/Redo 撤销/重做; pages put on sheets 排 (排到纸上,
+not 拼, which is flatten's), and what Pages per sheet downloads 多页合一 PDF; the
+sample 示例文档.
 
 `tests/browser/chinese.spec.mjs` goes through the Chinese site in every
-browser: the choice and its memory, the editor's notices, download names, the
-fonts fetched, the search, axe, 320 px, and every tool's panel, which may show
-no English but names, formats, units and keys.
+browser: the choice and its memory, the footer link opened in a new tab, the
+editor's notices, download names, the fonts fetched, the search, an input
+method's Escape, axe, 320 px, and every tool's panel, which may show no English
+but names, formats, units and keys. `tests/browser/phone.spec.mjs` types
+Chinese on a phone, downloads it, and goes through every tool at 320 and 390 px.
 
 ## The editor
 
@@ -597,12 +629,12 @@ A digitally signed PDF's signature is not valid in a download, as the file it
 covers has changed; the download message says so. Merging, duplicating,
 or subsetting pages from a PDF with form fields needs its fields flattened
 first; otherwise it is rejected, rather than silently dropping fields. Chinese, Japanese kana and Korean Hangul use Noto
-Sans CJK SC, drawn with its Simplified Chinese shapes (the preview and the export
+Sans CJK SC, as do full-width forms and the symbols only it has, such as （１） and ①, drawn with its Simplified Chinese shapes (the preview and the export
 use none of its language-specific `locl` forms): some Japanese kanji and
 Traditional Chinese characters, such as 骨 and 令, look slightly different from
 Japanese or Traditional Chinese typefaces. Only the glyphs used are embedded, so
 such text typically adds 50–150 KB to a download. The font is downloaded once,
-the first time such text is typed, and then comes from the browser cache: first
+the first time such text is drawn, and then comes from the browser cache: first
 the common Chinese font, `NotoSansCJKsc-GB2312.woff2` (1.4 MB: every character
 of GB 2312, its 6,763 hanzi and its symbols, with ASCII, Latin-1 and the CJK and
 full-width punctuation), and the full font (16 MB) only for text with characters

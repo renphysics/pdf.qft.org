@@ -23,7 +23,7 @@ export const TOOLS = Object.freeze([
     category: 'edit',
     color: 'sage',
     card: ['A note, a logo, a final thought.', 'Make your mark on the page.'],
-    keywords: 'note label caption type write image picture logo highlight',
+    keywords: 'note label caption type write chinese image picture logo highlight',
   }),
   tool('image', 'add-text-to-pdf', 'Add an image', 'Image', 'image'),
   tool('highlight', 'add-text-to-pdf', 'Highlight', 'Highlight', 'highlight'),
@@ -263,6 +263,8 @@ function inflects(word, found) {
   const rest = word.slice(base.length);
   return ending(rest) || (base === found && rest[0] === base.at(-1) && ending(rest.slice(1)));
 }
+// 增加 asks for what 添加 does: "增加页眉" finds what "添加页眉" finds.
+const sameZh = (text) => text.replaceAll('增加', '添加');
 /**
  * Whether the words typed (searchWords) find a text, such as a card's
  * (searchText, with its category's name). Each typed word must be the start of
@@ -273,14 +275,35 @@ function inflects(word, found) {
  */
 export function searchFinds(typed, text) {
   const own = searchWords(text),
-    han = own.filter((word) => HAN.test(word)).join(' ');
+    han = sameZh(own.filter((word) => HAN.test(word)).join(' '));
   return typed
     .filter((word) => !COMMON.has(word))
     .every((word) => {
-      if (HAN.test(word)) return hanFinds(word, han);
+      if (HAN.test(word)) return hanFinds(sameZh(word), han);
       const single = word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word;
       return own.some((found) => found.startsWith(word) || found.startsWith(single) || inflects(word, found));
     });
+}
+
+/**
+ * Batch & presets does these tools' work on many PDFs. A search that names batch
+ * work (批量, 批处理, batch, bulk) and one of them finds its card: "批量加水印"
+ * and "batch watermark" find it, while "加水印" alone finds Watermark alone.
+ */
+export const BATCH_TOOLS = Object.freeze(['watermark', 'footer', 'numbers', 'crop']);
+const namesBatch = (typed) => typed.some((word) => /^(?:batch|bulk)/.test(word) || /批量|批处理/.test(word));
+/**
+ * Whether the words typed find a card (searchFinds, in the text `cardText` gives
+ * for it). Batch & presets is found too by words that name batch work and one of
+ * its tools, with one tool's words at a time: "batch add margins" takes "add"
+ * from Watermark and "margins" from Crop, and Batch adds no margins.
+ */
+export function cardFinds(item, typed, cardText) {
+  if (searchFinds(typed, cardText(item))) return true;
+  if (item.id !== 'batch' || !namesBatch(typed)) return false;
+  return BATCH_TOOLS.some((id) =>
+    searchFinds(typed, cardText(item) + ' ' + cardText(TOOLS.find((tool) => tool.id === id))),
+  );
 }
 
 /**

@@ -195,7 +195,7 @@ const script = await readFile(new URL('language.js', dist), 'utf8');
 function visit(path, stored = null, { root = '/', search = '', hash = '' } = {}) {
   const storage = new Map(stored ? [[LANGUAGE_KEY, stored]] : []);
   const went = [];
-  let click = null;
+  const listeners = {};
   const window = {
     location: {
       pathname: path,
@@ -204,6 +204,7 @@ function visit(path, stored = null, { root = '/', search = '', hash = '' } = {})
       replace: (to) => went.push(['replace', to]),
       assign: (to) => went.push(['assign', to]),
     },
+    history: { state: null, replaceState: (state, title, to) => went.push(['shown', to]) },
     localStorage: {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value),
@@ -211,12 +212,15 @@ function visit(path, stored = null, { root = '/', search = '', hash = '' } = {})
   };
   const document = {
     currentScript: { src: `https://example.org${root}language.js?v=0123456789ab` },
-    addEventListener: (type, listener) => type === 'click' && (click = listener),
+    addEventListener: (type, listener) => (listeners[type] = listener),
   };
   vm.runInNewContext(script, { window, document, URL });
-  /** A click on a link to `language`; the click's own fields as given. */
-  const press = (language, fields = {}) => {
-    const link = { getAttribute: (name) => (name === 'data-language' ? language : null) };
+  /** An event of `type` (a click by default) on a link to `language`; the event's own fields as given. */
+  const press = (language, fields = {}, type = 'click') => {
+    const link = {
+      getAttribute: (name) => (name === 'data-language' ? language : null),
+      setAttribute: (name, value) => (link[name] = value),
+    };
     const event = {
       target: { closest: (selector) => (selector === 'a[data-language]' ? link : null) },
       button: 0,
@@ -226,11 +230,25 @@ function visit(path, stored = null, { root = '/', search = '', hash = '' } = {})
       },
       ...fields,
     };
-    click?.(event);
-    return event;
+    listeners[type]?.(event);
+    return Object.assign(event, { link });
   };
   return { went, stored: () => storage.get(LANGUAGE_KEY) ?? null, press };
 }
+
+await test('a language link opened another way than a click keeps the choice it names, and the address loses it', () => {
+  // "Open link in new tab" from the English link, with 中文 chosen: English, now chosen.
+  const tab = visit('/merge-pdf/', 'zh', { search: '?language=en' });
+  assert.deepEqual(tab.went, [['shown', '/merge-pdf/']]);
+  assert.equal(tab.stored(), 'en');
+  const chinese = visit('/zh/crop-pdf/', 'en', { search: '?a=1&language=zh&b=2', hash: '#tools' });
+  assert.deepEqual(chinese.went, [['shown', '/zh/crop-pdf/?a=1&b=2#tools']]);
+  assert.equal(chinese.stored(), 'zh');
+  // Only a language of the site counts.
+  assert.deepEqual(visit('/merge-pdf/', 'zh', { search: '?language=fr' }).went, [
+    ['replace', '/zh/merge-pdf/?language=fr'],
+  ]);
+});
 
 await test('language.js keeps the same name for the choice as i18n.js', () => {
   assert.match(script, new RegExp(`var KEY = '${LANGUAGE_KEY}';`));
@@ -271,6 +289,18 @@ await test('the language link remembers the choice and leads to the counterpart 
   assert.equal(tab.press('zh', { ctrlKey: true }).defaultPrevented, false);
   assert.equal(tab.stored(), 'zh');
   assert.deepEqual(tab.went, []);
+  // Its address names its language, kept up to date before the link is opened in
+  // a new tab from its menu, or copied.
+  for (const type of ['pointerover', 'pointerdown', 'focusin', 'contextmenu']) {
+    const menu = visit('/zh/merge-pdf/', 'zh', { search: '?a=1', hash: '#faq-title' });
+    assert.equal(menu.press('en', {}, type).link.href, '/merge-pdf/?a=1&language=en#faq-title', type);
+    assert.equal(menu.stored(), 'zh', `${type} chooses nothing`);
+  }
+  // A middle click opens it in a new tab, and is a choice as a click is.
+  const middle = visit('/zh/merge-pdf/', 'zh');
+  middle.press('en', { button: 1 }, 'auxclick');
+  assert.equal(middle.stored(), 'en');
+  assert.deepEqual(middle.went, []);
   // The editor asked first (unsaved work) and the visitor stayed: nothing changes.
   const stay = visit('/merge-pdf/');
   stay.press('zh', { defaultPrevented: true });

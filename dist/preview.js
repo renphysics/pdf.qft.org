@@ -6,6 +6,7 @@
  */
 import {
   applies,
+  blockingCharacter,
   boxGeometry,
   contentMargins,
   cropMarginsForRotation,
@@ -412,7 +413,7 @@ function fontFor(text, problems, key) {
   }
   if (!entry.font) return null;
   const missing = unsupportedCharacter(text, characterSet(entry.font));
-  if (missing) problems.push({ key, message: unsupportedMessage(missing) });
+  if (missing) problems.push({ key, message: unsupportedMessage(blockingCharacter(text, missing)) });
   return { font: entry.font, kind };
 }
 
