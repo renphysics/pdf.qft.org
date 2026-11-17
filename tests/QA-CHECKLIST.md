@@ -1572,3 +1572,43 @@ source review does not replace the owner’s browser verification.
   no box for the signature) and Firefox's editor.spec.mjs:722 (a check box
   click). Alone, the Firefox one passed 8 of 8; the WebKit one failed 1 of 8,
   and 2 of 16 on main (6ec8eab) with the same report: older than this work.
+
+## The Chinese copy, to a Chinese reviewer's style — 2026-11-17
+
+- The advice: concise, friendly and clear about what to do, so that a visitor
+  sees at once what they can do, how to start, and that files are not
+  uploaded. Titles say what a visitor gains, buttons what happens; files are
+  chosen, never 上传; 你的 only where it says where the work happens;
+  functions named as they are (no bare 编辑 PDF); headings that explain;
+  short headings and buttons without 。; lines broken by meaning. README,
+  "Chinese", lists the rules.
+- The home page takes the reviewer's copy: 让 PDF 处理 / 更简单 under
+  PDF 工具箱; 合并、拆分、添加文字、填写表单，常用操作在浏览器中就能完成。;
+  免费使用 · 无需注册 · 文件不上传; 选择文件，开始处理 and 选择 PDF 文件;
+  多份文件要做相同的修改？使用批量处理; 想先体验一下？试用示例文档; 常用 PDF 工具;
+  使用方法 / 三步处理 PDF (选择文件, 按需处理, 下载结果); 文件在本机处理 and
+  查看隐私说明. The header's note, the footer's line, the editor's frame, the
+  words every tool page shares, the page's metadata and the sharing card
+  (re-rendered) follow it.
+- Two fragments of the template are given in Chinese whole (`SHELL_ZH_HTML`):
+  the steps' heading on one line, and the title's subline broken after its
+  list. Before, 完成。 stood alone on a desktop's second line and 浏览器 was
+  split on a phone; now two lines at 1280, 390 and 320 px, no sideways
+  scrolling.
+- The rest of the Chinese, by four reviewers, each edit checked by a second
+  reviewer in a scratch copy against the English, the product and the tests:
+  167 edits kept, 15 of their follow-ups (two of them headings whose word
+  joiners had been written as characters, not as the file's escapes). Then a
+  second look, for consistency and for natural, true Chinese: 27 suggestions,
+  21 kept by a verifier (3 dropped as no problem: 文件在本机处理 and
+  文件留在你的设备上 say the same; 2 duplicates; 1 conflict). Among them: the
+  editor's 下载前文件只在本机 implied the file leaves the device after a
+  download (now 文件只在本机处理); the reset prompt read as “all modified and
+  added PDFs”; 保存为图片 is 下载图片 like every other download button; word
+  joiners keep 需要, 形状, 分享前, 勾选, 低调, 添加 and 条理 whole on phones.
+- Checked by eye: the home page at 1280 and 390 px, five tool pages at 390 px,
+  the editor with the sample, the help and privacy dialogs, the sharing card.
+- Left as they are: FAQ questions 我的 PDF 会上传吗？ (answered 不会); 你的设备
+  and 你的浏览器 where they say where the work happens; the placeholders
+  你的名字 and 你的单位; the sample PDF's own text; the categories' names, which
+  the search reads.

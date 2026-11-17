@@ -276,7 +276,7 @@ export const ZH = {
   'START FRESH': '重新开始',
   'Reset this document?': '要重置这份文档吗？',
   'This clears your edits and added PDFs and returns to the document you first opened. Undo brings your edits back. Your original files are unchanged.':
-    '这会清除所有修改和添加的 PDF，回到最初打开的文档。撤销可以找回这些修改。原文件不会被改动。',
+    '这会清除所有修改，移除添加的 PDF，回到最初打开的文档。撤销可以找回这些修改。原文件不会被改动。',
   'Reset document': '重置文档',
   'Remove password': '去掉密码',
   'Password removed. Your download will open without one.': '密码已去掉。下载的文件不用密码就能打开。',
@@ -551,7 +551,7 @@ export const ZH = {
   'Batch processing and saved presets': '批量处理和保存的预设',
   'All tools': '全部工具',
   'Processed on your device': '本机处理',
-  'A WORKFLOW WORTH REPEATING': '多份文件，相同的修改',
+  'A WORKFLOW WORTH REPEATING': '多份文件，做相同的修改',
   'One setup. <em>Every PDF.</em>': '一次设置，<em>应用到每个 PDF</em>',
   'Apply a saved combination of edits to separate files, then download them together.':
     '用保存好的一组修改分别处理每个文件，然后一起下载。',
@@ -609,7 +609,7 @@ export const ZH = {
     '边距按每一页显示的方向计算。裁剪只是隐藏内容，不是安全的涂黑。',
   'Add your PDFs': '添加 PDF',
   'Each file stays separate. Your originals stay unchanged.': '每个文件分别处理，原文件保持不变。',
-  'Choose PDFs or drop them here': '选择 PDF，或者拖到这里',
+  'Choose PDFs or drop them here': '选择 PDF 文件，或者拖到这里',
   'Multiple files · no fixed size or page limit': '可以选多个文件 · 不设固定大小或页数上限',
   'Clear list': '清空列表',
   'Files in this batch': '这一批的文件',
@@ -930,7 +930,7 @@ export const ZH = {
   'High, for print (300 dpi)': '高，用于打印（300 dpi）',
   Pages: '页面',
   'Selected pages ({count})': '选中的页面（{count}）',
-  'Save as pictures': '保存为图片',
+  'Save as pictures': '下载图片',
   'Each page is saved as it looks with your edits. Several pages download together as a ZIP.':
     '每一页都按修改后的样子保存。多页会打包成一个 ZIP 一起下载。',
   'Pictures can’t have a password.': '图片不能设置密码。',
@@ -1102,8 +1102,8 @@ export const ZH = {
   '-part-{number}': '-第{number}部分',
   '{count} PDF is ready to download.': '{count} 个 PDF 可以下载了。',
   '{count} PDFs are ready to download.': '{count} 个 PDF 可以下载了。',
-  'It needs your password to open.': '打开它需要你的密码。',
-  'Each needs your password to open.': '每个文件打开时都需要你的密码。',
+  'It needs your password to open.': '打开时需要输入密码。',
+  'Each needs your password to open.': '每个文件打开时都需要输入密码。',
   'Splitting cancelled. Your document is unchanged.': '已取消拆分，文档没有改动。',
   // ---- panel-sheets.js
   'Pages per sheet': '每张纸的页数',
