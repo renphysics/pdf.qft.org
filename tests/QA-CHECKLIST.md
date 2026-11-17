@@ -1612,3 +1612,13 @@ source review does not replace the owner’s browser verification.
   and 你的浏览器 where they say where the work happens; the placeholders
   你的名字 and 你的单位; the sample PDF's own text; the categories' names, which
   the search reads.
+- Runs on 4d41816: `npm test` 500 passed; `npx playwright test` (Chromium,
+  WebKit, Firefox, phones and the stamped release, two workers) 460 passed,
+  4 skipped, 2 failed, in 12.5 minutes. Both failures are older than this
+  work: nothing outside the Chinese files differs from main, so the English
+  pages and every script they load are the same bytes. landing.spec.mjs:66
+  timed out waiting for an idle moment under load, and passed 10 of 10
+  alone. WebKit's signature.spec.mjs:89 failed with the CSP report
+  “style-src-elem blocked inline at :5” noted above for resize.spec.mjs:346;
+  alone it failed 1 of 8 here and passed 16 of 16 on main, a rate too low to
+  tell apart.
