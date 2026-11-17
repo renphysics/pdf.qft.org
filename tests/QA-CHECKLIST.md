@@ -1437,7 +1437,7 @@ source review does not replace the owner’s browser verification.
   with the full font's (no difference) and counts the fonts a download fetches.
 - Chinese typography: system Chinese fonts after the site's Latin ones, no
   tight tracking or italics for Chinese, balanced headings, a Chinese sharing
-  card. Under 340 px an English header shows the mark alone, so 中文 fits.
+  card. (The language link has since moved to the footer, below.)
 - `tests/browser/chinese.spec.mjs`, in Chromium, WebKit and Firefox: the
   choice and its memory with a browser that prefers Chinese, the editor's
   notices, download names, the fonts fetched, the search, leaving with unsaved
@@ -1480,3 +1480,48 @@ source review does not replace the owner’s browser verification.
   workers had two WebKit tests fail once and pass alone, with the CSP report
   “style-src-elem blocked inline at :5” that a run from 2026-11-10, before
   this work, shows too: WebKit under load, not the Chinese site.
+
+## The language link in the footer, and an outside review — 2026-11-17
+
+- The link to the other language is at the right end of the footer, with a
+  globe, and no longer in the header: on every page, in both languages. At
+  320, 360, 390, 414, 600, 721, 800, 1024 and 1280 px, on the home page and a
+  tool page in both languages (36 cases), measured: every link on one line,
+  the language link at the right end of the last row, no sideways scrolling.
+  Before the links were kept whole, 中文 stood one character over the other at
+  390 px.
+- With 中文 chosen, “English” opened in a new tab from the right-click menu led
+  back to Chinese: the new tab knew only the stored choice. The link's address
+  now names its language (`?language=en`); `language.js` stores it and takes it
+  out of the address, keeping any other query and the hash. A middle click
+  stores it too. `tests/i18n.test.mjs` checks the address in a pretend browser;
+  `tests/browser/chinese.spec.mjs` opens the link's address in a new tab of the
+  same browser, with 中文 stored, and finds English.
+- An outside review of the Chinese site, checked point by point:
+  - Full-width forms and CJK symbols typed alone (（2026）, １２３, a page format
+    （{page}）, ，, ①, ★, ←) were given the Latin font, which lacks them, and the
+    download failed. Confirmed by export, then fixed: `CJK` in `layout.js` is now
+    every character the Chinese fonts have and the Latin font lacks;
+    `tests/fonts.test.mjs` derives that set from the fonts and compares.
+  - A list box whose choice changed to “A” drew its other choices, 中文 and 龘,
+    as “??” and “?”: its font was chosen from the selected choice only.
+    Confirmed in a test, then fixed: a list box's font is chosen from all its
+    choices (`shownText` in `pdf-engine.js`), flattened or kept fillable.
+  - 批量加水印, 批量添加页码, 批量裁剪 and 批量加页眉页脚 found nothing; now they find
+    Batch & presets. 添加中文 now finds Add text, 增加页边距 Add margins, 增加页码
+    Page numbers.
+  - Wording: Fit is 适合宽度; the Pages per sheet button and its notices say
+    多页合一 PDF; the font note says the fonts load when Chinese is first drawn
+    (a default watermark too), not only when typed, and are kept in the browser.
+    The zoom button's name became 缩放到适合宽度, so it contains what it shows
+    (axe flagged 让页面适合可用宽度 once the label changed).
+  - Escape in the text being typed on a page ended the editing while an input
+    method was choosing a candidate; now the input method has it. Tested with a
+    composing Escape, then a plain one.
+  - A phone test in Chinese: type 手机上的中文（2026） on the page, download
+    示例文档-已编辑.pdf and read it back, then every tool's tab at 320 and 390 px
+    without sideways scrolling. At 320 px the page bar holds the page arrows,
+    the page number and − 适合宽度 + (zoom controls end at 316 px).
+  - Left for a change of its own, as the review asked: it reports that adding
+    margins after a crop shows again annotations the crop hid, an engine
+    matter apart from the Chinese site.

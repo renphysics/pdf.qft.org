@@ -271,6 +271,18 @@ function inflects(word, found) {
  * ("pages" finds "Page numbers"), and a word of the text counts with a verb's
  * or a noun's ending (inflects).
  */
+/**
+ * Batch & presets does these tools' work on many PDFs. A search that names batch
+ * work (批量, 批处理, batch, bulk) finds its card by their words too: "批量加水印"
+ * and "batch watermark" find it, while "加水印" alone finds Watermark alone.
+ */
+export const BATCH_TOOLS = Object.freeze(['watermark', 'footer', 'numbers', 'crop']);
+const namesBatch = (typed) => typed.some((word) => /^(?:batch|bulk)/.test(word) || /批量|批处理/.test(word));
+/** The text a card is searched in: its own (`cardText`), and Batch's tools' too when the words name batch work. */
+export function searchedText(item, typed, cardText) {
+  if (item.id !== 'batch' || !namesBatch(typed)) return cardText(item);
+  return [item, ...BATCH_TOOLS.map((id) => TOOLS.find((tool) => tool.id === id))].map(cardText).join(' ');
+}
 export function searchFinds(typed, text) {
   const own = searchWords(text),
     han = own.filter((word) => HAN.test(word)).join(' ');

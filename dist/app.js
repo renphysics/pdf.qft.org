@@ -35,7 +35,16 @@ import {
 } from './editor-core.js';
 import { finishLanding } from './views.js';
 import { LANGUAGE_KEY, pageAddress, t } from './i18n.js';
-import { TOOLS, TOOL_PAGES, local, searchFinds, searchNote, searchText, searchWords } from './routes.js';
+import {
+  TOOLS,
+  TOOL_PAGES,
+  local,
+  searchFinds,
+  searchNote,
+  searchText,
+  searchWords,
+  searchedText,
+} from './routes.js';
 
 // ---- The editor, loaded once ----------------------------------------------------------
 
@@ -216,7 +225,7 @@ function filterTools() {
   let count = 0;
   $$('.tool-card').forEach((card) => {
     const item = toolOf(card.dataset.card);
-    card.hidden = !(shown(item) && searchFinds(typed, cardText(item)));
+    card.hidden = !(shown(item) && searchFinds(typed, searchedText(item, typed, cardText)));
     if (!card.hidden) count++;
   });
   // What the site does not do, said plainly: above the cards, or in place of "No tools

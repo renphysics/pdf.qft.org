@@ -606,10 +606,15 @@ function automaticSize(kind, multiline, rect, font, text, options = []) {
   return Math.min(Math.max(size, 1), 1000);
 }
 
-/** The text a field shows, to pick a font that has its characters. */
+/**
+ * The text a field shows, to pick a font that has its characters: a list box
+ * draws every option, not only those chosen (a choice of "A" among "中文" and
+ * "龘" would draw them with Helvetica, as question marks); a dropdown, the one chosen.
+ */
 function shownText(field, kind) {
   if (kind === 'text') return field.getText() ?? '';
-  if (kind === 'dropdown' || kind === 'list') return field.getSelected().join('\n');
+  if (kind === 'list') return field.getOptions().join('\n');
+  if (kind === 'dropdown') return field.getSelected().join('\n');
   return '';
 }
 

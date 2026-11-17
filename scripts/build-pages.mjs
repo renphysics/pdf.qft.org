@@ -389,11 +389,13 @@ function placed(html, language, slug) {
   const counterpart = other(language);
   const link = LANGUAGES[counterpart].link;
   const target = '../'.repeat(depth) + LANGUAGES[counterpart].folder + (slug ? slug + '/' : '');
-  const languageLink = /<a class="language-link"[^>]*>[^<]*<\/a>/;
+  const languageLink = /<a class="language-link"[^>]*>[\s\S]*?<\/a>/;
   if (!languageLink.test(html)) throw new Error('index.html has no language link (a.language-link).');
   html = html.replace(
     languageLink,
-    `<a class="language-link" href="${target || './'}" hreflang="${LANGUAGES[counterpart].hreflang}" lang="${link.lang}" data-language="${counterpart}">${link.name}</a>`,
+    // Its address names its language, which language.js keeps as the choice however
+    // the link is opened (clicked, in a new tab from its menu, or copied).
+    `<a class="language-link" href="${target || './'}?language=${counterpart}" hreflang="${LANGUAGES[counterpart].hreflang}" lang="${link.lang}" data-language="${counterpart}"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>${link.name}</a>`,
   );
   return html.replace(/<html lang="[^"]*">/, `<html lang="${LANGUAGES[language].html}">`);
 }

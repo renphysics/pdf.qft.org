@@ -10,6 +10,7 @@ import {
   TOOLS,
   TOOL_PAGES,
   searchFinds,
+  searchedText,
   searchNote,
   searchText,
   searchWords,
@@ -27,7 +28,9 @@ const cards = TOOLS.filter((item) => item.card);
 const cardText = (item) => searchText(item) + ' ' + labels[item.category];
 /** The cards a search shows on the home page, as app.js finds them. */
 const found = (query) =>
-  cards.filter((item) => searchFinds(searchWords(query), cardText(item))).map((item) => item.id);
+  cards
+    .filter((item) => searchFinds(searchWords(query), searchedText(item, searchWords(query), cardText)))
+    .map((item) => item.id);
 const noteFor = (query) => searchNote(searchWords(query))?.id || null;
 const LINK = /\[([^\]]+)\]\(tool:([a-z]+)\)/g;
 
@@ -114,6 +117,9 @@ await test('cards: found by the start of their words, not by a word inside anoth
     ['merge pdf online free', ['merge']],
     // Tools for pages whose cards did not say "pages".
     ['crop pages', ['crop']],
+    // Batch work named with what it does.
+    ['batch watermark', ['batch']],
+    ['bulk page numbers', ['batch']],
     ['add margins to pages', ['margins']],
     ['merge pages', ['merge']],
     // Other words, which only start like a card's word.

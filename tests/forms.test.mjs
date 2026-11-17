@@ -395,3 +395,47 @@ await test('a character no font has is reported on the field’s page', async ()
     return true;
   });
 });
+
+await test('a list box draws all its options with a font that has them, whatever is chosen', async () => {
+  // A list box shows every option, not only the one chosen: with "A" chosen
+  // among "中文" and "龘", a font picked for "A" alone drew them as question marks.
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(globalThis.fontkit);
+  const page = doc.addPage([300, 300]);
+  const font = await doc.embedFont(
+    await readFile(path.join(here, '../dist/assets/fonts/NotoSansCJKsc-Regular.otf')),
+    { subset: true },
+  );
+  const list = doc.getForm().createOptionList('choice');
+  list.setOptions(['A', '中文', '龘']);
+  list.select('中文');
+  list.addToPage(page, { x: 40, y: 120, width: 140, height: 72, font });
+  const source = await doc.save();
+  for (const flattenForms of [true, false]) {
+    const { bytes } = await buildPdfWithNotes({
+      sources: [{ id: 'list', bytes: source }],
+      pages: [{ id: 'p', sourceId: 'list', index: 0 }],
+      formValues: { list: { choice: ['A'] } },
+      flattenForms,
+    });
+    const out = await PDFDocument.load(bytes);
+    if (flattenForms) {
+      const [text] = await pageTexts(bytes);
+      for (const option of ['A', '中文', '龘']) assert.ok(text.includes(option), `${option}: ${text}`);
+      assert.ok(!text.includes('?'), `no question marks: ${text}`);
+    } else {
+      // Kept fillable: the new appearance's font is a CJK one, and the choice is kept.
+      assert.deepEqual(out.getForm().getOptionList('choice').getSelected(), ['A']);
+      const widget = out.getForm().getOptionList('choice').acroField.getWidgets()[0];
+      const stream = out.context.lookup(widget.getNormalAppearance());
+      const fonts = stream.dict.lookup(PDFName.of('Resources')).lookup(PDFName.of('Font'));
+      const names = fonts
+        .values()
+        .map((ref) => String(out.context.lookup(ref).lookup(PDFName.of('BaseFont'))));
+      assert.ok(
+        names.some((name) => /CJK/.test(name)),
+        `appearance fonts: ${names}`,
+      );
+    }
+  }
+});

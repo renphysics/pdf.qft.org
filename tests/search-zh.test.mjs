@@ -10,7 +10,7 @@ import { test } from 'node:test';
 // The catalog, handed over as a Chinese page's first module does (dist/zh.js).
 await import('../dist/zh.js');
 const { LANGUAGE } = await import('../dist/i18n.js');
-const { SEARCH_NOTES, TOOLS, local, searchFinds, searchNote, searchText, searchWords } =
+const { SEARCH_NOTES, TOOLS, local, searchFinds, searchNote, searchText, searchWords, searchedText } =
   await import('../dist/routes.js');
 const { NOTES, TOOLS: TOOLS_ZH } = await import('../dist/i18n-zh.js');
 
@@ -24,7 +24,9 @@ const cards = TOOLS.filter((item) => item.card);
 const cardText = (item) =>
   [...new Set([searchText(local(item)), searchText(item)])].join(' ') + ' ' + labels[item.category];
 const found = (query) =>
-  cards.filter((item) => searchFinds(searchWords(query), cardText(item))).map((item) => item.id);
+  cards
+    .filter((item) => searchFinds(searchWords(query), searchedText(item, searchWords(query), cardText)))
+    .map((item) => item.id);
 const noteFor = (query) => searchNote(searchWords(query))?.id || null;
 const LINK = /\[([^\]]+)\]\(tool:([a-z]+)\)/g;
 
@@ -96,6 +98,14 @@ await test('cards: Chinese finds the cards it is on, whole or in parts of two ch
     ['添加页眉页脚', ['footer']],
     ['添加密码', ['protect']],
     ['添加空白页', ['pages']],
+    // Batch work named with what it does; the operation alone still finds its own tool.
+    ['批量加水印', ['batch']],
+    ['批量添加页码', ['batch']],
+    ['批量裁剪', ['batch']],
+    ['批量加页眉页脚', ['batch']],
+    ['添加中文', ['text']],
+    ['增加页边距', ['margins']],
+    ['增加页码', ['numbers']],
     ['把图片转为pdf', ['jpgtopdf']],
     ['pdf转图片', ['pdftojpg']],
     ['多页合一', ['sheets']],

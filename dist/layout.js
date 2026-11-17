@@ -17,7 +17,17 @@
  */
 import { t, userError } from './i18n.js';
 
-export const CJK = /[⺀-鿿가-힯豈-﫿\u{20000}-\u{2FA1F}]/u;
+/**
+ * Text drawn with Noto Sans CJK: Chinese, Japanese and Korean, and what only the
+ * Chinese fonts have of the rest of GB 2312 and of the full-width forms, which
+ * Noto Sans lacks: full-width brackets, commas and digits, circled numbers, Roman
+ * numerals, arrows, math signs, box drawing, stars and squares. A text of those
+ * alone, a bracketed year or a page number set in full-width brackets, would
+ * otherwise go to Noto Sans and fail. tests/fonts.test.mjs keeps this equal to
+ * what the common Chinese font draws and Noto Sans does not, beside the CJK blocks.
+ */
+export const CJK =
+  /[\u2160-\u216B\u2170-\u217B\u2190-\u2193\u2208\u220B\u220F\u2211\u221A\u221D-\u221E\u2220\u2225\u2227-\u222B\u222E\u2234-\u2237\u223D\u2245\u2248\u224C\u2260-\u2261\u2264-\u2265\u226E-\u226F\u2299\u22A5\u2312\u2460-\u2469\u2474-\u249B\u2500-\u254B\u25A0-\u25A1\u25B2-\u25B3\u25C6-\u25C7\u25CB\u25CE-\u25CF\u2605-\u2606\u2640\u2642\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE4F\uFF01-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC\uFFE0-\uFFE6\uFFE8-\uFFEE\u{20000}-\u{2FA1F}]/u;
 const ASCII = /^[\u0009\u000A\u000D -~]*$/u;
 
 export function number(value, fallback, min = -Infinity, max = Infinity) {

@@ -114,6 +114,7 @@
     <symbol id="i-to-pdf" viewBox="0 0 24 24"><path d="M3 4h10v8H3zM3 10l3-3 3 3 2-2 2 2M15 8h6v13H8v-6"/></symbol>
     <symbol id="i-to-picture" viewBox="0 0 24 24"><path d="M5 3h8l4 4v6M13 3v4h4M5 3v18h5M12 14h9v7h-9zM12 19l3-3 2 2 1-1 3 3"/></symbol>
     <symbol id="i-unlock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 7.7-1.5M12 15v2"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9s-1.2 6.5-3.6 9c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z"/></symbol>
   </svg>
   <header class="site-header">
     <a href="../" class="brand" aria-label="QFT PDF 首页">
@@ -123,7 +124,6 @@
     <nav class="main-nav" aria-label="主导航">
       <a href="#tools" data-action="tools-home">全部工具</a>
       <button class="text-button" data-action="privacy">隐私</button>
-      <a class="language-link" href="../../jpg-to-pdf/" hreflang="en" lang="en" data-language="en">English</a>
     </nav>
     <span class="header-note"><span class="status-dot"></span> 私密 · 实用 · PDF</span>
   </header>
@@ -204,7 +204,7 @@
       <!-- page:sections -->
       <!-- /page:sections -->
       <section class="privacy-strip section-wrap"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><div><h3>你的文档始终在你手里。</h3><p>PDF 在你的设备上处理。不上传文档，也不用注册账号。</p></div><button class="text-button" data-action="privacy">我们如何处理文件 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></section>
-      <footer class="site-footer section-wrap"><a href="../" class="footer-brand">QFT PDF</a><span>尊重你的时间和隐私的 PDF 工具。</span><div><button data-action="help">帮助和支持的文件</button><a href="../../licenses/index.html" hreflang="en" target="_blank" rel="noopener">开源许可（英文）</a></div></footer>
+      <footer class="site-footer section-wrap"><a href="../" class="footer-brand">QFT PDF</a><span>尊重你的时间和隐私的 PDF 工具。</span><div><button data-action="help">帮助和支持的文件</button><a href="../../licenses/index.html" hreflang="en" target="_blank" rel="noopener">开源许可（英文）</a><a class="language-link" href="../../jpg-to-pdf/?language=en" hreflang="en" lang="en" data-language="en"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>English</a></div></footer>
     </section>
     <section id="workspace" hidden aria-label="PDF 编辑器">
       <div class="document-bar">
@@ -225,7 +225,7 @@
         <div class="document-stage" id="document-stage">
           <div class="preview-toolbar">
             <div class="page-navigation"><button class="icon-button small" data-action="previous" aria-label="上一页"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button><label class="page-jump"><span class="page-jump-label">页码</span> <input id="page-jump" type="number" min="1" value="1" aria-label="跳转到页面"><span id="page-counter">/ 1</span></label><button class="icon-button small" data-action="next" aria-label="下一页"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
-            <div class="zoom-controls"><button class="icon-button small" data-action="zoom-out" aria-label="缩小视图"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button><button class="text-button" data-action="zoom-fit" id="zoom-label" aria-label="让页面适合可用宽度">适合</button><button class="icon-button small" data-action="zoom-in" aria-label="放大视图"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button></div>
+            <div class="zoom-controls"><button class="icon-button small" data-action="zoom-out" aria-label="缩小视图"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button><button class="text-button" data-action="zoom-fit" id="zoom-label" aria-label="缩放到适合宽度">适合宽度</button><button class="icon-button small" data-action="zoom-in" aria-label="放大视图"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button></div>
           </div>
           <div class="canvas-scroll" id="canvas-scroll" tabindex="0" role="region" aria-label="文档预览"><div class="page-stack" id="page-stack"><textarea id="inline-editor" class="inline-editor" hidden aria-label="页面上的文字" aria-describedby="editor-help" spellcheck="true"></textarea></div></div>
           <p id="item-help" class="visually-hidden">方向键移动它，按住 Alt 调整大小，同时按 Shift 步子更大。Delete 删除，Enter 编辑文字，Escape 取消选择。</p><p id="editor-help" class="visually-hidden">按 Escape 或 Control+Enter 结束输入。</p>

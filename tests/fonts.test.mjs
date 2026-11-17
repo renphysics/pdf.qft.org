@@ -7,7 +7,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -101,4 +101,58 @@ await test('the common font draws and measures as the full font does, and text p
     ['龘', full],
   ])
     assert.equal(await textFont(text, measuringFont), font, `“${text}” is drawn with the wrong font`);
+});
+
+const { CJK } = await import('../dist/layout.js');
+const pdfjs = await import(pathToFileURL(path.join(runtime, 'pdfjs-dist/legacy/build/pdf.mjs')));
+/** The page's text, as PDF.js reads it. */
+async function pageText(bytes) {
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), verbosity: 0 }).promise;
+  const text = (await (await doc.getPage(1)).getTextContent()).items.map((item) => item.str).join(' ');
+  await doc.loadingTask.destroy();
+  return text;
+}
+
+await test('full-width forms and the symbols of GB 2312, alone, are drawn with the Chinese font and read back', async () => {
+  // Noto Sans has none of these: a text of them alone went to it and failed to export.
+  for (const text of ['（2026）', '１２３', '，', '①②③', '★ ■ →', 'Ⅻ'])
+    assert.equal(await textFont(text, measuringFont), await measuringFont('cjk'), text);
+  const bytes = await buildPdf({
+    sources: [{ id: 's', bytes: blank }],
+    pages: [{ id: 'p', sourceId: 's', index: 0 }],
+    annotations: ['（2026）', '１２３', '，'].map((text, index) => ({
+      id: `t${index}`,
+      type: 'text',
+      pageId: 'p',
+      pageRotation: 0,
+      text,
+      x: 0.05,
+      y: 0.1 + index * 0.1,
+      autoWidth: true,
+      fontSize: 14,
+    })),
+    // A page number set in full-width brackets: （1）.
+    pageNumbers: { format: '（{page}）', position: 'bottom-right', margin: 24, size: 10 },
+  });
+  const text = await pageText(bytes);
+  for (const expected of ['（2026）', '１２３', '，', '（1）'])
+    assert(text.includes(expected), `${expected}: ${text}`);
+});
+
+await test('the Chinese fonts take exactly what the common font has and Noto Sans lacks, beside the CJK blocks', async () => {
+  const latin = characterSet(await measuringFont('latin')),
+    common = characterSet(await measuringFont('cjk'));
+  const blocks = /[\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\u{20000}-\u{2FA1F}]/u;
+  const wrong = [];
+  for (const code of new Set([...latin, ...common])) {
+    // (U+FFFF ends a font's character map; it is no character.)
+    if (code <= 0x7e || code === 0xffff) continue;
+    const char = String.fromCodePoint(code);
+    if (CJK.test(char) !== (blocks.test(char) || (common.has(code) && !latin.has(code)))) wrong.push(char);
+  }
+  assert.deepEqual(
+    wrong.map((char) => char.codePointAt(0).toString(16)),
+    [],
+    'characters drawn with the wrong font',
+  );
 });

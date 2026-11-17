@@ -923,6 +923,9 @@ export function initPageItems() {
     renderOverlays();
   });
   inlineEditor.addEventListener('keydown', (event) => {
+    // While an input method composes (pinyin on its way to 汉字), Escape and Enter
+    // are its own: they drop or choose a candidate, and the typing goes on.
+    if (event.isComposing || event.keyCode === 229) return;
     if (event.key === 'Escape' || (event.key === 'Enter' && (event.ctrlKey || event.metaKey))) {
       event.preventDefault();
       const id = ui.editing;

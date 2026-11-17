@@ -777,6 +777,23 @@ p,
 .site-footer .footer-brand:hover {
   text-decoration: none;
 }
+/* Each link is read whole, never broken across lines ("中" over "文"). */
+.site-footer > div > * {
+  white-space: nowrap;
+}
+/* The other language, at the right end of the footer (README, "Chinese"); on a
+   phone, where the links make a row of their own, at the right end of that row,
+   or of the row below when they do not fit side by side. */
+.site-footer .language-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.site-footer .language-link .icon {
+  width: 16px;
+  height: 16px;
+}
 /* The document workspace */
 body.editing {
   background: var(--color-surface-subtle);
@@ -1801,7 +1818,8 @@ body.editing {
   .site-footer > div {
     width: 100%;
     margin: 0;
-    gap: 22px;
+    flex-wrap: wrap;
+    gap: 12px 22px;
   }
   .editing .site-header {
     height: 48px;
