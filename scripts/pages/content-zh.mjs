@@ -7,22 +7,26 @@
  * English. In answers, [名称](tool:id) links to another tool's Chinese page, by
  * that tool's Chinese name (routes.js).
  *
- * Style: plain, short sentences, addressed as 你; Chinese punctuation; a space
- * between Chinese and Latin letters or digits. A title stays under 34
+ * Style (README, "Chinese"): plain, short sentences, addressed as 你; titles say
+ * what a visitor gains, buttons and step titles what to do; files are chosen or
+ * opened, never 上传; 你的 only where it says where the work happens; headings and
+ * step titles end without 。. Chinese punctuation; a space between Chinese and
+ * Latin letters or digits. A title stays under 34
  * characters and a description between 40 and 90, so search results show them
  * whole (checked by tests/site-integrity.test.mjs). Terms: README, "Chinese".
  */
-const OPEN_STEP = ['打开你的 PDF。', '从你的设备选择一个文件，它就在浏览器里打开。'];
+const OPEN_STEP = ['选择文件', '从设备中选择 PDF，或直接拖入页面。'];
 
 /** The Chinese home page's metadata; the rest of its words are the template's (shell-zh.mjs). */
 export const HOME_ZH = {
-  title: 'QFT PDF：免费、在浏览器里运行的 PDF 工具',
+  title: 'QFT PDF：免费 PDF 工具，在浏览器中处理',
   description:
-    '每一份 PDF，都简单一点。免费在浏览器里编辑、合并、拆分、裁剪 PDF 和添加页码。文件留在你的设备上，不上传，无需注册。',
-  ogTitle: 'QFT PDF：每一份 PDF，都简单一点',
+    '让 PDF 处理更简单。合并、拆分、裁剪 PDF，添加文字和页码，常用操作在浏览器中就能完成。文件在本机处理，不上传，无需注册。',
+  ogTitle: 'QFT PDF：让 PDF 处理更简单',
   ogDescription:
-    '免费在浏览器里编辑、合并、拆分、裁剪 PDF 和添加页码。文件留在你的设备上，不上传，无需注册。',
-  imageAlt: 'QFT PDF：每一份 PDF，都简单一点。免费在浏览器里编辑、合并、拆分 PDF 和添加页码。',
+    '合并、拆分、裁剪 PDF，添加文字和页码，常用操作在浏览器中就能完成。免费使用，文件不上传，无需注册。',
+  imageAlt:
+    'QFT PDF：让 PDF 处理更简单。合并、拆分、添加文字、填写表单，在浏览器中就能完成。文件不上传，无需注册。',
   browserRequirements: '需要 JavaScript，以及新版的 Chrome、Edge、Firefox 或 Safari。',
 };
 
@@ -41,15 +45,15 @@ export const FEATURES_ZH = [
 
 /** The words every Chinese tool page shares (the English are in build-pages.mjs). */
 export const WORDS_ZH = {
-  uploadHeading: '从你的 PDF 开始。',
-  cta: '选择 PDF',
-  uploadMeta: 'PDF 文件 · 不设大小和页数上限',
+  uploadHeading: '选择文件，开始处理',
+  cta: '选择 PDF 文件',
+  uploadMeta: 'PDF 文件 · 不设固定大小或页数上限',
   moreEyebrow: '更多工具',
-  moreTitle: '更多 PDF 工具。',
-  moreNote: '免费、私密，就在你的浏览器里。',
+  moreTitle: '更多 PDF 工具',
+  moreNote: '免费使用，文件在本机处理。',
   howEyebrow: '使用方法',
   faqEyebrow: '常见问题',
-  faqTitle: '你可能想知道。',
+  faqTitle: '你可能想知道',
 };
 
 export const PAGES_ZH = [

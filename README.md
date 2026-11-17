@@ -305,12 +305,33 @@ chosen one's, as before, so the download still works.
 Enter are its own, to drop or choose a candidate: text being typed on a page
 stays open, and the tool search waits for the characters.
 
-**Style.** Plain, short sentences, addressed as 你; Chinese punctuation (，。：；“”（）……);
-a space between Chinese and Latin letters or digits, written in the catalog
-("打开 PDF", "第 3 页"), and added by `t()` where a value with Latin letters
-meets Chinese ("因为 PDF/A..."); none in file names. Chinese headings are not
-tracked tighter or slanted, and break evenly (`:lang(zh)` at the end of
-`studio.css`). The tools:
+**Style.** Concise, friendly and clear about what to do: a visitor should see at
+once what they can do, how to start, and that files are not uploaded. The
+English tone stays; the sentences are Chinese ones, not the English word for
+word. Plain, short sentences, addressed as 你.
+
+- Titles say what a visitor gains; buttons and links what happens when pressed:
+  让 PDF 处理更简单, but 选择 PDF 文件, 下载 PDF, 使用批量处理 (not 带上你的 PDF, 带走成品).
+- Files are chosen or opened, never 上传, which would contradict 文件不上传.
+- 你的 only where it says where the work happens (你的浏览器); elsewhere the file is
+  just 文件 (打开 PDF, not 打开你的 PDF).
+- Functions are named as they are, without widening what a visitor expects:
+  添加文字、添加图片、添加水印; 合并、拆分、裁剪、调整顺序; 选择文件; 下载结果. A bare
+  编辑 PDF suggests rewriting the text, which the site does not do.
+- The home page's main title carries the brand; other headings explain and
+  guide (常用 PDF 工具, 三步处理 PDF, 文件在本机处理), not a slogan each.
+- Short headings, step titles, buttons and labels end without 。; sentences keep
+  their punctuation. Chinese punctuation (，。：；“”（）……); a space between Chinese
+  and Latin letters or digits, written in the catalog ("打开 PDF", "第 3 页"), and
+  added by `t()` where a value with Latin letters meets Chinese ("因为 PDF/A...");
+  none in file names.
+- Lines break by meaning, not where the English breaks: the home page's title is
+  让 PDF 处理 / 更简单, and a fragment of the template's markup can be given in
+  Chinese whole where its words alone would not do (`SHELL_ZH_HTML` in
+  `scripts/pages/shell-zh.mjs`). Chinese headings are not tracked tighter or
+  slanted, and break evenly (`:lang(zh)` at the end of `studio.css`).
+
+The tools:
 
 | English | 中文 |
 | --- | --- |
