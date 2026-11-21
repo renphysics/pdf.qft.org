@@ -26,10 +26,10 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@cantoo/pdf-lib": "2.11.1",
-    "@napi-rs/canvas": "1.1.0",
-    "@playwright/test": "1.65.0",
+    "@napi-rs/canvas": "1.1.1",
+    "@playwright/test": "1.65.1",
     "pdfjs-dist": "6.5.438",
-    "prettier": "3.9.10"
+    "prettier": "3.10.1"
   },
   "dependencies": {
     "@cantoo/fontkit": "2.0.12"
